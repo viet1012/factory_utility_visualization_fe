@@ -85,7 +85,7 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 25,
                       ),
                     ),
                   ),
@@ -121,12 +121,12 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: color, size: 18),
+        Icon(icon, color: color, size: 22),
         const SizedBox(width: 8),
         Text(
           value,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 22,
             fontWeight: FontWeight.w600,
             color: Colors.grey.shade800,
           ),

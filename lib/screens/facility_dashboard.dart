@@ -6,39 +6,42 @@ import '../widgets/summary_card.dart';
 class FacilityDashboard extends StatelessWidget {
   FacilityDashboard({super.key});
 
-  final List<FacilityData> facilities = [
-    FacilityData(
-      name: 'Fac A',
-      power: 199999,
-      volume: 2222,
-      pressure: 1234,
-      position: Alignment.topRight,
-    ),
-    FacilityData(
-      name: 'Fac B',
-      power: 199999,
-      volume: 2222,
-      pressure: 1234,
-      position: Alignment.bottomRight,
-    ),
-    FacilityData(
-      name: 'Fac C',
-      power: 199999,
-      volume: 2222,
-      pressure: 1234,
-      position: Alignment.topLeft,
-    ),
-  ];
-
   final String mainImageUrl = 'images/factory.jpg';
+
+  /// Giả lập stream dữ liệu real-time
+  Stream<List<FacilityData>> getFacilityStream() async* {
+    while (true) {
+      await Future.delayed(const Duration(seconds: 2));
+      final now = DateTime.now().second;
+
+      yield [
+        FacilityData(
+          name: 'Fac A',
+          power: 190000 + (now * 100),
+          volume: 2000 + now.toDouble(),
+          pressure: 1200 + (now % 50),
+          position: Alignment.topRight,
+        ),
+        FacilityData(
+          name: 'Fac B',
+          power: 200000 + (now * 80),
+          volume: 2200 + (now % 30),
+          pressure: 1230 + (now % 20),
+          position: Alignment.bottomRight,
+        ),
+        FacilityData(
+          name: 'Fac C',
+          power: 210000 + (now * 50),
+          volume: 2100 + (now % 25),
+          pressure: 1250 + (now % 40),
+          position: Alignment.topLeft,
+        ),
+      ];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final totalPower = facilities.fold(0.0, (sum, f) => sum + f.power);
-    final totalVolume = facilities.fold(0.0, (sum, f) => sum + f.volume);
-    final avgPressure =
-        facilities.fold(0.0, (sum, f) => sum + f.pressure) / facilities.length;
-
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -48,112 +51,136 @@ class FacilityDashboard extends StatelessWidget {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Facility Overview',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade800,
-              ),
-            ),
-            const SizedBox(height: 20),
+        child: StreamBuilder<List<FacilityData>>(
+          stream: getFacilityStream(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-            // Map background with facility overlay
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.35),
-                      spreadRadius: 2,
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
+            final facilities = snapshot.data!;
+            final totalPower = facilities.fold(0.0, (sum, f) => sum + f.power);
+            final totalVolume = facilities.fold(
+              0.0,
+              (sum, f) => sum + f.volume,
+            );
+            final avgPressure =
+                facilities.fold(0.0, (sum, f) => sum + f.pressure) /
+                facilities.length;
+
+            // lấy thời gian hiện tại
+            final now = DateTime.now();
+            final timeString =
+                "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Hiển thị thời gian hiện tại
+                Text(
+                  "Time: $timeString",
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Map background with facility overlay
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.35),
+                          spreadRadius: 2,
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        children: [
+                          Image.asset(
+                            mainImageUrl,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                          ),
+                          // overlay gradient
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withOpacity(0.1),
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.15),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 50,
+                            right: 350,
+                            child: FacilityInfoBox(facility: facilities[0]),
+                          ),
+                          Positioned(
+                            bottom: 200,
+                            right: 350,
+                            child: FacilityInfoBox(facility: facilities[1]),
+                          ),
+                          Positioned(
+                            top: 60,
+                            left: 200,
+                            child: FacilityInfoBox(facility: facilities[2]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // summary row
+                Row(
+                  children: [
+                    Expanded(
+                      child: SummaryCard(
+                        title: 'Total Power',
+                        value: '${(totalPower / 1000).toStringAsFixed(0)}k kWh',
+                        icon: Icons.flash_on,
+                        color: Colors.orange,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: SummaryCard(
+                        title: 'Total Volume',
+                        value: '${totalVolume.toStringAsFixed(0)} m³',
+                        icon: Icons.water_drop,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: SummaryCard(
+                        title: 'Avg Pressure',
+                        value: '${avgPressure.toStringAsFixed(0)} MPa',
+                        icon: Icons.speed,
+                        color: Colors.red,
+                      ),
                     ),
                   ],
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Stack(
-                    children: [
-                      Image.asset(
-                        mainImageUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                      ),
-                      // overlay gradient
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.black.withOpacity(0.1),
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.15),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // facility boxes
-                      Positioned(
-                        top: 50,
-                        right: 350,
-                        child: FacilityInfoBox(facility: facilities[0]),
-                      ),
-                      Positioned(
-                        bottom: 80,
-                        right: 350,
-                        child: FacilityInfoBox(facility: facilities[1]),
-                      ),
-                      Positioned(
-                        top: 60,
-                        left: 20,
-                        child: FacilityInfoBox(facility: facilities[2]),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // summary row
-            Row(
-              children: [
-                Expanded(
-                  child: SummaryCard(
-                    title: 'Total Power',
-                    value: '${(totalPower / 1000).toStringAsFixed(0)}k kWh',
-                    icon: Icons.flash_on,
-                    color: Colors.orange,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: SummaryCard(
-                    title: 'Total Volume',
-                    value: '${totalVolume.toStringAsFixed(0)} m³',
-                    icon: Icons.water_drop,
-                    color: Colors.blue,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: SummaryCard(
-                    title: 'Avg Pressure',
-                    value: '${avgPressure.toStringAsFixed(0)} MPa',
-                    icon: Icons.speed,
-                    color: Colors.red,
-                  ),
-                ),
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
