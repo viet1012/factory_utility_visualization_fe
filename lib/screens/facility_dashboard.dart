@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import '../main.dart';
 import '../model/facility_data.dart';
 import '../widgets/facility_info_box.dart';
 import '../widgets/summary_card.dart';
 
 class FacilityDashboard extends StatelessWidget {
+  FacilityDashboard({super.key});
+
   final List<FacilityData> facilities = [
     FacilityData(
       name: 'Fac A',
@@ -29,19 +30,24 @@ class FacilityDashboard extends StatelessWidget {
     ),
   ];
 
-  final String mainImageUrl = 'images/factory.jpg'; // asset local
+  final String mainImageUrl = 'images/factory.jpg';
 
   @override
   Widget build(BuildContext context) {
+    final totalPower = facilities.fold(0.0, (sum, f) => sum + f.power);
+    final totalVolume = facilities.fold(0.0, (sum, f) => sum + f.volume);
+    final avgPressure =
+        facilities.fold(0.0, (sum, f) => sum + f.pressure) / facilities.length;
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Facility Dashboard'),
-        backgroundColor: Colors.blue[700],
+        title: const Text('Facility Dashboard'),
+        backgroundColor: Colors.blue.shade700,
         elevation: 0,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -49,21 +55,22 @@ class FacilityDashboard extends StatelessWidget {
               'Facility Overview',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
+                color: Colors.grey.shade800,
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
+
+            // Map background with facility overlay
             Expanded(
               child: Container(
-                width: double.infinity,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.3),
+                      color: Colors.grey.withOpacity(0.35),
                       spreadRadius: 2,
                       blurRadius: 10,
-                      offset: Offset(0, 5),
+                      offset: const Offset(0, 5),
                     ),
                   ],
                 ),
@@ -73,12 +80,11 @@ class FacilityDashboard extends StatelessWidget {
                     children: [
                       Image.asset(
                         mainImageUrl,
-                        fit: BoxFit.fill,
+                        fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
                       ),
-
-                      // Overlay
+                      // overlay gradient
                       Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -87,113 +93,65 @@ class FacilityDashboard extends StatelessWidget {
                             colors: [
                               Colors.black.withOpacity(0.1),
                               Colors.transparent,
-                              Colors.black.withOpacity(0.2),
+                              Colors.black.withOpacity(0.15),
                             ],
                           ),
                         ),
                       ),
-
-                      // Info boxes
-                      Stack(
-                        children: [
-                          Image.asset(
-                            mainImageUrl,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                          ),
-
-                          // FAC A - top right
-                          Positioned(
-                            top: 50, // điều chỉnh theo ảnh thực tế
-                            right: 400,
-                            child: FacilityInfoBox(
-                              facility: FacilityData(
-                                name: 'Fac A',
-                                power: 199999,
-                                volume: 2222,
-                                pressure: 1234,
-                                position: Alignment.topRight,
-                              ),
-                            ),
-                          ),
-
-                          // FAC B - bottom right
-                          Positioned(
-                            bottom: 80,
-                            right: 400,
-                            child: FacilityInfoBox(
-                              facility: FacilityData(
-                                name: 'Fac B',
-                                power: 199999,
-                                volume: 2222,
-                                pressure: 1234,
-                                position: Alignment.bottomRight,
-                              ),
-                            ),
-                          ),
-
-                          // FAC C - top left
-                          Positioned(
-                            top: 60,
-                            left: 20,
-                            child: FacilityInfoBox(
-                              facility: FacilityData(
-                                name: 'Fac C',
-                                power: 199999,
-                                volume: 2222,
-                                pressure: 1234,
-                                position: Alignment.topLeft,
-                              ),
-                            ),
-                          ),
-
-                          // Optional Title
-                        ],
+                      // facility boxes
+                      Positioned(
+                        top: 50,
+                        right: 350,
+                        child: FacilityInfoBox(facility: facilities[0]),
+                      ),
+                      Positioned(
+                        bottom: 80,
+                        right: 350,
+                        child: FacilityInfoBox(facility: facilities[1]),
+                      ),
+                      Positioned(
+                        top: 60,
+                        left: 20,
+                        child: FacilityInfoBox(facility: facilities[2]),
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-            SizedBox(height: 20),
 
-            // Summary cards
-            Container(
-              height: 80,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SummaryCard(
-                      title: 'Total Power',
-                      value:
-                          '${(facilities.fold(0.0, (sum, f) => sum + f.power) / 1000).toStringAsFixed(0)}k kWh',
-                      icon: Icons.flash_on,
-                      color: Colors.orange,
-                    ),
+            const SizedBox(height: 20),
+
+            // summary row
+            Row(
+              children: [
+                Expanded(
+                  child: SummaryCard(
+                    title: 'Total Power',
+                    value: '${(totalPower / 1000).toStringAsFixed(0)}k kWh',
+                    icon: Icons.flash_on,
+                    color: Colors.orange,
                   ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: SummaryCard(
-                      title: 'Total Volume',
-                      value:
-                          '${(facilities.fold(0.0, (sum, f) => sum + f.volume)).toStringAsFixed(0)} m³',
-                      icon: Icons.water_drop,
-                      color: Colors.blue,
-                    ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: SummaryCard(
+                    title: 'Total Volume',
+                    value: '${totalVolume.toStringAsFixed(0)} m³',
+                    icon: Icons.water_drop,
+                    color: Colors.blue,
                   ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: SummaryCard(
-                      title: 'Avg Pressure',
-                      value:
-                          '${(facilities.fold(0.0, (sum, f) => sum + f.pressure) / facilities.length).toStringAsFixed(0)} MPa',
-                      icon: Icons.speed,
-                      color: Colors.red,
-                    ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: SummaryCard(
+                    title: 'Avg Pressure',
+                    value: '${avgPressure.toStringAsFixed(0)} MPa',
+                    icon: Icons.speed,
+                    color: Colors.red,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
         ),
