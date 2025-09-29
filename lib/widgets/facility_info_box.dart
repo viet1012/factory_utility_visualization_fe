@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import '../model/facility_data.dart';
+import '../screens/facility_detail_screen.dart';
 
 class FacilityInfoBox extends StatefulWidget {
   final FacilityData facility;
 
-  /// Cho phép tuỳ chỉnh kích thước
   final double width;
-  final double? height; // height có thể null → auto fit content
+  final double? height;
 
   const FacilityInfoBox({
-    Key? key,
+    super.key,
     required this.facility,
-    this.width = 280, // mặc định 280
-    this.height, // mặc định null
-  }) : super(key: key);
+    this.width = 280,
+    this.height,
+  });
 
   @override
   State<FacilityInfoBox> createState() => _FacilityInfoBoxState();
@@ -25,9 +25,7 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
   late AnimationController _slideController;
 
   late Animation<double> _scaleAnimation;
-  late Animation<double> _elevationAnimation;
   late Animation<double> _rotateAnimation;
-  late Animation<Color?> _borderColorAnimation;
   late Animation<Offset> _slideAnimation;
 
   bool _isHovered = false;
@@ -50,21 +48,9 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
       CurvedAnimation(parent: _hoverController, curve: Curves.elasticOut),
     );
 
-    _elevationAnimation = Tween<double>(begin: 8, end: 25).animate(
-      CurvedAnimation(parent: _hoverController, curve: Curves.easeOutCubic),
-    );
-
     _rotateAnimation = Tween<double>(begin: 0, end: 0.05).animate(
       CurvedAnimation(parent: _hoverController, curve: Curves.easeInOut),
     );
-
-    _borderColorAnimation =
-        ColorTween(
-          begin: Colors.blue.shade300,
-          end: Colors.purple.shade400,
-        ).animate(
-          CurvedAnimation(parent: _hoverController, curve: Curves.easeInOut),
-        );
 
     _slideAnimation =
         Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
@@ -98,63 +84,69 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
   Widget build(BuildContext context) {
     final facilityColor = _getFacilityColor();
 
-    return SlideTransition(
-      position: _slideAnimation,
-      child: MouseRegion(
-        onEnter: (_) {
-          setState(() => _isHovered = true);
-          _hoverController.forward();
-        },
-        onExit: (_) {
-          setState(() => _isHovered = false);
-          _hoverController.reverse();
-        },
-        child: AnimatedBuilder(
-          animation: Listenable.merge([
-            _scaleAnimation,
-            _elevationAnimation,
-            _rotateAnimation,
-          ]),
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _scaleAnimation.value,
-              child: SizedBox(
-                width: widget.width,
-                height: widget.height, // nếu null thì auto fit
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildHeader(facilityColor),
-                        _buildMetricRow(
-                          Icons.flash_on,
-                          'Power',
-                          '${_formatNumber(widget.facility.power)} kWh',
-                          Colors.orange,
-                        ),
-                        _buildMetricRow(
-                          Icons.water_drop,
-                          'Volume',
-                          '${_formatNumber(widget.facility.volume)} m³',
-                          Colors.blue,
-                        ),
-                        _buildMetricRow(
-                          Icons.speed,
-                          'Pressure',
-                          '${_formatNumber(widget.facility.pressure)} MPa',
-                          Colors.red,
-                        ),
-                      ],
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FacilityDetailScreen(positionName: "Tủ P1"),
+          ),
+        );
+      },
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: MouseRegion(
+          onEnter: (_) {
+            setState(() => _isHovered = true);
+            _hoverController.forward();
+          },
+          onExit: (_) {
+            setState(() => _isHovered = false);
+            _hoverController.reverse();
+          },
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_scaleAnimation, _rotateAnimation]),
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _scaleAnimation.value,
+                child: SizedBox(
+                  width: widget.width,
+                  height: widget.height,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildHeader(facilityColor),
+                          _buildMetricRow(
+                            Icons.flash_on,
+                            'Power',
+                            widget.facility.power,
+                            Colors.orange,
+                          ),
+                          _buildMetricRow(
+                            Icons.water_drop,
+                            'Volume',
+                            widget.facility.volume,
+                            Colors.blue,
+                          ),
+                          _buildMetricRow(
+                            Icons.speed,
+                            'Pressure',
+                            widget.facility.pressure,
+                            Colors.red,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -170,7 +162,6 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
             facilityColor.withOpacity(0.8),
             facilityColor,
           ],
-          stops: const [0.0, 0.5, 1.0],
         ),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
@@ -182,24 +173,15 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
         ],
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: const Icon(Icons.factory, color: Colors.white, size: 20),
-          ),
+          const Icon(Icons.factory, color: Colors.white, size: 20),
           const SizedBox(width: 10),
           Text(
             widget.facility.name,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 28,
-              letterSpacing: 0.5,
+              fontSize: 24,
             ),
           ),
         ],
@@ -210,29 +192,43 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
   Widget _buildMetricRow(
     IconData icon,
     String label,
-    String value,
+    double value,
     Color color,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.3),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
+          AnimatedScale(
+            duration: const Duration(milliseconds: 400),
+            scale: _isHovered ? 1.2 : 1.0,
+            curve: Curves.easeOutBack,
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color.withOpacity(0.9), color.withOpacity(0.6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: Colors.white, size: 20),
             ),
-            child: Icon(icon, color: Colors.white, size: 18),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,21 +236,26 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueAccent.shade400,
-                    letterSpacing: 0.3,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.indigoAccent.shade700,
-                    letterSpacing: 0.2,
-                  ),
+                const SizedBox(height: 4),
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: value),
+                  duration: const Duration(milliseconds: 800),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, val, child) {
+                    return Text(
+                      '${_formatNumber(val)} ${_getUnit(label)}',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.indigo.shade700,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -262,6 +263,19 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
         ],
       ),
     );
+  }
+
+  String _getUnit(String label) {
+    switch (label) {
+      case 'Power':
+        return 'kWh';
+      case 'Volume':
+        return 'm³';
+      case 'Pressure':
+        return 'MPa';
+      default:
+        return '';
+    }
   }
 
   String _formatNumber(double number) {
