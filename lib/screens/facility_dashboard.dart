@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:factory_utility_visualization/api/ApiService.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cube/flutter_cube.dart';
+import 'package:model_viewer_plus/model_viewer_plus.dart';
 
 import '../model/facility_data.dart';
 import '../widgets/facility_info_box.dart';
@@ -76,7 +78,7 @@ class FacilityDashboard extends StatelessWidget {
               children: [
                 _buildTimeNow(context),
                 const SizedBox(height: 10),
-                Expanded(child: _buildFactoryMap(context, facilities)),
+                Expanded(child: _buildFactoryMap1(context, facilities)),
                 const SizedBox(height: 20),
                 _buildSummaryRow(totalPower, totalVolume, avgPressure),
               ],
@@ -108,6 +110,8 @@ class FacilityDashboard extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Container(
+      width: screenWidth / 2,
+      height: screenHeight / 2,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -123,12 +127,15 @@ class FacilityDashboard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
-            Image.asset(
-              mainImageUrl,
-              fit: BoxFit.fill,
-              width: double.infinity,
-              height: double.infinity,
-            ),
+            Image.asset(mainImageUrl, fit: BoxFit.fill, width: double.infinity),
+
+            // ModelViewer(
+            //   src: 'assets/images/AnyConv.glb',
+            //   alt: "A 3D model",
+            //   autoRotate: true,
+            //   cameraControls: true,
+            //   ar: true,
+            // ),
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -145,18 +152,80 @@ class FacilityDashboard extends StatelessWidget {
             Positioned(
               top: screenHeight * 0.03,
               right: screenWidth * 0.2,
-              child: FacilityInfoBox(
-                facility: facilities[0],
-                width: screenWidth * 0.2,
-              ),
+              child: FacilityInfoBox(facility: facilities[0]),
             ),
+            // Fac B
             Positioned(
               top: screenHeight * 0.43,
               right: screenWidth * 0.2,
-              child: FacilityInfoBox(
-                facility: facilities[1],
-                width: screenWidth * 0.2,
+              child: FacilityInfoBox(facility: facilities[1]),
+            ),
+            Positioned(
+              top: screenHeight * 0.05,
+              left: screenWidth * 0.1,
+              child: FacilityInfoBox(facility: facilities[2]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFactoryMap1(
+    BuildContext context,
+    List<FacilityData> facilities,
+  ) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.35),
+            spreadRadius: 2,
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            Image.asset(mainImageUrl, fit: BoxFit.fill, width: double.infinity),
+
+            // ModelViewer(
+            //   src: 'assets/images/AnyConv.glb',
+            //   alt: "A 3D model",
+            //   autoRotate: true,
+            //   cameraControls: true,
+            //   ar: true,
+            // ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.1),
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.15),
+                  ],
+                ),
               ),
+            ),
+            Positioned(
+              top: screenHeight * 0.03,
+              right: screenWidth * 0.2,
+              child: FacilityInfoBox(facility: facilities[0]),
+            ),
+            // Fac B
+            Positioned(
+              top: screenHeight * 0.43,
+              right: screenWidth * 0.2,
+              child: FacilityInfoBox(facility: facilities[1]),
             ),
             Positioned(
               top: screenHeight * 0.05,

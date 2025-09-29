@@ -107,39 +107,59 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
           child: AnimatedBuilder(
             animation: Listenable.merge([_scaleAnimation, _rotateAnimation]),
             builder: (context, child) {
-              return Transform.scale(
-                scale: _scaleAnimation.value,
-                child: SizedBox(
-                  width: widget.width,
-                  height: widget.height,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildHeader(facilityColor),
-                          _buildMetricRow(
-                            Icons.flash_on,
-                            'Power',
-                            widget.facility.power,
-                            Colors.orange,
+              return Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.001) // perspective
+                  ..rotateX(_isHovered ? -0.05 : 0) // nghiêng nhẹ khi hover
+                  ..rotateY(_rotateAnimation.value), // xoay ngang
+                child: Transform.scale(
+                  scale: _scaleAnimation.value,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.25),
+                          blurRadius: 16,
+                          spreadRadius: 2,
+                          offset: const Offset(8, 10), // bóng đổ xéo mạnh hơn
+                        ),
+                      ],
+                    ),
+                    child: SizedBox(
+                      width: widget.width,
+                      height: widget.height,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildHeader(facilityColor),
+                              _buildMetricRow(
+                                Icons.flash_on,
+                                'Power',
+                                widget.facility.power,
+                                Colors.orange,
+                              ),
+                              _buildMetricRow(
+                                Icons.water_drop,
+                                'Volume',
+                                widget.facility.volume,
+                                Colors.blue,
+                              ),
+                              _buildMetricRow(
+                                Icons.speed,
+                                'Pressure',
+                                widget.facility.pressure,
+                                Colors.red,
+                              ),
+                            ],
                           ),
-                          _buildMetricRow(
-                            Icons.water_drop,
-                            'Volume',
-                            widget.facility.volume,
-                            Colors.blue,
-                          ),
-                          _buildMetricRow(
-                            Icons.speed,
-                            'Pressure',
-                            widget.facility.pressure,
-                            Colors.red,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -268,7 +288,7 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
   String _getUnit(String label) {
     switch (label) {
       case 'Power':
-        return 'kWh';
+        return 'kW';
       case 'Volume':
         return 'm³';
       case 'Pressure':
