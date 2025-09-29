@@ -42,6 +42,9 @@ class FacilityDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -125,18 +128,24 @@ class FacilityDashboard extends StatelessWidget {
                             ),
                           ),
                           Positioned(
-                            top: 50,
-                            right: 350,
-                            child: FacilityInfoBox(facility: facilities[0]),
+                            top: screenHeight * 0.03,
+                            right: screenWidth * 0.2,
+                            child: FacilityInfoBox(
+                              facility: facilities[0],
+                              width: screenWidth * 0.2,
+                            ),
                           ),
                           Positioned(
-                            bottom: 200,
-                            right: 350,
-                            child: FacilityInfoBox(facility: facilities[1]),
+                            top: screenHeight * 0.43,
+                            right: screenWidth * 0.2,
+                            child: FacilityInfoBox(
+                              facility: facilities[1],
+                              width: screenWidth * 0.2,
+                            ),
                           ),
                           Positioned(
-                            top: 60,
-                            left: 200,
+                            top: screenHeight * 0.05,
+                            left: screenWidth * 0.1,
                             child: FacilityInfoBox(facility: facilities[2]),
                           ),
                         ],
@@ -158,7 +167,7 @@ class FacilityDashboard extends StatelessWidget {
                         color: Colors.orange,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: SummaryCard(
                         title: 'Total Volume',
@@ -167,7 +176,7 @@ class FacilityDashboard extends StatelessWidget {
                         color: Colors.blue,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: SummaryCard(
                         title: 'Avg Pressure',
