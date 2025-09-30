@@ -27,7 +27,7 @@ class WeatherApiService {
     return null;
   }
 
-  // Stream realtime weather (update mỗi 5 phút)
+  // Stream realtime weather (update mỗi 60 phút)
   Stream<WeatherData> weatherStream() async* {
     while (true) {
       final data = await fetchWeatherData();
@@ -295,10 +295,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.6),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isRaining ? Colors.blue : Colors.grey,
-          width: 2,
-        ),
+        border: Border.all(color: Color(0xFF1A237E), width: 2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,7 +310,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
                 currentWeather!.condition.toUpperCase(),
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 11,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -323,13 +320,13 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
             SizedBox(height: 4),
             Text(
               'Intensity: ${(rainIntensity * 100).toInt()}%',
-              style: TextStyle(color: Colors.cyanAccent, fontSize: 9),
+              style: TextStyle(color: Colors.cyanAccent, fontSize: 14),
             ),
           ],
           SizedBox(height: 4),
           Text(
             '${currentWeather!.temperature.toStringAsFixed(1)}°C',
-            style: TextStyle(color: Colors.white70, fontSize: 9),
+            style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
       ),
@@ -374,7 +371,7 @@ class RainDrop {
 
   void update(double intensityMultiplier) {
     y += speed * intensityMultiplier;
-    x += (windOffset / 100); // Wind effect
+    // x += (windOffset / 100); // Wind effect
 
     // Reset when drop goes off screen
     if (y > 1.0) {

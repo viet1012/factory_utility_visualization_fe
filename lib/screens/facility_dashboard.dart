@@ -316,7 +316,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   }
 
   Widget _buildFactoryMapWithAdvancedRain() {
-    final WeatherApiService weatherService = MockWeatherService(); // Dùng mock
+    final WeatherApiService weatherService = WeatherApiService(); // Dùng mock
 
     return Container(
       decoration: BoxDecoration(
