@@ -8,6 +8,7 @@ import 'package:model_viewer_plus/model_viewer_plus.dart';
 import '../model/facility_data.dart';
 import '../widgets/arrow_painter.dart';
 import '../widgets/facility_info_box.dart';
+import '../widgets/rain_effect_image_realtime.dart';
 import '../widgets/summary_card.dart';
 
 class FacilityDashboard extends StatefulWidget {
@@ -21,37 +22,66 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   final String mainImageUrl = 'images/factory2.png';
 
   final ApiService api = ApiService();
-
-  Timer? _chartTimer;
   List<double> chartData1 = [];
   List<double> chartData2 = [];
-
-  @override
-  void initState() {
-    super.initState();
-    // load lần đầu
-    _fetchAndUpdate();
-    // gọi API mỗi 5s thay cho random
-    _chartTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      _fetchAndUpdate();
-    });
-  }
+  List<double> chartData3 = [];
+  double? _lastElectricValue;
+  double? _nextElectricValue;
+  Timer? _chartTimer;
 
   Future<void> _fetchAndUpdate() async {
     final value = await ApiService().fetchElectricValue();
     if (value != null && mounted) {
-      print("⚡ Giá trị điện nhận từ API: $value"); // in ra console
+      print("⚡ API trả về: $value");
+
+      _lastElectricValue = _nextElectricValue ?? value;
+      _nextElectricValue = value;
+
+      print("🔹 _lastElectricValue = $_lastElectricValue");
+      print("🔹 _nextElectricValue = $_nextElectricValue");
+    } else {
+      print("❌ Không lấy được dữ liệu từ API");
+    }
+  }
+
+  // Nội suy chart mượt hơn
+  void _startChartAnimation() {
+    _chartTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (!mounted) return;
 
       setState(() {
-        chartData1.add(value);
-        // giữ tối đa 30 điểm để chart không quá dài
-        if (chartData1.length > 30) {
-          chartData1.removeAt(0);
+        if (_lastElectricValue != null && _nextElectricValue != null) {
+          // nội suy tuyến tính
+          final step = (_nextElectricValue! - _lastElectricValue!) / 10;
+          final newVal =
+              (chartData1.isEmpty ? _lastElectricValue! : chartData1.last) +
+              step;
+
+          chartData1.add(newVal);
+
+          print("📈 Giá trị thêm vào chart: $newVal");
+
+          if (chartData1.length > 30) chartData1.removeAt(0);
         }
       });
-    } else {
-      print("❌ Không lấy được dữ liệu từ API hoặc value=null");
-    }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // _fetchAndUpdate(); // lần đầu
+    _generateChartData();
+    _startChartAnimation1();
+
+    // gọi API mỗi 5s
+    // Timer.periodic(const Duration(seconds: 5), (timer) {
+    //   if (!mounted) {
+    //     timer.cancel();
+    //     return;
+    //   }
+    //   _fetchAndUpdate();
+    // });
   }
 
   @override
@@ -60,10 +90,107 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     super.dispose();
   }
 
+  void _generateChartData() {
+    final random = math.Random();
+    chartData1 = List.generate(50, (i) => random.nextDouble() * 100);
+    chartData2 = List.generate(50, (i) => 50 + random.nextDouble() * 50);
+    chartData3 = List.generate(50, (i) => 30 + random.nextDouble() * 40);
+  }
+
+  void _startChartAnimation1() {
+    _chartTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted) return;
+      setState(() {
+        final random = math.Random();
+        chartData1
+          ..removeAt(0)
+          ..add(random.nextDouble() * 100);
+        chartData2
+          ..removeAt(0)
+          ..add(50 + random.nextDouble() * 50);
+        chartData3
+          ..removeAt(0)
+          ..add(30 + random.nextDouble() * 40);
+      });
+    });
+  }
+
   Stream<List<FacilityData>> getFacilityStream() async* {
+    // 👉 emit dữ liệu mặc định ngay khi mở app
+    List<FacilityData> lastData = [
+      FacilityData(
+        name: 'Fac A',
+        power: 200000,
+        volume: 2000,
+        pressure: 1200,
+        position: Alignment.topRight,
+      ),
+      FacilityData(
+        name: 'Fac B',
+        power: 190000,
+        volume: 2200,
+        pressure: 1230,
+        position: Alignment.bottomRight,
+      ),
+      FacilityData(
+        name: 'Fac C',
+        power: 210000,
+        volume: 2100,
+        pressure: 1250,
+        position: Alignment.topLeft,
+      ),
+    ];
+
+    yield lastData; // emit lần đầu → UI có data liền
+
+    // 👉 loop gọi API mỗi 5 giây
+    while (true) {
+      try {
+        await Future.delayed(const Duration(seconds: 5));
+
+        final now = DateTime.now().second;
+
+        // call API thật (giả sử chỉ có 1 cái cần gọi API)
+        final powerA = await api.fetchElectricValue();
+
+        lastData = [
+          FacilityData(
+            name: 'Fac A',
+            power: powerA ?? (200000 + (now * 80)), // fallback nếu API fail
+            volume: 2000 + now.toDouble(),
+            pressure: 1200 + (now % 50),
+            position: Alignment.topRight,
+          ),
+          FacilityData(
+            name: 'Fac B',
+            power: 190000 + (now * 100),
+            volume: 2200 + (now % 30),
+            pressure: 1230 + (now % 20),
+            position: Alignment.bottomRight,
+          ),
+          FacilityData(
+            name: 'Fac C',
+            power: 210000 + (now * 50),
+            volume: 2100 + (now % 25),
+            pressure: 1250 + (now % 40),
+            position: Alignment.topLeft,
+          ),
+        ];
+
+        yield lastData; // emit data mới
+      } catch (e) {
+        print("⚠️ Lỗi khi fetch API: $e");
+        yield lastData; // nếu lỗi thì vẫn trả data cũ → UI ko đứng
+      }
+    }
+  }
+
+  Stream<List<FacilityData>> getFacilityStream1() async* {
     while (true) {
       await Future.delayed(const Duration(seconds: 5));
       final now = DateTime.now().second;
+
+      final value = _lastElectricValue ?? (200000 + (now * 80));
 
       yield [
         FacilityData(
@@ -160,9 +287,9 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Color(0xFF2A2A2A),
+        color: Color(0xFF000000),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.withOpacity(0.3)),
+        border: Border.all(color: Color(0xFF1A237E).withOpacity(0.3)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -184,6 +311,39 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFactoryMapWithAdvancedRain() {
+    final WeatherApiService weatherService = MockWeatherService(); // Dùng mock
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.35),
+            spreadRadius: 2,
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            // AdvancedRainEffect(imageUrl: mainImageUrl, fit: BoxFit.fill),
+            // Trong _buildFactoryMap():
+            ApiControlledRainImage(
+              imageUrl: mainImageUrl,
+              weatherService: weatherService,
+              fit: BoxFit.fill,
+            ),
+            // ... overlay và facility boxes ...
+          ],
+        ),
       ),
     );
   }
@@ -212,18 +372,25 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
       child: Row(
         children: [
           Expanded(
+            flex: 1,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: _buildSummaryColumn(totalPower, totalVolume, avgPressure),
+            ),
+          ),
+          Expanded(
             flex: 3,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Stack(
                 alignment: AlignmentDirectional.center,
                 children: [
-                  Image.asset(
-                    mainImageUrl,
-                    fit: BoxFit.fill,
-                    // width: screenWidth / 2,
-                  ),
-
+                  // Image.asset(
+                  //   mainImageUrl,
+                  //   fit: BoxFit.fill,
+                  //   // width: screenWidth / 2,
+                  // ),
+                  _buildFactoryMapWithAdvancedRain(),
                   // ModelViewer(
                   //   src: 'assets/images/AnyConv.glb',
                   //   alt: "A 3D model",
@@ -248,13 +415,13 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
                   //Fac A
                   Positioned(
                     top: screenHeight * 0,
-                    right: screenWidth * 0.1,
+                    right: screenWidth * 0.05,
                     child: FacilityInfoBox(facility: facilities[0]),
                   ),
                   // Fac B
                   Positioned(
                     top: screenHeight * 0.4,
-                    right: screenWidth * 0.1,
+                    right: screenWidth * 0.05,
                     child: FacilityInfoBox(facility: facilities[1]),
                   ),
                   //Fac C
@@ -306,7 +473,6 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
           icon: Icons.speed,
           color: Colors.red,
         ),
-        // Expanded(child: _buildBottomChartsSection()),
       ],
     );
   }
@@ -315,6 +481,9 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     return Row(
       children: [
         Expanded(child: _buildChart('Power Output', chartData1, Colors.orange)),
+        Expanded(child: _buildChart('Temperature', chartData2, Colors.red)),
+        SizedBox(width: 8),
+        Expanded(child: _buildChart('Flow Rate', chartData3, Colors.blue)),
       ],
     );
   }

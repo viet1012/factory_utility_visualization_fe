@@ -1,0 +1,531 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'package:factory_utility_visualization/widgets/rain_effect_image.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+// Weather API Service
+class WeatherApiService {
+  final String apiKey = 'f0481fa18fbc9c353fa3b3530208e8f1';
+
+  Future<WeatherData?> fetchWeatherData() async {
+    try {
+      final url =
+          'https://api.openweathermap.org/data/2.5/weather?lat=10.889414655521932&lon=106.72094061256969&appid=$apiKey&units=metric';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return WeatherData.fromJson(data);
+      } else {
+        print('Error response: ${response.statusCode} ${response.body}');
+      }
+    } catch (e) {
+      print('Error fetching weather: $e');
+    }
+    return null;
+  }
+
+  // Stream realtime weather (update mỗi 5 phút)
+  Stream<WeatherData> weatherStream() async* {
+    while (true) {
+      final data = await fetchWeatherData();
+      if (data != null) yield data;
+      await Future.delayed(const Duration(minutes: 60));
+    }
+  }
+}
+
+// Weather Data Model
+class WeatherData {
+  final String condition; // "rain", "clear", "cloudy", "storm"
+  final double rainIntensity; // 0.0 - 1.0
+  final double temperature;
+  final double humidity;
+  final double windSpeed;
+
+  WeatherData({
+    required this.condition,
+    required this.rainIntensity,
+    required this.temperature,
+    required this.humidity,
+    required this.windSpeed,
+  });
+
+  factory WeatherData.fromJson(Map<String, dynamic> json) {
+    final weatherMain = json['weather'][0]['main'].toString().toLowerCase();
+
+    // lấy lượng mưa (mm/h)
+    final rain = (json['rain'] != null)
+        ? (json['rain']['1h'] ?? json['rain']['3h'] ?? 0.0)
+        : 0.0;
+
+    // intensity = tỷ lệ 0.0 - 1.0
+    double intensity;
+    if (rain > 0) {
+      intensity = (rain / 10.0).clamp(0.0, 1.0);
+    } else if (weatherMain.contains('rain') ||
+        weatherMain.contains('drizzle') ||
+        weatherMain.contains('thunderstorm')) {
+      intensity = 0.5; // mặc định có mưa vừa
+    } else {
+      intensity = 0.0;
+    }
+
+    print("DEBUG: condition=$weatherMain, rain=$rain, intensity=$intensity");
+
+    return WeatherData(
+      condition: weatherMain,
+      rainIntensity: intensity,
+      temperature: (json['main']['temp'] ?? 0.0).toDouble(),
+      humidity: (json['main']['humidity'] ?? 0.0).toDouble(),
+      windSpeed: (json['wind']['speed'] ?? 0.0).toDouble(),
+    );
+  }
+
+  // Custom API format
+  factory WeatherData.fromCustomJson(Map<String, dynamic> json) {
+    return WeatherData(
+      condition: json['condition'] ?? 'clear',
+      rainIntensity: (json['rain_intensity'] ?? 0.0).toDouble(),
+      temperature: (json['temperature'] ?? 25.0).toDouble(),
+      humidity: (json['humidity'] ?? 60.0).toDouble(),
+      windSpeed: (json['wind_speed'] ?? 0.0).toDouble(),
+    );
+  }
+}
+
+// API-Controlled Rain Effect Widget
+class ApiControlledRainImage extends StatefulWidget {
+  final String imageUrl;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+  final WeatherApiService weatherService;
+
+  const ApiControlledRainImage({
+    Key? key,
+    required this.imageUrl,
+    required this.weatherService,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.height,
+  }) : super(key: key);
+
+  @override
+  State<ApiControlledRainImage> createState() => _ApiControlledRainImageState();
+}
+
+class _ApiControlledRainImageState extends State<ApiControlledRainImage>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  List<RainDrop> rainDrops = [];
+  List<RainSplash> splashes = [];
+
+  WeatherData? currentWeather;
+  bool isRaining = false;
+  double rainIntensity = 0.0;
+  int rainDropCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      duration: Duration(milliseconds: 50),
+      vsync: this,
+    )..repeat();
+
+    _startWeatherMonitoring();
+  }
+
+  void _startWeatherMonitoring() {
+    // Fetch initial weather
+    _updateWeather();
+
+    // Update every 10 minutes
+    Timer.periodic(Duration(minutes: 10), (timer) {
+      _updateWeather();
+    });
+  }
+
+  Future<void> _updateWeather() async {
+    final weather = await widget.weatherService.fetchWeatherData();
+
+    if (weather != null && mounted) {
+      setState(() {
+        currentWeather = weather;
+        _updateRainEffect(weather);
+      });
+    }
+  }
+
+  void _updateRainEffect(WeatherData weather) {
+    // Determine if it should rain
+    isRaining =
+        weather.condition.contains('rain') ||
+        weather.condition.contains('storm') ||
+        weather.rainIntensity > 0.05;
+
+    if (isRaining) {
+      rainIntensity = weather.rainIntensity;
+
+      // Calculate rain drop count based on intensity
+      rainDropCount = (50 + (weather.rainIntensity * 150)).toInt();
+
+      // Reinitialize rain drops with new count
+      _initializeRainDrops();
+    } else {
+      rainDropCount = 0;
+      rainDrops.clear();
+    }
+  }
+
+  void _updateSplashes() {
+    final random = math.Random();
+
+    // Xoá splash cũ
+    splashes.removeWhere((s) => s.age > 1.0);
+
+    // Ngẫu nhiên thêm splash mới khi có mưa
+    if (isRaining && random.nextDouble() < 0.3) {
+      splashes.add(
+        RainSplash(
+          x: random.nextDouble(),
+          y: 0.9 + random.nextDouble() * 0.1,
+          age: 0,
+        ),
+      );
+    }
+
+    // Update splash hiện tại
+    for (var splash in splashes) {
+      splash.age += 0.05;
+    }
+  }
+
+  void _initializeRainDrops() {
+    final random = math.Random();
+    rainDrops = List.generate(
+      rainDropCount,
+      (index) => RainDrop(
+        x: random.nextDouble(),
+        y: random.nextDouble(),
+        length: 10 + random.nextDouble() * (20 * rainIntensity),
+        speed: 0.01 + random.nextDouble() * (0.02 * rainIntensity),
+        opacity: 0.3 + random.nextDouble() * (0.7 * rainIntensity),
+        windOffset: currentWeather?.windSpeed ?? 0,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Background image
+        Image.asset(
+          widget.imageUrl,
+          fit: widget.fit,
+          width: widget.width,
+          height: widget.height,
+        ),
+
+        // Weather overlay (darker when raining)
+        if (isRaining)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.1 + (rainIntensity * 0.2)),
+            ),
+          ),
+
+        // Rain effect
+        if (isRaining)
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                for (var drop in rainDrops) {
+                  drop.update(rainIntensity);
+                }
+                _updateSplashes();
+
+                return CustomPaint(
+                  painter: ApiRainPainter(
+                    splashes: splashes,
+                    rainDrops: rainDrops,
+                    intensity: rainIntensity,
+                    windSpeed: currentWeather?.windSpeed ?? 0,
+                  ),
+                );
+              },
+            ),
+          ),
+
+        // Weather info overlay
+        Positioned(top: 10, left: 10, child: _buildWeatherInfo()),
+      ],
+    );
+  }
+
+  Widget _buildWeatherInfo() {
+    if (currentWeather == null) {
+      return Container(
+        padding: EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          'Loading weather...',
+          style: TextStyle(color: Colors.white, fontSize: 10),
+        ),
+      );
+    }
+
+    return Container(
+      padding: EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isRaining ? Colors.blue : Colors.grey,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_getWeatherIcon(), color: Colors.white, size: 16),
+              SizedBox(width: 6),
+              Text(
+                currentWeather!.condition.toUpperCase(),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          if (isRaining) ...[
+            SizedBox(height: 4),
+            Text(
+              'Intensity: ${(rainIntensity * 100).toInt()}%',
+              style: TextStyle(color: Colors.cyanAccent, fontSize: 9),
+            ),
+          ],
+          SizedBox(height: 4),
+          Text(
+            '${currentWeather!.temperature.toStringAsFixed(1)}°C',
+            style: TextStyle(color: Colors.white70, fontSize: 9),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getWeatherIcon() {
+    switch (currentWeather?.condition) {
+      case 'rain':
+      case 'drizzle':
+        return Icons.water_drop;
+      case 'storm':
+      case 'thunderstorm':
+        return Icons.flash_on;
+      case 'clouds':
+      case 'cloudy':
+        return Icons.cloud;
+      case 'clear':
+        return Icons.wb_sunny;
+      default:
+        return Icons.wb_cloudy;
+    }
+  }
+}
+
+class RainDrop {
+  double x;
+  double y;
+  final double length;
+  final double speed;
+  final double opacity;
+  final double windOffset;
+
+  RainDrop({
+    required this.x,
+    required this.y,
+    required this.length,
+    required this.speed,
+    required this.opacity,
+    this.windOffset = 0,
+  });
+
+  void update(double intensityMultiplier) {
+    y += speed * intensityMultiplier;
+    x += (windOffset / 100); // Wind effect
+
+    // Reset when drop goes off screen
+    if (y > 1.0) {
+      y = -0.1;
+      x = math.Random().nextDouble();
+    }
+  }
+}
+
+class RainSplash {
+  final double x;
+  final double y;
+  double age;
+
+  RainSplash({required this.x, required this.y, required this.age});
+}
+
+class ApiRainPainter extends CustomPainter {
+  final List<RainDrop> rainDrops;
+  final List<RainSplash> splashes;
+
+  final double intensity;
+  final double windSpeed;
+
+  ApiRainPainter({
+    required this.splashes,
+    required this.rainDrops,
+    required this.intensity,
+    required this.windSpeed,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (var drop in rainDrops) {
+      final paint = Paint()
+        ..color = Colors.white.withOpacity(drop.opacity * intensity)
+        ..strokeWidth = 1.5 + (intensity * 0.5)
+        ..strokeCap = StrokeCap.round;
+
+      final startX = drop.x * size.width;
+      final startY = drop.y * size.height;
+      final windEffect = (windSpeed / 50).clamp(-5.0, 5.0);
+      final endX = startX + windEffect * drop.length; // Wind angle
+      final endY = startY + drop.length;
+
+      // Main rain line with wind angle
+      canvas.drawLine(Offset(startX, startY), Offset(endX, endY), paint);
+
+      // Glow effect
+      if (intensity > 0.5) {
+        paint.strokeWidth = 3;
+        paint.color = Colors.cyanAccent.withOpacity(
+          drop.opacity * 0.3 * intensity,
+        );
+        canvas.drawLine(Offset(startX, startY), Offset(endX, endY), paint);
+      }
+    }
+
+    // Draw splashes
+    for (var splash in splashes) {
+      final opacity = (1.0 - splash.age).clamp(0.0, 1.0);
+      final radius = splash.age * 15;
+
+      final paint = Paint()
+        ..color = Colors.white.withOpacity(opacity * 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+
+      final center = Offset(splash.x * size.width, splash.y * size.height);
+
+      canvas.drawCircle(center, radius, paint);
+
+      // Inner circle
+      paint.strokeWidth = 1;
+      canvas.drawCircle(center, radius * 0.5, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(ApiRainPainter oldDelegate) => true;
+}
+
+// Sử dụng trong Factory Dashboard
+class FactoryDashboardWithWeather extends StatelessWidget {
+  // final WeatherApiService weatherService = WeatherApiService();
+  final WeatherApiService weatherService = MockWeatherService(); // Dùng mock
+  final String mainImageUrl = 'images/factory.jpg';
+
+  FactoryDashboardWithWeather({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.35),
+            spreadRadius: 2,
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            // Image with API-controlled rain
+            ApiControlledRainImage(
+              imageUrl: mainImageUrl,
+              weatherService: weatherService,
+              fit: BoxFit.fill,
+            ),
+
+            // Gradient overlay
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.1),
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.15),
+                  ],
+                ),
+              ),
+            ),
+
+            // Facility boxes và các elements khác...
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Mock Weather Service for testing
+class MockWeatherService extends WeatherApiService {
+  @override
+  Future<WeatherData?> fetchWeatherData() async {
+    await Future.delayed(Duration(seconds: 1));
+
+    // Ép cho luôn là mưa
+    return WeatherData(
+      condition: 'rain',
+      rainIntensity: 0.9, // 80% intensity
+      temperature: 24,
+      humidity: 220,
+      windSpeed: 4,
+    );
+  }
+}

@@ -137,12 +137,15 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
                         colors: [
                           const Color(
                             0xFF1A237E,
-                          ).withOpacity(0.95), // Dark blue
-                          const Color(0xFF0D47A1).withOpacity(0.95), // Blue
+                          ).withOpacity(0.3), // xanh đậm nhưng trong suốt 30%
+                          const Color(
+                            0xFF0D47A1,
+                          ).withOpacity(0.3), // xanh sáng hơn, trong suốt 30%
                         ],
                       ),
+
                       border: Border.all(
-                        color: facilityColor.withOpacity(0.6),
+                        color: Color(0xFF0D47A1).withOpacity(0.3),
                         width: 2,
                       ),
                       boxShadow: [

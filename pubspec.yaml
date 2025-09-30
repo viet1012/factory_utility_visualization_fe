@@ -41,6 +41,7 @@ dependencies:
   flutter_cube: ^0.1.1
   three_dart: ^0.0.16
   model_viewer_plus: ^1.9.3
+  geolocator: ^14.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
