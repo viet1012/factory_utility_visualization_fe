@@ -44,6 +44,7 @@ class WeatherData {
   final double temperature;
   final double humidity;
   final double windSpeed;
+  final bool isDaytime; // true = ban ngày, false = ban đêm
 
   WeatherData({
     required this.condition,
@@ -51,6 +52,7 @@ class WeatherData {
     required this.temperature,
     required this.humidity,
     required this.windSpeed,
+    this.isDaytime = true, // default là ban ngày
   });
 
   factory WeatherData.fromJson(Map<String, dynamic> json) {
@@ -73,6 +75,12 @@ class WeatherData {
       intensity = 0.0;
     }
 
+    final sunrise = json['sys']['sunrise']; // timestamp UTC
+    final sunset = json['sys']['sunset']; // timestamp UTC
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+
+    bool isDay = now >= sunrise && now <= sunset;
+
     print("DEBUG: condition=$weatherMain, rain=$rain, intensity=$intensity");
 
     return WeatherData(
@@ -81,6 +89,7 @@ class WeatherData {
       temperature: (json['main']['temp'] ?? 0.0).toDouble(),
       humidity: (json['main']['humidity'] ?? 0.0).toDouble(),
       windSpeed: (json['wind']['speed'] ?? 0.0).toDouble(),
+      isDaytime: isDay,
     );
   }
 
@@ -140,7 +149,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
     _startWeatherMonitoring();
   }
 
-  void _startWeatherMonitoring() {
+  void _startWeatherMonitoring1() {
     // Fetch initial weather
     _updateWeather();
 
@@ -148,6 +157,27 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
     Timer.periodic(Duration(minutes: 10), (timer) {
       _updateWeather();
     });
+  }
+
+  // Test
+  void _startWeatherMonitoring() {
+    // Nếu service là MockWeatherService (stream)
+    if (widget.weatherService is MockWeatherService) {
+      final mockService = widget.weatherService as MockWeatherService;
+      mockService.weatherStream().listen((weather) {
+        if (!mounted) return;
+        setState(() {
+          currentWeather = weather;
+          _updateRainEffect(weather);
+        });
+      });
+    } else {
+      // Service thật: fetch 1 lần + update định kỳ
+      _updateWeather();
+      Timer.periodic(Duration(minutes: 45), (timer) {
+        _updateWeather();
+      });
+    }
   }
 
   Future<void> _updateWeather() async {
@@ -190,10 +220,17 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
 
     // Ngẫu nhiên thêm splash mới khi có mưa
     if (isRaining && random.nextDouble() < 0.3) {
+      // splashes.add(
+      //   RainSplash(
+      //     x: random.nextDouble(),
+      //     y: 0.9 + random.nextDouble() * 0.1,
+      //     age: 0,
+      //   ),
+      // );
       splashes.add(
         RainSplash(
           x: random.nextDouble(),
-          y: 0.9 + random.nextDouble() * 0.1,
+          y: random.nextDouble(), // từ 0 → 1, loang khắp màn hình
           age: 0,
         ),
       );
@@ -212,7 +249,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
       (index) => RainDrop(
         x: random.nextDouble(),
         y: random.nextDouble(),
-        length: 10 + random.nextDouble() * (20 * rainIntensity),
+        length: 5 + random.nextDouble() * (10 * rainIntensity),
         speed: 0.01 + random.nextDouble() * (0.02 * rainIntensity),
         opacity: 0.3 + random.nextDouble() * (0.7 * rainIntensity),
         windOffset: currentWeather?.windSpeed ?? 0,
@@ -227,7 +264,10 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
   }
 
   @override
+  // Trong build() của _ApiControlledRainImageState
   Widget build(BuildContext context) {
+    final isDay = currentWeather?.isDaytime ?? true;
+
     return Stack(
       children: [
         // Background image
@@ -236,15 +276,24 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
           fit: widget.fit,
           width: widget.width,
           height: widget.height,
+          color: isDay
+              ? null
+              : Colors.blueGrey.withOpacity(0.3), // darken night
+          colorBlendMode: isDay ? BlendMode.dst : BlendMode.darken,
         ),
 
-        // Weather overlay (darker when raining)
-        if (isRaining)
-          Positioned.fill(
-            child: Container(
-              color: Colors.black.withOpacity(0.1 + (rainIntensity * 0.2)),
-            ),
+        // Weather overlay (darker for night or rain)
+        Positioned.fill(
+          child: Container(
+            color: isRaining
+                ? (isDay
+                      ? Colors.black.withOpacity(0.1 + rainIntensity * 0.2)
+                      : Colors.black.withOpacity(0.3 + rainIntensity * 0.3))
+                : (isDay
+                      ? Colors.transparent
+                      : Colors.black.withOpacity(0.25)), // night dark overlay
           ),
+        ),
 
         // Rain effect
         if (isRaining)
@@ -253,7 +302,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
               animation: _controller,
               builder: (context, child) {
                 for (var drop in rainDrops) {
-                  drop.update(rainIntensity);
+                  drop.update(rainIntensity, splashes);
                 }
                 _updateSplashes();
 
@@ -263,6 +312,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
                     rainDrops: rainDrops,
                     intensity: rainIntensity,
                     windSpeed: currentWeather?.windSpeed ?? 0,
+                    isDay: isDay,
                   ),
                 );
               },
@@ -369,12 +419,32 @@ class RainDrop {
     this.windOffset = 0,
   });
 
-  void update(double intensityMultiplier) {
-    y += speed * intensityMultiplier;
-    // x += (windOffset / 100); // Wind effect
+  // void update(double intensityMultiplier) {
+  //   y += speed * intensityMultiplier;
+  //   // x += (windOffset / 100); // Wind effect
+  //
+  //   // Reset when drop goes off screen
+  //   if (y > 1.0) {
+  //     y = -0.1;
+  //     x = math.Random().nextDouble();
+  //   }
+  // }
 
-    // Reset when drop goes off screen
+  void update(double intensityMultiplier, List<RainSplash> splashes) {
+    y += speed * intensityMultiplier;
+
+    // Nếu rơi xuống hết màn hình thì reset + tạo splash
     if (y > 1.0) {
+      // Tạo splash tại vị trí rơi
+      splashes.add(
+        RainSplash(
+          x: x,
+          y: 1.0, // mép dưới màn hình
+          age: 0,
+        ),
+      );
+
+      // Reset hạt mưa lại trên cao
       y = -0.1;
       x = math.Random().nextDouble();
     }
@@ -395,19 +465,21 @@ class ApiRainPainter extends CustomPainter {
 
   final double intensity;
   final double windSpeed;
+  final bool isDay;
 
   ApiRainPainter({
     required this.splashes,
     required this.rainDrops,
     required this.intensity,
     required this.windSpeed,
+    this.isDay = true,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     for (var drop in rainDrops) {
       final paint = Paint()
-        ..color = Colors.white.withOpacity(drop.opacity * intensity)
+        ..color = (isDay ? Colors.white : Colors.cyanAccent)
         ..strokeWidth = 1.5 + (intensity * 0.5)
         ..strokeCap = StrokeCap.round;
 
@@ -415,17 +487,21 @@ class ApiRainPainter extends CustomPainter {
       final startY = drop.y * size.height;
       final windEffect = (windSpeed / 50).clamp(-5.0, 5.0);
       final endX = startX + windEffect * drop.length; // Wind angle
-      final endY = startY + drop.length;
+      final dropSize = drop.length * (0.5 + intensity); // giảm base size
+      // final endY = startY + drop.length;
 
+      // mưa càng nhẹ → hạt càng nhỏ:
+      final endY = startY + dropSize;
       // Main rain line with wind angle
       canvas.drawLine(Offset(startX, startY), Offset(endX, endY), paint);
 
       // Glow effect
-      if (intensity > 0.5) {
-        paint.strokeWidth = 3;
-        paint.color = Colors.cyanAccent.withOpacity(
-          drop.opacity * 0.3 * intensity,
-        );
+      if (!isDay || intensity > 0.5) {
+        // paint.strokeWidth = 3;
+
+        paint.strokeWidth = (0.5 + intensity * 0.5); // mỏng hơn
+        paint.color = (isDay ? Colors.cyanAccent : Colors.blueAccent)
+            .withOpacity(drop.opacity * 0.3 * intensity);
         canvas.drawLine(Offset(startX, startY), Offset(endX, endY), paint);
       }
     }
@@ -436,7 +512,9 @@ class ApiRainPainter extends CustomPainter {
       final radius = splash.age * 15;
 
       final paint = Paint()
-        ..color = Colors.white.withOpacity(opacity * 0.5)
+        ..color = (isDay ? Colors.white : Colors.cyanAccent).withOpacity(
+          opacity * 0.5,
+        )
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
 
@@ -444,6 +522,16 @@ class ApiRainPainter extends CustomPainter {
 
       canvas.drawCircle(center, radius, paint);
 
+      // Vẽ thêm nhiều splash nhỏ lệch tâm (tung toé ra xung quanh)
+      // for (int i = 0; i < 3; i++) {
+      //   final dx = (math.Random().nextDouble() - 0.5) * 30; // lệch trái phải
+      //   final dy = (math.Random().nextDouble() - 0.5) * 20; // lệch lên xuống
+      //   final offset = center.translate(dx, dy);
+      //
+      //   final randomRadius = radius * (0.3 + math.Random().nextDouble() * 0.7);
+      //
+      //   canvas.drawCircle(offset, randomRadius, paint);
+      // }
       // Inner circle
       paint.strokeWidth = 1;
       canvas.drawCircle(center, radius * 0.5, paint);
@@ -510,19 +598,58 @@ class FactoryDashboardWithWeather extends StatelessWidget {
   }
 }
 
-// Mock Weather Service for testing
 class MockWeatherService extends WeatherApiService {
-  @override
-  Future<WeatherData?> fetchWeatherData() async {
-    await Future.delayed(Duration(seconds: 1));
+  // Stream mô phỏng thay đổi thời tiết + ngày/đêm
+  Stream<WeatherData> weatherStream() async* {
+    final now = DateTime.now();
 
-    // Ép cho luôn là mưa
-    return WeatherData(
+    // 1. Ban ngày mưa nặng
+    yield WeatherData(
       condition: 'rain',
-      rainIntensity: 0.9, // 80% intensity
+      rainIntensity: 0.9,
       temperature: 24,
       humidity: 220,
       windSpeed: 4,
+      isDaytime: true,
     );
+    await Future.delayed(Duration(seconds: 15));
+
+    // 2. Ban ngày mưa nhẹ
+    yield WeatherData(
+      condition: 'rain',
+      rainIntensity: 0.3,
+      temperature: 24,
+      humidity: 200,
+      windSpeed: 4,
+      isDaytime: true,
+    );
+    await Future.delayed(Duration(seconds: 15));
+
+    // 3. Ban đêm mưa nhẹ
+    yield WeatherData(
+      condition: 'rain',
+      rainIntensity: 0.3,
+      temperature: 22,
+      humidity: 190,
+      windSpeed: 3,
+      isDaytime: false,
+    );
+    await Future.delayed(Duration(seconds: 15));
+
+    // 4. Ban đêm trời quang
+    yield WeatherData(
+      condition: 'clear',
+      rainIntensity: 0.0,
+      temperature: 22,
+      humidity: 180,
+      windSpeed: 2,
+      isDaytime: false,
+    );
+    await Future.delayed(Duration(seconds: 15));
+
+    // Lặp lại chu kỳ
+    await for (final data in weatherStream()) {
+      yield data;
+    }
   }
 }

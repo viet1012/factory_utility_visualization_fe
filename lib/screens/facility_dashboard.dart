@@ -426,8 +426,8 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
                   ),
                   //Fac C
                   Positioned(
-                    top: screenHeight * 0.02,
-                    left: screenWidth * 0.1,
+                    top: screenHeight * 0.01,
+                    left: screenWidth * 0.12,
                     child: FacilityInfoBox(facility: facilities[2]),
                   ),
                 ],
