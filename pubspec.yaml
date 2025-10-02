@@ -42,6 +42,8 @@ dependencies:
   three_dart: ^0.0.16
   model_viewer_plus: ^1.9.3
   geolocator: ^14.0.2
+  syncfusion_flutter_charts: ^29.1.37+1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -61,7 +63,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/
+    - assets/images/
     - assets/images/AnyConv.glb
 
 

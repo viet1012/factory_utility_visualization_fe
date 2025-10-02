@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:factory_utility_visualization/widgets/rain_effect_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -32,7 +31,7 @@ class WeatherApiService {
     while (true) {
       final data = await fetchWeatherData();
       if (data != null) yield data;
-      await Future.delayed(const Duration(minutes: 60));
+      await Future.delayed(const Duration(minutes: 15));
     }
   }
 }
@@ -320,7 +319,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
           ),
 
         // Weather info overlay
-        Positioned(top: 10, left: 10, child: _buildWeatherInfo()),
+        Positioned(bottom: 10, left: 10, child: _buildWeatherInfo()),
       ],
     );
   }

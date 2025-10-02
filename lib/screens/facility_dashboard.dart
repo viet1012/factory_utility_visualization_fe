@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:factory_utility_visualization/api/ApiService.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_cube/flutter_cube.dart';
-import 'package:model_viewer_plus/model_viewer_plus.dart';
+import 'package:syncfusion_flutter_charts/charts.dart' as sf;
 
 import '../model/facility_data.dart';
 import '../widgets/arrow_painter.dart';
 import '../widgets/facility_info_box.dart';
+import '../widgets/line_chart_painter.dart';
 import '../widgets/rain_effect_image_realtime.dart';
 import '../widgets/summary_card.dart';
 
@@ -19,7 +19,7 @@ class FacilityDashboard extends StatefulWidget {
 }
 
 class _FacilityDashboardState extends State<FacilityDashboard> {
-  final String mainImageUrl = 'images/factory2.png';
+  final String mainImageUrl = 'assets/images/SPC2.png';
 
   final ApiService api = ApiService();
   List<double> chartData1 = [];
@@ -67,12 +67,15 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     });
   }
 
+  late final Stream<List<FacilityData>> facilityStream;
+
   @override
   void initState() {
     super.initState();
     // _fetchAndUpdate(); // lần đầu
     _generateChartData();
     _startChartAnimation1();
+    facilityStream = getFacilityStream(); // chỉ tạo 1 lần
 
     // gọi API mỗi 5s
     // Timer.periodic(const Duration(seconds: 5), (timer) {
@@ -152,7 +155,8 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 
         // call API thật (giả sử chỉ có 1 cái cần gọi API)
         final powerA = await api.fetchElectricValue();
-
+        print("power A: $powerA");
+        print("power A: $powerA (${powerA.runtimeType})");
         lastData = [
           FacilityData(
             name: 'Fac A',
@@ -176,7 +180,9 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
             position: Alignment.topLeft,
           ),
         ];
-
+        print(
+          "👉 Emit data: Fac A = ${lastData[0].power} (${lastData[0].power.runtimeType})",
+        );
         yield lastData; // emit data mới
       } catch (e) {
         print("⚠️ Lỗi khi fetch API: $e");
@@ -187,7 +193,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 
   Stream<List<FacilityData>> getFacilityStream1() async* {
     while (true) {
-      await Future.delayed(const Duration(seconds: 5));
+      await Future.delayed(const Duration(seconds: 50));
       final now = DateTime.now().second;
 
       final value = _lastElectricValue ?? (200000 + (now * 80));
@@ -221,9 +227,6 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // backgroundColor: Color(
-      //   0xFF1A237E,
-      // ).withOpacity(0.95), // Dark background như trong hình
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -239,24 +242,14 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: StreamBuilder<List<FacilityData>>(
-            stream: getFacilityStream(),
+            stream: facilityStream,
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
               }
 
               final facilities = snapshot.data!;
-              final totalPower = facilities.fold(
-                0.0,
-                (sum, f) => sum + f.power,
-              );
-              final totalVolume = facilities.fold(
-                0.0,
-                (sum, f) => sum + f.volume,
-              );
-              final avgPressure =
-                  facilities.fold(0.0, (sum, f) => sum + f.pressure) /
-                  facilities.length;
+              print("🟢 UI rebuild: Fac A = ${facilities[0].power}");
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -264,7 +257,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
                   _buildHeader(),
                   // _buildTimeNow(context),
                   const SizedBox(height: 10),
-                  // Expanded(child: _buildFactoryMap1(context, facilities)),
+                  // Expanded(child: _buildFactoryMap(context, facilities)),
                   _buildFactoryMap(context, facilities),
                   const SizedBox(height: 20),
                   Expanded(child: _buildBottomChartsSection()),
@@ -317,7 +310,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 
   Widget _buildFactoryMapWithAdvancedRain() {
     final WeatherApiService weatherService = WeatherApiService(); // Dùng mock
-
+    // final WeatherApiService weatherApiService = MockWeatherService();
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -375,7 +368,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
             flex: 1,
             child: Padding(
               padding: const EdgeInsets.all(8.0),
-              child: _buildSummaryColumn(totalPower, totalVolume, avgPressure),
+              child: _buildSummaryCharts(facilities),
             ),
           ),
           Expanded(
@@ -446,6 +439,42 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     );
   }
 
+  Widget _buildSummaryCharts(List<FacilityData> facilities) {
+    return Column(
+      children: [
+        Expanded(
+          child: sf.SfCircularChart(
+            title: sf.ChartTitle(text: 'Power Distribution'),
+            legend: sf.Legend(isVisible: true),
+            series: <sf.CircularSeries>[
+              sf.PieSeries<FacilityData, String>(
+                dataSource: facilities,
+                xValueMapper: (f, _) => f.name,
+                yValueMapper: (f, _) => f.power,
+                dataLabelSettings: const sf.DataLabelSettings(isVisible: true),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: sf.SfCartesianChart(
+            title: sf.ChartTitle(text: 'Water Volume by Facility'),
+            primaryXAxis: sf.CategoryAxis(),
+            primaryYAxis: sf.NumericAxis(),
+            series: <sf.CartesianSeries>[
+              sf.ColumnSeries<FacilityData, String>(
+                dataSource: facilities,
+                xValueMapper: (f, _) => f.name,
+                yValueMapper: (f, _) => f.volume,
+                dataLabelSettings: const sf.DataLabelSettings(isVisible: true),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSummaryColumn(
     double totalPower,
     double totalVolume,
@@ -453,6 +482,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   ) {
     return Column(
       children: [
+        Text("Total KVH", style: TextStyle(fontSize: 18, color: Colors.grey)),
         SummaryCard(
           title: 'Total Power',
           value: '${(totalPower / 1000).toStringAsFixed(0)}k kWh',
@@ -1200,53 +1230,3 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 // }
 //
 // // Custom painter cho line charts
-class LineChartPainter extends CustomPainter {
-  final List<double> data;
-  final Color color;
-
-  LineChartPainter(this.data, this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (data.isEmpty) return;
-
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final path = Path();
-    final stepX = size.width / (data.length - 1);
-    final maxY = data.reduce(math.max);
-    final minY = data.reduce(math.min);
-    final rangeY = maxY - minY;
-
-    for (int i = 0; i < data.length; i++) {
-      final x = i * stepX;
-      final y = size.height - ((data[i] - minY) / rangeY) * size.height;
-
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-
-    canvas.drawPath(path, paint);
-
-    // Draw fill area
-    final fillPaint = Paint()
-      ..color = color.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
-
-    final fillPath = Path.from(path);
-    fillPath.lineTo(size.width, size.height);
-    fillPath.lineTo(0, size.height);
-    fillPath.close();
-
-    canvas.drawPath(fillPath, fillPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
