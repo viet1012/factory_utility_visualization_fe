@@ -4,6 +4,10 @@ import 'package:factory_utility_visualization/api/ApiService.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart' as sf;
 
+import '../kvh_widgets/air_pressure/air_pressure_circular_gauge.dart';
+import '../kvh_widgets/electricity/power_circular_gauge.dart';
+import '../kvh_widgets/temperature/temperature_thermometer.dart';
+import '../kvh_widgets/water/water_gauge_grid.dart';
 import '../model/facility_data.dart';
 import '../widgets/arrow_painter.dart';
 import '../widgets/facility_info_box.dart';
@@ -123,24 +127,24 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     List<FacilityData> lastData = [
       FacilityData(
         name: 'Fac A',
-        power: 200000,
-        volume: 2000,
-        pressure: 1200,
-        position: Alignment.topRight,
+        electricPower: 200000,
+        waterFlow: 2000,
+        compressedAirPressure: 1.2, // MPa
+        temperature: 35, // °C
       ),
       FacilityData(
         name: 'Fac B',
-        power: 190000,
-        volume: 2200,
-        pressure: 1230,
-        position: Alignment.bottomRight,
+        electricPower: 190000,
+        waterFlow: 2200,
+        compressedAirPressure: 1.23,
+        temperature: 36,
       ),
       FacilityData(
         name: 'Fac C',
-        power: 210000,
-        volume: 2100,
-        pressure: 1250,
-        position: Alignment.topLeft,
+        electricPower: 210000,
+        waterFlow: 2100,
+        compressedAirPressure: 1.25,
+        temperature: 34,
       ),
     ];
 
@@ -155,72 +159,44 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 
         // call API thật (giả sử chỉ có 1 cái cần gọi API)
         final powerA = await api.fetchElectricValue();
-        print("power A: $powerA");
-        print("power A: $powerA (${powerA.runtimeType})");
+        print("electricPower A: $powerA");
+        print("electricPower A: $powerA (${powerA.runtimeType})");
+
         lastData = [
           FacilityData(
             name: 'Fac A',
-            power: powerA ?? (200000 + (now * 80)), // fallback nếu API fail
-            volume: 2000 + now.toDouble(),
-            pressure: 1200 + (now % 50),
-            position: Alignment.topRight,
+            electricPower:
+                powerA ?? (200000 + (now * 80)), // fallback nếu API fail
+            waterFlow: 2000 + now.toDouble(),
+            compressedAirPressure:
+                1.2 + (now % 50) * 0.01, // giả lập thay đổi áp suất
+            temperature: 35 + (now % 5), // giả lập nhiệt độ thay đổi
           ),
           FacilityData(
             name: 'Fac B',
-            power: 190000 + (now * 100),
-            volume: 2200 + (now % 30),
-            pressure: 1230 + (now % 20),
-            position: Alignment.bottomRight,
+            electricPower:
+                powerA ?? (200000 + (now * 80)), // fallback nếu API fail
+            waterFlow: 2200 + (now % 30),
+            compressedAirPressure: 1.23 + (now % 20) * 0.01,
+            temperature: 36 + (now % 4),
           ),
           FacilityData(
             name: 'Fac C',
-            power: 210000 + (now * 50),
-            volume: 2100 + (now % 25),
-            pressure: 1250 + (now % 40),
-            position: Alignment.topLeft,
+            electricPower: 210000 + (now * 50),
+            waterFlow: 2100 + (now % 25),
+            compressedAirPressure: 1.25 + (now % 40) * 0.01,
+            temperature: 34 + (now % 6),
           ),
         ];
+
         print(
-          "👉 Emit data: Fac A = ${lastData[0].power} (${lastData[0].power.runtimeType})",
+          "👉 Emit data: Fac A = ${lastData[0].electricPower} (${lastData[0].electricPower.runtimeType})",
         );
         yield lastData; // emit data mới
       } catch (e) {
         print("⚠️ Lỗi khi fetch API: $e");
         yield lastData; // nếu lỗi thì vẫn trả data cũ → UI ko đứng
       }
-    }
-  }
-
-  Stream<List<FacilityData>> getFacilityStream1() async* {
-    while (true) {
-      await Future.delayed(const Duration(seconds: 50));
-      final now = DateTime.now().second;
-
-      final value = _lastElectricValue ?? (200000 + (now * 80));
-
-      yield [
-        FacilityData(
-          name: 'Fac A',
-          power: await api.fetchElectricValue() ?? (200000 + (now * 80)),
-          volume: 2000 + now.toDouble(),
-          pressure: 1200 + (now % 50),
-          position: Alignment.topRight,
-        ),
-        FacilityData(
-          name: 'Fac B',
-          power: 190000 + (now * 100),
-          volume: 2200 + (now % 30),
-          pressure: 1230 + (now % 20),
-          position: Alignment.bottomRight,
-        ),
-        FacilityData(
-          name: 'Fac C',
-          power: 210000 + (now * 50),
-          volume: 2100 + (now % 25),
-          pressure: 1250 + (now % 40),
-          position: Alignment.topLeft,
-        ),
-      ];
     }
   }
 
@@ -249,7 +225,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
               }
 
               final facilities = snapshot.data!;
-              print("🟢 UI rebuild: Fac A = ${facilities[0].power}");
+              print("🟢 UI rebuild: Fac A = ${facilities[0].electricPower}");
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -309,8 +285,8 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   }
 
   Widget _buildFactoryMapWithAdvancedRain() {
-    final WeatherApiService weatherService = WeatherApiService(); // Dùng mock
-    // final WeatherApiService weatherApiService = MockWeatherService();
+    // final WeatherApiService weatherService = WeatherApiService(); // Dùng mock
+    final WeatherApiService weatherService = MockWeatherService();
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -344,10 +320,11 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   Widget _buildFactoryMap(BuildContext context, List<FacilityData> facilities) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-    final totalPower = facilities.fold(0.0, (sum, f) => sum + f.power);
-    final totalVolume = facilities.fold(0.0, (sum, f) => sum + f.volume);
+    final totalPower = facilities.fold(0.0, (sum, f) => sum + f.electricPower);
+    final totalVolume = facilities.fold(0.0, (sum, f) => sum + f.waterFlow);
     final avgPressure =
-        facilities.fold(0.0, (sum, f) => sum + f.pressure) / facilities.length;
+        facilities.fold(0.0, (sum, f) => sum + f.compressedAirPressure) /
+        facilities.length;
     return Container(
       width: screenWidth,
       height: screenHeight / 1.5,
@@ -441,36 +418,100 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 
   Widget _buildSummaryCharts(List<FacilityData> facilities) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: sf.SfCircularChart(
-            title: sf.ChartTitle(text: 'Power Distribution'),
-            legend: sf.Legend(isVisible: true),
-            series: <sf.CircularSeries>[
-              sf.PieSeries<FacilityData, String>(
-                dataSource: facilities,
-                xValueMapper: (f, _) => f.name,
-                yValueMapper: (f, _) => f.power,
-                dataLabelSettings: const sf.DataLabelSettings(isVisible: true),
-              ),
-            ],
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.66,
+              crossAxisSpacing: 18,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: facilities.length,
+            itemBuilder: (context, index) {
+              return PowerCircularGauge(facility: facilities[index]);
+            },
           ),
         ),
         Expanded(
-          child: sf.SfCartesianChart(
-            title: sf.ChartTitle(text: 'Water Volume by Facility'),
-            primaryXAxis: sf.CategoryAxis(),
-            primaryYAxis: sf.NumericAxis(),
-            series: <sf.CartesianSeries>[
-              sf.ColumnSeries<FacilityData, String>(
-                dataSource: facilities,
-                xValueMapper: (f, _) => f.name,
-                yValueMapper: (f, _) => f.volume,
-                dataLabelSettings: const sf.DataLabelSettings(isVisible: true),
-              ),
-            ],
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.66,
+              crossAxisSpacing: 18,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: facilities.length,
+            itemBuilder: (context, index) {
+              return CustomWaterWaveGauge(
+                facility: facilities[index],
+                maxVolume: 3000,
+              );
+            },
           ),
         ),
+        Expanded(
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.66,
+              crossAxisSpacing: 18,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: facilities.length,
+            itemBuilder: (context, index) {
+              return SizedBox(
+                child: AirTankIndicator(facility: facilities[index]),
+              );
+            },
+          ),
+        ),
+        Expanded(
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.66,
+              crossAxisSpacing: 18,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: facilities.length,
+            itemBuilder: (context, index) {
+              return SizedBox(
+                child: TemperatureThermometer(facility: facilities[index]),
+              );
+            },
+          ),
+        ),
+        // Expanded(
+        //   child: sf.SfCircularChart(
+        //     title: sf.ChartTitle(text: 'electricPower Distribution'),
+        //     legend: sf.Legend(isVisible: true),
+        //     series: <sf.CircularSeries>[
+        //       sf.PieSeries<FacilityData, String>(
+        //         dataSource: facilities,
+        //         xValueMapper: (f, _) => f.name,
+        //         yValueMapper: (f, _) => f.electricPower,
+        //         dataLabelSettings: const sf.DataLabelSettings(isVisible: true),
+        //       ),
+        //     ],
+        //   ),
+        // ),
+        // Expanded(
+        //   child: sf.SfCartesianChart(
+        //     title: sf.ChartTitle(text: 'Water Volume by Facility'),
+        //     primaryXAxis: sf.CategoryAxis(),
+        //     primaryYAxis: sf.NumericAxis(),
+        //     series: <sf.CartesianSeries>[
+        //       sf.ColumnSeries<FacilityData, String>(
+        //         dataSource: facilities,
+        //         xValueMapper: (f, _) => f.name,
+        //         yValueMapper: (f, _) => f.volume,
+        //         dataLabelSettings: const sf.DataLabelSettings(isVisible: true),
+        //       ),
+        //     ],
+        //   ),
+        // ),
       ],
     );
   }
@@ -484,7 +525,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
       children: [
         Text("Total KVH", style: TextStyle(fontSize: 18, color: Colors.grey)),
         SummaryCard(
-          title: 'Total Power',
+          title: 'Total electricPower',
           value: '${(totalPower / 1000).toStringAsFixed(0)}k kWh',
           icon: Icons.flash_on,
           color: Colors.orange,
@@ -510,7 +551,9 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   Widget _buildBottomChartsSection() {
     return Row(
       children: [
-        Expanded(child: _buildChart('Power Output', chartData1, Colors.orange)),
+        Expanded(
+          child: _buildChart('electricPower Output', chartData1, Colors.orange),
+        ),
         Expanded(child: _buildChart('Temperature', chartData2, Colors.red)),
         SizedBox(width: 8),
         Expanded(child: _buildChart('Flow Rate', chartData3, Colors.blue)),
@@ -631,21 +674,21 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 //       yield [
 //         FacilityData(
 //           name: 'Facility A',
-//           power: 190000 + (now * 100),
+//           electricPower: 190000 + (now * 100),
 //           volume: 2000 + now.toDouble(),
 //           pressure: 1200 + (now % 50),
 //           position: Alignment.topRight,
 //         ),
 //         FacilityData(
 //           name: 'Facility B',
-//           power: await api.fetchElectricValue() ?? (200000 + (now * 80)),
+//           electricPower: await api.fetchElectricValue() ?? (200000 + (now * 80)),
 //           volume: 2200 + (now % 30),
 //           pressure: 1230 + (now % 20),
 //           position: Alignment.bottomRight,
 //         ),
 //         FacilityData(
 //           name: 'Facility C',
-//           power: 210000 + (now * 50),
+//           electricPower: 210000 + (now * 50),
 //           volume: 2100 + (now % 25),
 //           pressure: 1250 + (now % 40),
 //           position: Alignment.topLeft,
@@ -834,8 +877,8 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 //           ),
 //           SizedBox(height: 8),
 //           _buildCompactMetric(
-//             'Power',
-//             '${(facility.power / 1000).toInt()}kW',
+//             'electricPower',
+//             '${(facility.electricPower / 1000).toInt()}kW',
 //             Colors.orange,
 //           ),
 //           _buildCompactMetric(
@@ -902,7 +945,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 //   Widget _buildBottomChartsSection() {
 //     return Row(
 //       children: [
-//         Expanded(child: _buildChart('Power Output', chartData1, Colors.orange)),
+//         Expanded(child: _buildChart('electricPower Output', chartData1, Colors.orange)),
 //         SizedBox(width: 8),
 //         Expanded(child: _buildChart('Temperature', chartData2, Colors.red)),
 //         SizedBox(width: 8),
@@ -981,7 +1024,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 //             ),
 //           ),
 //           SizedBox(height: 12),
-//           _buildStatusItem('Power Grid', 'Online', Colors.green),
+//           _buildStatusItem('electricPower Grid', 'Online', Colors.green),
 //           _buildStatusItem('Water System', 'Online', Colors.green),
 //           _buildStatusItem('Cooling System', 'Warning', Colors.orange),
 //           _buildStatusItem('Safety Systems', 'Online', Colors.green),
@@ -1065,7 +1108,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
 //             ),
 //           ),
 //           Text(
-//             '${(facility.power / 1000).toInt()}kW',
+//             '${(facility.electricPower / 1000).toInt()}kW',
 //             style: TextStyle(
 //               color: color,
 //               fontSize: 12,

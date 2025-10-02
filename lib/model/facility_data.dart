@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 
 class FacilityData {
   final String name;
-  final double power; // kWh
-  final double volume; // m³
-  final double pressure; // MPa
-  final Alignment position;
+  final double electricPower; // kWh
+  final double waterFlow; // m³
+  final double compressedAirPressure; // MPa
+  final double temperature; // °C
 
   FacilityData({
     required this.name,
-    required this.power,
-    required this.volume,
-    required this.pressure,
-    required this.position,
+    required this.electricPower,
+    required this.waterFlow,
+    required this.compressedAirPressure,
+    required this.temperature,
   });
 }

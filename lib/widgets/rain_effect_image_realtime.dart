@@ -248,7 +248,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
       (index) => RainDrop(
         x: random.nextDouble(),
         y: random.nextDouble(),
-        length: 5 + random.nextDouble() * (10 * rainIntensity),
+        length: 4 + random.nextDouble() * (4 * rainIntensity),
         speed: 0.01 + random.nextDouble() * (0.02 * rainIntensity),
         opacity: 0.3 + random.nextDouble() * (0.7 * rainIntensity),
         windOffset: currentWeather?.windSpeed ?? 0,
@@ -486,7 +486,7 @@ class ApiRainPainter extends CustomPainter {
       final startY = drop.y * size.height;
       final windEffect = (windSpeed / 50).clamp(-5.0, 5.0);
       final endX = startX + windEffect * drop.length; // Wind angle
-      final dropSize = drop.length * (0.5 + intensity); // giảm base size
+      final dropSize = drop.length * (0.3 + intensity); // giảm base size
       // final endY = startY + drop.length;
 
       // mưa càng nhẹ → hạt càng nhỏ:
