@@ -105,7 +105,7 @@ class _PowerCircularGaugeState extends State<PowerCircularGauge>
           // Gauge
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(8),
               child: AnimatedBuilder(
                 animation: _animation,
                 builder: (context, child) {
@@ -148,7 +148,6 @@ class _PowerCircularGaugeState extends State<PowerCircularGauge>
 
           // Status
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 6),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

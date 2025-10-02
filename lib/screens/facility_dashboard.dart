@@ -424,7 +424,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
           child: GridView.builder(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
-              childAspectRatio: 0.66,
+              childAspectRatio: 0.7,
               crossAxisSpacing: 18,
               mainAxisSpacing: 12,
             ),
@@ -438,7 +438,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
           child: GridView.builder(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
-              childAspectRatio: 0.66,
+              childAspectRatio: 0.7,
               crossAxisSpacing: 18,
               mainAxisSpacing: 12,
             ),
@@ -446,7 +446,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
             itemBuilder: (context, index) {
               return CustomWaterWaveGauge(
                 facility: facilities[index],
-                maxVolume: 3000,
+                maxVolume: 6000,
               );
             },
           ),
@@ -455,7 +455,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
           child: GridView.builder(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
-              childAspectRatio: 0.66,
+              childAspectRatio: 0.7,
               crossAxisSpacing: 18,
               mainAxisSpacing: 12,
             ),

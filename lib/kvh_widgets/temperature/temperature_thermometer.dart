@@ -66,32 +66,38 @@ class _TemperatureThermometerState extends State<TemperatureThermometer>
         ),
         boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 8)],
       ),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
       child: Column(
         children: [
           // header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.thermostat,
-                color: Colors.orangeAccent,
-                size: 16,
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.black26.withOpacity(0.6),
+                  Colors.orange.withOpacity(0.3),
+                ],
               ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.thermostat, color: Colors.white, size: 16),
+                const SizedBox(width: 6),
+                Text(
                   widget.facility.name,
-                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
           // thermometer graphic
           Expanded(
             child: AnimatedBuilder(
@@ -115,7 +121,6 @@ class _TemperatureThermometerState extends State<TemperatureThermometer>
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -123,7 +128,6 @@ class _TemperatureThermometerState extends State<TemperatureThermometer>
                           _statusText(t),
                           style: TextStyle(
                             color: _colorForTemp(pct),
-                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

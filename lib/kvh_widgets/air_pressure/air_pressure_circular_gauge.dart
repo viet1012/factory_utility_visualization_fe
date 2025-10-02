@@ -71,7 +71,7 @@ class _AirTankIndicatorState extends State<AirTankIndicator>
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 2),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -97,7 +97,6 @@ class _AirTankIndicatorState extends State<AirTankIndicator>
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 14,
                   ),
                 ),
               ],

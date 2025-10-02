@@ -60,7 +60,7 @@ class _CustomWaterWaveGaugeState extends State<CustomWaterWaveGauge>
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 2),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -114,13 +114,12 @@ class _CustomWaterWaveGaugeState extends State<CustomWaterWaveGauge>
                             "${(percent * 100).toStringAsFixed(0)}%",
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 20,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           Text(
                             "${widget.facility.waterFlow.toStringAsFixed(0)} m³",
-                            style: TextStyle(color: Colors.white, fontSize: 10),
+                            style: TextStyle(color: Colors.white),
                           ),
                         ],
                       ),
