@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:factory_utility_visualization/api/ApiService.dart';
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_charts/charts.dart' as sf;
+import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../kvh_widgets/air_pressure/air_pressure_circular_gauge.dart';
 import '../kvh_widgets/electricity/power_circular_gauge.dart';
+import '../kvh_widgets/summary_widgets/summary_metric_card.dart';
 import '../kvh_widgets/temperature/temperature_thermometer.dart';
 import '../kvh_widgets/water/water_gauge_grid.dart';
 import '../model/facility_data.dart';
@@ -14,6 +15,8 @@ import '../widgets/facility_info_box.dart';
 import '../widgets/line_chart_painter.dart';
 import '../widgets/rain_effect_image_realtime.dart';
 import '../widgets/summary_card.dart';
+
+import 'package:flutter/material.dart';
 
 class FacilityDashboard extends StatefulWidget {
   FacilityDashboard({super.key});
@@ -80,15 +83,6 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     _generateChartData();
     _startChartAnimation1();
     facilityStream = getFacilityStream(); // chỉ tạo 1 lần
-
-    // gọi API mỗi 5s
-    // Timer.periodic(const Duration(seconds: 5), (timer) {
-    //   if (!mounted) {
-    //     timer.cancel();
-    //     return;
-    //   }
-    //   _fetchAndUpdate();
-    // });
   }
 
   @override
@@ -285,8 +279,8 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   }
 
   Widget _buildFactoryMapWithAdvancedRain() {
-    // final WeatherApiService weatherService = WeatherApiService(); // Dùng mock
-    final WeatherApiService weatherService = MockWeatherService();
+    final WeatherApiService weatherService = WeatherApiService(); // Dùng mock
+    // final WeatherApiService weatherService = MockWeatherService();
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -406,9 +400,18 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
           ),
           Expanded(
             flex: 1,
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: _buildSummaryColumn(totalPower, totalVolume, avgPressure),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: _buildSummaryColumn(
+                    totalPower,
+                    totalVolume,
+                    avgPressure,
+                  ),
+                ),
+                FactorySummaryWidget(totalPower, totalVolume, avgPressure),
+              ],
             ),
           ),
         ],
@@ -420,37 +423,37 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.7,
-              crossAxisSpacing: 18,
-              mainAxisSpacing: 12,
-            ),
-            itemCount: facilities.length,
-            itemBuilder: (context, index) {
-              return PowerCircularGauge(facility: facilities[index]);
-            },
-          ),
-        ),
-        Expanded(
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.7,
-              crossAxisSpacing: 18,
-              mainAxisSpacing: 12,
-            ),
-            itemCount: facilities.length,
-            itemBuilder: (context, index) {
-              return CustomWaterWaveGauge(
-                facility: facilities[index],
-                maxVolume: 6000,
-              );
-            },
-          ),
-        ),
+        // Expanded(
+        //   child: GridView.builder(
+        //     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        //       crossAxisCount: 3,
+        //       childAspectRatio: 0.7,
+        //       crossAxisSpacing: 18,
+        //       mainAxisSpacing: 12,
+        //     ),
+        //     itemCount: facilities.length,
+        //     itemBuilder: (context, index) {
+        //       return PowerCircularGauge(facility: facilities[index]);
+        //     },
+        //   ),
+        // ),
+        // Expanded(
+        //   child: GridView.builder(
+        //     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        //       crossAxisCount: 3,
+        //       childAspectRatio: 0.7,
+        //       crossAxisSpacing: 18,
+        //       mainAxisSpacing: 12,
+        //     ),
+        //     itemCount: facilities.length,
+        //     itemBuilder: (context, index) {
+        //       return CustomWaterWaveGauge(
+        //         facility: facilities[index],
+        //         maxVolume: 6000,
+        //       );
+        //     },
+        //   ),
+        // ),
         Expanded(
           child: GridView.builder(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -543,6 +546,123 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
           value: '${avgPressure.toStringAsFixed(0)} MPa',
           icon: Icons.speed,
           color: Colors.red,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryColumnWithSfCharts(
+    double totalPower,
+    double totalVolume,
+    double avgPressure,
+  ) {
+    // Sample data, bạn có thể thay bằng dữ liệu thực tế theo thời gian
+    final powerData = <double>[500, 700, 650, 800, 600];
+    final volumeData = <double>[200, 300, 250, 280, 320];
+    final pressureData = <double>[0.8, 0.9, 1.0, 0.95, 0.85];
+
+    final metrics = [
+      {
+        "title": "Electric Power",
+        "value": '${(totalPower / 1000).toStringAsFixed(0)}k kWh',
+        "icon": Icons.flash_on,
+        "color": Colors.orange,
+        "data": powerData,
+      },
+      {
+        "title": "Water Volume",
+        "value": '${totalVolume.toStringAsFixed(0)} m³',
+        "icon": Icons.water_drop,
+        "color": Colors.blue,
+        "data": volumeData,
+      },
+      {
+        "title": "Avg Pressure",
+        "value": '${avgPressure.toStringAsFixed(1)} MPa',
+        "icon": Icons.speed,
+        "color": Colors.red,
+        "data": pressureData,
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          "Factory Summary",
+          style: TextStyle(
+            fontSize: 18,
+            color: Colors.grey[400],
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        ...metrics.map(
+          (m) => Container(
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: (m["color"] as Color).withOpacity(0.15),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: (m["color"] as Color).withOpacity(0.3),
+                      child: Icon(
+                        m["icon"] as IconData,
+                        color: m["color"] as Color,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        m["title"] as String,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      m["value"] as String,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 40,
+                  child: SfCartesianChart(
+                    margin: EdgeInsets.zero,
+                    primaryXAxis: CategoryAxis(isVisible: false),
+                    primaryYAxis: NumericAxis(isVisible: false),
+                    series: <CartesianSeries>[
+                      ColumnSeries<double, int>(
+                        dataSource: m["data"] as List<double>,
+                        xValueMapper: (value, index) => index,
+                        yValueMapper: (value, _) => value,
+                        color: m["color"] as Color,
+                        width: 0.6,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
