@@ -59,11 +59,12 @@ class _PowerCircularGaugeState extends State<PowerCircularGauge>
           colors: [
             const Color(0xFF1A237E).withOpacity(0.9),
             const Color(0xFF0D47A1).withOpacity(0.9),
+            Colors.black,
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withOpacity(0.3),
+            color: Colors.blueAccent.withOpacity(0.3),
             blurRadius: 15,
             spreadRadius: 2,
           ),

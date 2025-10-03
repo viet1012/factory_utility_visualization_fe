@@ -55,8 +55,9 @@ class _AirTankIndicatorState extends State<AirTankIndicator>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            const Color(0xFF263238).withOpacity(0.9),
-            const Color(0xFF37474F).withOpacity(0.9),
+            const Color(0xFF1A237E).withOpacity(0.9),
+            const Color(0xFF0D47A1).withOpacity(0.9),
+            Colors.black,
           ],
         ),
         boxShadow: [

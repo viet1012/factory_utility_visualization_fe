@@ -56,13 +56,16 @@ class _TemperatureThermometerState extends State<TemperatureThermometer>
     final t = widget.facility.temperature;
     final pct = ((t - widget.minTemp) / (widget.maxTemp - widget.minTemp))
         .clamp(0.0, 1.0);
-
     return Container(
       width: 110,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         gradient: LinearGradient(
-          colors: [Colors.grey.shade900, Colors.black87],
+          colors: [
+            const Color(0xFF1A237E).withOpacity(0.9),
+            Colors.black,
+            const Color(0xFF0D47A1).withOpacity(0.9),
+          ],
         ),
         boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 8)],
       ),
