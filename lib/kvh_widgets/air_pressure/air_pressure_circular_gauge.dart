@@ -70,38 +70,38 @@ class _AirTankIndicatorState extends State<AirTankIndicator>
       child: Column(
         children: [
           // Header
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.cyanAccent.withOpacity(0.6),
-                  Colors.white.withOpacity(0.3),
-                ],
-              ),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.inventory_2_outlined,
-                  color: Colors.white,
-                  size: 16,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  widget.facility.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Container(
+          //   padding: const EdgeInsets.symmetric(vertical: 2),
+          //   decoration: BoxDecoration(
+          //     gradient: LinearGradient(
+          //       colors: [
+          //         Colors.cyanAccent.withOpacity(0.6),
+          //         Colors.white.withOpacity(0.3),
+          //       ],
+          //     ),
+          //     borderRadius: const BorderRadius.vertical(
+          //       top: Radius.circular(16),
+          //     ),
+          //   ),
+          //   child: Row(
+          //     mainAxisAlignment: MainAxisAlignment.center,
+          //     children: [
+          //       const Icon(
+          //         Icons.inventory_2_outlined,
+          //         color: Colors.white,
+          //         size: 16,
+          //       ),
+          //       const SizedBox(width: 6),
+          //       Text(
+          //         widget.facility.name,
+          //         style: const TextStyle(
+          //           color: Colors.white,
+          //           fontWeight: FontWeight.bold,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
 
           // Tank visualization
           Expanded(

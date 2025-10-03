@@ -59,39 +59,39 @@ class _CustomWaterWaveGaugeState extends State<CustomWaterWaveGauge>
       child: Column(
         children: [
           // Header
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.blue.withOpacity(0.6),
-                  Colors.orange.withOpacity(0.3),
-                ],
-              ),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.water_drop_outlined,
-                  color: Colors.white,
-                  size: 16,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  widget.facility.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Container(
+          //   padding: const EdgeInsets.symmetric(vertical: 2),
+          //   decoration: BoxDecoration(
+          //     gradient: LinearGradient(
+          //       colors: [
+          //         Colors.blue.withOpacity(0.6),
+          //         Colors.orange.withOpacity(0.3),
+          //       ],
+          //     ),
+          //     borderRadius: const BorderRadius.vertical(
+          //       top: Radius.circular(16),
+          //     ),
+          //   ),
+          //   child: Row(
+          //     mainAxisAlignment: MainAxisAlignment.center,
+          //     children: [
+          //       const Icon(
+          //         Icons.water_drop_outlined,
+          //         color: Colors.white,
+          //         size: 16,
+          //       ),
+          //       const SizedBox(width: 6),
+          //       Text(
+          //         widget.facility.name,
+          //         style: const TextStyle(
+          //           color: Colors.white,
+          //           fontWeight: FontWeight.bold,
+          //           fontSize: 14,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
 
           // Custom wave
           Expanded(

@@ -72,38 +72,38 @@ class _PowerCircularGaugeState extends State<PowerCircularGauge>
       child: Column(
         children: [
           // Header
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.orange.withOpacity(0.6),
-                  Colors.black.withOpacity(0.3),
-                ],
-              ),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.flash_on, color: Colors.white, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  widget.facility.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Container(
+          //   padding: const EdgeInsets.symmetric(vertical: 8),
+          //   decoration: BoxDecoration(
+          //     gradient: LinearGradient(
+          //       colors: [
+          //         Colors.orange.withOpacity(0.6),
+          //         Colors.black.withOpacity(0.3),
+          //       ],
+          //     ),
+          //     borderRadius: const BorderRadius.vertical(
+          //       top: Radius.circular(16),
+          //     ),
+          //   ),
+          //   child: Row(
+          //     mainAxisAlignment: MainAxisAlignment.center,
+          //     children: [
+          //       const Icon(Icons.flash_on, color: Colors.white, size: 16),
+          //       const SizedBox(width: 6),
+          //       Text(
+          //         widget.facility.name,
+          //         style: const TextStyle(
+          //           color: Colors.white,
+          //           fontWeight: FontWeight.bold,
+          //           fontSize: 14,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
 
           // Gauge
-          Expanded(
+          Flexible(
             child: Padding(
               padding: const EdgeInsets.all(8),
               child: AnimatedBuilder(
@@ -286,227 +286,5 @@ class CircularGaugePainter extends CustomPainter {
   @override
   bool shouldRepaint(CircularGaugePainter oldDelegate) {
     return oldDelegate.percent != percent;
-  }
-}
-
-// Option 2: Linear Bar Gauge
-class PowerLinearGauge extends StatelessWidget {
-  final FacilityData facility;
-  final double maxPower;
-
-  const PowerLinearGauge({
-    Key? key,
-    required this.facility,
-    this.maxPower = 250000,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    final percent = (facility.electricPower / maxPower).clamp(0.0, 1.0);
-    final powerKW = facility.electricPower / 1000;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF1A237E).withOpacity(0.9),
-            const Color(0xFF0D47A1).withOpacity(0.9),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.orange.withOpacity(0.3),
-            blurRadius: 12,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.flash_on, color: Colors.orange, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    facility.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                '${powerKW.toStringAsFixed(1)} kW',
-                style: const TextStyle(
-                  color: Colors.orange,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Linear gauge
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: percent),
-            duration: const Duration(seconds: 2),
-            curve: Curves.easeOutCubic,
-            builder: (context, value, child) {
-              return Column(
-                children: [
-                  // Bar
-                  Container(
-                    height: 24,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: Colors.white.withOpacity(0.1),
-                    ),
-                    child: Stack(
-                      children: [
-                        // Progress bar
-                        FractionallySizedBox(
-                          widthFactor: value,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              gradient: LinearGradient(
-                                colors: [
-                                  _getColorForPower(percent).withOpacity(0.7),
-                                  _getColorForPower(percent),
-                                ],
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: _getColorForPower(
-                                    percent,
-                                  ).withOpacity(0.5),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Percentage text
-                        Center(
-                          child: Text(
-                            '${(value * 100).toStringAsFixed(0)}%',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Scale markers
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildScaleText('0'),
-                      _buildScaleText(
-                        '${(maxPower / 4000).toStringAsFixed(0)}',
-                      ),
-                      _buildScaleText(
-                        '${(maxPower / 2000).toStringAsFixed(0)}',
-                      ),
-                      _buildScaleText(
-                        '${(maxPower / 1333).toStringAsFixed(0)}',
-                      ),
-                      _buildScaleText(
-                        '${(maxPower / 1000).toStringAsFixed(0)}',
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScaleText(String text) {
-    return Text(
-      text,
-      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 9),
-    );
-  }
-
-  Color _getColorForPower(double percent) {
-    if (percent < 0.3) return Colors.greenAccent;
-    if (percent < 0.7) return Colors.orangeAccent;
-    return Colors.redAccent;
-  }
-}
-
-// Grid cho cả Power, Volume, Pressure
-class FacilityMetricsGrid extends StatelessWidget {
-  final List<FacilityData> facilities;
-
-  const FacilityMetricsGrid({Key? key, required this.facilities})
-    : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 1,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: facilities.length,
-      itemBuilder: (context, index) {
-        return PowerCircularGauge(
-          facility: facilities[index],
-          maxPower: 250000,
-        );
-      },
-    );
-  }
-}
-
-// Vertical list với tất cả metrics
-class FacilityMetricsList extends StatelessWidget {
-  final List<FacilityData> facilities;
-
-  const FacilityMetricsList({Key? key, required this.facilities})
-    : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: facilities.length,
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: PowerLinearGauge(
-            facility: facilities[index],
-            maxPower: 250000,
-          ),
-        );
-      },
-    );
   }
 }

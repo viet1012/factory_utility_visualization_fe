@@ -69,35 +69,35 @@ class _TemperatureThermometerState extends State<TemperatureThermometer>
       child: Column(
         children: [
           // header
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.black26.withOpacity(0.6),
-                  Colors.orange.withOpacity(0.3),
-                ],
-              ),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.thermostat, color: Colors.white, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  widget.facility.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Container(
+          //   padding: const EdgeInsets.symmetric(vertical: 2),
+          //   decoration: BoxDecoration(
+          //     gradient: LinearGradient(
+          //       colors: [
+          //         Colors.black26.withOpacity(0.6),
+          //         Colors.orange.withOpacity(0.3),
+          //       ],
+          //     ),
+          //     borderRadius: const BorderRadius.vertical(
+          //       top: Radius.circular(16),
+          //     ),
+          //   ),
+          //   child: Row(
+          //     mainAxisAlignment: MainAxisAlignment.center,
+          //     children: [
+          //       const Icon(Icons.thermostat, color: Colors.white, size: 16),
+          //       const SizedBox(width: 6),
+          //       Text(
+          //         widget.facility.name,
+          //         style: const TextStyle(
+          //           color: Colors.white,
+          //           fontWeight: FontWeight.bold,
+          //           fontSize: 14,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
           // thermometer graphic
           Expanded(
             child: AnimatedBuilder(

@@ -336,7 +336,6 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
       child: Row(
         children: [
           Expanded(
-            flex: 1,
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: _buildSummaryCharts(facilities),
@@ -419,102 +418,69 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   }
 
   Widget _buildSummaryCharts(List<FacilityData> facilities) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.7,
-              crossAxisSpacing: 18,
-              mainAxisSpacing: 12,
+    return GridView.builder(
+      shrinkWrap: true,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 0.16, // giữ tỷ lệ ô đồng nhất
+        crossAxisSpacing: 18,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: facilities.length,
+      itemBuilder: (context, index) {
+        return Column(
+          children: [
+            // Header
+            Container(
+              height: 36,
+              margin: const EdgeInsets.only(bottom: 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.blueAccent.withOpacity(0.6),
+                    Colors.black.withOpacity(0.3),
+                  ],
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  facilities[index].name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             ),
-            itemCount: facilities.length,
-            itemBuilder: (context, index) {
-              return PowerCircularGauge(facility: facilities[index]);
-            },
-          ),
-        ),
-        Expanded(
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.7,
-              crossAxisSpacing: 18,
-              mainAxisSpacing: 12,
+            // Các gauge (cho co giãn loose thay vì ép cứng Expanded)
+            SizedBox(
+              height: 120,
+              child: PowerCircularGauge(facility: facilities[index]),
             ),
-            itemCount: facilities.length,
-            itemBuilder: (context, index) {
-              return CustomWaterWaveGauge(
+            SizedBox(height: 10),
+            SizedBox(
+              height: 120,
+              child: CustomWaterWaveGauge(
                 facility: facilities[index],
                 maxVolume: 6000,
-              );
-            },
-          ),
-        ),
-        Expanded(
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.7,
-              crossAxisSpacing: 18,
-              mainAxisSpacing: 12,
+              ),
             ),
-            itemCount: facilities.length,
-            itemBuilder: (context, index) {
-              return SizedBox(
-                child: AirTankIndicator(facility: facilities[index]),
-              );
-            },
-          ),
-        ),
-        Expanded(
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.66,
-              crossAxisSpacing: 18,
-              mainAxisSpacing: 12,
+            SizedBox(height: 10),
+            SizedBox(
+              height: 150,
+              child: AirTankIndicator(facility: facilities[index]),
             ),
-            itemCount: facilities.length,
-            itemBuilder: (context, index) {
-              return SizedBox(
-                child: TemperatureThermometer(facility: facilities[index]),
-              );
-            },
-          ),
-        ),
-        // Expanded(
-        //   child: sf.SfCircularChart(
-        //     title: sf.ChartTitle(text: 'electricPower Distribution'),
-        //     legend: sf.Legend(isVisible: true),
-        //     series: <sf.CircularSeries>[
-        //       sf.PieSeries<FacilityData, String>(
-        //         dataSource: facilities,
-        //         xValueMapper: (f, _) => f.name,
-        //         yValueMapper: (f, _) => f.electricPower,
-        //         dataLabelSettings: const sf.DataLabelSettings(isVisible: true),
-        //       ),
-        //     ],
-        //   ),
-        // ),
-        // Expanded(
-        //   child: sf.SfCartesianChart(
-        //     title: sf.ChartTitle(text: 'Water Volume by Facility'),
-        //     primaryXAxis: sf.CategoryAxis(),
-        //     primaryYAxis: sf.NumericAxis(),
-        //     series: <sf.CartesianSeries>[
-        //       sf.ColumnSeries<FacilityData, String>(
-        //         dataSource: facilities,
-        //         xValueMapper: (f, _) => f.name,
-        //         yValueMapper: (f, _) => f.volume,
-        //         dataLabelSettings: const sf.DataLabelSettings(isVisible: true),
-        //       ),
-        //     ],
-        //   ),
-        // ),
-      ],
+            SizedBox(height: 10),
+            SizedBox(
+              height: 150,
+              child: TemperatureThermometer(facility: facilities[index]),
+            ),
+          ],
+        );
+      },
     );
   }
 
