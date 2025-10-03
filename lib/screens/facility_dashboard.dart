@@ -339,7 +339,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
             ApiControlledRainImage(
               imageUrl: mainImageUrl,
               weatherService: weatherService,
-              fit: BoxFit.fill,
+              fit: BoxFit.cover,
             ),
             // ... overlay và facility boxes ...
           ],

@@ -271,15 +271,25 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
     return Stack(
       children: [
         // Background image
-        Image.asset(
-          widget.imageUrl,
-          fit: widget.fit,
-          width: widget.width,
-          height: widget.height,
-          color: isDay
-              ? null
-              : Colors.blueGrey.withOpacity(0.3), // darken night
-          colorBlendMode: isDay ? BlendMode.dst : BlendMode.darken,
+        AnimatedCrossFade(
+          duration: const Duration(seconds: 1),
+          firstChild: Image.asset(
+            widget.imageUrl,
+            fit: widget.fit,
+            width: widget.width,
+            height: widget.height,
+          ),
+          secondChild: Image.asset(
+            'assets/images/SPC2_night.png',
+            fit: widget.fit,
+            width: widget.width,
+            height: widget.height,
+            color: Colors.blueGrey.withOpacity(0.3),
+            colorBlendMode: BlendMode.darken,
+          ),
+          crossFadeState: isDay
+              ? CrossFadeState.showFirst
+              : CrossFadeState.showSecond,
         ),
 
         // Weather overlay (darker for night or rain)
@@ -294,35 +304,6 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
                       : Colors.black.withOpacity(0.25)), // night dark overlay
           ),
         ),
-
-        // Thêm đèn khi ban đêm
-        // if (!isDay)
-        //   Align(
-        //     alignment: const FractionalOffset(0.5, 0.3),
-        //     child: Container(
-        //       width: 26,
-        //       height: 26,
-        //       decoration: BoxDecoration(
-        //         shape: BoxShape.circle,
-        //         color: Colors.white.withOpacity(0.95),
-        //         boxShadow: [
-        //           BoxShadow(
-        //             color: Colors.white.withOpacity(0.8),
-        //             blurRadius: 50,
-        //             spreadRadius: 20,
-        //           ),
-        //         ],
-        //         gradient: RadialGradient(
-        //           colors: [
-        //             Colors.white.withOpacity(1.0),
-        //             Colors.white.withOpacity(0.4),
-        //             Colors.transparent,
-        //           ],
-        //           stops: [0.1, 0.5, 1.0],
-        //         ),
-        //       ),
-        //     ),
-        //   ),
 
         // Rain effect
         if (isRaining)
@@ -632,38 +613,38 @@ class MockWeatherService extends WeatherApiService {
   Stream<WeatherData> weatherStream() async* {
     final now = DateTime.now();
 
-    // // 1. Ban ngày mưa nặng
-    // yield WeatherData(
-    //   condition: 'rain',
-    //   rainIntensity: 0.9,
-    //   temperature: 24,
-    //   humidity: 220,
-    //   windSpeed: 4,
-    //   isDaytime: true,
-    // );
-    // await Future.delayed(Duration(seconds: 30));
-    //
-    // // 2. Ban ngày mưa nhẹ
-    // yield WeatherData(
-    //   condition: 'rain',
-    //   rainIntensity: 0.3,
-    //   temperature: 24,
-    //   humidity: 200,
-    //   windSpeed: 4,
-    //   isDaytime: true,
-    // );
-    // await Future.delayed(Duration(seconds: 15));
-    //
-    // // 3. Ban đêm mưa nhẹ
-    // yield WeatherData(
-    //   condition: 'rain',
-    //   rainIntensity: 0.3,
-    //   temperature: 22,
-    //   humidity: 190,
-    //   windSpeed: 3,
-    //   isDaytime: false,
-    // );
-    // await Future.delayed(Duration(seconds: 45));
+    // 1. Ban ngày mưa nặng
+    yield WeatherData(
+      condition: 'rain',
+      rainIntensity: 0.9,
+      temperature: 24,
+      humidity: 220,
+      windSpeed: 4,
+      isDaytime: true,
+    );
+    await Future.delayed(Duration(seconds: 10));
+
+    // 2. Ban ngày mưa nhẹ
+    yield WeatherData(
+      condition: 'rain',
+      rainIntensity: 0.3,
+      temperature: 24,
+      humidity: 200,
+      windSpeed: 4,
+      isDaytime: true,
+    );
+    await Future.delayed(Duration(seconds: 15));
+
+    // 3. Ban đêm mưa nhẹ
+    yield WeatherData(
+      condition: 'rain',
+      rainIntensity: 0.3,
+      temperature: 22,
+      humidity: 190,
+      windSpeed: 3,
+      isDaytime: false,
+    );
+    await Future.delayed(Duration(seconds: 45));
 
     // 4. Ban đêm trời quang
     yield WeatherData(
