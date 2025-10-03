@@ -146,7 +146,7 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
 
                       border: Border.all(
                         color: Color(0xFF0D47A1).withOpacity(0.3),
-                        width: 2,
+                        width: 1,
                       ),
                       boxShadow: [
                         BoxShadow(

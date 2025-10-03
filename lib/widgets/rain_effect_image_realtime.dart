@@ -248,7 +248,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
       (index) => RainDrop(
         x: random.nextDouble(),
         y: random.nextDouble(),
-        length: 4 + random.nextDouble() * (4 * rainIntensity),
+        length: 3 + random.nextDouble() * (3 * rainIntensity),
         speed: 0.01 + random.nextDouble() * (0.02 * rainIntensity),
         opacity: 0.3 + random.nextDouble() * (0.7 * rainIntensity),
         windOffset: currentWeather?.windSpeed ?? 0,
@@ -266,7 +266,8 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
   // Trong build() của _ApiControlledRainImageState
   Widget build(BuildContext context) {
     final isDay = currentWeather?.isDaytime ?? true;
-
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     return Stack(
       children: [
         // Background image
@@ -293,6 +294,35 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
                       : Colors.black.withOpacity(0.25)), // night dark overlay
           ),
         ),
+
+        // Thêm đèn khi ban đêm
+        // if (!isDay)
+        //   Align(
+        //     alignment: const FractionalOffset(0.5, 0.3),
+        //     child: Container(
+        //       width: 26,
+        //       height: 26,
+        //       decoration: BoxDecoration(
+        //         shape: BoxShape.circle,
+        //         color: Colors.white.withOpacity(0.95),
+        //         boxShadow: [
+        //           BoxShadow(
+        //             color: Colors.white.withOpacity(0.8),
+        //             blurRadius: 50,
+        //             spreadRadius: 20,
+        //           ),
+        //         ],
+        //         gradient: RadialGradient(
+        //           colors: [
+        //             Colors.white.withOpacity(1.0),
+        //             Colors.white.withOpacity(0.4),
+        //             Colors.transparent,
+        //           ],
+        //           stops: [0.1, 0.5, 1.0],
+        //         ),
+        //       ),
+        //     ),
+        //   ),
 
         // Rain effect
         if (isRaining)
@@ -479,14 +509,14 @@ class ApiRainPainter extends CustomPainter {
     for (var drop in rainDrops) {
       final paint = Paint()
         ..color = (isDay ? Colors.white : Colors.cyanAccent)
-        ..strokeWidth = 1.5 + (intensity * 0.5)
+        ..strokeWidth = 1.3 + (intensity * 0.3)
         ..strokeCap = StrokeCap.round;
 
       final startX = drop.x * size.width;
       final startY = drop.y * size.height;
       final windEffect = (windSpeed / 50).clamp(-5.0, 5.0);
       final endX = startX + windEffect * drop.length; // Wind angle
-      final dropSize = drop.length * (0.3 + intensity); // giảm base size
+      final dropSize = drop.length * (0.2 + intensity); // giảm base size
       // final endY = startY + drop.length;
 
       // mưa càng nhẹ → hạt càng nhỏ:
@@ -602,38 +632,38 @@ class MockWeatherService extends WeatherApiService {
   Stream<WeatherData> weatherStream() async* {
     final now = DateTime.now();
 
-    // 1. Ban ngày mưa nặng
-    yield WeatherData(
-      condition: 'rain',
-      rainIntensity: 0.9,
-      temperature: 24,
-      humidity: 220,
-      windSpeed: 4,
-      isDaytime: true,
-    );
-    await Future.delayed(Duration(seconds: 30));
-
-    // 2. Ban ngày mưa nhẹ
-    yield WeatherData(
-      condition: 'rain',
-      rainIntensity: 0.3,
-      temperature: 24,
-      humidity: 200,
-      windSpeed: 4,
-      isDaytime: true,
-    );
-    await Future.delayed(Duration(seconds: 15));
-
-    // 3. Ban đêm mưa nhẹ
-    yield WeatherData(
-      condition: 'rain',
-      rainIntensity: 0.3,
-      temperature: 22,
-      humidity: 190,
-      windSpeed: 3,
-      isDaytime: false,
-    );
-    await Future.delayed(Duration(seconds: 45));
+    // // 1. Ban ngày mưa nặng
+    // yield WeatherData(
+    //   condition: 'rain',
+    //   rainIntensity: 0.9,
+    //   temperature: 24,
+    //   humidity: 220,
+    //   windSpeed: 4,
+    //   isDaytime: true,
+    // );
+    // await Future.delayed(Duration(seconds: 30));
+    //
+    // // 2. Ban ngày mưa nhẹ
+    // yield WeatherData(
+    //   condition: 'rain',
+    //   rainIntensity: 0.3,
+    //   temperature: 24,
+    //   humidity: 200,
+    //   windSpeed: 4,
+    //   isDaytime: true,
+    // );
+    // await Future.delayed(Duration(seconds: 15));
+    //
+    // // 3. Ban đêm mưa nhẹ
+    // yield WeatherData(
+    //   condition: 'rain',
+    //   rainIntensity: 0.3,
+    //   temperature: 22,
+    //   humidity: 190,
+    //   windSpeed: 3,
+    //   isDaytime: false,
+    // );
+    // await Future.delayed(Duration(seconds: 45));
 
     // 4. Ban đêm trời quang
     yield WeatherData(

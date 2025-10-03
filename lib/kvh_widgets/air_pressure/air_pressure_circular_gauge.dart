@@ -155,6 +155,7 @@ class _AirTankIndicatorState extends State<AirTankIndicator>
               ),
             ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _buildInfoChip(
                   icon: Icons.water_drop,
@@ -174,6 +175,7 @@ class _AirTankIndicatorState extends State<AirTankIndicator>
 
   Widget _buildInfoChip({required IconData icon, required String label}) {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(icon, color: Colors.cyanAccent, size: 14),
         const SizedBox(width: 4),

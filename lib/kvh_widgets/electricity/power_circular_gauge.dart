@@ -148,36 +148,34 @@ class _PowerCircularGaugeState extends State<PowerCircularGauge>
           ),
 
           // Status
-          Container(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: _getColorForPower(percent),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: _getColorForPower(percent).withOpacity(0.6),
-                        blurRadius: 4,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: _getColorForPower(percent),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: _getColorForPower(percent).withOpacity(0.6),
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  _getStatusText(percent),
-                  style: TextStyle(
-                    color: _getColorForPower(percent),
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _getStatusText(percent),
+                style: TextStyle(
+                  color: _getColorForPower(percent),
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

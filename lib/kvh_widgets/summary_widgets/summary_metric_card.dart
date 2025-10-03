@@ -43,16 +43,15 @@ class FactorySummaryWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            "Factory Summary",
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[400],
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
+          // Text(
+          //   "Factory Summary",
+          //   style: TextStyle(
+          //     fontSize: 18,
+          //     color: Colors.grey[400],
+          //     fontWeight: FontWeight.bold,
+          //   ),
+          //   textAlign: TextAlign.center,
+          // ),
           ...metrics.map(
             (m) => SummaryMetricCard(
               title: m["title"] as String,

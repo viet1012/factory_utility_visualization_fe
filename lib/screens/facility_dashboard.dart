@@ -248,30 +248,67 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
         "${now.second.toString().padLeft(2, '0')}";
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: Color(0xFF000000),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Color(0xFF1A237E).withOpacity(0.3)),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF0A192F), // xanh navy rất tối
+            Color(0xFF071625), // xanh đậm
+            Color(0xFF072757), // xanh đậm
+            Color(0xFF100F0F), // xanh sáng hơn chút
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            "Factory Control System",
-            style: TextStyle(
-              color: Color(0xFF1157C5),
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              const Icon(
+                Icons.factory_rounded,
+                color: Colors.lightBlueAccent,
+                size: 32,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                "Factory Control System",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
           ),
-          Text(
-            timeString,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontFamily: 'monospace',
-            ),
+          Row(
+            children: [
+              const Icon(
+                Icons.access_time,
+                color: Colors.lightBlueAccent,
+                size: 20,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                timeString,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -279,8 +316,8 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   }
 
   Widget _buildFactoryMapWithAdvancedRain() {
-    final WeatherApiService weatherService = WeatherApiService(); // Dùng mock
-    // final WeatherApiService weatherService = MockWeatherService();
+    // final WeatherApiService weatherService = WeatherApiService(); // Dùng mock
+    final WeatherApiService weatherService = MockWeatherService();
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -389,8 +426,8 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
                   ),
                   //Fac C
                   Positioned(
-                    top: screenHeight * 0.01,
-                    left: screenWidth * 0.12,
+                    top: screenHeight * 0,
+                    left: screenWidth * 0.03,
                     child: FacilityInfoBox(facility: facilities[2]),
                   ),
                 ],
@@ -491,7 +528,15 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   ) {
     return Column(
       children: [
-        Text("Total KVH", style: TextStyle(fontSize: 18, color: Colors.grey)),
+        Text(
+          "Factory Summary",
+          style: TextStyle(
+            fontSize: 18,
+            color: Colors.grey[400],
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
         SummaryCard(
           title: 'Total electricPower',
           value: '${(totalPower / 1000).toStringAsFixed(0)}k kWh',
