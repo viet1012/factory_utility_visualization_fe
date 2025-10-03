@@ -611,7 +611,7 @@ class MockWeatherService extends WeatherApiService {
       windSpeed: 4,
       isDaytime: true,
     );
-    await Future.delayed(Duration(seconds: 15));
+    await Future.delayed(Duration(seconds: 30));
 
     // 2. Ban ngày mưa nhẹ
     yield WeatherData(
@@ -633,7 +633,7 @@ class MockWeatherService extends WeatherApiService {
       windSpeed: 3,
       isDaytime: false,
     );
-    await Future.delayed(Duration(seconds: 15));
+    await Future.delayed(Duration(seconds: 45));
 
     // 4. Ban đêm trời quang
     yield WeatherData(

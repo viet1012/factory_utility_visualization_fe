@@ -402,15 +402,14 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
             flex: 1,
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: _buildSummaryColumn(
+                _buildSummaryColumn(totalPower, totalVolume, avgPressure),
+                Flexible(
+                  child: FactorySummaryWidget(
                     totalPower,
                     totalVolume,
                     avgPressure,
                   ),
                 ),
-                FactorySummaryWidget(totalPower, totalVolume, avgPressure),
               ],
             ),
           ),
@@ -423,37 +422,37 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Expanded(
-        //   child: GridView.builder(
-        //     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        //       crossAxisCount: 3,
-        //       childAspectRatio: 0.7,
-        //       crossAxisSpacing: 18,
-        //       mainAxisSpacing: 12,
-        //     ),
-        //     itemCount: facilities.length,
-        //     itemBuilder: (context, index) {
-        //       return PowerCircularGauge(facility: facilities[index]);
-        //     },
-        //   ),
-        // ),
-        // Expanded(
-        //   child: GridView.builder(
-        //     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        //       crossAxisCount: 3,
-        //       childAspectRatio: 0.7,
-        //       crossAxisSpacing: 18,
-        //       mainAxisSpacing: 12,
-        //     ),
-        //     itemCount: facilities.length,
-        //     itemBuilder: (context, index) {
-        //       return CustomWaterWaveGauge(
-        //         facility: facilities[index],
-        //         maxVolume: 6000,
-        //       );
-        //     },
-        //   ),
-        // ),
+        Expanded(
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.7,
+              crossAxisSpacing: 18,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: facilities.length,
+            itemBuilder: (context, index) {
+              return PowerCircularGauge(facility: facilities[index]);
+            },
+          ),
+        ),
+        Expanded(
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.7,
+              crossAxisSpacing: 18,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: facilities.length,
+            itemBuilder: (context, index) {
+              return CustomWaterWaveGauge(
+                facility: facilities[index],
+                maxVolume: 6000,
+              );
+            },
+          ),
+        ),
         Expanded(
           child: GridView.builder(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -551,128 +550,11 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     );
   }
 
-  Widget _buildSummaryColumnWithSfCharts(
-    double totalPower,
-    double totalVolume,
-    double avgPressure,
-  ) {
-    // Sample data, bạn có thể thay bằng dữ liệu thực tế theo thời gian
-    final powerData = <double>[500, 700, 650, 800, 600];
-    final volumeData = <double>[200, 300, 250, 280, 320];
-    final pressureData = <double>[0.8, 0.9, 1.0, 0.95, 0.85];
-
-    final metrics = [
-      {
-        "title": "Electric Power",
-        "value": '${(totalPower / 1000).toStringAsFixed(0)}k kWh',
-        "icon": Icons.flash_on,
-        "color": Colors.orange,
-        "data": powerData,
-      },
-      {
-        "title": "Water Volume",
-        "value": '${totalVolume.toStringAsFixed(0)} m³',
-        "icon": Icons.water_drop,
-        "color": Colors.blue,
-        "data": volumeData,
-      },
-      {
-        "title": "Avg Pressure",
-        "value": '${avgPressure.toStringAsFixed(1)} MPa',
-        "icon": Icons.speed,
-        "color": Colors.red,
-        "data": pressureData,
-      },
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          "Factory Summary",
-          style: TextStyle(
-            fontSize: 18,
-            color: Colors.grey[400],
-            fontWeight: FontWeight.bold,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 12),
-        ...metrics.map(
-          (m) => Container(
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: (m["color"] as Color).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: (m["color"] as Color).withOpacity(0.3),
-                      child: Icon(
-                        m["icon"] as IconData,
-                        color: m["color"] as Color,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        m["title"] as String,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      m["value"] as String,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 40,
-                  child: SfCartesianChart(
-                    margin: EdgeInsets.zero,
-                    primaryXAxis: CategoryAxis(isVisible: false),
-                    primaryYAxis: NumericAxis(isVisible: false),
-                    series: <CartesianSeries>[
-                      ColumnSeries<double, int>(
-                        dataSource: m["data"] as List<double>,
-                        xValueMapper: (value, index) => index,
-                        yValueMapper: (value, _) => value,
-                        color: m["color"] as Color,
-                        width: 0.6,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildBottomChartsSection() {
     return Row(
       children: [
         Expanded(
-          child: _buildChart('electricPower Output', chartData1, Colors.orange),
+          child: _buildChart('ElectricPower Output', chartData1, Colors.orange),
         ),
         Expanded(child: _buildChart('Temperature', chartData2, Colors.red)),
         SizedBox(width: 8),
