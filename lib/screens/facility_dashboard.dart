@@ -13,6 +13,7 @@ import '../model/facility_data.dart';
 import '../widgets/arrow_painter.dart';
 import '../widgets/facility_info_box.dart';
 import '../widgets/line_chart_painter.dart';
+import '../widgets/overview/header_overview.dart';
 import '../widgets/rain_effect_image_realtime.dart';
 import '../widgets/summary_card.dart';
 
@@ -49,29 +50,6 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     } else {
       print("❌ Không lấy được dữ liệu từ API");
     }
-  }
-
-  // Nội suy chart mượt hơn
-  void _startChartAnimation() {
-    _chartTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!mounted) return;
-
-      setState(() {
-        if (_lastElectricValue != null && _nextElectricValue != null) {
-          // nội suy tuyến tính
-          final step = (_nextElectricValue! - _lastElectricValue!) / 10;
-          final newVal =
-              (chartData1.isEmpty ? _lastElectricValue! : chartData1.last) +
-              step;
-
-          chartData1.add(newVal);
-
-          print("📈 Giá trị thêm vào chart: $newVal");
-
-          if (chartData1.length > 30) chartData1.removeAt(0);
-        }
-      });
-    });
   }
 
   late final Stream<List<FacilityData>> facilityStream;
@@ -224,7 +202,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _buildHeader(),
+                  HeaderOverview(),
                   // _buildTimeNow(context),
                   const SizedBox(height: 10),
                   // Expanded(child: _buildFactoryMap(context, facilities)),
@@ -236,81 +214,6 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
             },
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    final now = DateTime.now();
-    final timeString =
-        "${now.hour.toString().padLeft(2, '0')}:"
-        "${now.minute.toString().padLeft(2, '0')}:"
-        "${now.second.toString().padLeft(2, '0')}";
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF0A192F), // xanh navy rất tối
-            Color(0xFF071625), // xanh đậm
-            Color(0xFF072757), // xanh đậm
-            Color(0xFF100F0F), // xanh sáng hơn chút
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.factory_rounded,
-                color: Colors.lightBlueAccent,
-                size: 32,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                "Factory Control System",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              const Icon(
-                Icons.access_time,
-                color: Colors.lightBlueAccent,
-                size: 20,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                timeString,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontFamily: 'monospace',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
