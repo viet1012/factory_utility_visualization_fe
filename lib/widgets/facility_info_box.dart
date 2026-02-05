@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import '../model/facility_data.dart';
+import 'package:factory_utility_visualization/model/signal.dart';
+import '../model/facility_filtered.dart';
 import '../screens/facility_detail_screen.dart';
+import 'overview/factory_map_with_rain.dart';
 
 class FacilityInfoBox extends StatefulWidget {
-  final FacilityData facility;
+  final FacilityFiltered facility;
   final double width;
   final double? height;
 
@@ -79,13 +81,13 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
   }
 
   Color _getFacilityColor() {
-    switch (widget.facility.name) {
+    switch (widget.facility.fac) {
       case 'Fac A':
-        return const Color(0xFF00BCD4); // Cyan
+        return const Color(0xFF00BCD4);
       case 'Fac B':
-        return const Color(0xFF00BCD4); // Green
+        return const Color(0xFF4CAF50);
       case 'Fac C':
-        return const Color(0xFF00BCD4); // Purple
+        return const Color(0xFF9C27B0);
       default:
         return const Color(0xFF00BCD4);
     }
@@ -95,13 +97,16 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
   Widget build(BuildContext context) {
     final facilityColor = _getFacilityColor();
 
+    // Lấy 3 tín hiệu đầu tiên (hoặc ít hơn)
+    final signalsToShow = widget.facility.signals.take(3).toList();
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                FacilityDetailScreen(positionName: widget.facility.name),
+            builder: (_) => ViewerPage(),
+            // FacilityDetailScreen(positionName: widget.facility.fac),
           ),
         );
       },
@@ -135,15 +140,10 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          const Color(
-                            0xFF1A237E,
-                          ).withOpacity(0.3), // xanh đậm nhưng trong suốt 30%
-                          const Color(
-                            0xFF0D47A1,
-                          ).withOpacity(0.3), // xanh sáng hơn, trong suốt 30%
+                          const Color(0xFF1A237E).withOpacity(0.3),
+                          const Color(0xFF0D47A1).withOpacity(0.3),
                         ],
                       ),
-
                       border: Border.all(
                         color: Color(0xFF0D47A1).withOpacity(0.3),
                         width: 1,
@@ -166,7 +166,6 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
                       borderRadius: BorderRadius.circular(20),
                       child: Stack(
                         children: [
-                          // Animated background pattern
                           AnimatedBuilder(
                             animation: _pulseAnimation,
                             builder: (context, child) {
@@ -180,41 +179,21 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
                               );
                             },
                           ),
-
-                          // Content
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _buildHeader(facilityColor),
                               Expanded(
                                 child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
+                                  padding: const EdgeInsets.all(4.0),
                                   child: Column(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      _buildMetricRow(
-                                        Icons.flash_on,
-                                        'Power',
-                                        widget.facility.electricPower,
-                                        'kW',
-                                        Colors.amber,
-                                      ),
-                                      _buildMetricRow(
-                                        Icons.water_drop,
-                                        'Volume',
-                                        widget.facility.waterFlow,
-                                        'm³',
-                                        Colors.lightBlueAccent,
-                                      ),
-                                      _buildMetricRow(
-                                        Icons.speed,
-                                        'Pressure',
-                                        widget.facility.compressedAirPressure,
-                                        'MPa',
-                                        Colors.redAccent,
-                                      ),
-                                    ],
+                                    children: signalsToShow
+                                        .map(
+                                          (signal) => _buildSignalRow(signal),
+                                        )
+                                        .toList(),
                                   ),
                                 ),
                               ),
@@ -249,22 +228,11 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: facilityColor.withOpacity(0.6),
-                width: 1.5,
-              ),
-            ),
-            child: Icon(Icons.factory, color: facilityColor, size: 20),
-          ),
+          Icon(Icons.factory, color: facilityColor, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              widget.facility.name,
+              widget.facility.fac,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -294,15 +262,33 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
     );
   }
 
-  Widget _buildMetricRow(
-    IconData icon,
-    String label,
-    double value,
-    String unit,
-    Color color,
-  ) {
+  Widget _buildSignalRow(Signal signal) {
+    IconData iconData = Icons.sensors;
+    Color color = Colors.lightBlueAccent;
+
+    try {
+      final type = signal.description;
+
+      // Ưu tiên xét theo type, nếu không có thì xét theo description
+      switch (type) {
+        case 'Electricity':
+          iconData = Icons.flash_on;
+          color = Colors.orangeAccent;
+          break;
+
+        case 'Volume':
+          iconData = Icons.water_drop_outlined;
+          color = Colors.blueAccent;
+          break;
+      }
+    } catch (e) {
+      print("⚠️ Lỗi khi chọn icon cho signal: $e");
+      iconData = Icons.error_outline;
+      color = Colors.redAccent;
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
@@ -310,46 +296,29 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color.withOpacity(0.3), color.withOpacity(0.15)],
-              ),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: color.withOpacity(0.4), width: 1),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
+          Icon(iconData, color: color, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  label,
+                  signal.fullName.trim(),
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
-                    fontSize: 11,
+                    fontSize: 18,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 2),
-                TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0, end: value),
-                  duration: const Duration(milliseconds: 1000),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, val, child) {
-                    return Text(
-                      '${_formatNumber(val)} $unit',
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    );
-                  },
+                Text(
+                  '${signal.value.toStringAsFixed(2)} ${signal.unit}',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ],
             ),
@@ -358,18 +327,9 @@ class _FacilityInfoBoxState extends State<FacilityInfoBox>
       ),
     );
   }
-
-  String _formatNumber(double number) {
-    if (number >= 1000000) {
-      return (number / 1000000).toStringAsFixed(1);
-    } else if (number >= 1000) {
-      return (number / 1000).toStringAsFixed(1);
-    }
-    return number.toStringAsFixed(0);
-  }
 }
 
-// Custom painter for circuit-like background pattern
+// Custom painter giữ nguyên
 class CircuitPatternPainter extends CustomPainter {
   final Color color;
   final double animationValue;
@@ -388,18 +348,13 @@ class CircuitPatternPainter extends CustomPainter {
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
-    // Draw circuit lines
     final path = Path();
-
-    // Horizontal lines
     path.moveTo(0, size.height * 0.3);
     path.lineTo(size.width * 0.3, size.height * 0.3);
     path.lineTo(size.width * 0.3, size.height * 0.5);
     path.lineTo(size.width, size.height * 0.5);
-
     path.moveTo(size.width * 0.7, size.height * 0.2);
     path.lineTo(size.width, size.height * 0.2);
-
     path.moveTo(0, size.height * 0.8);
     path.lineTo(size.width * 0.5, size.height * 0.8);
     path.lineTo(size.width * 0.5, size.height);
@@ -407,7 +362,6 @@ class CircuitPatternPainter extends CustomPainter {
     canvas.drawPath(path, paint);
     canvas.drawPath(path, glowPaint);
 
-    // Draw nodes
     final nodePaint = Paint()
       ..color = color.withOpacity(0.3 * animationValue)
       ..style = PaintingStyle.fill;

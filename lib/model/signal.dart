@@ -2,7 +2,8 @@ class Signal {
   final String plcAddress;
   final String description;
   final String? shortName;
-  final String value;
+  final String fullName;
+  final double value;
   final String unit;
   final String dataType;
   final String position;
@@ -12,6 +13,7 @@ class Signal {
     required this.plcAddress,
     required this.description,
     this.shortName,
+    required this.fullName,
     required this.value,
     required this.unit,
     required this.dataType,
@@ -20,15 +22,29 @@ class Signal {
   });
 
   factory Signal.fromJson(Map<String, dynamic> json) {
+    double parsedValue = 0.0;
+
+    try {
+      final rawValue = json['value'];
+      if (rawValue is num) {
+        parsedValue = rawValue.toDouble();
+      } else if (rawValue is String) {
+        parsedValue = double.tryParse(rawValue) ?? 0.0;
+      }
+    } catch (_) {
+      parsedValue = 0.0;
+    }
+
     return Signal(
       plcAddress: json['plcAddress'] ?? '',
       description: json['description'] ?? '',
       shortName: json['shortName'],
-      value: json['value'] ?? '',
+      fullName: json['fullName'] ?? '',
+      value: parsedValue,
       unit: json['unit'] ?? '',
       dataType: json['dataType'] ?? '',
       position: json['position'] ?? '',
-      dateadd: DateTime.parse(json['dateadd']),
+      dateadd: DateTime.tryParse(json['dateadd'] ?? '') ?? DateTime.now(),
     );
   }
 
@@ -37,6 +53,7 @@ class Signal {
       'plcAddress': plcAddress,
       'description': description,
       'shortName': shortName,
+      'fullName': fullName,
       'value': value,
       'unit': unit,
       'dataType': dataType,

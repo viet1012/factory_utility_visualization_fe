@@ -4,20 +4,30 @@ import 'package:factory_utility_visualization/api/ApiService.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-import '../kvh_widgets/air_pressure/air_pressure_circular_gauge.dart';
 import '../kvh_widgets/electricity/power_circular_gauge.dart';
-import '../kvh_widgets/summary_widgets/summary_metric_card.dart';
-import '../kvh_widgets/temperature/temperature_thermometer.dart';
 import '../kvh_widgets/water/water_gauge_grid.dart';
 import '../model/facility_data.dart';
+import '../model/facility_filtered.dart';
+import '../model/signal.dart';
+import '../provider/facility_provider_base.dart';
+import '../provider/facility_range_provider.dart';
+import '../provider/facility_realtime_provider.dart';
 import '../widgets/arrow_painter.dart';
 import '../widgets/facility_info_box.dart';
 import '../widgets/line_chart_painter.dart';
+import '../widgets/overview/FacilityChart.dart';
+import '../widgets/overview/factory_map_dashboard.dart';
 import '../widgets/overview/header_overview.dart';
 import '../widgets/rain_effect_image_realtime.dart';
-import '../widgets/summary_card.dart';
+import '../widgets/overview/summary_card.dart';
 
 import 'package:flutter/material.dart';
+// screens/facility_dashboard.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../widgets/facility_info_box.dart';
+import '../widgets/weather/api/weather_api_service.dart';
 
 class FacilityDashboard extends StatefulWidget {
   FacilityDashboard({super.key});
@@ -33,155 +43,87 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
   List<double> chartData1 = [];
   List<double> chartData2 = [];
   List<double> chartData3 = [];
-  double? _lastElectricValue;
-  double? _nextElectricValue;
+
   Timer? _chartTimer;
-
-  Future<void> _fetchAndUpdate() async {
-    final value = await ApiService().fetchElectricValue();
-    if (value != null && mounted) {
-      print("⚡ API trả về: $value");
-
-      _lastElectricValue = _nextElectricValue ?? value;
-      _nextElectricValue = value;
-
-      print("🔹 _lastElectricValue = $_lastElectricValue");
-      print("🔹 _nextElectricValue = $_nextElectricValue");
-    } else {
-      print("❌ Không lấy được dữ liệu từ API");
-    }
-  }
 
   late final Stream<List<FacilityData>> facilityStream;
 
   @override
   void initState() {
     super.initState();
-    // _fetchAndUpdate(); // lần đầu
-    _generateChartData();
-    _startChartAnimation1();
-    facilityStream = getFacilityStream(); // chỉ tạo 1 lần
+
+    Future.microtask(() {
+      context.read<FacilityRealtimeProvider>().startAutoRefresh(plcAddresses);
+
+      // range: refresh mỗi 2s + cập nhật cửa sổ trượt (3h gần nhất)
+      final rangeProvider = context.read<FacilityRangeProvider>();
+
+      // update range lần đầu
+      final now = DateTime.now();
+      rangeProvider.setRange(now.subtract(const Duration(hours: 3)), now);
+
+      rangeProvider.startAutoRefresh(
+        plcAddresses,
+        interval: const Duration(seconds: 60),
+        runImmediately: true,
+      );
+    });
   }
 
   @override
   void dispose() {
-    _chartTimer?.cancel();
+    context.read<FacilityRealtimeProvider>().stopAutoRefresh();
+    context.read<FacilityRangeProvider>().stopAutoRefresh();
     super.dispose();
   }
 
-  void _generateChartData() {
-    final random = math.Random();
-    chartData1 = List.generate(50, (i) => random.nextDouble() * 100);
-    chartData2 = List.generate(50, (i) => 50 + random.nextDouble() * 50);
-    chartData3 = List.generate(50, (i) => 30 + random.nextDouble() * 40);
-  }
 
-  void _startChartAnimation1() {
-    _chartTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (!mounted) return;
-      setState(() {
-        final random = math.Random();
-        chartData1
-          ..removeAt(0)
-          ..add(random.nextDouble() * 100);
-        chartData2
-          ..removeAt(0)
-          ..add(50 + random.nextDouble() * 50);
-        chartData3
-          ..removeAt(0)
-          ..add(30 + random.nextDouble() * 40);
-      });
-    });
-  }
+  final List<String> plcAddresses = [
+    'D24', 'D1113', 'D1114', 'D1115', 'D1116', 'D1117', 'D62' // ví dụ
+  ];
 
-  Stream<List<FacilityData>> getFacilityStream() async* {
-    // 👉 emit dữ liệu mặc định ngay khi mở app
-    List<FacilityData> lastData = [
-      FacilityData(
-        name: 'Fac A',
-        electricPower: 200000,
-        waterFlow: 2000,
-        compressedAirPressure: 1.2, // MPa
-        temperature: 35, // °C
-      ),
-      FacilityData(
-        name: 'Fac B',
-        electricPower: 190000,
-        waterFlow: 2200,
-        compressedAirPressure: 1.23,
-        temperature: 36,
-      ),
-      FacilityData(
-        name: 'Fac C',
-        electricPower: 210000,
-        waterFlow: 2100,
-        compressedAirPressure: 1.25,
-        temperature: 34,
-      ),
-    ];
-
-    yield lastData; // emit lần đầu → UI có data liền
-
-    // 👉 loop gọi API mỗi 5 giây
-    while (true) {
-      try {
-        await Future.delayed(const Duration(seconds: 5));
-
-        final now = DateTime.now().second;
-
-        // call API thật (giả sử chỉ có 1 cái cần gọi API)
-        final powerA = await api.fetchElectricValue();
-        print("electricPower A: $powerA");
-        print("electricPower A: $powerA (${powerA.runtimeType})");
-
-        lastData = [
-          FacilityData(
-            name: 'Fac A',
-            electricPower:
-                powerA ?? (200000 + (now * 80)), // fallback nếu API fail
-            waterFlow: 2000 + now.toDouble(),
-            compressedAirPressure:
-                1.2 + (now % 50) * 0.01, // giả lập thay đổi áp suất
-            temperature: 35 + (now % 5), // giả lập nhiệt độ thay đổi
-          ),
-          FacilityData(
-            name: 'Fac B',
-            electricPower:
-                powerA ?? (200000 + (now * 80)), // fallback nếu API fail
-            waterFlow: 2200 + (now % 30),
-            compressedAirPressure: 1.23 + (now % 20) * 0.01,
-            temperature: 36 + (now % 4),
-          ),
-          FacilityData(
-            name: 'Fac C',
-            electricPower: 210000 + (now * 50),
-            waterFlow: 2100 + (now % 25),
-            compressedAirPressure: 1.25 + (now % 40) * 0.01,
-            temperature: 34 + (now % 6),
-          ),
-        ];
-
-        print(
-          "👉 Emit data: Fac A = ${lastData[0].electricPower} (${lastData[0].electricPower.runtimeType})",
+  void _printRealtimeFacilities(List<FacilityFiltered> list) {
+    debugPrint('========== REALTIME FACILITIES (${list.length}) ==========');
+    for (final f in list) {
+      debugPrint('FAC=${f.fac} | name=${f.facName}');
+      for (final s in f.signals) {
+        debugPrint(
+          '  PLC=${s.plcAddress} | ${s.description} = ${s.value} ${s.unit}',
         );
-        yield lastData; // emit data mới
-      } catch (e) {
-        print("⚠️ Lỗi khi fetch API: $e");
-        yield lastData; // nếu lỗi thì vẫn trả data cũ → UI ko đứng
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final realtime = context.watch<FacilityRealtimeProvider>();
+    final range = context.watch<FacilityRangeProvider>();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _printRealtimeFacilities(realtime.facilities);
+    });
+    if (realtime.facilities.isEmpty && realtime.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final mapFacilities = realtime.facilities;
+    final chartFacilities = range.facilities;
+
+    if (mapFacilities.isEmpty) {
+      return const Center(child: Text('No realtime data'));
+    }
+
+    final chartFacility = chartFacilities.isNotEmpty
+        ? chartFacilities.first
+        : mapFacilities.first; // fallback
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF121111), // dark blue
-              Color(0xFF0D47A1), // blue
-              Color(0xFF311B92), // purple
+              Color(0xFF0a0e27), // - Deep space black-blue
+              Color(0xFF1a1a2e), // - Dark navy
+              Color(0xFF16213e), // - Midnight blue
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -189,31 +131,78 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: StreamBuilder<List<FacilityData>>(
-            stream: facilityStream,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final facilities = snapshot.data!;
-              print("🟢 UI rebuild: Fac A = ${facilities[0].electricPower}");
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  HeaderOverview(),
-                  // _buildTimeNow(context),
-                  const SizedBox(height: 10),
-                  // Expanded(child: _buildFactoryMap(context, facilities)),
-                  _buildFactoryMap(context, facilities),
-                  const SizedBox(height: 20),
-                  Expanded(child: _buildBottomChartsSection()),
-                ],
-              );
-            },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              HeaderOverview(),
+              // _buildTimeNow(context),
+              const SizedBox(height: 10),
+              // Expanded(child: _buildFactoryMap(context, facilities)),
+              FactoryMapDashboard(
+                facilities: realtime.facilities,
+                prevFacilities: realtime.prevFacilities,
+                mainImageUrl: mainImageUrl,
+              ),
+              // _buildFactoryMap(context, provider.facilities),
+              const SizedBox(height: 20),
+              // Expanded(child: _buildBottomChartsSection()),
+              Expanded(
+                child: Row(
+                  children: [
+                    // Expanded(
+                    //   child: FacilityChart(
+                    //     facility: provider.facilities[0],
+                    //     title: 'Electricity',
+                    //     color: Colors.orange,
+                    //   ),
+                    // ),
+                    // Expanded(
+                    //   child: FacilityChart(
+                    //     facility: chartFacility,
+                    //     title: 'Electricity',
+                    //     color: Colors.red,
+                    //   ),
+                    // ),
+                    // Expanded(
+                    //   child: FacilityChart(
+                    //     facility: provider.facilities[2],
+                    //     title: 'Electricity',
+                    //     color: Colors.blue,
+                    //   ),
+                    // ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
+        // child: Padding(
+        //   padding: const EdgeInsets.all(16),
+        //   child: StreamBuilder<List<FacilityData>>(
+        //     stream: facilityStream,
+        //     builder: (context, snapshot) {
+        //       if (!snapshot.hasData) {
+        //         return const Center(child: CircularProgressIndicator());
+        //       }
+        //
+        //       final facilities = snapshot.data!;
+        //       print("🟢 UI rebuild: Fac A = ${facilities[0].electricPower}");
+        //
+        //       return Column(
+        //         crossAxisAlignment: CrossAxisAlignment.center,
+        //         children: [
+        //           HeaderOverview(),
+        //           // _buildTimeNow(context),
+        //           const SizedBox(height: 10),
+        //           // Expanded(child: _buildFactoryMap(context, facilities)),
+        //           _buildFactoryMap(context, facilities),
+        //           const SizedBox(height: 20),
+        //           Expanded(child: _buildBottomChartsSection()),
+        //         ],
+        //       );
+        //     },
+        //   ),
+        // ),
       ),
     );
   }
@@ -251,14 +240,12 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     );
   }
 
-  Widget _buildFactoryMap(BuildContext context, List<FacilityData> facilities) {
+  Widget _buildFactoryMap(
+    BuildContext context,
+    List<FacilityFiltered> facilities,
+  ) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-    final totalPower = facilities.fold(0.0, (sum, f) => sum + f.electricPower);
-    final totalVolume = facilities.fold(0.0, (sum, f) => sum + f.waterFlow);
-    final avgPressure =
-        facilities.fold(0.0, (sum, f) => sum + f.compressedAirPressure) /
-        facilities.length;
     return Container(
       width: screenWidth,
       height: screenHeight / 1.5,
@@ -288,19 +275,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
               child: Stack(
                 alignment: AlignmentDirectional.center,
                 children: [
-                  // Image.asset(
-                  //   mainImageUrl,
-                  //   fit: BoxFit.fill,
-                  //   // width: screenWidth / 2,
-                  // ),
                   _buildFactoryMapWithAdvancedRain(),
-                  // ModelViewer(
-                  //   src: 'assets/images/AnyConv.glb',
-                  //   alt: "A 3D model",
-                  //   autoRotate: true,
-                  //   cameraControls: true,
-                  //   ar: true,
-                  // ),
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -315,21 +290,23 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
                     ),
                   ),
 
-                  //Fac A
+                  // 🔹 Fac A
                   Positioned(
-                    top: screenHeight * 0,
+                    top: screenHeight * 0.0,
                     right: screenWidth * 0.05,
                     child: FacilityInfoBox(facility: facilities[0]),
                   ),
-                  // Fac B
+
+                  // 🔹 Fac B
                   Positioned(
                     top: screenHeight * 0.4,
                     right: screenWidth * 0.05,
                     child: FacilityInfoBox(facility: facilities[1]),
                   ),
-                  //Fac C
+
+                  // 🔹 Fac C
                   Positioned(
-                    top: screenHeight * 0,
+                    top: screenHeight * 0.0,
                     left: screenWidth * 0.03,
                     child: FacilityInfoBox(facility: facilities[2]),
                   ),
@@ -341,13 +318,9 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
             flex: 1,
             child: Column(
               children: [
-                _buildSummaryColumn(totalPower, totalVolume, avgPressure),
-                Flexible(
-                  child: FactorySummaryWidget(
-                    totalPower,
-                    totalVolume,
-                    avgPressure,
-                  ),
+                _buildSummaryColumn(
+                  // Tính tổng công suất của tất cả các facility
+                  facilities,
                 ),
               ],
             ),
@@ -357,7 +330,113 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
     );
   }
 
-  Widget _buildSummaryCharts(List<FacilityData> facilities) {
+  // Widget _buildFactoryMap1(BuildContext context, List<FacilityData> facilities) {
+  //   final screenWidth = MediaQuery.of(context).size.width;
+  //   final screenHeight = MediaQuery.of(context).size.height;
+  //   final totalPower = facilities.fold(0.0, (sum, f) => sum + f.electricPower);
+  //   final totalVolume = facilities.fold(0.0, (sum, f) => sum + f.waterFlow);
+  //   final avgPressure =
+  //       facilities.fold(0.0, (sum, f) => sum + f.compressedAirPressure) /
+  //       facilities.length;
+  //   return Container(
+  //     width: screenWidth,
+  //     height: screenHeight / 1.5,
+  //     decoration: BoxDecoration(
+  //       borderRadius: BorderRadius.circular(16),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.black.withOpacity(0.35),
+  //           spreadRadius: 2,
+  //           blurRadius: 10,
+  //           offset: const Offset(0, 5),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Row(
+  //       children: [
+  //         Expanded(
+  //           child: Padding(
+  //             padding: const EdgeInsets.all(8.0),
+  //             child: _buildSummaryCharts(facilities),
+  //           ),
+  //         ),
+  //         Expanded(
+  //           flex: 3,
+  //           child: ClipRRect(
+  //             borderRadius: BorderRadius.circular(16),
+  //             child: Stack(
+  //               alignment: AlignmentDirectional.center,
+  //               children: [
+  //                 // Image.asset(
+  //                 //   mainImageUrl,
+  //                 //   fit: BoxFit.fill,
+  //                 //   // width: screenWidth / 2,
+  //                 // ),
+  //                 _buildFactoryMapWithAdvancedRain(),
+  //                 // ModelViewer(
+  //                 //   src: 'assets/images/AnyConv.glb',
+  //                 //   alt: "A 3D model",
+  //                 //   autoRotate: true,
+  //                 //   cameraControls: true,
+  //                 //   ar: true,
+  //                 // ),
+  //                 Container(
+  //                   decoration: BoxDecoration(
+  //                     gradient: LinearGradient(
+  //                       begin: Alignment.topCenter,
+  //                       end: Alignment.bottomCenter,
+  //                       colors: [
+  //                         Colors.black.withOpacity(0.1),
+  //                         Colors.transparent,
+  //                         Colors.black.withOpacity(0.15),
+  //                       ],
+  //                     ),
+  //                   ),
+  //                 ),
+  //
+  //                 //Fac A
+  //                 Positioned(
+  //                   top: screenHeight * 0,
+  //                   right: screenWidth * 0.05,
+  //                   child: FacilityInfoBox(facility: facilities[0]),
+  //                 ),
+  //                 // Fac B
+  //                 Positioned(
+  //                   top: screenHeight * 0.4,
+  //                   right: screenWidth * 0.05,
+  //                   child: FacilityInfoBox(facility: facilities[1]),
+  //                 ),
+  //                 //Fac C
+  //                 Positioned(
+  //                   top: screenHeight * 0,
+  //                   left: screenWidth * 0.03,
+  //                   child: FacilityInfoBox(facility: facilities[2]),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+  //         Expanded(
+  //           flex: 1,
+  //           child: Column(
+  //             children: [
+  //               _buildSummaryColumn(totalPower, totalVolume, avgPressure),
+  //               Flexible(
+  //                 child: FactorySummaryWidget(
+  //                   totalPower,
+  //                   totalVolume,
+  //                   avgPressure,
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  Widget _buildSummaryCharts(List<FacilityFiltered> facilities) {
     return GridView.builder(
       shrinkWrap: true,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -387,7 +466,7 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
               ),
               child: Center(
                 child: Text(
-                  facilities[index].name,
+                  facilities[index].fac,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -401,34 +480,86 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
               child: PowerCircularGauge(facility: facilities[index]),
             ),
             SizedBox(height: 10),
-            SizedBox(
-              height: 120,
-              child: CustomWaterWaveGauge(
-                facility: facilities[index],
-                maxVolume: 6000,
-              ),
-            ),
-            SizedBox(height: 10),
-            SizedBox(
-              height: 150,
-              child: AirTankIndicator(facility: facilities[index]),
-            ),
-            SizedBox(height: 10),
-            SizedBox(
-              height: 150,
-              child: TemperatureThermometer(facility: facilities[index]),
-            ),
+            // SizedBox(
+            //   height: 120,
+            //   child: CustomWaterWaveGauge(
+            //     facility: facilities[index],
+            //     maxVolume: 6000,
+            //   ),
+            // ),
+            // SizedBox(height: 10),
+            // SizedBox(
+            //   height: 150,
+            //   child: AirTankIndicator(facility: facilities[index]),
+            // ),
+            // SizedBox(height: 10),
+            // SizedBox(
+            //   height: 150,
+            //   child: TemperatureThermometer(facility: facilities[index]),
+            // ),
           ],
         );
       },
     );
   }
 
-  Widget _buildSummaryColumn(
-    double totalPower,
-    double totalVolume,
-    double avgPressure,
-  ) {
+  Widget _buildSummaryColumn(List<FacilityFiltered> facilities) {
+    if (facilities.isEmpty) return const SizedBox();
+
+    // Tính tổng công suất, tổng lưu lượng, trung bình áp suất
+    double totalPower = facilities
+        .map(
+          (f) => f.signals.firstWhere(
+            (s) => s.description.toLowerCase().contains('power'),
+            orElse: () => f.signals.first,
+          ),
+        )
+        .map((s) => s.value)
+        .reduce((a, b) => a + b);
+
+    String powerUnit = facilities.first.signals
+        .firstWhere(
+          (s) => s.description.toLowerCase().contains('power'),
+          orElse: () => facilities.first.signals.first,
+        )
+        .unit;
+
+    double totalVolume = facilities
+        .map(
+          (f) => f.signals.firstWhere(
+            (s) => s.description.toLowerCase().contains('flow'),
+            orElse: () => f.signals.first,
+          ),
+        )
+        .map((s) => s.value)
+        .reduce((a, b) => a + b);
+
+    String volumeUnit = facilities.first.signals
+        .firstWhere(
+          (s) => s.description.toLowerCase().contains('flow'),
+          orElse: () => facilities.first.signals.first,
+        )
+        .unit;
+
+    double avgPressure =
+        facilities
+            .map(
+              (f) => f.signals.firstWhere(
+                (s) => s.description.toLowerCase().contains('pressure'),
+                orElse: () => f.signals.first,
+              ),
+            )
+            .map((s) => s.value)
+            .reduce((a, b) => a + b) /
+        facilities.length;
+
+    String pressureUnit = facilities.first.signals
+        .firstWhere(
+          (s) => s.description.toLowerCase().contains('pressure'),
+          orElse: () => facilities.first.signals.first,
+        )
+        .unit;
+
     return Column(
       children: [
         Text(
@@ -440,23 +571,24 @@ class _FacilityDashboardState extends State<FacilityDashboard> {
           ),
           textAlign: TextAlign.center,
         ),
+        const SizedBox(height: 8),
         SummaryCard(
           title: 'Total electricPower',
-          value: '${(totalPower / 1000).toStringAsFixed(0)}k kWh',
+          value: '${(totalPower).toStringAsFixed(0)} $powerUnit',
           icon: Icons.flash_on,
           color: Colors.orange,
         ),
         const SizedBox(height: 8),
         SummaryCard(
           title: 'Total Volume',
-          value: '${totalVolume.toStringAsFixed(0)} m³',
+          value: '${totalVolume.toStringAsFixed(0)} $volumeUnit',
           icon: Icons.water_drop,
           color: Colors.blue,
         ),
         const SizedBox(height: 8),
         SummaryCard(
           title: 'Avg Pressure',
-          value: '${avgPressure.toStringAsFixed(0)} MPa',
+          value: '${avgPressure.toStringAsFixed(2)} $pressureUnit',
           icon: Icons.speed,
           color: Colors.red,
         ),

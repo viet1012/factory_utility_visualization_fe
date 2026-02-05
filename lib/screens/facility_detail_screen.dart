@@ -14,11 +14,11 @@ class FacilityDetailScreen extends StatefulWidget {
 class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
   late Future<List<UtilityData>> _futureData;
 
-  @override
-  void initState() {
-    super.initState();
-    _futureData = ApiService().fetchElectricalCabinets();
-  }
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   _futureData = ApiService().fetchElectricalCabinets();
+  // }
 
   @override
   Widget build(BuildContext context) {

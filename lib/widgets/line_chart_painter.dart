@@ -21,11 +21,11 @@ class LineChartPainter extends CustomPainter {
     final stepX = size.width / (data.length - 1);
     final maxY = data.reduce(math.max);
     final minY = data.reduce(math.min);
-    final rangeY = maxY - minY;
+    final safeRangeY = maxY - minY == 0 ? 1 : maxY - minY;
 
     for (int i = 0; i < data.length; i++) {
       final x = i * stepX;
-      final y = size.height - ((data[i] - minY) / rangeY) * size.height;
+      final y = size.height - ((data[i] - minY) / safeRangeY) * size.height;
 
       if (i == 0) {
         path.moveTo(x, y);
@@ -36,7 +36,7 @@ class LineChartPainter extends CustomPainter {
 
     canvas.drawPath(path, paint);
 
-    // Draw fill area
+    // Fill area
     final fillPaint = Paint()
       ..color = color.withOpacity(0.2)
       ..style = PaintingStyle.fill;

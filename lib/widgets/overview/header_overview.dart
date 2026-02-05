@@ -40,20 +40,41 @@ class HeaderOverview extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
-            children: const [
+            children: [
               Icon(
                 Icons.factory_rounded,
                 color: Colors.lightBlueAccent,
                 size: 32,
               ),
               SizedBox(width: 12),
-              Text(
-                "Factory Control System",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 20,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Color(0xFF00F5FF).withOpacity(0.1),
+                      Color(0xFFFF006E).withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Color(0xFF00F5FF).withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  "Factory Control System",
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: Color(0xFF00F5FF),
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                    shadows: [Shadow(color: Color(0xFF00F5FF), blurRadius: 10)],
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ],
