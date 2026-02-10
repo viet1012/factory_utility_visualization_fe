@@ -10,7 +10,7 @@ class ApiService {
     http.Client? client,
     String? baseUrl,
   })  : _client = client ?? http.Client(),
-        baseUrl = baseUrl ?? "http://localhost:9999/api";
+        baseUrl = baseUrl ?? "http://192.168.122.15:9999/api";
 
   final http.Client _client;
   final String baseUrl;

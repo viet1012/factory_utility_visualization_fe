@@ -546,31 +546,27 @@
 // void main() {
 //   runApp(DashboardApp());
 // }
-import 'package:factory_utility_visualization/provider/facility_provider_base.dart';
 import 'package:factory_utility_visualization/provider/facility_range_provider.dart';
 import 'package:factory_utility_visualization/provider/facility_realtime_provider.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'screens/facility_dashboard.dart';
 
 void main() {
   runApp(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(
-            create: (_) => FacilityRealtimeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => FacilityRealtimeProvider()),
+        ChangeNotifierProvider(
+          create: (_) => FacilityRangeProvider(
+            facList: const ['Fac A', 'Fac B', 'Fac C'],
+            from: DateTime.now().subtract(const Duration(hours: 3)),
+            to: DateTime.now(),
           ),
-          ChangeNotifierProvider(
-            create: (_) => FacilityRangeProvider(
-              facList: const ['Fac A', 'Fac B','Fac C'],
-              from: DateTime.now().subtract(const Duration(hours: 3)),
-              to: DateTime.now(),
-            ),
-          ),
-        ],
-        child:  MyApp(),
-      )
-
+        ),
+      ],
+      child: MyApp(),
+    ),
   );
 }
 
@@ -581,7 +577,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Facility Dashboard',
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: FacilityDashboard(),
+      home: UtilityDashboardScreen(),
+      // home: MockTablesPage(),
     );
   }
 }
