@@ -10,13 +10,11 @@ class FacChartConfig {
 }
 
 class SignalChartConfig {
-  final String title;
   final String boxDeviceId;
   final String plcAddress;
   final List<String>? cateIds;
 
   const SignalChartConfig({
-    required this.title,
     required this.boxDeviceId,
     required this.plcAddress,
     this.cateIds,
@@ -39,13 +37,6 @@ class _UtilityAllFactoriesChartsScreenState
       facId: 'Fac_A',
       charts: [
         SignalChartConfig(
-          title: 'Total kW',
-          boxDeviceId: 'DPB_L2_PANNEL_CB_80A',
-          plcAddress: 'D24',
-          cateIds: ['E_TTL_KW'],
-        ),
-        SignalChartConfig(
-          title: 'Current L1',
           boxDeviceId: 'DB_P1_400A',
           plcAddress: 'D1',
           cateIds: ['E_Cur1'],
@@ -56,16 +47,24 @@ class _UtilityAllFactoriesChartsScreenState
       facId: 'Fac_B',
       charts: [
         SignalChartConfig(
-          title: 'Total kW',
           boxDeviceId: 'DPB_L2_PANNEL_CB_80A',
-          plcAddress: 'D24',
+          plcAddress: 'D18',
           cateIds: ['E_TTL_KW'],
         ),
         SignalChartConfig(
-          title: 'Current L2',
-          boxDeviceId: 'DB_P1_400A',
-          plcAddress: 'D2',
-          cateIds: ['E_Cur2'],
+          boxDeviceId: 'DPB_L2_PANNEL_CB_80A',
+          plcAddress: 'D20',
+          cateIds: ['E_TTL_KW'],
+        ),
+        SignalChartConfig(
+          boxDeviceId: 'DPB_L2_PANNEL_CB_80A',
+          plcAddress: 'D22',
+          cateIds: ['E_TTL_KW'],
+        ),
+        SignalChartConfig(
+          boxDeviceId: 'DPB_L2_PANNEL_CB_80A',
+          plcAddress: 'D24',
+          cateIds: ['E_TTL_KW'],
         ),
       ],
     ),

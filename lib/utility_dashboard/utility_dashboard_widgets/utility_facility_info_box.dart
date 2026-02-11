@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_state/latest_provider.dart';
 import '../../widgets/facility_info_box.dart';
-import '../ultility_dashboard_common/info_box/utility_info_box_fx.dart';
-import '../ultility_dashboard_common/info_box/utility_info_box_widgets.dart';
-import '../ultility_dashboard_common/utility_fac_style.dart';
+import '../utility_dashboard_common/info_box/utility_info_box_fx.dart';
+import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
+import '../utility_dashboard_common/utility_fac_style.dart';
 
 class UtilityFacilityInfoBox extends StatefulWidget {
   final double width;
@@ -24,8 +26,8 @@ class UtilityFacilityInfoBox extends StatefulWidget {
     this.cate,
     this.boxDeviceId,
     this.cateIds,
-    this.width = 260,
-    this.height = 270,
+    this.width = 360,
+    this.height = 300,
   });
 
   @override
@@ -38,6 +40,35 @@ class _UtilityFacilityInfoBoxState extends State<UtilityFacilityInfoBox>
 
   // ✅ quan trọng: init ngay, không để late String _key; bị dùng trước
   late String _key;
+
+  // ✅ thêm
+  final ScrollController _scroll = ScrollController();
+  Timer? _autoTimer;
+
+  void _startAutoScroll() {
+    _autoTimer?.cancel();
+    if (!_scroll.hasClients) return;
+
+    double dir = 1; // 1 = xuống, -1 = lên
+    _autoTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted || !_scroll.hasClients) return;
+
+      final max = _scroll.position.maxScrollExtent;
+      if (max <= 0) return;
+
+      final next = (_scroll.offset + dir * 80).clamp(0.0, max);
+
+      await _scroll.animateTo(
+        next,
+        duration: const Duration(milliseconds: 650),
+        curve: Curves.easeOutCubic,
+      );
+
+      // chạm đáy thì đảo chiều
+      if (next >= max - 1) dir = -1;
+      if (next <= 1) dir = 1;
+    });
+  }
 
   String _buildKey() {
     // ✅ build key không cần context => gọi được trong initState
@@ -119,6 +150,8 @@ class _UtilityFacilityInfoBoxState extends State<UtilityFacilityInfoBox>
 
   @override
   void dispose() {
+    _autoTimer?.cancel();
+    _scroll.dispose();
     fx.dispose();
     super.dispose();
   }
@@ -215,21 +248,38 @@ class _UtilityFacilityInfoBoxState extends State<UtilityFacilityInfoBox>
                                 ),
                                 Expanded(
                                   child: Padding(
-                                    padding: const EdgeInsets.all(8.0),
+                                    padding: const EdgeInsets.fromLTRB(
+                                      4,
+                                      6,
+                                      4,
+                                      4,
+                                    ),
                                     child: rows.isEmpty
                                         ? UtilityInfoBoxWidgets.emptyState(
                                             hasError: hasError,
                                             err: err,
                                           )
-                                        : Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceEvenly,
-                                            children: rows
-                                                .map(
-                                                  UtilityInfoBoxWidgets
-                                                      .latestRow,
-                                                )
-                                                .toList(),
+                                        : ScrollConfiguration(
+                                            behavior:
+                                                const _NoGlowScrollBehavior(),
+                                            child: GridView.builder(
+                                              controller: _scroll,
+                                              padding: EdgeInsets.zero,
+                                              gridDelegate:
+                                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                                    crossAxisCount: 2,
+                                                    // ✅ 2 cột => show nhiều item
+                                                    crossAxisSpacing: 8,
+                                                    mainAxisSpacing: 8,
+                                                    childAspectRatio:
+                                                        3.2, // ✅ pill thấp
+                                                  ),
+                                              itemCount: rows.length,
+                                              itemBuilder: (_, i) =>
+                                                  UtilityInfoBoxWidgets.latestChip(
+                                                    rows[i],
+                                                  ),
+                                            ),
                                           ),
                                   ),
                                 ),
@@ -248,4 +298,15 @@ class _UtilityFacilityInfoBoxState extends State<UtilityFacilityInfoBox>
       },
     );
   }
+}
+
+class _NoGlowScrollBehavior extends ScrollBehavior {
+  const _NoGlowScrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => child;
 }

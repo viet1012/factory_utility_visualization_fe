@@ -5,9 +5,9 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../utility_models/response/minute_point.dart';
 import '../../utility_state/minute_series_provider.dart';
-import '../ultility_dashboard_common/info_box/utility_info_box_fx.dart';
-import '../ultility_dashboard_common/info_box/utility_info_box_widgets.dart';
-import '../ultility_dashboard_common/utility_fac_style.dart';
+import '../utility_dashboard_common/info_box/utility_info_box_fx.dart';
+import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
+import '../utility_dashboard_common/utility_fac_style.dart';
 
 class _ChartPoint {
   final DateTime ts;
@@ -199,6 +199,8 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
                                 UtilityInfoBoxWidgets.header(
                                   facilityColor: facilityColor,
                                   facTitle: widget.facId,
+                                  boxDeviceId: widget.boxDeviceId,
+                                  plcAddress: widget.plcAddress,
                                   isLoading: isLoading,
                                   hasError: hasError,
                                   err: err,
@@ -312,34 +314,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Icon(
-                    Icons.memory,
-                    size: 14,
-                    color: Colors.white.withOpacity(0.75),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      '${(widget.boxDeviceId ?? '--')} • ${(widget.plcAddress ?? '--')}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.75),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
-
-        const SizedBox(height: 10),
         Expanded(child: _chart(rows)),
       ],
     );
@@ -384,7 +361,6 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
         fontWeight: FontWeight.w700,
       ),
     );
-
     return SfCartesianChart(
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withOpacity(0.12),
@@ -429,7 +405,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
           xValueMapper: (p, _) => p.ts,
           yValueMapper: (p, _) => p.y,
           splineType: SplineType.natural,
-          markerSettings: const MarkerSettings(isVisible: false),
+          markerSettings: const MarkerSettings(isVisible: true),
           opacity: 0.25,
         ),
       ],

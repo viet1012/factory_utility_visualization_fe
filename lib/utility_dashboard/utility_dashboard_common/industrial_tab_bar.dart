@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
 
-class ScadaTabBar extends StatelessWidget {
-  const ScadaTabBar();
+class IndustrialTabItem {
+  final IconData icon;
+  final String text;
+
+  const IndustrialTabItem({required this.icon, required this.text});
+}
+
+class IndustrialTabBar extends StatelessWidget {
+  final List<IndustrialTabItem> tabs;
+  final double height;
+
+  const IndustrialTabBar({super.key, required this.tabs, this.height = 52});
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +23,7 @@ class ScadaTabBar extends StatelessWidget {
         final idx = tabCtrl.index;
 
         return Container(
-          height: 52,
+          height: height,
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: const Color(0xFF0E1729),
@@ -48,10 +58,14 @@ class ScadaTabBar extends StatelessWidget {
             ),
             labelColor: Colors.white,
             unselectedLabelColor: const Color(0xFF9FB2D6),
-            tabs: [
-              _tabItem(active: idx == 0, icon: Icons.map_outlined, text: 'MAP'),
-              _tabItem(active: idx == 1, icon: Icons.show_chart, text: 'CHART'),
-            ],
+            tabs: List.generate(
+              tabs.length,
+              (i) => _tabItem(
+                active: idx == i,
+                icon: tabs[i].icon,
+                text: tabs[i].text,
+              ),
+            ),
           ),
         );
       },

@@ -40,9 +40,9 @@ class UtilityInfoBoxWidgets {
 
           // ✅ title + sub trong cùng 1 khối
           Expanded(
-            child: Column(
+            child: Row(
               mainAxisSize: MainAxisSize.min, // ✅ không bung cao
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   facTitle,
@@ -56,16 +56,27 @@ class UtilityInfoBoxWidgets {
                   ),
                 ),
                 if (sub.isNotEmpty)
-                  Text(
-                    sub,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      height: 1.0, // ✅ thấp
-                    ),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.memory,
+                        size: 22,
+                        color: Colors.white.withOpacity(0.75),
+                      ),
+                      const SizedBox(width: 12),
+
+                      Text(
+                        sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.85),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          height: 1.0, // ✅ thấp
+                        ),
+                      ),
+                    ],
                   ),
               ],
             ),
@@ -155,6 +166,54 @@ class UtilityInfoBoxWidgets {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget latestChip(LatestRecordDto r) {
+    final type = (r.cate ?? '').toLowerCase();
+
+    IconData icon = Icons.sensors;
+    Color accent = Colors.lightBlueAccent;
+
+    if (type.contains('electricity') || type.contains('power')) {
+      icon = Icons.flash_on;
+      accent = Colors.orangeAccent;
+    } else if (type.contains('water') || type.contains('volume')) {
+      icon = Icons.water_drop_outlined;
+      accent = Colors.blueAccent;
+    } else if (type.contains('air') || type.contains('compress')) {
+      icon = Icons.air;
+      accent = Colors.cyanAccent;
+    }
+
+    final v = r.value == null ? '--' : r.value!.toStringAsFixed(2);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: accent, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${r.plcAddress} • $v',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: accent,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                height: 1.0,
+              ),
             ),
           ),
         ],

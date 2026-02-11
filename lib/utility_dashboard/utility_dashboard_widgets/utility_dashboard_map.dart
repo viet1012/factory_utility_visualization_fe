@@ -1,4 +1,4 @@
-import 'package:factory_utility_visualization/utility_dashboard/ultility_dashboard_widgets/utility_facility_info_box.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_widgets/utility_facility_info_box.dart';
 import 'package:flutter/material.dart';
 
 import '../../widgets/overview/factory_map_with_rain.dart';

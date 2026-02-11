@@ -1,60 +1,54 @@
-import 'package:factory_utility_visualization/utility_models/utility_model.dart';
-
-/// ======================
-/// 3) f2_utility_parameter_master
-/// ======================
-class UtilityParameterMaster {
-  final int id;
-  final String category; // Current, Energy Consumption...
+class ParamDto {
+  final int? id;
+  final String boxDeviceId;
+  final String plcAddress;
+  final String valueType;
+  final String unit;
+  final String category;
   final String nameVi;
   final String nameEn;
-  final String unit; // A, kWh, %
-  final String boxDeviceId; // DB-P1_Device 1
-  final String plcAddress; // D1, E1...
-  final UtilityValueType valueType;
-  final bool isImportant;
+  final bool? isImportant;
+  final bool? isAlert;
 
-  const UtilityParameterMaster({
-    required this.id,
-    required this.category,
-    required this.nameVi,
-    required this.nameEn,
-    required this.unit,
+  final String? cateId;
+  final String? scadaId;
+  final String? fac;
+  final String? cate;
+  final String? boxId;
+
+  ParamDto({
+    this.id,
     required this.boxDeviceId,
     required this.plcAddress,
     required this.valueType,
-    required this.isImportant,
+    required this.unit,
+    required this.category,
+    required this.nameVi,
+    required this.nameEn,
+    this.isImportant,
+    this.isAlert,
+    this.cateId,
+    this.scadaId,
+    this.fac,
+    this.cate,
+    this.boxId,
   });
 
-  factory UtilityParameterMaster.fromJson(Map<String, dynamic> json) {
-    final impRaw = json['is_important'];
-    final imp =
-        (impRaw == true) ||
-        (impRaw is num && impRaw.toInt() == 1) ||
-        (impRaw?.toString().trim() == '1');
-
-    return UtilityParameterMaster(
-      id: toInt(json['id']) ?? 0,
-      category: (toStr(json['category']) ?? ''),
-      nameVi: (toStr(json['nameVi']) ?? ''),
-      nameEn: (toStr(json['nameEn']) ?? ''),
-      unit: (toStr(json['unit']) ?? ''),
-      boxDeviceId: (toStr(json['boxDeviceId']) ?? ''),
-      plcAddress: (toStr(json['plcAddress']) ?? ''),
-      valueType: UtilityValueType.fromDb(json['value_type']),
-      isImportant: imp,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'category': category,
-    'name_vi': nameVi,
-    'name_en': nameEn,
-    'unit': unit,
-    'box_device_id': boxDeviceId,
-    'plc_address': plcAddress,
-    'value_type': valueType.toDb(),
-    'is_important': isImportant ? 1 : 0,
-  };
+  factory ParamDto.fromJson(Map<String, dynamic> j) => ParamDto(
+    id: j['id'] == null ? null : int.tryParse('${j['id']}'),
+    boxDeviceId: '${j['boxDeviceId'] ?? ''}',
+    plcAddress: '${j['plcAddress'] ?? ''}',
+    valueType: '${j['valueType'] ?? ''}',
+    unit: '${j['unit'] ?? ''}',
+    category: '${j['category'] ?? ''}',
+    nameVi: '${j['nameVi'] ?? ''}',
+    nameEn: '${j['nameEn'] ?? ''}',
+    isImportant: j['isImportant'] as bool?,
+    isAlert: j['isAlert'] as bool?,
+    cateId: j['cateId']?.toString(),
+    scadaId: j['scadaId']?.toString(),
+    fac: j['fac']?.toString(),
+    cate: j['cate']?.toString(),
+    boxId: j['boxId']?.toString(),
+  );
 }

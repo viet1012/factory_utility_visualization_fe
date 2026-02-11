@@ -1,38 +1,23 @@
-import 'package:factory_utility_visualization/utility_models/utility_model.dart';
-
-/// ======================
-/// 2) f2_utility_scada_channel
-/// ======================
-class UtilityScadaChannel {
-  final int id;
+class ChannelDto {
+  final int? id;
   final String scadaId;
-  final String cate; // Electricity / Water / Air ...
-  final String boxDeviceId; // DB-P1_Device 1 ...
-  final String boxId; // DB-P1 / MCCB BOX ...
+  final String cate;
+  final String boxDeviceId;
+  final String boxId;
 
-  const UtilityScadaChannel({
-    required this.id,
+  ChannelDto({
+    this.id,
     required this.scadaId,
     required this.cate,
     required this.boxDeviceId,
     required this.boxId,
   });
 
-  factory UtilityScadaChannel.fromJson(Map<String, dynamic> json) {
-    return UtilityScadaChannel(
-      id: toInt(json['id']) ?? 0,
-      scadaId: (toStr(json['scada_id']) ?? ''),
-      cate: (toStr(json['cate']) ?? ''),
-      boxDeviceId: (toStr(json['box_device_id']) ?? ''),
-      boxId: (toStr(json['box_id']) ?? ''),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'scada_id': scadaId,
-        'cate': cate,
-        'box_device_id': boxDeviceId,
-        'box_id': boxId,
-      };
+  factory ChannelDto.fromJson(Map<String, dynamic> j) => ChannelDto(
+    id: j['id'] == null ? null : int.tryParse('${j['id']}'),
+    scadaId: '${j['scadaId'] ?? ''}',
+    cate: '${j['cate'] ?? ''}',
+    boxDeviceId: '${j['boxDeviceId'] ?? ''}',
+    boxId: '${j['boxId'] ?? ''}',
+  );
 }
