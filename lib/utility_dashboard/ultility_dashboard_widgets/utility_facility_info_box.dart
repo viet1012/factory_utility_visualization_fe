@@ -35,65 +35,30 @@ class UtilityFacilityInfoBox extends StatefulWidget {
 class _UtilityFacilityInfoBoxState extends State<UtilityFacilityInfoBox>
     with TickerProviderStateMixin {
   late final UtilityInfoBoxFx fx;
+
+  // ✅ quan trọng: init ngay, không để late String _key; bị dùng trước
   late String _key;
 
-  @override
-  void initState() {
-    super.initState();
-    fx = UtilityInfoBoxFx(this)..init();
+  String _buildKey() {
+    // ✅ build key không cần context => gọi được trong initState
+    // nếu bạn muốn normalize cateIds giống provider thì làm ở đây
+    final ids =
+        (widget.cateIds ?? [])
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList()
+          ..sort();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final p = context.read<LatestProvider>();
-
-      _key = p.buildKey(
-        facId: widget.facId,
-        scadaId: widget.scadaId,
-        cate: widget.cate,
-        boxDeviceId: widget.boxDeviceId,
-        cateIds: widget.cateIds,
-      );
-
-      p.upsertRequest(
-        key: _key,
-        facId: widget.facId,
-        scadaId: widget.scadaId,
-        cate: widget.cate,
-        boxDeviceId: widget.boxDeviceId,
-        cateIds: widget.cateIds,
-      );
-
-      p.fetchKey(
-        key: _key,
-        facId: widget.facId,
-        scadaId: widget.scadaId,
-        cate: widget.cate,
-        boxDeviceId: widget.boxDeviceId,
-        cateIds: widget.cateIds,
-      );
-    });
+    return 'fac=${(widget.facId ?? '').trim()}'
+        '|scada=${(widget.scadaId ?? '').trim()}'
+        '|cate=${(widget.cate ?? '').trim()}'
+        '|dev=${(widget.boxDeviceId ?? '').trim()}'
+        '|cateIds=${ids.join(",")}';
   }
 
-  @override
-  void didUpdateWidget(covariant UtilityFacilityInfoBox oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    final filterChanged =
-        oldWidget.facId != widget.facId ||
-        oldWidget.scadaId != widget.scadaId ||
-        oldWidget.cate != widget.cate ||
-        oldWidget.boxDeviceId != widget.boxDeviceId ||
-        (oldWidget.cateIds?.join(',') != widget.cateIds?.join(','));
-
-    if (!filterChanged) return;
-
+  void _registerAndFetch() {
+    if (!mounted) return;
     final p = context.read<LatestProvider>();
-    _key = p.buildKey(
-      facId: widget.facId,
-      scadaId: widget.scadaId,
-      cate: widget.cate,
-      boxDeviceId: widget.boxDeviceId,
-      cateIds: widget.cateIds,
-    );
 
     p.upsertRequest(
       key: _key,
@@ -115,6 +80,44 @@ class _UtilityFacilityInfoBoxState extends State<UtilityFacilityInfoBox>
   }
 
   @override
+  void initState() {
+    super.initState();
+    fx = UtilityInfoBoxFx(this)..init();
+
+    // ✅ set _key ngay lập tức => build() không crash
+    _key = _buildKey();
+
+    // ✅ register + fetch cần provider/context => để postFrame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _registerAndFetch();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant UtilityFacilityInfoBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final filterChanged =
+        oldWidget.facId != widget.facId ||
+        oldWidget.scadaId != widget.scadaId ||
+        oldWidget.cate != widget.cate ||
+        oldWidget.boxDeviceId != widget.boxDeviceId ||
+        (oldWidget.cateIds?.join(',') != widget.cateIds?.join(','));
+
+    if (!filterChanged) return;
+
+    // ✅ tạo key mới ngay
+    _key = _buildKey();
+
+    // ✅ gọi provider sau frame (tránh setState trong build phase)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _registerAndFetch();
+    });
+  }
+
+  @override
   void dispose() {
     fx.dispose();
     super.dispose();
@@ -124,8 +127,9 @@ class _UtilityFacilityInfoBoxState extends State<UtilityFacilityInfoBox>
   Widget build(BuildContext context) {
     return Consumer<LatestProvider>(
       builder: (context, p, _) {
+        // ✅ giờ _key luôn có giá trị
         final all = p.getRows(_key);
-        final rows = all.take(3).toList();
+        final rows = all.take(4).toList();
         final err = p.getError(_key);
 
         final hasError = err != null;

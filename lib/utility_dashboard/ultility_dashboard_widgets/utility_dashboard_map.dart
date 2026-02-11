@@ -1,18 +1,12 @@
 import 'package:factory_utility_visualization/utility_dashboard/ultility_dashboard_widgets/utility_facility_info_box.dart';
 import 'package:flutter/material.dart';
 
-import '../../utility_api/utility_api.dart';
 import '../../widgets/overview/factory_map_with_rain.dart';
 
 class UtilityDashboardMap extends StatelessWidget {
-  final UtilityApi api;
   final String mainImageUrl;
 
-  const UtilityDashboardMap({
-    super.key,
-    required this.mainImageUrl,
-    required this.api,
-  });
+  const UtilityDashboardMap({super.key, required this.mainImageUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +64,15 @@ class UtilityDashboardMap extends StatelessWidget {
                         alignment: const FractionalOffset(0.9, 0.7),
                         child: const UtilityFacilityInfoBox(
                           facId: 'Fac_B',
+                          cateIds: ['E_TTL_KW', 'E_Cur1'],
+                        ),
+                      ),
+
+                      /// ===== FAC C =====
+                      Align(
+                        alignment: const FractionalOffset(0.2, 0.04),
+                        child: const UtilityFacilityInfoBox(
+                          facId: 'Fac_C',
                           cateIds: ['E_TTL_KW', 'E_Cur1'],
                         ),
                       ),

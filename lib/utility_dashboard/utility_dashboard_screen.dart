@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../utility_api/utility_api.dart';
 import '../utility_state/latest_provider.dart';
+import '../utility_state/minute_series_provider.dart';
+import 'ultility_dashboard_chart/utility_minute_chart_screen.dart';
 import 'ultility_dashboard_helper/scada_tab_bar.dart';
 import 'ultility_dashboard_widgets/utility_dashboard_map.dart';
 
@@ -21,22 +23,36 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
   void initState() {
     super.initState();
     api = UtilityApi(baseUrl: 'http://localhost:9999');
-    // Android emulator => http://10.0.2.2:9999
   }
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) {
-        final p = LatestProvider(
-          api: api,
-          interval: const Duration(seconds: 2),
-        );
-        p.startPolling(); // ✅ chạy realtime toàn app
-        return p;
-      },
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) {
+            final p = LatestProvider(
+              api: api,
+              interval: const Duration(seconds: 2),
+            );
+            p.startPolling();
+            return p;
+          },
+        ),
+        ChangeNotifierProvider(
+          create: (_) {
+            final p = MinuteSeriesProvider(
+              api: api,
+              interval: const Duration(seconds: 2),
+              window: const Duration(minutes: 60),
+            );
+            p.startPolling();
+            return p;
+          },
+        ),
+      ],
       child: DefaultTabController(
-        length: 1,
+        length: 2,
         child: Scaffold(
           body: Container(
             decoration: const BoxDecoration(
@@ -60,12 +76,17 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
                     child: ScadaTabBar(),
                   ),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: UtilityDashboardMap(
-                        api: api,
-                        mainImageUrl: mainImageUrl,
-                      ),
+                    child: TabBarView(
+                      physics: const BouncingScrollPhysics(),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: UtilityDashboardMap(
+                            mainImageUrl: mainImageUrl,
+                          ),
+                        ),
+                        const UtilityAllFactoriesChartsScreen(),
+                      ],
                     ),
                   ),
                 ],

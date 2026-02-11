@@ -9,9 +9,19 @@ class UtilityInfoBoxWidgets {
     required bool isLoading,
     required bool hasError,
     required Object? err,
+
+    // ✅ thêm
+    String? boxDeviceId,
+    String? plcAddress,
   }) {
+    final sub = [
+      if ((boxDeviceId ?? '').trim().isNotEmpty) boxDeviceId!.trim(),
+      if ((plcAddress ?? '').trim().isNotEmpty) plcAddress!.trim(),
+    ].join(' • ');
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      // giảm vertical
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -27,17 +37,42 @@ class UtilityInfoBoxWidgets {
         children: [
           Icon(Icons.factory, color: Colors.white.withOpacity(0.95), size: 22),
           const SizedBox(width: 12),
+
+          // ✅ title + sub trong cùng 1 khối
           Expanded(
-            child: Text(
-              facTitle,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              mainAxisSize: MainAxisSize.min, // ✅ không bung cao
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  facTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    height: 1.05, // ✅ thấp
+                  ),
+                ),
+                if (sub.isNotEmpty)
+                  Text(
+                    sub,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.0, // ✅ thấp
+                    ),
+                  ),
+              ],
             ),
           ),
+
+          const SizedBox(width: 10),
+
           Tooltip(
             message: hasError
                 ? 'API error: $err'
@@ -100,19 +135,19 @@ class UtilityInfoBoxWidgets {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Text(
+                //   '${r.plcAddress} • ${r.boxDeviceId}',
+                //   maxLines: 2,
+                //   overflow: TextOverflow.ellipsis,
+                //   style: TextStyle(
+                //     color: Colors.white.withOpacity(0.75),
+                //     fontSize: 13,
+                //     fontWeight: FontWeight.w600,
+                //   ),
+                // ),
+                // const SizedBox(height: 4),
                 Text(
-                  '${r.plcAddress} • ${r.boxDeviceId}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.75),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  valueText,
+                  '${r.plcAddress} • ${valueText}',
                   style: TextStyle(
                     color: color,
                     fontSize: 20,

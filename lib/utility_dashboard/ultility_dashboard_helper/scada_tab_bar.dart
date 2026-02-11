@@ -50,11 +50,7 @@ class ScadaTabBar extends StatelessWidget {
             unselectedLabelColor: const Color(0xFF9FB2D6),
             tabs: [
               _tabItem(active: idx == 0, icon: Icons.map_outlined, text: 'MAP'),
-              _tabItem(
-                active: idx == 1,
-                icon: Icons.show_chart,
-                text: 'MINI DASH',
-              ),
+              _tabItem(active: idx == 1, icon: Icons.show_chart, text: 'CHART'),
             ],
           ),
         );

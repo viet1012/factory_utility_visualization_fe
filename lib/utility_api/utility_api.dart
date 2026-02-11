@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../utility_models/response/latest_record.dart';
+import '../utility_models/response/minute_point.dart';
 
 class UtilityApi {
   final Dio _dio;
@@ -90,5 +91,58 @@ class UtilityApi {
           (e) => LatestRecordDto.fromJson(Map<String, dynamic>.from(e as Map)),
         )
         .toList();
+  }
+
+  Future<List<MinutePointDto>> getSeriesMinute({
+    required DateTime from,
+    required DateTime to,
+    String? boxDeviceId,
+    String? plcAddress,
+    List<String>? cateIds,
+  }) async {
+    final qp = <String, dynamic>{'from': _toIsoNoZ(from), 'to': _toIsoNoZ(to)};
+
+    void putIfNotBlank(String k, String? v) {
+      if (v != null && v.trim().isNotEmpty) qp[k] = v.trim();
+    }
+
+    putIfNotBlank('boxDeviceId', boxDeviceId);
+    putIfNotBlank('plcAddress', plcAddress);
+
+    if (cateIds != null) {
+      final cleaned = cateIds
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+      if (cleaned.isNotEmpty) qp['cateIds'] = cleaned.join(',');
+    }
+
+    final res = await _dio.get(
+      '/api/utility/series/minute',
+      queryParameters: qp,
+    );
+
+    final data = res.data;
+    if (data is! List) {
+      throw DioException(
+        requestOptions: res.requestOptions,
+        response: res,
+        message: 'Expected List but got: ${data.runtimeType}',
+        type: DioExceptionType.badResponse,
+      );
+    }
+
+    return data
+        .map(
+          (e) => MinutePointDto.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList();
+  }
+
+  // Java LocalDateTime.parse() nhận format "yyyy-MM-ddTHH:mm:ss" OK
+  String _toIsoNoZ(DateTime dt) {
+    final d = dt.toLocal();
+    String two(int x) => x.toString().padLeft(2, '0');
+    return '${d.year}-${two(d.month)}-${two(d.day)}T${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
   }
 }
