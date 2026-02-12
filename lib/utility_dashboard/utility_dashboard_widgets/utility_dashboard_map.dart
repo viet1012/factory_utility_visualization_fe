@@ -2,7 +2,7 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 
 import '../../widgets/overview/factory_map_with_rain.dart';
-import 'SummaryColumnApi.dart';
+import 'utility_category_compare_view.dart';
 
 class UtilityDashboardMap extends StatelessWidget {
   final String mainImageUrl;
@@ -81,7 +81,7 @@ class UtilityDashboardMap extends StatelessWidget {
                   ),
                 ),
               ),
-              Expanded(child: SummaryColumnApi()),
+              Expanded(child: UtilityCategoryCompareView()),
             ],
           ),
         );
