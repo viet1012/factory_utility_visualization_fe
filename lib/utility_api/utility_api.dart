@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../utility_models/response/latest_record.dart';
 import '../utility_models/response/minute_point.dart';
+import '../utility_models/response/sum_compare_item.dart';
 
 class UtilityApi {
   final Dio _dio;
@@ -136,6 +137,35 @@ class UtilityApi {
         .map(
           (e) => MinutePointDto.fromJson(Map<String, dynamic>.from(e as Map)),
         )
+        .toList();
+  }
+
+  Future<List<SumCompareItem>> sumCompare({
+    String by = 'cate', // backend có thể ignore nếu endpoint cố định cate
+    String? facId,
+    String? scadaId,
+    String? cate,
+    String? boxDeviceId,
+    List<String>? deviceIds,
+    List<String>? cateIds,
+  }) async {
+    final res = await _dio.get(
+      '/api/utility/sum-compare',
+      queryParameters: {
+        'by': by,
+        if (facId != null && facId.trim().isNotEmpty) 'facId': facId,
+        if (scadaId != null && scadaId.trim().isNotEmpty) 'scadaId': scadaId,
+        if (cate != null && cate.trim().isNotEmpty) 'cate': cate,
+        if (boxDeviceId != null && boxDeviceId.trim().isNotEmpty)
+          'boxDeviceId': boxDeviceId,
+        if (deviceIds != null && deviceIds.isNotEmpty) 'deviceIds': deviceIds,
+        if (cateIds != null && cateIds.isNotEmpty) 'cateIds': cateIds,
+      },
+    );
+
+    final list = (res.data as List).cast<dynamic>();
+    return list
+        .map((e) => SumCompareItem.fromJson((e as Map).cast<String, dynamic>()))
         .toList();
   }
 

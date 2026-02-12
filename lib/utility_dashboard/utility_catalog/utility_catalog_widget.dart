@@ -271,89 +271,99 @@ class _UtilityCatalogWidgetState extends State<UtilityCatalogWidget> {
           // ===== Top bar =====
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            child: Row(
               children: [
-                _pill('PARAM', _mode == 'PARAM', () {
-                  setState(() => _mode = 'PARAM');
-                  _rebuildRowsFromCatalog();
-                }),
-                _pill('DEVICE', _mode == 'DEVICE', () {
-                  setState(() => _mode = 'DEVICE');
-                  _rebuildRowsFromCatalog();
-                }),
-                _pill('BOX', _mode == 'BOX', () {
-                  setState(() => _mode = 'BOX');
-                  _rebuildRowsFromCatalog();
-                }),
-                _pill('LATEST', _mode == 'LATEST', () {
-                  setState(() => _mode = 'LATEST');
-                  _rebuildRowsFromCatalog();
-                }),
-                const SizedBox(width: 6),
-                Text(
-                  'Rows: ${_filteredRows.length}',
-                  style: const TextStyle(color: Color(0xFF9FB2D6)),
-                ),
-              ],
-            ),
-          ),
-
-          // ===== Filter bar =====
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 360,
-                  child: TextField(
-                    controller: _searchCtrl,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Search...',
-                      hintStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        color: Color(0xFF9FB2D6),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFF0B1220),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF1B2A44)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF1B2A44)),
-                      ),
-                    ),
-                  ),
-                ),
-                if (_mode == 'PARAM')
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                // LEFT: pills (cho phép xuống dòng)
+                Expanded(
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Switch(
-                        value: _importantOnly,
-                        onChanged: (v) {
-                          setState(() => _importantOnly = v);
-                          _rebuildRowsFromCatalog();
-                        },
-                      ),
+                      _pill('PARAM', _mode == 'PARAM', () {
+                        setState(() => _mode = 'PARAM');
+                        _rebuildRowsFromCatalog();
+                      }),
+                      _pill('DEVICE', _mode == 'DEVICE', () {
+                        setState(() => _mode = 'DEVICE');
+                        _rebuildRowsFromCatalog();
+                      }),
+                      _pill('BOX', _mode == 'BOX', () {
+                        setState(() => _mode = 'BOX');
+                        _rebuildRowsFromCatalog();
+                      }),
+                      _pill('LATEST', _mode == 'LATEST', () {
+                        setState(() => _mode = 'LATEST');
+                        _rebuildRowsFromCatalog();
+                      }),
                       const SizedBox(width: 6),
-                      const Text(
-                        'Important only',
-                        style: TextStyle(color: Color(0xFF9FB2D6)),
+                      Text(
+                        'Rows: ${_filteredRows.length}',
+                        style: const TextStyle(color: Color(0xFF9FB2D6)),
                       ),
                     ],
                   ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // RIGHT: filter bar (cũng wrap cho xuống dòng nếu hẹp)
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 360,
+                      child: TextField(
+                        controller: _searchCtrl,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Search...',
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(0.4),
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: Color(0xFF9FB2D6),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFF0B1220),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF1B2A44),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF1B2A44),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_mode == 'PARAM')
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Switch(
+                            value: _importantOnly,
+                            onChanged: (v) {
+                              setState(() => _importantOnly = v);
+                              _rebuildRowsFromCatalog();
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Important only',
+                            style: TextStyle(color: Color(0xFF9FB2D6)),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
               ],
             ),
           ),

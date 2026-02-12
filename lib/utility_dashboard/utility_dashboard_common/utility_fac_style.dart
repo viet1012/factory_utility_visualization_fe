@@ -7,15 +7,15 @@ class UtilityFacStyle {
     switch ((facName ?? '').trim()) {
       case 'Fac_A':
       case 'A':
-        return const Color(0xFF00BCD4);
+        return const Color(0xFF4FC3F7); // Light Blue
       case 'Fac_B':
       case 'B':
-        return const Color(0xFF4CAF50);
+        return const Color(0xFF42A5F5); // Medium Blue
       case 'Fac_C':
       case 'C':
-        return const Color(0xFF9C27B0);
+        return const Color(0xFF4FC3F7); // Indigo Blue
       default:
-        return const Color(0xFF00BCD4);
+        return const Color(0xFF4FC3F7);
     }
   }
 

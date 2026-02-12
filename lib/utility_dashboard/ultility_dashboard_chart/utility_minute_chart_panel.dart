@@ -288,7 +288,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(12),
@@ -317,6 +317,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
             ],
           ),
         ),
+        SizedBox(height: 4),
         Expanded(child: _chart(rows)),
       ],
     );
@@ -368,7 +369,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       zoomPanBehavior: ZoomPanBehavior(
         enablePinching: true,
         enablePanning: true,
-        zoomMode: ZoomMode.x,
+        zoomMode: ZoomMode.y,
       ),
       primaryXAxis: DateTimeAxis(
         minimum: minX,
@@ -383,12 +384,14 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
         axisLine: AxisLine(color: Colors.white.withOpacity(0.15), width: 1),
         labelStyle: TextStyle(
           color: Colors.white.withOpacity(0.75),
-          fontSize: 11,
+          fontSize: 14,
         ),
       ),
       primaryYAxis: NumericAxis(
         minimum: safeMinY,
         maximum: safeMaxY,
+        numberFormat: NumberFormat('0.00'),
+
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(0.08),
@@ -396,7 +399,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
         axisLine: AxisLine(color: Colors.white.withOpacity(0.15), width: 1),
         labelStyle: TextStyle(
           color: Colors.white.withOpacity(0.75),
-          fontSize: 11,
+          fontSize: 14,
         ),
       ),
       series: <CartesianSeries<_ChartPoint, DateTime>>[
@@ -405,7 +408,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
           xValueMapper: (p, _) => p.ts,
           yValueMapper: (p, _) => p.y,
           splineType: SplineType.natural,
-          markerSettings: const MarkerSettings(isVisible: true),
+          markerSettings: const MarkerSettings(isVisible: false),
           opacity: 0.25,
         ),
       ],

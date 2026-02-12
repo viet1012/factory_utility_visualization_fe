@@ -8,6 +8,7 @@ import '../utility_api/utility_api.dart';
 import '../utility_models/utility_facade_service.dart'; // ✅
 import '../utility_state/latest_provider.dart';
 import '../utility_state/minute_series_provider.dart';
+import '../utility_state/sum_compare_provider.dart';
 import 'ultility_dashboard_chart/utility_minute_chart_screen.dart';
 import 'utility_dashboard_widgets/utility_dashboard_map.dart';
 
@@ -23,7 +24,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
 
   late final UtilityApi api; // bạn đang dùng
   late final UtilityFacadeService facade; // ✅ thêm
-
   @override
   void initState() {
     super.initState();
@@ -52,9 +52,19 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
 
         ChangeNotifierProvider(
           create: (_) {
+            final p = SumCompareProvider(
+              api: api,
+              interval: const Duration(seconds: 30),
+            );
+            p.startPolling();
+            return p;
+          },
+        ),
+        ChangeNotifierProvider(
+          create: (_) {
             final p = LatestProvider(
               api: api,
-              interval: const Duration(seconds: 2),
+              interval: const Duration(seconds: 30),
             );
             p.startPolling();
             return p;
@@ -64,7 +74,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
           create: (_) {
             final p = MinuteSeriesProvider(
               api: api,
-              interval: const Duration(seconds: 2),
+              interval: const Duration(seconds: 30),
               window: const Duration(minutes: 60),
             );
             p.startPolling();

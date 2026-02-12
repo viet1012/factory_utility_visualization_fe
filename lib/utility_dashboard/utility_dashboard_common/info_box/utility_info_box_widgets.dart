@@ -193,27 +193,49 @@ class UtilityInfoBoxWidgets {
     final v = r.value == null ? '--' : r.value!.toStringAsFixed(2);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.06),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withOpacity(0.10)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: accent, size: 16),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              '${r.plcAddress} • $v',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: accent,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                height: 1.0,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 🔹 Dòng chính (plc + value)
+                Text(
+                  '${r.plcAddress} • $v',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    height: 1.0,
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                // 🔹 Dòng dưới: boxDeviceId (plain text)
+                Text(
+                  r.boxDeviceId ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    height: 1.0,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

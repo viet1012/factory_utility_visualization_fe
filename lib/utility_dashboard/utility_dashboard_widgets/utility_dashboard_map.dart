@@ -2,6 +2,7 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 
 import '../../widgets/overview/factory_map_with_rain.dart';
+import 'SummaryColumnApi.dart';
 
 class UtilityDashboardMap extends StatelessWidget {
   final String mainImageUrl;
@@ -52,7 +53,7 @@ class UtilityDashboardMap extends StatelessWidget {
 
                       /// ===== FAC A =====
                       Align(
-                        alignment: const FractionalOffset(0.9, 0.04),
+                        alignment: const FractionalOffset(0.95, 0.04),
                         child: const UtilityFacilityInfoBox(
                           facId: 'Fac_A',
                           cateIds: ['E_TTL_KW', 'E_Cur1'],
@@ -61,7 +62,7 @@ class UtilityDashboardMap extends StatelessWidget {
 
                       /// ===== FAC B =====
                       Align(
-                        alignment: const FractionalOffset(0.9, 0.7),
+                        alignment: const FractionalOffset(0.95, 0.7),
                         child: const UtilityFacilityInfoBox(
                           facId: 'Fac_B',
                           cateIds: ['E_TTL_KW', 'E_Cur1'],
@@ -70,7 +71,7 @@ class UtilityDashboardMap extends StatelessWidget {
 
                       /// ===== FAC C =====
                       Align(
-                        alignment: const FractionalOffset(0.2, 0.04),
+                        alignment: const FractionalOffset(0.1, 0.04),
                         child: const UtilityFacilityInfoBox(
                           facId: 'Fac_C',
                           cateIds: ['E_TTL_KW', 'E_Cur1'],
@@ -80,7 +81,7 @@ class UtilityDashboardMap extends StatelessWidget {
                   ),
                 ),
               ),
-              Expanded(child: Container()),
+              Expanded(child: SummaryColumnApi()),
             ],
           ),
         );

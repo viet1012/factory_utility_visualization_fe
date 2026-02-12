@@ -11,11 +11,10 @@ class LatestProvider extends ChangeNotifier {
 
   LatestProvider({
     required this.api,
-    this.interval = const Duration(seconds: 2),
+    this.interval = const Duration(seconds: 30),
   });
 
   Timer? _timer;
-  bool _fetching = false;
 
   // cache theo "key filter" => list record
   final Map<String, List<LatestRecordDto>> _cache = {};
@@ -26,6 +25,12 @@ class LatestProvider extends ChangeNotifier {
   // last updated theo key
   final Map<String, DateTime?> _lastUpdated = {};
 
+  // ✅ lock theo key (không chặn nhau giữa A/B/C)
+  final Map<String, bool> _inFlight = {};
+
+  // ===== Lưu request theo key để polling tự động =====
+  final Map<String, _Req> _reqs = {};
+
   /// tạo key unique theo filter của box
   String buildKey({
     String? facId,
@@ -34,16 +39,16 @@ class LatestProvider extends ChangeNotifier {
     String? boxDeviceId,
     List<String>? cateIds,
   }) {
-    final cateIdsCsv = (cateIds ?? [])
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .join(',');
+    final cateIdsCsv =
+        (cateIds ?? []).map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+          ..sort();
+
     return [
-      facId?.trim() ?? '',
-      scadaId?.trim() ?? '',
-      cate?.trim() ?? '',
-      boxDeviceId?.trim() ?? '',
-      cateIdsCsv,
+      (facId ?? '').trim(),
+      (scadaId ?? '').trim(),
+      (cate ?? '').trim(),
+      (boxDeviceId ?? '').trim(),
+      cateIdsCsv.join(','),
     ].join('|');
   }
 
@@ -53,75 +58,15 @@ class LatestProvider extends ChangeNotifier {
 
   DateTime? getLastUpdated(String key) => _lastUpdated[key];
 
-  /// start polling cho toàn app (1 timer chung)
-  void start() {
-    _timer?.cancel();
-    _timer = Timer.periodic(interval, (_) => _tickAll());
-    _tickAll(); // gọi ngay
-  }
-
-  void stop() {
-    _timer?.cancel();
-    _timer = null;
-  }
-
   /// register một key để provider biết cần fetch key đó
   void registerKey(String key) {
     _cache.putIfAbsent(key, () => const []);
     _errors.putIfAbsent(key, () => null);
     _lastUpdated.putIfAbsent(key, () => null);
+    _inFlight.putIfAbsent(key, () => false);
   }
 
-  /// fetch 1 key cụ thể
-  Future<void> fetchKey({
-    required String key,
-    String? facId,
-    String? scadaId,
-    String? cate,
-    String? boxDeviceId,
-    List<String>? cateIds,
-  }) async {
-    if (_fetching) return;
-    _fetching = true;
-
-    try {
-      final data = await api.getLatest(
-        facId: facId,
-        scadaId: scadaId,
-        cate: cate,
-        boxDeviceId: boxDeviceId,
-        cateIds: cateIds,
-      );
-
-      _cache[key] = data;
-      _errors[key] = null;
-      _lastUpdated[key] = DateTime.now();
-      notifyListeners();
-    } catch (e) {
-      _errors[key] = e;
-      notifyListeners();
-    } finally {
-      _fetching = false;
-    }
-  }
-
-  /// tick tất cả key đã register
-  Future<void> _tickAll() async {
-    // loop từng key để fetch (tuỳ bạn muốn song song hay tuần tự)
-    // ở đây tuần tự để tránh spam request
-    for (final entry in _cache.entries) {
-      final key = entry.key;
-
-      // parse key lại -> không cần (vì ta sẽ fetch bằng widget gọi trực tiếp)
-      // Provider không biết filter của từng key nếu không lưu.
-      // => giải pháp đơn giản: Widget sẽ gọi fetchKey() khi init và khi đổi filter.
-      // Provider tickAll chỉ notify UI? Không. => ta cần lưu "request builder" theo key.
-    }
-  }
-
-  // ===== Lưu request theo key để polling tự động =====
-  final Map<String, _Req> _reqs = {};
-
+  /// upsert request theo key (để polling tự động)
   void upsertRequest({
     required String key,
     String? facId,
@@ -140,34 +85,98 @@ class LatestProvider extends ChangeNotifier {
     registerKey(key);
   }
 
-  Future<void> _tickAllWithReqs() async {
-    for (final e in _reqs.entries) {
-      final key = e.key;
-      final r = e.value;
-
-      await fetchKey(
-        key: key,
-        facId: r.facId,
-        scadaId: r.scadaId,
-        cate: r.cate,
-        boxDeviceId: r.boxDeviceId,
-        cateIds: r.cateIds,
-      );
-    }
-  }
-
-  // override start để dùng reqs
-  void startPolling() {
-    _timer?.cancel();
-    _timer = Timer.periodic(interval, (_) => _tickAllWithReqs());
-    _tickAllWithReqs();
-  }
-
+  /// remove key (khi widget dispose / filter đổi và muốn dọn)
   void removeKey(String key) {
     _reqs.remove(key);
     _cache.remove(key);
     _errors.remove(key);
     _lastUpdated.remove(key);
+    _inFlight.remove(key);
+    notifyListeners();
+  }
+
+  /// fetch 1 key cụ thể
+  /// - notify = true: widget gọi trực tiếp để hiển thị ngay
+  /// - notify = false: polling gọi nhiều key, sẽ notify 1 lần sau
+  Future<void> fetchKey({
+    required String key,
+    String? facId,
+    String? scadaId,
+    String? cate,
+    String? boxDeviceId,
+    List<String>? cateIds,
+    bool notify = true,
+  }) async {
+    // ✅ lock theo key để tránh spam cùng key, nhưng không chặn key khác
+    if (_inFlight[key] == true) return;
+    _inFlight[key] = true;
+
+    try {
+      final data = await api.getLatest(
+        facId: facId,
+        scadaId: scadaId,
+        cate: cate,
+        boxDeviceId: boxDeviceId,
+        cateIds: cateIds,
+      );
+
+      _cache[key] = data;
+      _errors[key] = null;
+      _lastUpdated[key] = DateTime.now();
+      if (notify) notifyListeners();
+    } catch (e) {
+      _errors[key] = e;
+      if (notify) notifyListeners();
+    } finally {
+      _inFlight[key] = false;
+    }
+  }
+
+  /// tick tất cả key đã register (dựa trên _reqs)
+  Future<void> _tickAllWithReqs() async {
+    if (_reqs.isEmpty) return;
+
+    // ✅ chạy song song để A/B/C cập nhật cùng lúc
+    final futures = <Future<void>>[];
+
+    for (final entry in _reqs.entries) {
+      final key = entry.key;
+      final r = entry.value;
+
+      futures.add(
+        fetchKey(
+          key: key,
+          facId: r.facId,
+          scadaId: r.scadaId,
+          cate: r.cate,
+          boxDeviceId: r.boxDeviceId,
+          cateIds: r.cateIds,
+          notify: false, // ✅ polling: notify 1 lần sau
+        ),
+      );
+    }
+
+    await Future.wait(futures);
+
+    // ✅ notify 1 lần cho cả batch
+    notifyListeners();
+  }
+
+  /// start polling cho toàn app
+  void startPolling() {
+    _timer?.cancel();
+
+    // ✅ tick ngay lập tức
+    unawaited(_tickAllWithReqs());
+
+    _timer = Timer.periodic(interval, (_) {
+      unawaited(_tickAllWithReqs());
+    });
+  }
+
+  void stop() {
+    _timer?.cancel();
+    _timer = null;
   }
 
   @override

@@ -34,7 +34,7 @@ class MinuteSeriesProvider extends ChangeNotifier {
 
   MinuteSeriesProvider({
     required this.api,
-    this.interval = const Duration(seconds: 2),
+    this.interval = const Duration(seconds: 30),
     this.window = const Duration(minutes: 60),
   });
 

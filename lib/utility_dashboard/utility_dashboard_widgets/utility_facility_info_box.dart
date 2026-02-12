@@ -26,7 +26,7 @@ class UtilityFacilityInfoBox extends StatefulWidget {
     this.cate,
     this.boxDeviceId,
     this.cateIds,
-    this.width = 360,
+    this.width = 400,
     this.height = 300,
   });
 
