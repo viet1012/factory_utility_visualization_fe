@@ -37,7 +37,7 @@ class _UtilityAllFactoriesChartsScreenState
       facId: 'Fac_A',
       charts: [
         SignalChartConfig(
-          boxDeviceId: 'DB_P1_400A',
+          boxDeviceId: 'DB-P1_400A',
           plcAddress: 'D1',
           cateIds: ['E_Cur1'],
         ),
@@ -47,22 +47,22 @@ class _UtilityAllFactoriesChartsScreenState
       facId: 'Fac_B',
       charts: [
         SignalChartConfig(
-          boxDeviceId: 'DPB_L2_PANNEL_CB_80A',
+          boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
           plcAddress: 'D18',
           cateIds: ['E_TTL_KW'],
         ),
         SignalChartConfig(
-          boxDeviceId: 'DPB_L2_PANNEL_CB_80A',
+          boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
           plcAddress: 'D20',
           cateIds: ['E_TTL_KW'],
         ),
         SignalChartConfig(
-          boxDeviceId: 'DPB_L2_PANNEL_CB_80A',
+          boxDeviceId: 'DPB-L2-PANNEL-CB-80A',
           plcAddress: 'D22',
           cateIds: ['E_TTL_KW'],
         ),
         SignalChartConfig(
-          boxDeviceId: 'DPB_L2_PANNEL_CB_80A',
+          boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
           plcAddress: 'D24',
           cateIds: ['E_TTL_KW'],
         ),

@@ -1,8 +1,7 @@
 class LatestRecordDto {
   final String boxDeviceId;
   final String plcAddress;
-  final double?
-  value; // BigDecimal -> double (hoặc String nếu bạn muốn giữ chính xác)
+  final double? value;
   final DateTime recordedAt;
 
   final String? cateId;

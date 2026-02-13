@@ -1,5 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:factory_utility_visualization/utility_models/response/latest_record.dart';
 import 'package:factory_utility_visualization/utility_models/response/utility_catalog.dart';
+
+import '../utility_dashboard/utility_dashboard_fac_details/layout/OverlayPosDto.dart';
 
 class UtilityFacadeService {
   final Dio dio;
@@ -61,6 +64,48 @@ class UtilityFacadeService {
     final data = UtilityCatalogDto.fromJson(res.data as Map<String, dynamic>);
     _cache[k] = _CacheEntry(data, now);
     return data;
+  }
+
+  Future<List<LatestRecordDto>> getLatestByFac(String facId) async {
+    final res = await dio.get(
+      '/api/utility/latest',
+      queryParameters: {'facId': facId},
+    );
+
+    final data = (res.data as List).cast<dynamic>();
+    return data
+        .map(
+          (e) => LatestRecordDto.fromJson((e as Map).cast<String, dynamic>()),
+        )
+        .toList();
+  }
+
+  Future<List<OverlayPosDto>> getOverlay(String facId) async {
+    final res = await dio.get(
+      '/api/utility/overlay',
+      queryParameters: {'facId': facId},
+    );
+
+    return (res.data as List).map((e) => OverlayPosDto.fromJson(e)).toList();
+  }
+
+  Future<void> upsertOverlay({
+    required String facId,
+    required String boxDeviceId,
+    required String plcAddress,
+    required double x,
+    required double y,
+  }) async {
+    await dio.post(
+      '/api/utility/overlay/upsert',
+      data: {
+        'facId': facId,
+        'boxDeviceId': boxDeviceId,
+        'plcAddress': plcAddress,
+        'x': x,
+        'y': y,
+      },
+    );
   }
 
   void clearCache() => _cache.clear();

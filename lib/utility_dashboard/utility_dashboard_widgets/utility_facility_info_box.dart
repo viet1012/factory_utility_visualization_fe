@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../utility_models/utility_facade_service.dart';
 import '../../utility_state/latest_provider.dart';
 import '../../widgets/facility_info_box.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
 import '../utility_dashboard_common/utility_fac_style.dart';
+import '../utility_dashboard_fac_details/layout/utility_fac_layout_screen.dart';
 
 class UtilityFacilityInfoBox extends StatefulWidget {
   final double width;
@@ -175,123 +177,146 @@ class _UtilityFacilityInfoBoxState extends State<UtilityFacilityInfoBox>
 
         final facilityColor = UtilityFacStyle.colorFromFac(facTitle);
 
-        return SlideTransition(
-          position: fx.slide,
-          child: MouseRegion(
-            onEnter: (_) => fx.onHover(true),
-            onExit: (_) => fx.onHover(false),
-            child: AnimatedBuilder(
-              animation: fx.listenable,
-              builder: (context, child) {
-                return Transform(
-                  alignment: Alignment.center,
-                  transform: Matrix4.identity()
-                    ..setEntry(3, 2, 0.001)
-                    ..rotateY(fx.rotate.value),
-                  child: Transform.scale(
-                    scale: fx.scale.value,
-                    child: Container(
-                      width: widget.width,
-                      height: widget.height ?? 270,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            const Color(0xFF1A237E).withOpacity(0.3),
-                            const Color(0xFF0D47A1).withOpacity(0.3),
+        return GestureDetector(
+          onTap: () {
+            final fac =
+                widget.facId ??
+                UtilityFacStyle.resolveFacTitle(
+                  rows: all,
+                  fallbackFacId: widget.facId,
+                );
+
+            final svc = context.read<UtilityFacadeService>(); // ✅ lấy ở đây OK
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => UtilityFacDetailScreens(
+                  facId: fac,
+                  svc: svc, // ✅ pass thẳng
+                ),
+              ),
+            );
+          },
+
+          child: SlideTransition(
+            position: fx.slide,
+            child: MouseRegion(
+              onEnter: (_) => fx.onHover(true),
+              onExit: (_) => fx.onHover(false),
+              child: AnimatedBuilder(
+                animation: fx.listenable,
+                builder: (context, child) {
+                  return Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..setEntry(3, 2, 0.001)
+                      ..rotateY(fx.rotate.value),
+                    child: Transform.scale(
+                      scale: fx.scale.value,
+                      child: Container(
+                        width: widget.width,
+                        height: widget.height ?? 270,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              const Color(0xFF1A237E).withOpacity(0.3),
+                              const Color(0xFF0D47A1).withOpacity(0.3),
+                            ],
+                          ),
+                          border: Border.all(
+                            color: const Color(0xFF0D47A1).withOpacity(0.3),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: facilityColor.withOpacity(0.3),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 8),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.4),
+                              blurRadius: 15,
+                              offset: const Offset(0, 4),
+                            ),
                           ],
                         ),
-                        border: Border.all(
-                          color: const Color(0xFF0D47A1).withOpacity(0.3),
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: facilityColor.withOpacity(0.3),
-                            blurRadius: 20,
-                            spreadRadius: 2,
-                            offset: const Offset(0, 8),
-                          ),
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.4),
-                            blurRadius: 15,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: AnimatedBuilder(
-                                animation: fx.pulse,
-                                builder: (context, _) => CustomPaint(
-                                  painter: CircuitPatternPainter(
-                                    color: facilityColor,
-                                    animationValue: fx.pulse.value,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: AnimatedBuilder(
+                                  animation: fx.pulse,
+                                  builder: (context, _) => CustomPaint(
+                                    painter: CircuitPatternPainter(
+                                      color: facilityColor,
+                                      animationValue: fx.pulse.value,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                UtilityInfoBoxWidgets.header(
-                                  facilityColor: facilityColor,
-                                  facTitle: facTitle,
-                                  isLoading: isLoading,
-                                  hasError: hasError,
-                                  err: err,
-                                ),
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      4,
-                                      6,
-                                      4,
-                                      4,
-                                    ),
-                                    child: rows.isEmpty
-                                        ? UtilityInfoBoxWidgets.emptyState(
-                                            hasError: hasError,
-                                            err: err,
-                                          )
-                                        : ScrollConfiguration(
-                                            behavior:
-                                                const _NoGlowScrollBehavior(),
-                                            child: GridView.builder(
-                                              controller: _scroll,
-                                              padding: EdgeInsets.zero,
-                                              gridDelegate:
-                                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                                    crossAxisCount: 2,
-                                                    // ✅ 2 cột => show nhiều item
-                                                    crossAxisSpacing: 8,
-                                                    mainAxisSpacing: 8,
-                                                    childAspectRatio:
-                                                        3.2, // ✅ pill thấp
-                                                  ),
-                                              itemCount: rows.length,
-                                              itemBuilder: (_, i) =>
-                                                  UtilityInfoBoxWidgets.latestChip(
-                                                    rows[i],
-                                                  ),
-                                            ),
-                                          ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  UtilityInfoBoxWidgets.header(
+                                    facilityColor: facilityColor,
+                                    facTitle: facTitle,
+                                    isLoading: isLoading,
+                                    hasError: hasError,
+                                    err: err,
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        4,
+                                        6,
+                                        4,
+                                        4,
+                                      ),
+                                      child: rows.isEmpty
+                                          ? UtilityInfoBoxWidgets.emptyState(
+                                              hasError: hasError,
+                                              err: err,
+                                            )
+                                          : ScrollConfiguration(
+                                              behavior:
+                                                  const _NoGlowScrollBehavior(),
+                                              child: GridView.builder(
+                                                controller: _scroll,
+                                                padding: EdgeInsets.zero,
+                                                gridDelegate:
+                                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                                      crossAxisCount: 2,
+                                                      // ✅ 2 cột => show nhiều item
+                                                      crossAxisSpacing: 8,
+                                                      mainAxisSpacing: 8,
+                                                      childAspectRatio:
+                                                          3.2, // ✅ pill thấp
+                                                    ),
+                                                itemCount: rows.length,
+                                                itemBuilder: (_, i) =>
+                                                    UtilityInfoBoxWidgets.latestChip(
+                                                      rows[i],
+                                                    ),
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         );
