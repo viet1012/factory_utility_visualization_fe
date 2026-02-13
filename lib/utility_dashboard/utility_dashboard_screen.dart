@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../utility_api/utility_api.dart';
 import '../utility_models/utility_facade_service.dart'; // ✅
 import '../utility_state/chart_catalog_provider.dart';
+import '../utility_state/hourly_series_provider.dart';
 import '../utility_state/latest_provider.dart';
 import '../utility_state/minute_series_provider.dart';
 import '../utility_state/sum_compare_provider.dart';
@@ -29,7 +30,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
   void initState() {
     super.initState();
 
-    const baseUrl = 'http://192.168.122.16:9093';
+    // const baseUrl = 'http://192.168.122.16:9093';
+    const baseUrl = 'http://localhost:9999';
 
     api = UtilityApi(baseUrl: baseUrl);
 
@@ -77,6 +79,16 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
               api: api,
               interval: const Duration(seconds: 30),
               window: const Duration(minutes: 60),
+            );
+            p.startPolling();
+            return p;
+          },
+        ),
+        ChangeNotifierProvider(
+          create: (_) {
+            final p = HourlySeriesProvider(
+              api: api,
+              interval: const Duration(hours: 30),
             );
             p.startPolling();
             return p;

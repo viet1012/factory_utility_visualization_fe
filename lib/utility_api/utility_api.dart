@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
+import 'package:intl/intl.dart';
 
 import '../utility_models/f2_utility_parameter_master.dart';
 import '../utility_models/f2_utility_scada_channel.dart';
+import '../utility_models/response/hour_point.dart';
 import '../utility_models/response/latest_record.dart';
 import '../utility_models/response/minute_point.dart';
 import '../utility_models/response/sum_compare_item.dart';
@@ -217,7 +219,46 @@ class UtilityApi {
         .toList();
   }
 
+  Future<List<HourPointDto>> seriesHourly({
+    required DateTime fromTs,
+    required DateTime toTs,
+
+    String? fac,
+    String? scadaId,
+    String? cate,
+    String? boxDeviceId,
+
+    required String plcAddress,
+    String? cateId,
+    List<String>? cateIds,
+  }) async {
+    final res = await _dio.get(
+      '/api/utility/series/hourly',
+      queryParameters: {
+        'fromTs': _fmtIso(fromTs),
+        'toTs': _fmtIso(toTs),
+
+        if (fac?.trim().isNotEmpty == true) 'fac': fac,
+        if (scadaId?.trim().isNotEmpty == true) 'scadaId': scadaId,
+        if (cate?.trim().isNotEmpty == true) 'cate': cate,
+        if (boxDeviceId?.trim().isNotEmpty == true) 'boxDeviceId': boxDeviceId,
+
+        // ✅ yêu cầu của bạn
+        'plcAddress': plcAddress,
+        if (cateId?.trim().isNotEmpty == true) 'cateId': cateId,
+        if (cateIds?.isNotEmpty == true) 'cateIds': cateIds,
+      },
+    );
+
+    final list = (res.data as List).cast<dynamic>();
+    return list
+        .map((e) => HourPointDto.fromJson((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
   // Java LocalDateTime.parse() nhận format "yyyy-MM-ddTHH:mm:ss" OK
+  String _fmtIso(DateTime dt) => DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(dt);
+
   String _toIsoNoZ(DateTime dt) {
     final d = dt.toLocal();
     String two(int x) => x.toString().padLeft(2, '0');

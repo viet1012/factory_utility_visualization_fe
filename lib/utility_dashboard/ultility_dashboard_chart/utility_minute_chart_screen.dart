@@ -1,3 +1,4 @@
+import 'package:factory_utility_visualization/utility_dashboard/ultility_dashboard_chart/utility_hourly_bar_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -161,17 +162,14 @@ class _UtilityAllFactoriesChartsScreenState
                   ),
 
                 const SizedBox(height: 12),
-
                 Expanded(
                   child: view == 'Summary'
-                      ? Center(
-                          child: Text(
-                            'Summary chưa làm\ncate=$cate  •  fac=$facId',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.85),
-                            ),
-                          ),
+                      ? _summaryBody(
+                          cate: cate,
+                          facId: facId,
+                          loading: cat.loading,
+                          error: cat.error,
+                          charts: cat.charts,
                         )
                       : _minutesBody(
                           cate: cate,
@@ -182,11 +180,113 @@ class _UtilityAllFactoriesChartsScreenState
                           charts: cat.charts,
                         ),
                 ),
+
+                // Expanded(
+                //   child: view == 'Summary'
+                //       ? Center(
+                //           child: Text(
+                //             'Summary chưa làm\ncate=$cate  •  fac=$facId',
+                //             textAlign: TextAlign.center,
+                //             style: TextStyle(
+                //               color: Colors.white.withOpacity(0.85),
+                //             ),
+                //           ),
+                //         )
+                //       : _minutesBody(
+                //           cate: cate,
+                //           facId: facId,
+                //           selectedBox: selectedBox,
+                //           loading: cat.loading,
+                //           error: cat.error,
+                //           charts: cat.charts,
+                //         ),
+                // ),
               ],
             );
           },
         ),
       ),
+    );
+  }
+
+  Widget _summaryBody({
+    required String cate,
+    required String facId,
+    required bool loading,
+    required Object? error,
+    required List<SignalChartConfig> charts,
+  }) {
+    // Summary vẫn dựa vào charts đã load (theo selected box hoặc theo logic bạn đang dùng)
+    if (loading && charts.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (error != null && charts.isEmpty) {
+      return Center(
+        child: Text(
+          'API error:\n$error',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white.withOpacity(0.85)),
+        ),
+      );
+    }
+    if (charts.isEmpty) {
+      return Center(
+        child: Text(
+          'Summary: no signals\ncate=$cate • fac=$facId',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white.withOpacity(0.85)),
+        ),
+      );
+    }
+
+    // ✅ default: today (00:00 -> tomorrow 00:00)
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final fromTs = today;
+    final toTs = today.add(const Duration(days: 1));
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        var cross = 1;
+        if (w >= 1200) cross = 2;
+        if (w >= 1700) cross = 3;
+
+        return GridView.builder(
+          itemCount: charts.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: cross,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 16 / 10,
+          ),
+          itemBuilder: (context, i) {
+            final cfg = charts[i];
+
+            // ✅ quan trọng: BE hourly bạn muốn filter cateId + plcAddress
+            // cfg.cateIds đang là list cateIds (nếu bạn đã map cateIds theo param)
+            // Nếu bạn chỉ có 1 cateId thì truyền cateId = cfg.cateIds?.first
+            final cateId = (cfg.cateIds != null && cfg.cateIds!.isNotEmpty)
+                ? cfg.cateIds!.first
+                : null;
+            print("cateID: $cateId");
+            return UtilityHourlyBarChartPanel(
+              facId: facId,
+              cate: cate,
+              boxDeviceId: cfg.boxDeviceId,
+              plcAddress: cfg.plcAddress,
+
+              // time
+              fromTs: fromTs,
+              toTs: toTs,
+
+              // ✅ cateId hoặc cateIds đều ok
+              cateId: cateId,
+              cateIds: cfg.cateIds,
+            );
+          },
+        );
+      },
     );
   }
 
