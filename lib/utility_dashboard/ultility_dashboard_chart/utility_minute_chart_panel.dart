@@ -141,6 +141,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
 
         // ✅ màu theo "facTitle" như InfoBox
         final facilityColor = UtilityFacStyle.colorFromFac(widget.facId);
+        final signalName = rows.isNotEmpty
+            ? (rows.last.nameEn ?? rows.last.cateId)
+            : null;
 
         return SlideTransition(
           position: fx.slide,
@@ -199,7 +202,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
                                 UtilityInfoBoxWidgets.header(
                                   facilityColor: facilityColor,
                                   facTitle: widget.facId,
-                                  boxDeviceId: widget.boxDeviceId,
+                                  boxDeviceId: signalName,
                                   plcAddress: widget.plcAddress,
                                   isLoading: isLoading,
                                   hasError: hasError,

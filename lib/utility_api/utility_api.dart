@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../utility_models/f2_utility_parameter_master.dart';
+import '../utility_models/f2_utility_scada_channel.dart';
 import '../utility_models/response/latest_record.dart';
 import '../utility_models/response/minute_point.dart';
 import '../utility_models/response/sum_compare_item.dart';
@@ -43,6 +45,48 @@ class UtilityApi {
         },
       ),
     );
+  }
+
+  Future<List<ScadaChannelDto>> getChannels({
+    String? facId,
+    String? cate,
+  }) async {
+    final qp = <String, dynamic>{};
+    if (facId != null && facId.trim().isNotEmpty) qp['facId'] = facId.trim();
+    if (cate != null && cate.trim().isNotEmpty) qp['cate'] = cate.trim();
+
+    final res = await _dio.get('/api/utility/channels', queryParameters: qp);
+
+    final data = res.data;
+    if (data is! List) throw Exception('channels: expected List');
+
+    return data
+        .map(
+          (e) => ScadaChannelDto.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList();
+  }
+
+  Future<List<ParamDto>> getParams({
+    String? facId,
+    String? cate,
+    String? boxDeviceId,
+  }) async {
+    final qp = <String, dynamic>{};
+    if (facId != null && facId.trim().isNotEmpty) qp['facId'] = facId.trim();
+    if (cate != null && cate.trim().isNotEmpty) qp['cate'] = cate.trim();
+    if (boxDeviceId != null && boxDeviceId.trim().isNotEmpty) {
+      qp['boxDeviceId'] = boxDeviceId.trim();
+    }
+
+    final res = await _dio.get('/api/utility/params', queryParameters: qp);
+
+    final data = res.data;
+    if (data is! List) throw Exception('params: expected List');
+
+    return data
+        .map((e) => ParamDto.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
   }
 
   /// GET /api/utility/latest
@@ -141,25 +185,29 @@ class UtilityApi {
   }
 
   Future<List<SumCompareItem>> sumCompare({
-    String by = 'cate', // backend có thể ignore nếu endpoint cố định cate
+    String by = 'cate',
     String? facId,
     String? scadaId,
     String? cate,
     String? boxDeviceId,
     List<String>? deviceIds,
     List<String>? cateIds,
+    // ✅ NEW
+    List<String>? nameEns,
   }) async {
     final res = await _dio.get(
       '/api/utility/sum-compare',
       queryParameters: {
         'by': by,
-        if (facId != null && facId.trim().isNotEmpty) 'facId': facId,
-        if (scadaId != null && scadaId.trim().isNotEmpty) 'scadaId': scadaId,
-        if (cate != null && cate.trim().isNotEmpty) 'cate': cate,
-        if (boxDeviceId != null && boxDeviceId.trim().isNotEmpty)
-          'boxDeviceId': boxDeviceId,
-        if (deviceIds != null && deviceIds.isNotEmpty) 'deviceIds': deviceIds,
-        if (cateIds != null && cateIds.isNotEmpty) 'cateIds': cateIds,
+        if (facId?.trim().isNotEmpty == true) 'facId': facId,
+        if (scadaId?.trim().isNotEmpty == true) 'scadaId': scadaId,
+        if (cate?.trim().isNotEmpty == true) 'cate': cate,
+        if (boxDeviceId?.trim().isNotEmpty == true) 'boxDeviceId': boxDeviceId,
+        if (deviceIds?.isNotEmpty == true) 'deviceIds': deviceIds,
+        if (cateIds?.isNotEmpty == true) 'cateIds': cateIds,
+
+        // ✅ QUAN TRỌNG
+        if (nameEns?.isNotEmpty == true) 'nameEns': nameEns,
       },
     );
 

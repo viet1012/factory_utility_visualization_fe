@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../utility_api/utility_api.dart';
 import '../utility_models/utility_facade_service.dart'; // ✅
+import '../utility_state/chart_catalog_provider.dart';
 import '../utility_state/latest_provider.dart';
 import '../utility_state/minute_series_provider.dart';
 import '../utility_state/sum_compare_provider.dart';
@@ -28,7 +29,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
   void initState() {
     super.initState();
 
-    const baseUrl = 'http://localhost:9999';
+    const baseUrl = 'http://192.168.122.16:9093';
 
     api = UtilityApi(baseUrl: baseUrl);
 
@@ -49,14 +50,14 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
     return MultiProvider(
       providers: [
         Provider.value(value: facade), // ✅ cho tiện lấy ở mọi nơi
-
+        Provider.value(value: api),
         ChangeNotifierProvider(
           create: (_) {
             final p = SumCompareProvider(
               api: api,
               interval: const Duration(seconds: 30),
             );
-            p.startPolling();
+            // p.startPolling();
             return p;
           },
         ),
@@ -81,6 +82,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
             return p;
           },
         ),
+        ChangeNotifierProvider(create: (_) => ChartCatalogProvider(api)),
       ],
       child: DefaultTabController(
         length: 3, // ✅ thêm tab Table

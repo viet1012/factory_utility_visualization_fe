@@ -4,8 +4,33 @@ import 'package:provider/provider.dart';
 import '../../utility_models/response/sum_compare_item.dart';
 import '../../utility_state/sum_compare_provider.dart';
 
-class UtilityCategoryCompareView extends StatelessWidget {
+class UtilityCategoryCompareView extends StatefulWidget {
   const UtilityCategoryCompareView({super.key});
+
+  @override
+  State<UtilityCategoryCompareView> createState() =>
+      _UtilityCategoryCompareViewState();
+}
+
+class _UtilityCategoryCompareViewState
+    extends State<UtilityCategoryCompareView> {
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final p = context.read<SumCompareProvider>();
+
+      p.setFilter(
+        nameEns: const ['Total Energy Consumption'], // ?? truy?n t?i dây
+        // facId: 'Fac_B',  // n?u c?n
+        // scadaId: 'B2',
+        // cate: 'Electricity',
+      );
+
+      p.startPolling(); // n?u b?n dùng polling
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

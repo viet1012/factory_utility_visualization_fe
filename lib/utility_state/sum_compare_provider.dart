@@ -32,7 +32,7 @@ class SumCompareProvider extends ChangeNotifier {
   // filter hiện tại (nếu bạn muốn đổi facId/scadaId...)
   String by = 'cate';
   String? facId, scadaId, cate, boxDeviceId;
-  List<String>? deviceIds, cateIds;
+  List<String>? deviceIds, cateIds, nameEns;
 
   Future<void> fetchNow() async {
     if (_fetching) return;
@@ -46,6 +46,7 @@ class SumCompareProvider extends ChangeNotifier {
         boxDeviceId: boxDeviceId,
         deviceIds: deviceIds,
         cateIds: cateIds,
+        nameEns: nameEns,
       );
       _rows = data;
       _error = null;
@@ -78,6 +79,9 @@ class SumCompareProvider extends ChangeNotifier {
     String? boxDeviceId,
     List<String>? deviceIds,
     List<String>? cateIds,
+
+    // ✅ NEW
+    List<String>? nameEns,
   }) {
     this.by = by ?? this.by;
     this.facId = facId;
@@ -86,6 +90,8 @@ class SumCompareProvider extends ChangeNotifier {
     this.boxDeviceId = boxDeviceId;
     this.deviceIds = deviceIds;
     this.cateIds = cateIds;
+    this.nameEns = nameEns;
+
     fetchNow();
   }
 

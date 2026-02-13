@@ -1,11 +1,11 @@
-class ChannelDto {
+class ScadaChannelDto {
   final int? id;
   final String scadaId;
   final String cate;
   final String boxDeviceId;
   final String boxId;
 
-  ChannelDto({
+  ScadaChannelDto({
     this.id,
     required this.scadaId,
     required this.cate,
@@ -13,7 +13,7 @@ class ChannelDto {
     required this.boxId,
   });
 
-  factory ChannelDto.fromJson(Map<String, dynamic> j) => ChannelDto(
+  factory ScadaChannelDto.fromJson(Map<String, dynamic> j) => ScadaChannelDto(
     id: j['id'] == null ? null : int.tryParse('${j['id']}'),
     scadaId: '${j['scadaId'] ?? ''}',
     cate: '${j['cate'] ?? ''}',
