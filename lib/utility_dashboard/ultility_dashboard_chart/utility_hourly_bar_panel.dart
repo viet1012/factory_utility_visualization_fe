@@ -90,6 +90,10 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
   void _registerAndFetch() {
     final p = context.read<HourlySeriesProvider>();
 
+    debugPrint(
+      '[HourlyPanel] register key=$_key fac=${widget.facId} box=${widget.boxDeviceId} plc=${widget.plcAddress} cateId=${widget.cateId} cateIds=${widget.cateIds} hasReq=$_hasRequiredFilter',
+    );
+
     p.upsertRequest(
       key: _key,
       fromTs: widget.fromTs,
@@ -397,8 +401,8 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
           xValueMapper: (p, _) => p.ts,
           yValueMapper: (p, _) => p.y,
           // nếu muốn bo tròn / spacing:
-          // width: 0.8,
-          // spacing: 0.2,
+          width: 0.8,
+          spacing: 0.2,
         ),
       ],
     );

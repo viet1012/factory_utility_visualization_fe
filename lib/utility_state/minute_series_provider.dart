@@ -13,7 +13,6 @@ class _MinuteReq {
   final String? cate;
 
   final String? boxDeviceId;
-  final String? plcAddress;
   final List<String>? cateIds;
 
   _MinuteReq({
@@ -22,7 +21,6 @@ class _MinuteReq {
     this.scadaId,
     this.cate,
     this.boxDeviceId,
-    this.plcAddress,
     this.cateIds,
   });
 }
@@ -41,27 +39,28 @@ class MinuteSeriesProvider extends ChangeNotifier {
   Timer? _timer;
   bool _polling = false;
 
-  // requests registry
+  // ===================== REGISTRY =====================
+
   final Map<String, _MinuteReq> _reqs = {};
 
-  // cache by key
+  // cache by BOX key (rows gồm nhiều plcAddress)
   final Map<String, List<MinutePointDto>> _rows = {};
   final Map<String, Object?> _errors = {};
   final Map<String, bool> _fetching = {};
-  final Map<String, DateTime?> _lastTs = {}; // incremental cursor
+  final Map<String, DateTime?> _lastTs = {}; // cursor toàn box (max ts)
 
-  // ✅ NEW: lifecycle state
+  // lifecycle state (y chang bản bạn)
   final Map<String, bool> _fetchedOnce = {};
   final Map<String, DateTime?> _lastOkAt = {};
   final Map<String, DateTime?> _lastErrAt = {};
 
-  // ===== key builder =====
+  // ===================== KEY BUILDER (BOX KEY) =====================
+  // ✅ NOTE: KHÔNG còn plcAddress trong key
   String buildKey({
     String? facId,
     String? scadaId,
     String? cate,
     String? boxDeviceId,
-    String? plcAddress,
     List<String>? cateIds,
   }) {
     final ids =
@@ -72,7 +71,6 @@ class MinuteSeriesProvider extends ChangeNotifier {
         '|scada=${(scadaId ?? "").trim()}'
         '|cate=${(cate ?? "").trim()}'
         '|dev=${(boxDeviceId ?? "").trim()}'
-        '|addr=${(plcAddress ?? "").trim()}'
         '|cateIds=${ids.join(",")}';
   }
 
@@ -86,17 +84,17 @@ class MinuteSeriesProvider extends ChangeNotifier {
 
   bool _hasRequired(_MinuteReq r) {
     final dev = (r.boxDeviceId ?? '').trim();
-    final addr = (r.plcAddress ?? '').trim();
-    return dev.isNotEmpty && addr.isNotEmpty;
+    return dev.isNotEmpty; // ✅ chỉ cần boxDeviceId
   }
 
+  // ===================== UPSERT =====================
+  // ✅ upsert theo BOX key, plcAddress không còn nằm trong request
   void upsertRequest({
     required String key,
     String? facId,
     String? scadaId,
     String? cate,
     String? boxDeviceId,
-    String? plcAddress,
     List<String>? cateIds,
   }) {
     _reqs[key] = _MinuteReq(
@@ -105,11 +103,9 @@ class MinuteSeriesProvider extends ChangeNotifier {
       scadaId: scadaId,
       cate: cate,
       boxDeviceId: boxDeviceId,
-      plcAddress: plcAddress,
       cateIds: cateIds,
     );
 
-    // ✅ ensure maps exist (avoid null logic in UI)
     _rows.putIfAbsent(key, () => const []);
     _fetching.putIfAbsent(key, () => false);
     _errors.putIfAbsent(key, () => null);
@@ -134,21 +130,31 @@ class MinuteSeriesProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ===== exposed getters =====
+  // ===================== GETTERS =====================
+
+  /// ✅ all rows (nhiều plcAddress)
   List<MinutePointDto> getRows(String key) => _rows[key] ?? const [];
+
+  /// ✅ rows theo plcAddress (UI panel dùng cái này)
+  List<MinutePointDto> getRowsForPlc(String key, String plcAddress) {
+    final addr = plcAddress.trim();
+    if (addr.isEmpty) return const [];
+    final all = _rows[key] ?? const [];
+    return all.where((e) => (e.plcAddress ?? '').trim() == addr).toList();
+  }
 
   Object? getError(String key) => _errors[key];
 
   bool isFetching(String key) => _fetching[key] == true;
 
-  // ✅ NEW getters for UI status
   bool hasFetchedOnce(String key) => _fetchedOnce[key] == true;
 
   DateTime? lastOkAt(String key) => _lastOkAt[key];
 
   DateTime? lastErrAt(String key) => _lastErrAt[key];
 
-  // ===== polling control =====
+  // ===================== POLLING CONTROL =====================
+
   void startPolling() {
     if (_polling) return;
     _polling = true;
@@ -185,16 +191,15 @@ class MinuteSeriesProvider extends ChangeNotifier {
     }
   }
 
+  // ===================== FETCH FULL WINDOW (1 API PER BOX) =====================
   Future<void> _fetchFullWindow(_MinuteReq r) async {
     if (_fetching[r.key] == true) return;
 
-    // ✅ missing required -> clear and mark fetchedOnce? (không)
     if (!_hasRequired(r)) {
       _rows[r.key] = const [];
       _errors[r.key] = null;
       _lastTs[r.key] = null;
 
-      // không đánh fetchedOnce vì chưa gọi API thật
       notifyListeners();
       return;
     }
@@ -207,29 +212,37 @@ class MinuteSeriesProvider extends ChangeNotifier {
       final to = DateTime.now();
       final from = to.subtract(window);
 
+      // ✅ IMPORTANT: plcAddress = null => backend trả ALL plcAddress của box
       final rows = await api.getSeriesMinute(
         from: from,
         to: to,
         boxDeviceId: r.boxDeviceId!.trim(),
-        plcAddress: r.plcAddress!.trim(),
+        plcAddress: null,
+        // ✅ CHỖ QUAN TRỌNG
         cateIds: _normCateIds(r.cateIds),
       );
 
-      rows.sort((a, b) => a.ts.compareTo(b.ts));
+      // sort ổn định: ts asc, plc asc
+      rows.sort((a, b) {
+        final c = a.ts.compareTo(b.ts);
+        if (c != 0) return c;
+        return (a.plcAddress ?? '').compareTo(b.plcAddress ?? '');
+      });
 
       _rows[r.key] = rows;
+
+      // cursor = max ts của toàn bộ rows
       _lastTs[r.key] = rows.isNotEmpty ? rows.last.ts : null;
+
       _trimToWindow(r.key);
 
       _errors[r.key] = null;
 
-      // ✅ NEW: mark success (kể cả rows rỗng)
       _fetchedOnce[r.key] = true;
       _lastOkAt[r.key] = DateTime.now();
     } catch (e) {
       _errors[r.key] = e;
 
-      // ✅ NEW: mark error
       _fetchedOnce[r.key] = true;
       _lastErrAt[r.key] = DateTime.now();
     } finally {
@@ -238,6 +251,7 @@ class MinuteSeriesProvider extends ChangeNotifier {
     }
   }
 
+  // ===================== FETCH INCREMENTAL (SAFE) =====================
   Future<void> _fetchIncremental(_MinuteReq r) async {
     if (_fetching[r.key] == true) return;
     if (!_hasRequired(r)) return;
@@ -249,30 +263,53 @@ class MinuteSeriesProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final from = last.add(const Duration(seconds: 1));
+      // ✅ “safe incremental”:
+      // vì rows gồm nhiều plcAddress, dùng cursor chung có thể miss nếu signal nào đó update chậm.
+      // nên lùi lại 1 phút để merge lại cho chắc (cost nhỏ).
+      final from = last.subtract(const Duration(minutes: 1));
       final to = DateTime.now();
 
       final rows = await api.getSeriesMinute(
         from: from,
         to: to,
         boxDeviceId: r.boxDeviceId!.trim(),
-        plcAddress: r.plcAddress!.trim(),
+        plcAddress: null,
+        // ✅ ALL plcAddress
         cateIds: _normCateIds(r.cateIds),
       );
 
-      // merge
       if (rows.isNotEmpty) {
-        rows.sort((a, b) => a.ts.compareTo(b.ts));
+        rows.sort((a, b) {
+          final c = a.ts.compareTo(b.ts);
+          if (c != 0) return c;
+          return (a.plcAddress ?? '').compareTo(b.plcAddress ?? '');
+        });
 
         final cur = List<MinutePointDto>.from(_rows[r.key] ?? const []);
-        final existing = cur.map((e) => e.ts.millisecondsSinceEpoch).toSet();
 
-        for (final x in rows) {
-          final k = x.ts.millisecondsSinceEpoch;
-          if (!existing.contains(k)) cur.add(x);
+        // ✅ merge unique theo (ts + plcAddress)
+        final existing = <String>{};
+        for (final e in cur) {
+          final k =
+              '${e.ts.millisecondsSinceEpoch}|${(e.plcAddress ?? '').trim()}';
+          existing.add(k);
         }
 
-        cur.sort((a, b) => a.ts.compareTo(b.ts));
+        for (final x in rows) {
+          final k =
+              '${x.ts.millisecondsSinceEpoch}|${(x.plcAddress ?? '').trim()}';
+          if (!existing.contains(k)) {
+            cur.add(x);
+            existing.add(k);
+          }
+        }
+
+        cur.sort((a, b) {
+          final c = a.ts.compareTo(b.ts);
+          if (c != 0) return c;
+          return (a.plcAddress ?? '').compareTo(b.plcAddress ?? '');
+        });
+
         _rows[r.key] = cur;
         _lastTs[r.key] = cur.isNotEmpty ? cur.last.ts : _lastTs[r.key];
         _trimToWindow(r.key);
@@ -280,13 +317,11 @@ class MinuteSeriesProvider extends ChangeNotifier {
 
       _errors[r.key] = null;
 
-      // ✅ NEW: success tick (dù rows incremental rỗng vẫn là success)
       _fetchedOnce[r.key] = true;
       _lastOkAt[r.key] = DateTime.now();
     } catch (e) {
       _errors[r.key] = e;
 
-      // ✅ NEW: error tick
       _fetchedOnce[r.key] = true;
       _lastErrAt[r.key] = DateTime.now();
     } finally {
@@ -295,11 +330,14 @@ class MinuteSeriesProvider extends ChangeNotifier {
     }
   }
 
+  // ===================== WINDOW TRIM =====================
   void _trimToWindow(String key) {
     final cur = _rows[key];
     if (cur == null || cur.isEmpty) return;
 
     final cutoff = DateTime.now().subtract(window);
+
+    // vì cur đang sort theo ts asc
     while (cur.isNotEmpty && cur.first.ts.isBefore(cutoff)) {
       cur.removeAt(0);
     }

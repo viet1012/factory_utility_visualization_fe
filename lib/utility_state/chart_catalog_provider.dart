@@ -28,7 +28,7 @@ class ChartCatalogProvider extends ChangeNotifier {
     // Ở đây mình giả định bạn đã có api.getScadas()
   }
 
-  Future<void> loadBoxes({required String facId, required String cate}) async {
+  Future<void> loadBoxes1({required String facId, required String cate}) async {
     loading = true;
     error = null;
     notifyListeners();
@@ -52,46 +52,88 @@ class ChartCatalogProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> loadChartsForBox({
-    required String facId,
-    required String cate,
-    required String boxDeviceId,
-  }) async {
+  Future<void> loadBoxes({required String facId, required String cate}) async {
     loading = true;
     error = null;
     notifyListeners();
 
     try {
+      final channels = await api.getChannels(facId: facId, cate: cate);
+
+      // ✅ 1) in số lượng channels + vài dòng sample
+      debugPrint('=== /channels facId=$facId cate=$cate');
+      debugPrint('channels.length=${channels.length}');
+      for (final c in channels.take(20)) {
+        debugPrint('  - boxDeviceId=${c.boxDeviceId}  scadaId=${c.scadaId} ');
+      }
+
+      // ✅ 2) build boxDeviceIds
+      final set = <String>{};
+      for (final c in channels) {
+        final v = c.boxDeviceId.trim();
+        if (v.isNotEmpty) set.add(v);
+      }
+      boxDeviceIds = set.toList()..sort();
+
+      // ✅ 3) in danh sách BOX
+      debugPrint('boxDeviceIds (${boxDeviceIds.length}):');
+      for (final b in boxDeviceIds) {
+        debugPrint('  • $b');
+      }
+
+      charts = [];
+    } catch (e) {
+      error = e;
+      debugPrint('loadBoxes error=$e');
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadChartsForBox({
+    required String facId,
+    required String cate,
+    required String boxDeviceId,
+    int importantOnly = 0,
+  }) async {
+    loading = true;
+    error = null;
+    charts = [];
+    notifyListeners();
+
+    final box = boxDeviceId.trim();
+
+    try {
       final ps = await api.getParams(
         facId: facId,
         cate: cate,
-        boxDeviceId: boxDeviceId,
+        boxDeviceId: box,
+        importantOnly: importantOnly, // ✅ truyền xuống API
       );
 
-      // build chart list (1 plcAddress = 1 chart)
-      final out = <SignalChartConfig>[];
       final seen = <String>{};
 
-      for (final p in ps) {
-        final addr = p.plcAddress.trim();
-        if (addr.isEmpty) continue;
+      charts =
+          ps
+              .map((p) {
+                final addr = (p.plcAddress ?? '').trim();
+                final cateId = (p.cateId ?? '').trim();
 
-        final key = '${boxDeviceId.trim()}|$addr';
-        if (seen.add(key)) {
-          out.add(
-            SignalChartConfig(
-              boxDeviceId: boxDeviceId.trim(),
-              plcAddress: addr,
-              cateIds: (p.cateId == null || p.cateId!.trim().isEmpty)
-                  ? null
-                  : [p.cateId!.trim()],
-            ),
-          );
-        }
-      }
+                if (addr.isEmpty) return null;
 
-      out.sort((a, b) => a.plcAddress.compareTo(b.plcAddress));
-      charts = out;
+                final key = '$box|$addr';
+                if (!seen.add(key)) return null;
+
+                return SignalChartConfig(
+                  boxDeviceId: box,
+                  plcAddress: addr,
+                  cateId: cateId.isEmpty ? null : cateId, // ✅ dùng single
+                );
+              })
+              .whereType<SignalChartConfig>()
+              .toList()
+            ..sort((a, b) => a.plcAddress.compareTo(b.plcAddress));
     } catch (e) {
       error = e;
     } finally {

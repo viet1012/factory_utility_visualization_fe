@@ -13,10 +13,12 @@ class UtilityInfoBoxWidgets {
     // ✅ thêm
     String? boxDeviceId,
     String? plcAddress,
+    String? unit,
   }) {
     final sub = [
       if ((boxDeviceId ?? '').trim().isNotEmpty) boxDeviceId!.trim(),
       if ((plcAddress ?? '').trim().isNotEmpty) plcAddress!.trim(),
+      if ((unit ?? '').trim().isNotEmpty) unit!.trim(),
     ].join(' • ');
 
     return Container(

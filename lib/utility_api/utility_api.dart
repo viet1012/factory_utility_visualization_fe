@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
 
 import '../utility_models/f2_utility_parameter_master.dart';
@@ -27,16 +28,16 @@ class UtilityApi {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          print('➡️ [REQ] ${options.method} ${options.baseUrl}${options.path}');
-          print('   query: ${options.queryParameters}');
-          print('   headers: ${options.headers}');
+          // print('➡️ [REQ] ${options.method} ${options.baseUrl}${options.path}');
+          // print('   query: ${options.queryParameters}');
+          // print('   headers: ${options.headers}');
           return handler.next(options);
         },
         onResponse: (response, handler) {
-          print(
-            '✅ [RES] ${response.statusCode} ${response.requestOptions.path}',
-          );
-          print('   data: ${response.data}');
+          // print(
+          //   '✅ [RES] ${response.statusCode} ${response.requestOptions.path}',
+          // );
+          // print('   data: ${response.data}');
           return handler.next(response);
         },
         onError: (e, handler) {
@@ -73,15 +74,28 @@ class UtilityApi {
     String? facId,
     String? cate,
     String? boxDeviceId,
+    int? importantOnly, // ✅ NEW: 0/1 (null = không gửi)
   }) async {
     final qp = <String, dynamic>{};
-    if (facId != null && facId.trim().isNotEmpty) qp['facId'] = facId.trim();
-    if (cate != null && cate.trim().isNotEmpty) qp['cate'] = cate.trim();
-    if (boxDeviceId != null && boxDeviceId.trim().isNotEmpty) {
-      qp['boxDeviceId'] = boxDeviceId.trim();
+
+    final fac = facId?.trim();
+    if (fac != null && fac.isNotEmpty) qp['facId'] = fac;
+
+    final c = cate?.trim();
+    if (c != null && c.isNotEmpty) qp['cate'] = c;
+
+    final box = boxDeviceId?.trim();
+    if (box != null && box.isNotEmpty) qp['boxDeviceId'] = box;
+
+    if (importantOnly != null) {
+      // chỉ cho phép 0/1 để tránh gọi sai
+      qp['importantOnly'] = importantOnly == 1 ? 1 : 0;
     }
 
     final res = await _dio.get('/api/utility/params', queryParameters: qp);
+
+    // ✅ in URL chính xác (baseUrl + path + query)
+    debugPrint('[GET] ${res.realUri}');
 
     final data = res.data;
     if (data is! List) throw Exception('params: expected List');
@@ -168,6 +182,7 @@ class UtilityApi {
       '/api/utility/series/minute',
       queryParameters: qp,
     );
+    debugPrint('[GET] ${res.realUri}');
 
     final data = res.data;
     if (data is! List) {

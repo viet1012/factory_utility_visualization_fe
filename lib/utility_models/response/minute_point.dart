@@ -12,6 +12,7 @@ class MinutePointDto {
   final String? nameVi;
   final String? fac;
   final String? cate;
+  final String? unit;
 
   MinutePointDto({
     required this.ts,
@@ -24,6 +25,7 @@ class MinutePointDto {
     this.nameVi,
     this.fac,
     this.cate,
+    this.unit,
   });
 
   factory MinutePointDto.fromJson(Map<String, dynamic> json) {
@@ -49,6 +51,7 @@ class MinutePointDto {
       nameVi: json['nameVi']?.toString(),
       fac: json['fac']?.toString(),
       cate: json['cate']?.toString(),
+      unit: json['unit']?.toString(),
     );
   }
 }
