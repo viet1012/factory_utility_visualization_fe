@@ -28,7 +28,6 @@ class UtilityHourlyBarChartPanel extends StatefulWidget {
   /// ✅ required
   final String plcAddress;
 
-  /// ✅ bạn muốn truyền cateId + plcAddress
   final String? cateId;
 
   /// optional
@@ -67,7 +66,9 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
 
   bool get _hasRequiredFilter {
     final addr = widget.plcAddress.trim();
-    final hasCateId = (widget.cateId ?? '').trim().isNotEmpty;
+    final hasCateId = (widget.cateId ?? '')
+        .trim()
+        .isNotEmpty;
     final hasCateIds = (widget.cateIds?.isNotEmpty == true);
     return addr.isNotEmpty && (hasCateId || hasCateIds);
   }
@@ -91,7 +92,9 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
     final p = context.read<HourlySeriesProvider>();
 
     debugPrint(
-      '[HourlyPanel] register key=$_key fac=${widget.facId} box=${widget.boxDeviceId} plc=${widget.plcAddress} cateId=${widget.cateId} cateIds=${widget.cateIds} hasReq=$_hasRequiredFilter',
+      '[HourlyPanel] register key=$_key fac=${widget.facId} box=${widget
+          .boxDeviceId} plc=${widget.plcAddress} cateId=${widget
+          .cateId} cateIds=${widget.cateIds} hasReq=$_hasRequiredFilter',
     );
 
     p.upsertRequest(
@@ -115,7 +118,8 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
   @override
   void initState() {
     super.initState();
-    fx = UtilityInfoBoxFx(this)..init();
+    fx = UtilityInfoBoxFx(this)
+      ..init();
 
     _rebuildKey();
 
@@ -131,14 +135,14 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
 
     final changed =
         oldWidget.facId != widget.facId ||
-        oldWidget.scadaId != widget.scadaId ||
-        oldWidget.cate != widget.cate ||
-        oldWidget.boxDeviceId != widget.boxDeviceId ||
-        oldWidget.plcAddress != widget.plcAddress ||
-        oldWidget.cateId != widget.cateId ||
-        (oldWidget.cateIds?.join(',') != widget.cateIds?.join(',')) ||
-        oldWidget.fromTs != widget.fromTs ||
-        oldWidget.toTs != widget.toTs;
+            oldWidget.scadaId != widget.scadaId ||
+            oldWidget.cate != widget.cate ||
+            oldWidget.boxDeviceId != widget.boxDeviceId ||
+            oldWidget.plcAddress != widget.plcAddress ||
+            oldWidget.cateId != widget.cateId ||
+            (oldWidget.cateIds?.join(',') != widget.cateIds?.join(',')) ||
+            oldWidget.fromTs != widget.fromTs ||
+            oldWidget.toTs != widget.toTs;
 
     if (!changed) return;
 
