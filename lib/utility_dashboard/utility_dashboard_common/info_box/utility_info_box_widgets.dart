@@ -222,7 +222,7 @@ class UtilityInfoBoxWidgets {
               children: [
                 // 🔹 Dòng chính (plc + value)
                 Text(
-                  '${r.plcAddress} • $v',
+                  '${r.nameEn}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -237,14 +237,14 @@ class UtilityInfoBoxWidgets {
 
                 // 🔹 Dòng dưới: boxDeviceId (plain text)
                 Text(
-                  r.boxDeviceId ?? '',
+                  // r.boxDeviceId ?? '',
+                  v,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    height: 1.0,
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],

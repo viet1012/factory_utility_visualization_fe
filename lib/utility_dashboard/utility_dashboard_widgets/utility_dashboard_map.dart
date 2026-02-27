@@ -78,7 +78,7 @@ class UtilityDashboardMap extends StatelessWidget {
                         child: const UtilityFacilityInfoBox(
                           facId: 'Fac_B',
                           // boxDeviceId: '',
-                          cateIds: ['E_Cur', 'E_EneCon'],
+                          cateIds: ['E_EneCon'],
                         ),
                       ),
 

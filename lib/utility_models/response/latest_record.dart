@@ -3,6 +3,7 @@ class LatestRecordDto {
   final String plcAddress;
   final double? value;
   final DateTime recordedAt;
+  final String? nameEn;
 
   final String? cateId;
   final String? scadaId;
@@ -20,6 +21,7 @@ class LatestRecordDto {
     this.fac,
     this.cate,
     this.boxId,
+    this.nameEn,
   });
 
   factory LatestRecordDto.fromJson(Map<String, dynamic> json) {
@@ -44,6 +46,7 @@ class LatestRecordDto {
       fac: json['fac']?.toString(),
       cate: json['cate']?.toString(),
       boxId: json['boxId']?.toString(),
+      nameEn: json['name_en']?.toString(),
     );
   }
 }
