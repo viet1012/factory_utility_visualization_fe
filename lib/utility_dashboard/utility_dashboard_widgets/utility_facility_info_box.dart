@@ -164,7 +164,9 @@ class _UtilityFacilityInfoBoxState extends State<UtilityFacilityInfoBox>
       builder: (context, p, _) {
         // ✅ giờ _key luôn có giá trị
         final all = p.getRows(_key);
-        final rows = all.take(4).toList();
+        // final rows = all.take(4).toList();
+
+        final rows = all;
         final err = p.getError(_key);
 
         final hasError = err != null;

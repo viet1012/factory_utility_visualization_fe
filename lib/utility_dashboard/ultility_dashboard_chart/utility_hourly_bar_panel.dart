@@ -168,8 +168,8 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
             : 'Series';
 
         final unit = sig?.unit;
-        final headerSubtitle =
-            '${widget.range ?? "CUSTOM"}${bucket != null ? " • $bucket" : ""}${unit != null ? " • $unit" : ""}';
+        // final headerSubtitle =
+        //     '${widget.range ?? "CUSTOM"}${bucket != null ? " • $bucket" : ""}${unit != null ? " • $unit" : ""}';
 
         return SlideTransition(
           position: fx.slide,
@@ -225,7 +225,7 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
                             UtilityInfoBoxWidgets.header(
                               facilityColor: facilityColor,
                               facTitle: widget.facId,
-                              boxDeviceId: '$signalName  •  $headerSubtitle',
+                              boxDeviceId: '$signalName',
                               // plcAddress:
                               //     '${widget.boxDeviceId} • ${widget.plcAddress}',
                               isLoading: isLoading,

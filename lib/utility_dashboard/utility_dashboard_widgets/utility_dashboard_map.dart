@@ -2,6 +2,7 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 
 import '../../widgets/overview/factory_map_with_rain.dart';
+import '../ultility_dashboard_chart/utility_hourly_bar_panel.dart';
 import 'utility_category_compare_view.dart';
 
 class UtilityDashboardMap extends StatelessWidget {
@@ -26,8 +27,19 @@ class UtilityDashboardMap extends StatelessWidget {
             ],
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: Container()),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: UtilityHourlyBarChartPanel(
+                    facId: 'KVH',
+                    boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
+                    plcAddress: 'D30',
+                    // height: 500,
+                  ),
+                ),
+              ),
               Expanded(
                 flex: 3,
                 child: ClipRRect(
@@ -66,7 +78,7 @@ class UtilityDashboardMap extends StatelessWidget {
                         child: const UtilityFacilityInfoBox(
                           facId: 'Fac_B',
                           // boxDeviceId: '',
-                          cateIds: ['E_Cur', 'WT_P1'],
+                          cateIds: ['E_Cur', 'E_EneCon'],
                         ),
                       ),
 

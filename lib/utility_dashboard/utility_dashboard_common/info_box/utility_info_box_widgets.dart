@@ -9,8 +9,6 @@ class UtilityInfoBoxWidgets {
     required bool isLoading,
     required bool hasError,
     required Object? err,
-
-    // ✅ thêm
     String? boxDeviceId,
     String? plcAddress,
     String? unit,
@@ -21,30 +19,41 @@ class UtilityInfoBoxWidgets {
       if ((unit ?? '').trim().isNotEmpty) unit!.trim(),
     ].join(' • ');
 
+    final statusColor = hasError
+        ? Colors.redAccent
+        : (isLoading ? Colors.amberAccent : Colors.greenAccent);
+
+    final statusText = hasError
+        ? 'API error: $err'
+        : (isLoading ? 'Loading...' : 'Live');
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      // giảm vertical
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            facilityColor.withOpacity(0.8),
-            facilityColor.withOpacity(0.4),
+            facilityColor.withOpacity(0.82),
+            facilityColor.withOpacity(0.32),
           ],
         ),
         border: Border(
-          bottom: BorderSide(color: facilityColor.withOpacity(0.5), width: 2),
+          bottom: BorderSide(color: facilityColor.withOpacity(0.55), width: 2),
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(Icons.factory, color: Colors.white.withOpacity(0.95), size: 22),
-          const SizedBox(width: 12),
+          // LEFT: icon + title
+          Icon(Icons.factory, color: Colors.white.withOpacity(0.95), size: 20),
+          const SizedBox(width: 10),
 
-          // ✅ title + sub trong cùng 1 khối
+          // MIDDLE: title + sub (co giãn)
           Expanded(
-            child: Row(
-              mainAxisSize: MainAxisSize.min, // ✅ không bung cao
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   facTitle,
@@ -52,52 +61,53 @@ class UtilityInfoBoxWidgets {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    height: 1.05, // ✅ thấp
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                    height: 1.05,
                   ),
                 ),
-                if (sub.isNotEmpty)
+                if (sub.isNotEmpty) ...[
+                  const SizedBox(height: 3),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.memory,
-                        size: 22,
-                        color: Colors.white.withOpacity(0.75),
-                      ),
-                      const SizedBox(width: 12),
-
-                      Text(
-                        sub,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.85),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          height: 1.0, // ✅ thấp
+                      Expanded(
+                        child: Text(
+                          sub,
+                          maxLines: 2, // ✅ hẹp thì xuống dòng 2
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
                   ),
+                ],
               ],
             ),
           ),
 
           const SizedBox(width: 10),
 
+          // RIGHT: status dot (fixed)
           Tooltip(
-            message: hasError
-                ? 'API error: $err'
-                : (isLoading ? 'Loading...' : 'Live'),
+            message: statusText,
             child: Container(
-              width: 9,
-              height: 9,
+              width: 10,
+              height: 10,
               decoration: BoxDecoration(
-                color: hasError
-                    ? Colors.redAccent
-                    : (isLoading ? Colors.amberAccent : Colors.greenAccent),
+                color: statusColor,
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: statusColor.withOpacity(0.55),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
             ),
           ),
