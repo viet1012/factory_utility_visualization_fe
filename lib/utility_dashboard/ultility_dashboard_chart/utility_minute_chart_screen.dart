@@ -53,11 +53,14 @@ class _UtilityAllFactoriesChartsScreenState
   int _viewIdx = 1;
   int _boxIdx = 0;
 
+  int _summarySignalIdx = 0;
+  String _summaryRange = 'LAST_7_DAYS'; // hoặc TODAY / YESTERDAY / THIS_MONTH
+
   String get cate => _cateTabs[_cateIdx];
 
   String get facId => _facTabs[_facIdx];
 
-  bool _importantOnly = true; // mặc định bật lọc important
+  bool _importantOnly = false; // mặc định không bật lọc important
 
   bool _filtersExpanded = true; // mặc định mở, muốn tiết kiệm thì set false
   @override
@@ -80,6 +83,7 @@ class _UtilityAllFactoriesChartsScreenState
   Future<void> _reloadBoxesAndSelectFirst() async {
     final p = context.read<ChartCatalogProvider>();
     _boxIdx = 0;
+    _summarySignalIdx = 0;
     await p.loadBoxes(facId: facId, cate: cate);
     if (p.boxDeviceIds.isNotEmpty) {
       await p.loadChartsForBox(
@@ -193,47 +197,49 @@ class _UtilityAllFactoriesChartsScreenState
                       const SizedBox(height: 8),
 
                       // box tabs (only when Minutes)
-                      if (view == 'Minutes')
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: _tabRow(
-                            labels: boxTabs.isEmpty
-                                ? const ['(no boxes)']
-                                : boxTabs,
-                            selectedIndex: boxTabs.isEmpty ? 0 : _boxIdx,
-                            onSelect: (i) async {
-                              setState(() => _boxIdx = i);
-                              if (boxTabs.isEmpty) return;
+                      // if (view == 'Minutes')
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: _tabRow(
+                          labels: boxTabs.isEmpty
+                              ? const ['(no boxes)']
+                              : boxTabs,
+                          selectedIndex: boxTabs.isEmpty ? 0 : _boxIdx,
+                          onSelect: (i) async {
+                            setState(() => _boxIdx = i);
+                            if (boxTabs.isEmpty) return;
 
-                              final box = boxTabs[i];
+                            final box = boxTabs[i];
 
-                              debugPrint('==============================');
+                            _summarySignalIdx = 0;
+
+                            debugPrint('==============================');
+                            debugPrint(
+                              '[BOX SELECT] facId=$facId  cate=$cate  idx=$i  boxDeviceId=$box',
+                            );
+                            debugPrint(
+                              'All boxes (${boxTabs.length}): ${boxTabs.join(", ")}',
+                            );
+
+                            await cat.loadChartsForBox(
+                              facId: facId,
+                              cate: cate,
+                              boxDeviceId: box,
+                              importantOnly: _importantOnly ? 1 : 0,
+                            );
+
+                            debugPrint(
+                              '[BOX SELECT DONE] charts.length=${cat.charts.length} for box=$box',
+                            );
+                            for (final c in cat.charts.take(30)) {
                               debugPrint(
-                                '[BOX SELECT] facId=$facId  cate=$cate  idx=$i  boxDeviceId=$box',
+                                '  - plc=${c.plcAddress}  cateId=${c.cateId}  cateIds=${c.cateIds}',
                               );
-                              debugPrint(
-                                'All boxes (${boxTabs.length}): ${boxTabs.join(", ")}',
-                              );
-
-                              await cat.loadChartsForBox(
-                                facId: facId,
-                                cate: cate,
-                                boxDeviceId: box,
-                                importantOnly: _importantOnly ? 1 : 0,
-                              );
-
-                              debugPrint(
-                                '[BOX SELECT DONE] charts.length=${cat.charts.length} for box=$box',
-                              );
-                              for (final c in cat.charts.take(30)) {
-                                debugPrint(
-                                  '  - plc=${c.plcAddress}  cateId=${c.cateId}  cateIds=${c.cateIds}',
-                                );
-                              }
-                              debugPrint('==============================');
-                            },
-                          ),
+                            }
+                            debugPrint('==============================');
+                          },
                         ),
+                      ),
                     ],
                   ),
 
@@ -358,43 +364,6 @@ class _UtilityAllFactoriesChartsScreenState
     );
   }
 
-  Widget _summaryBody({
-    required String cate,
-    required String facId,
-    required bool loading,
-    required Object? error,
-    required List<SignalChartConfig> charts,
-  }) {
-    // time window today
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final fromTs = today;
-    final toTs = today.add(const Duration(days: 1));
-
-    // ✅ HARD FILTER theo yêu cầu bạn
-    const plcAddress = 'D30';
-    const cateId = 'E_EneCon';
-
-    debugPrint(
-      '[SUMMARY FIXED] fac=$facId cate=$cate plc=$plcAddress cateId=$cateId',
-    );
-
-    return Center(
-      child: UtilityHourlyBarChartPanel(
-        facId: facId,
-        cate: cate,
-        boxDeviceId: null,
-        // hoặc selectedBox nếu bạn muốn
-        plcAddress: plcAddress,
-        cateId: cateId,
-        fromTs: fromTs,
-        toTs: toTs,
-        width: 700,
-        height: 360,
-      ),
-    );
-  }
-
   // Widget _summaryBody({
   //   required String cate,
   //   required String facId,
@@ -402,80 +371,169 @@ class _UtilityAllFactoriesChartsScreenState
   //   required Object? error,
   //   required List<SignalChartConfig> charts,
   // }) {
-  //   // Summary vẫn dựa vào charts đã load (theo selected box hoặc theo logic bạn đang dùng)
-  //   if (loading && charts.isEmpty) {
-  //     return const Center(child: CircularProgressIndicator());
-  //   }
-  //   if (error != null && charts.isEmpty) {
-  //     return Center(
-  //       child: Text(
-  //         'API error:\n$error',
-  //         textAlign: TextAlign.center,
-  //         style: TextStyle(color: Colors.white.withOpacity(0.85)),
-  //       ),
-  //     );
-  //   }
-  //   if (charts.isEmpty) {
-  //     return Center(
-  //       child: Text(
-  //         'Summary: no signals\ncate=$cate • fac=$facId',
-  //         textAlign: TextAlign.center,
-  //         style: TextStyle(color: Colors.white.withOpacity(0.85)),
-  //       ),
-  //     );
-  //   }
-  //
-  //   // ✅ default: today (00:00 -> tomorrow 00:00)
+  //   // time window today
   //   final now = DateTime.now();
   //   final today = DateTime(now.year, now.month, now.day);
   //   final fromTs = today;
   //   final toTs = today.add(const Duration(days: 1));
   //
-  //   return LayoutBuilder(
-  //     builder: (context, c) {
-  //       final w = c.maxWidth;
-  //       var cross = 1;
-  //       if (w >= 1200) cross = 2;
-  //       if (w >= 1700) cross = 3;
+  //   // ✅ HARD FILTER theo yêu cầu bạn
+  //   const plcAddress = 'D30';
+  //   const cateId = 'E_EneCon';
   //
-  //       return GridView.builder(
-  //         itemCount: charts.length,
-  //         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-  //           crossAxisCount: cross,
-  //           crossAxisSpacing: 12,
-  //           mainAxisSpacing: 12,
-  //           childAspectRatio: 16 / 10,
-  //         ),
-  //         itemBuilder: (context, i) {
-  //           final cfg = charts[i];
+  //   debugPrint(
+  //     '[SUMMARY FIXED] fac=$facId cate=$cate plc=$plcAddress cateId=$cateId',
+  //   );
   //
-  //           // ✅ quan trọng: BE hourly bạn muốn filter cateId + plcAddress
-  //           // cfg.cateIds đang là list cateIds (nếu bạn đã map cateIds theo param)
-  //           // Nếu bạn chỉ có 1 cateId thì truyền cateId = cfg.cateIds?.first
-  //
-  //           final cateId = (cfg.cateId ?? '').trim().isNotEmpty
-  //               ? cfg.cateId
-  //               : (cfg.cateIds?.isNotEmpty == true ? cfg.cateIds!.first : null);
-  //
-  //           debugPrint(
-  //             'SUMMARY cfg box=${cfg.boxDeviceId} plc=${cfg.plcAddress} cateId=$cateId cateIds=${cfg.cateIds}',
-  //           );
-  //
-  //           return UtilityHourlyBarChartPanel(
-  //             facId: facId,
-  //             cate: cate,
-  //             boxDeviceId: cfg.boxDeviceId,
-  //             plcAddress: cfg.plcAddress,
-  //             fromTs: fromTs,
-  //             toTs: toTs,
-  //             cateId: cateId,
-  //             cateIds: cfg.cateIds,
-  //           );
-  //         },
-  //       );
-  //     },
+  //   return Center(
+  //     child: UtilityHourlyBarChartPanel(
+  //       facId: 'Fac_B',
+  //       boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
+  //       plcAddress: 'D22',
+  //       range: 'LAST_7_DAYS',
+  //       width: 700,
+  //       height: 360,
+  //     ),
   //   );
   // }
+
+  Widget _summaryBody({
+    required String cate,
+    required String facId,
+    required bool loading,
+    required Object? error,
+    required List<SignalChartConfig> charts,
+  }) {
+    if (loading && charts.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (error != null && charts.isEmpty) {
+      return Center(
+        child: Text(
+          'API error:\n$error',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white.withOpacity(0.85)),
+        ),
+      );
+    }
+
+    if (charts.isEmpty) {
+      return Center(
+        child: Text(
+          'No signals\ncate=$cate • fac=$facId',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white.withOpacity(0.85)),
+        ),
+      );
+    }
+
+    // ✅ ensure index safe
+    if (_summarySignalIdx >= charts.length) _summarySignalIdx = 0;
+    final selectedSignal = charts[_summarySignalIdx];
+
+    // ✅ chọn range (tạm để biến _summaryRange)
+    final range = _summaryRange;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ===== Summary signal picker (không hard-code) =====
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white.withOpacity(0.14)),
+          ),
+          child: Row(
+            children: [
+              Text(
+                'Summary:',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.85),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 10),
+
+              // ✅ range dropdown
+              DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: range,
+                  dropdownColor: const Color(0xFF16213e),
+                  style: const TextStyle(color: Colors.white),
+                  items: const [
+                    DropdownMenuItem(value: 'TODAY', child: Text('TODAY')),
+                    DropdownMenuItem(
+                      value: 'YESTERDAY',
+                      child: Text('YESTERDAY'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'LAST_7_DAYS',
+                      child: Text('LAST_7_DAYS'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'THIS_MONTH',
+                      child: Text('THIS_MONTH'),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => _summaryRange = v);
+                  },
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              // ✅ signal dropdown
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: _summarySignalIdx,
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF16213e),
+                    style: const TextStyle(color: Colors.white),
+                    items: List.generate(charts.length, (i) {
+                      final c = charts[i];
+                      return DropdownMenuItem(
+                        value: i,
+                        child: Text(
+                          '${c.boxDeviceId} • ${c.plcAddress}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }),
+                    onChanged: (i) {
+                      if (i == null) return;
+                      setState(() => _summarySignalIdx = i);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ===== chart =====
+        Expanded(
+          child: Center(
+            child: UtilityHourlyBarChartPanel(
+              facId: facId,
+              boxDeviceId: selectedSignal.boxDeviceId,
+              plcAddress: selectedSignal.plcAddress,
+              range: range,
+              width: 700,
+              height: 360,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _minutesBody({
     required String cate,

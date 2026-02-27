@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:dio/dio.dart';
 import 'package:factory_utility_visualization/utility_models/response/latest_record.dart';
 import 'package:factory_utility_visualization/utility_models/response/utility_catalog.dart';
@@ -104,6 +106,51 @@ class UtilityFacadeService {
         'plcAddress': plcAddress,
         'x': x,
         'y': y,
+      },
+    );
+  }
+
+  // =========================
+  // ✅ GROUP OVERLAY (NEW)
+  // =========================
+
+  /// GET /api/utility/overlay-groups?facId=Fac_B
+  /// return: [{ boxDeviceId:"...", x01:0.2, y01:0.3 }, ...]
+  Future<Map<String, Offset>> getOverlayGroups(String facId) async {
+    final res = await dio.get(
+      '/api/utility/overlay-groups',
+      queryParameters: {'facId': facId},
+    );
+
+    final data = (res.data as List).cast<dynamic>();
+
+    final out = <String, Offset>{};
+    for (final j in data) {
+      final m = (j as Map).cast<String, dynamic>();
+      final box = (m['boxDeviceId'] ?? '').toString().trim();
+      if (box.isEmpty) continue;
+
+      final x = (m['x01'] as num?)?.toDouble() ?? 0.2;
+      final y = (m['y01'] as num?)?.toDouble() ?? 0.2;
+      out[box] = Offset(x.clamp(0.0, 1.0), y.clamp(0.0, 1.0));
+    }
+    return out;
+  }
+
+  /// POST /api/utility/overlay-groups
+  /// body: { facId, boxDeviceId, x01, y01 }
+  Future<void> setOverlayGroupPos({
+    required String facId,
+    required String boxDeviceId,
+    required Offset pos01,
+  }) async {
+    await dio.post(
+      '/api/utility/overlay-groups',
+      data: {
+        'facId': facId,
+        'boxDeviceId': boxDeviceId,
+        'x01': pos01.dx,
+        'y01': pos01.dy,
       },
     );
   }

@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-import '../../utility_models/response/hour_point.dart';
+import '../../utility_models/response/hour_point.dart'; // chứa TreeSeriesResponse, TreePoint
 import '../../utility_state/hourly_series_provider.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
@@ -20,36 +20,30 @@ class UtilityHourlyBarChartPanel extends StatefulWidget {
   final double width;
   final double? height;
 
+  /// required by API
   final String facId;
-  final String? scadaId;
-  final String? cate;
-  final String? boxDeviceId;
-
-  /// ✅ required
+  final String boxDeviceId;
   final String plcAddress;
 
-  final String? cateId;
+  /// API preset
+  final String? range; // TODAY/YESTERDAY/LAST_7_DAYS/THIS_MONTH (optional)
+  final int? year; // optional when THIS_MONTH
+  final int? month; // optional when THIS_MONTH
 
-  /// optional
-  final List<String>? cateIds;
-
-  /// time window
-  final DateTime fromTs;
-  final DateTime toTs;
+  /// optional UI
+  final String? cate; // chỉ để show label nếu muốn
+  final String? scadaId; // optional
 
   const UtilityHourlyBarChartPanel({
     super.key,
     required this.facId,
+    required this.boxDeviceId,
     required this.plcAddress,
-    required this.fromTs,
-    required this.toTs,
-
-    this.scadaId,
+    this.range,
+    this.year,
+    this.month,
     this.cate,
-    this.boxDeviceId,
-    this.cateId,
-    this.cateIds,
-
+    this.scadaId,
     this.width = 520,
     this.height,
   });
@@ -65,67 +59,54 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
   late String _key;
 
   bool get _hasRequiredFilter {
-    final addr = widget.plcAddress.trim();
-    final hasCateId = (widget.cateId ?? '')
-        .trim()
-        .isNotEmpty;
-    final hasCateIds = (widget.cateIds?.isNotEmpty == true);
-    return addr.isNotEmpty && (hasCateId || hasCateIds);
+    return widget.facId.trim().isNotEmpty &&
+        widget.boxDeviceId.trim().isNotEmpty &&
+        widget.plcAddress.trim().isNotEmpty;
   }
 
   void _rebuildKey() {
-    final p = context.read<HourlySeriesProvider>();
+    final p = context.read<TreeSeriesProvider>();
     _key = p.buildKey(
-      fromTs: widget.fromTs,
-      toTs: widget.toTs,
       fac: widget.facId,
-      scadaId: widget.scadaId,
-      cate: widget.cate,
       boxDeviceId: widget.boxDeviceId,
       plcAddress: widget.plcAddress,
-      cateId: widget.cateId,
-      cateIds: widget.cateIds,
+      range: widget.range,
+      year: widget.year,
+      month: widget.month,
     );
   }
 
-  void _registerAndFetch() {
-    final p = context.read<HourlySeriesProvider>();
+  void _fetch({bool force = false}) {
+    final p = context.read<TreeSeriesProvider>();
 
     debugPrint(
-      '[HourlyPanel] register key=$_key fac=${widget.facId} box=${widget
-          .boxDeviceId} plc=${widget.plcAddress} cateId=${widget
-          .cateId} cateIds=${widget.cateIds} hasReq=$_hasRequiredFilter',
-    );
-
-    p.upsertRequest(
-      key: _key,
-      fromTs: widget.fromTs,
-      toTs: widget.toTs,
-      fac: widget.facId,
-      scadaId: widget.scadaId,
-      cate: widget.cate,
-      boxDeviceId: widget.boxDeviceId,
-      plcAddress: widget.plcAddress,
-      cateId: widget.cateId,
-      cateIds: widget.cateIds,
+      '[TreeSeriesPanel] key=$_key fac=${widget.facId} box=${widget.boxDeviceId} '
+      'plc=${widget.plcAddress} range=${widget.range} y=${widget.year} m=${widget.month} force=$force',
     );
 
     if (_hasRequiredFilter) {
-      p.fetchKeyNow(_key);
+      p.load(
+        fac: widget.facId,
+        boxDeviceId: widget.boxDeviceId,
+        plcAddress: widget.plcAddress,
+        range: widget.range,
+        year: widget.year,
+        month: widget.month,
+        force: force,
+      );
     }
   }
 
   @override
   void initState() {
     super.initState();
-    fx = UtilityInfoBoxFx(this)
-      ..init();
+    fx = UtilityInfoBoxFx(this)..init();
 
     _rebuildKey();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _registerAndFetch();
+      _fetch(force: false);
     });
   }
 
@@ -135,14 +116,13 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
 
     final changed =
         oldWidget.facId != widget.facId ||
-            oldWidget.scadaId != widget.scadaId ||
-            oldWidget.cate != widget.cate ||
-            oldWidget.boxDeviceId != widget.boxDeviceId ||
-            oldWidget.plcAddress != widget.plcAddress ||
-            oldWidget.cateId != widget.cateId ||
-            (oldWidget.cateIds?.join(',') != widget.cateIds?.join(',')) ||
-            oldWidget.fromTs != widget.fromTs ||
-            oldWidget.toTs != widget.toTs;
+        oldWidget.boxDeviceId != widget.boxDeviceId ||
+        oldWidget.plcAddress != widget.plcAddress ||
+        oldWidget.range != widget.range ||
+        oldWidget.year != widget.year ||
+        oldWidget.month != widget.month ||
+        oldWidget.cate != widget.cate ||
+        oldWidget.scadaId != widget.scadaId;
 
     if (!changed) return;
 
@@ -150,7 +130,7 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _registerAndFetch();
+      _fetch(force: true); // ✅ đổi filter thì force reload
     });
   }
 
@@ -162,21 +142,34 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<HourlySeriesProvider>(
+    return Consumer<TreeSeriesProvider>(
       builder: (context, p, _) {
-        final rows = p.getRows(_key);
-        final err = p.getError(_key);
+        final data = p.dataOf(_key); // TreeSeriesResponse?
+        final points = p.pointsOf(_key); // List<TreePoint>
+        final err = p.errorOf(_key);
 
         final hasError = err != null;
         final isLoading = !_hasRequiredFilter
             ? false
-            : (!p.hasFetchedOnce(_key) && !hasError);
+            : (p.isLoading(_key) && points.isEmpty && !hasError);
 
         final facilityColor = UtilityFacStyle.colorFromFac(widget.facId);
 
-        final signalName = rows.isNotEmpty
-            ? (rows.last.nameEn ?? rows.last.cateId ?? widget.cateId)
-            : (widget.cateId ?? 'Hourly');
+        final bucket = data?.bucket; // "DAY" / "HOUR"
+        final sig = data?.findSignal(
+          boxDeviceId: widget.boxDeviceId,
+          plcAddress: widget.plcAddress,
+        );
+
+        final signalName = (sig?.nameEn?.trim().isNotEmpty == true)
+            ? sig!.nameEn!
+            : (sig?.nameVi?.trim().isNotEmpty == true)
+            ? sig!.nameVi!
+            : 'Series';
+
+        final unit = sig?.unit;
+        final headerSubtitle =
+            '${widget.range ?? "CUSTOM"}${bucket != null ? " • $bucket" : ""}${unit != null ? " • $unit" : ""}';
 
         return SlideTransition(
           position: fx.slide,
@@ -232,8 +225,9 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
                             UtilityInfoBoxWidgets.header(
                               facilityColor: facilityColor,
                               facTitle: widget.facId,
-                              boxDeviceId: signalName,
-                              plcAddress: widget.plcAddress,
+                              boxDeviceId: '$signalName  •  $headerSubtitle',
+                              // plcAddress:
+                              //     '${widget.boxDeviceId} • ${widget.plcAddress}',
                               isLoading: isLoading,
                               hasError: hasError,
                               err: err,
@@ -242,10 +236,12 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
                               child: Padding(
                                 padding: const EdgeInsets.all(10),
                                 child: _body(
-                                  rows: rows,
+                                  points: points,
                                   hasError: hasError,
                                   err: err,
-                                  fetchedOnce: p.hasFetchedOnce(_key),
+                                  bucket: bucket,
+                                  loading: p.isLoading(_key),
+                                  hasData: data != null,
                                 ),
                               ),
                             ),
@@ -264,26 +260,29 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
   }
 
   Widget _body({
-    required List<HourPointDto> rows,
+    required List<TreePoint> points,
     required bool hasError,
     required Object? err,
-    required bool fetchedOnce,
+    required String? bucket,
+    required bool loading,
+    required bool hasData,
   }) {
     if (!_hasRequiredFilter) {
       return Center(
         child: Text(
-          'Missing plcAddress + (cateId or cateIds)',
+          'Missing facId/boxDeviceId/plcAddress',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.white.withOpacity(0.8)),
         ),
       );
     }
 
-    if (!fetchedOnce && !hasError) {
+    // lần đầu chưa có data
+    if (!hasData && loading && !hasError) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (hasError && rows.isEmpty) {
+    if (hasError && points.isEmpty) {
       return Center(
         child: Text(
           'API error:\n$err',
@@ -293,19 +292,22 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
       );
     }
 
-    if (rows.isEmpty) {
+    if (points.isEmpty) {
       return Center(
         child: Text(
-          'No data in selected day',
+          'No data',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.white.withOpacity(0.8)),
         ),
       );
     }
 
-    final last = rows.last;
+    final last = points.last;
     final lastVal = last.value.toStringAsFixed(2);
-    final lastTs = DateFormat('HH:mm').format(last.ts.toLocal());
+
+    final lastTs = (bucket == 'DAY')
+        ? DateFormat('MM-dd').format(last.ts.toLocal())
+        : DateFormat('HH:mm').format(last.ts.toLocal());
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -332,17 +334,29 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: () {
+                  // ✅ force reload
+                  _fetch(force: true);
+                },
+                icon: Icon(
+                  Icons.refresh_rounded,
+                  color: Colors.white.withOpacity(0.8),
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 6),
-        Expanded(child: _chart(rows)),
+        Expanded(child: _chart(points, bucket)),
       ],
     );
   }
 
-  Widget _chart(List<HourPointDto> rows) {
-    final data = rows.map((e) => _BarPoint(e.ts.toLocal(), e.value)).toList()
+  Widget _chart(List<TreePoint> points, String? bucket) {
+    final data = points.map((e) => _BarPoint(e.ts.toLocal(), e.value)).toList()
       ..sort((a, b) => a.ts.compareTo(b.ts));
 
     if (data.length < 2) {
@@ -367,6 +381,8 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
       ),
     );
 
+    final isDay = bucket == 'DAY';
+
     return SfCartesianChart(
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withOpacity(0.12),
@@ -374,9 +390,11 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
       primaryXAxis: DateTimeAxis(
         minimum: minX,
         maximum: maxX,
-        intervalType: DateTimeIntervalType.hours,
-        interval: 2,
-        dateFormat: DateFormat('HH:mm'),
+        intervalType: isDay
+            ? DateTimeIntervalType.days
+            : DateTimeIntervalType.hours,
+        interval: isDay ? 1 : 2,
+        dateFormat: isDay ? DateFormat('MM-dd') : DateFormat('HH:mm'),
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(0.08),
@@ -404,7 +422,6 @@ class _UtilityHourlyBarChartPanelState extends State<UtilityHourlyBarChartPanel>
           dataSource: data,
           xValueMapper: (p, _) => p.ts,
           yValueMapper: (p, _) => p.y,
-          // nếu muốn bo tròn / spacing:
           width: 0.8,
           spacing: 0.2,
         ),

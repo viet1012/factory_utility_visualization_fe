@@ -65,7 +65,8 @@ class UtilityDashboardMap extends StatelessWidget {
                         alignment: const FractionalOffset(0.95, 0.7),
                         child: const UtilityFacilityInfoBox(
                           facId: 'Fac_B',
-                          cateIds: ['E_TTL_KW', 'E_Cur1'],
+                          // boxDeviceId: '',
+                          cateIds: ['E_Cur', 'WT_P1'],
                         ),
                       ),
 

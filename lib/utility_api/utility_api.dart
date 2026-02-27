@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
 import '../utility_models/f2_utility_parameter_master.dart';
@@ -8,48 +8,49 @@ import '../utility_models/response/hour_point.dart';
 import '../utility_models/response/latest_record.dart';
 import '../utility_models/response/minute_point.dart';
 import '../utility_models/response/sum_compare_item.dart';
+import 'dio_client.dart';
 
 class UtilityApi {
   final Dio _dio;
 
-  UtilityApi({
-    required String baseUrl, // ví dụ: http://192.168.1.10:8002
-    Dio? dio,
-  }) : _dio =
-           dio ??
-           Dio(
-             BaseOptions(
-               baseUrl: baseUrl,
-               connectTimeout: const Duration(seconds: 10),
-               receiveTimeout: const Duration(seconds: 20),
-               headers: {'Content-Type': 'application/json'},
-             ),
-           ) {
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          // print('➡️ [REQ] ${options.method} ${options.baseUrl}${options.path}');
-          // print('   query: ${options.queryParameters}');
-          // print('   headers: ${options.headers}');
-          return handler.next(options);
-        },
-        onResponse: (response, handler) {
-          // print(
-          //   '✅ [RES] ${response.statusCode} ${response.requestOptions.path}',
-          // );
-          // print('   data: ${response.data}');
-          return handler.next(response);
-        },
-        onError: (e, handler) {
-          print('❌ [ERR] ${e.requestOptions.path}');
-          print('   message: ${e.message}');
-          print('   response: ${e.response?.data}');
-          return handler.next(e);
-        },
-      ),
-    );
+  UtilityApi({Dio? dio}) : _dio = dio ?? DioClient.dio;
+
+  // ========== tree-series ==========
+  Future<TreeSeriesResponse> getTreeSeries({
+    required String fac,
+    required String boxDeviceId,
+    required String plcAddress,
+    String? range, // TODAY/YESTERDAY/LAST_7_DAYS/THIS_MONTH nếu BE support
+    int? year,
+    int? month,
+  }) async {
+    const path = '/api/utility/chart/tree-series';
+
+    final qp = <String, dynamic>{
+      'fac': fac.trim(),
+      'boxDeviceId': boxDeviceId.trim(),
+      'plcAddress': plcAddress.trim(),
+      if (range != null && range.trim().isNotEmpty) 'range': range.trim(),
+      if (year != null) 'year': year,
+      if (month != null) 'month': month,
+    };
+
+    final res = await _dio.get(path, queryParameters: qp);
+    debugPrint('[GET] ${res.realUri}');
+
+    final data = res.data;
+    if (data is! Map) {
+      throw DioException(
+        requestOptions: res.requestOptions,
+        response: res,
+        message: 'tree-series: Expected Map but got ${data.runtimeType}',
+        type: DioExceptionType.badResponse,
+      );
+    }
+    return TreeSeriesResponse.fromJson((data as Map).cast<String, dynamic>());
   }
 
+  // ========== channels ==========
   Future<List<ScadaChannelDto>> getChannels({
     String? facId,
     String? cate,
@@ -59,7 +60,6 @@ class UtilityApi {
     if (cate != null && cate.trim().isNotEmpty) qp['cate'] = cate.trim();
 
     final res = await _dio.get('/api/utility/channels', queryParameters: qp);
-
     final data = res.data;
     if (data is! List) throw Exception('channels: expected List');
 
@@ -70,11 +70,12 @@ class UtilityApi {
         .toList();
   }
 
+  // ========== params ==========
   Future<List<ParamDto>> getParams({
     String? facId,
     String? cate,
     String? boxDeviceId,
-    int? importantOnly, // ✅ NEW: 0/1 (null = không gửi)
+    int? importantOnly,
   }) async {
     final qp = <String, dynamic>{};
 
@@ -87,14 +88,9 @@ class UtilityApi {
     final box = boxDeviceId?.trim();
     if (box != null && box.isNotEmpty) qp['boxDeviceId'] = box;
 
-    if (importantOnly != null) {
-      // chỉ cho phép 0/1 để tránh gọi sai
-      qp['importantOnly'] = importantOnly == 1 ? 1 : 0;
-    }
+    if (importantOnly != null) qp['importantOnly'] = importantOnly == 1 ? 1 : 0;
 
     final res = await _dio.get('/api/utility/params', queryParameters: qp);
-
-    // ✅ in URL chính xác (baseUrl + path + query)
     debugPrint('[GET] ${res.realUri}');
 
     final data = res.data;
@@ -105,8 +101,7 @@ class UtilityApi {
         .toList();
   }
 
-  /// GET /api/utility/latest
-  /// cateIds truyền dạng CSV (Current,Voltage) đúng theo controller bạn đang dùng
+  // ========== latest ==========
   Future<List<LatestRecordDto>> getLatest({
     String? facId,
     String? scadaId,
@@ -130,19 +125,18 @@ class UtilityApi {
           .map((e) => e.trim())
           .where((e) => e.isNotEmpty)
           .toList();
-      if (cleaned.isNotEmpty) {
-        params['cateIds'] = cleaned.join(','); // ✅ match cateIdsCsv
-      }
+      if (cleaned.isNotEmpty) params['cateIds'] = cleaned.join(',');
     }
 
     final res = await _dio.get('/api/utility/latest', queryParameters: params);
-
     final data = res.data;
+    debugPrint('[GET] ${res.realUri}');
+
     if (data is! List) {
       throw DioException(
         requestOptions: res.requestOptions,
         response: res,
-        message: 'Expected List but got: ${data.runtimeType}',
+        message: 'latest: Expected List but got: ${data.runtimeType}',
         type: DioExceptionType.badResponse,
       );
     }
@@ -154,6 +148,7 @@ class UtilityApi {
         .toList();
   }
 
+  // ========== minute series ==========
   Future<List<MinutePointDto>> getSeriesMinute({
     required DateTime from,
     required DateTime to,
@@ -189,7 +184,7 @@ class UtilityApi {
       throw DioException(
         requestOptions: res.requestOptions,
         response: res,
-        message: 'Expected List but got: ${data.runtimeType}',
+        message: 'minute: Expected List but got: ${data.runtimeType}',
         type: DioExceptionType.badResponse,
       );
     }
@@ -201,6 +196,7 @@ class UtilityApi {
         .toList();
   }
 
+  // ========== sum compare ==========
   Future<List<SumCompareItem>> sumCompare({
     String by = 'cate',
     String? facId,
@@ -209,7 +205,6 @@ class UtilityApi {
     String? boxDeviceId,
     List<String>? deviceIds,
     List<String>? cateIds,
-    // ✅ NEW
     List<String>? nameEns,
   }) async {
     final res = await _dio.get(
@@ -222,8 +217,6 @@ class UtilityApi {
         if (boxDeviceId?.trim().isNotEmpty == true) 'boxDeviceId': boxDeviceId,
         if (deviceIds?.isNotEmpty == true) 'deviceIds': deviceIds,
         if (cateIds?.isNotEmpty == true) 'cateIds': cateIds,
-
-        // ✅ QUAN TRỌNG
         if (nameEns?.isNotEmpty == true) 'nameEns': nameEns,
       },
     );
@@ -234,49 +227,12 @@ class UtilityApi {
         .toList();
   }
 
-  Future<List<HourPointDto>> seriesHourly({
-    required DateTime fromTs,
-    required DateTime toTs,
-
-    String? fac,
-    String? scadaId,
-    String? cate,
-    String? boxDeviceId,
-
-    required String plcAddress,
-    String? cateId,
-    List<String>? cateIds,
-  }) async {
-    final res = await _dio.get(
-      '/api/utility/series/hourly',
-      queryParameters: {
-        'fromTs': _fmtIso(fromTs),
-        'toTs': _fmtIso(toTs),
-
-        if (fac?.trim().isNotEmpty == true) 'fac': fac,
-        if (scadaId?.trim().isNotEmpty == true) 'scadaId': scadaId,
-        if (cate?.trim().isNotEmpty == true) 'cate': cate,
-        if (boxDeviceId?.trim().isNotEmpty == true) 'boxDeviceId': boxDeviceId,
-
-        // ✅ yêu cầu của bạn
-        'plcAddress': plcAddress,
-        if (cateId?.trim().isNotEmpty == true) 'cateId': cateId,
-        if (cateIds?.isNotEmpty == true) 'cateIds': cateIds,
-      },
-    );
-
-    final list = (res.data as List).cast<dynamic>();
-    return list
-        .map((e) => HourPointDto.fromJson((e as Map).cast<String, dynamic>()))
-        .toList();
-  }
-
-  // Java LocalDateTime.parse() nhận format "yyyy-MM-ddTHH:mm:ss" OK
-  String _fmtIso(DateTime dt) => DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(dt);
-
   String _toIsoNoZ(DateTime dt) {
     final d = dt.toLocal();
     String two(int x) => x.toString().padLeft(2, '0');
     return '${d.year}-${two(d.month)}-${two(d.day)}T${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
   }
+
+  // (nếu bạn còn dùng)
+  String _fmtIso(DateTime dt) => DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(dt);
 }
