@@ -1,4 +1,5 @@
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_widgets/utility_facility_info_box.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_widgets/utility_facility_info_box_tree.dart';
 import 'package:flutter/material.dart';
 
 import '../../widgets/overview/factory_map_with_rain.dart';
@@ -75,10 +76,16 @@ class UtilityDashboardMap extends StatelessWidget {
                       /// ===== FAC B =====
                       Align(
                         alignment: const FractionalOffset(0.95, 0.7),
-                        child: const UtilityFacilityInfoBox(
-                          facId: 'Fac_B',
-                          // boxDeviceId: '',
-                          cateIds: ['E_EneCon'],
+                        // child: const UtilityFacilityInfoBox(
+                        //   facId: 'Fac_B',
+                        //   // boxDeviceId: '',
+                        //   cateIds: ['E_EneCon'],
+                        // ),
+                        child: UtilityFacilityInfoBoxTree(
+                          headerTitle: 'Fac B',
+                          facIds: ['Fac_B'],
+                          plcAddresses: ['D30', 'D24'],
+                          boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
                         ),
                       ),
 

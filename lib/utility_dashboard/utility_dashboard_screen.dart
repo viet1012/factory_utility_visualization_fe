@@ -15,6 +15,7 @@ import '../utility_state/hourly_series_provider.dart';
 import '../utility_state/latest_provider.dart';
 import '../utility_state/minute_series_provider.dart';
 import '../utility_state/sum_compare_provider.dart';
+import '../utility_state/tree_latest_provider.dart';
 import 'ultility_dashboard_chart/utility_minute_chart_screen.dart';
 import 'utility_dashboard_widgets/utility_dashboard_map.dart';
 
@@ -102,6 +103,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen> {
             p.startPolling();
             return p;
           },
+        ),
+        ChangeNotifierProvider(
+          create: (_) =>
+              TreeLatestProvider(facade), // hoặc UtilityFacadeService
         ),
       ],
       child: DefaultTabController(

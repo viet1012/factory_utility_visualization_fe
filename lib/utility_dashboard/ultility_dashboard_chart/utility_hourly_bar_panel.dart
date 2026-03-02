@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-import '../../utility_models/response/hour_point.dart'; // chứa TreeSeriesResponse, TreePoint
+import '../../utility_models/response/tree_series_response.dart'; // chứa TreeSeriesResponse, TreePoint
 import '../../utility_state/hourly_series_provider.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';

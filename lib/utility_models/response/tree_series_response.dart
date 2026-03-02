@@ -1,8 +1,8 @@
 class TreeSeriesResponse {
   final String fac;
-  final String bucket; // DAY / HOUR
-  final DateTime from;
-  final DateTime to;
+  final String bucket; // LATEST / DAY / HOUR...
+  final DateTime? from;
+  final DateTime? to;
   final List<CateGroup> cates;
 
   TreeSeriesResponse({
@@ -14,18 +14,24 @@ class TreeSeriesResponse {
   });
 
   factory TreeSeriesResponse.fromJson(Map<String, dynamic> j) {
+    DateTime? parseNullable(dynamic v) {
+      if (v == null) return null;
+      final s = v.toString().trim();
+      if (s.isEmpty || s == 'null') return null;
+      return DateTime.tryParse(s);
+    }
+
     return TreeSeriesResponse(
       fac: (j['fac'] ?? '').toString(),
       bucket: (j['bucket'] ?? '').toString(),
-      from: DateTime.parse(j['from'].toString()),
-      to: DateTime.parse(j['to'].toString()),
+      from: parseNullable(j['from']),
+      to: parseNullable(j['to']),
       cates: (j['cates'] as List? ?? [])
           .map((e) => CateGroup.fromJson((e as Map).cast<String, dynamic>()))
           .toList(),
     );
   }
 
-  /// helper: l?y dúng signal theo box + plc
   SignalNode? findSignal({
     required String boxDeviceId,
     required String plcAddress,

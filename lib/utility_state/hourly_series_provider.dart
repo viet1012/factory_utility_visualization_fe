@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../utility_api/utility_api.dart';
-import '../utility_models/response/hour_point.dart';
+import '../utility_models/response/tree_series_response.dart';
 
 class TreeSeriesProvider extends ChangeNotifier {
   final UtilityApi api;

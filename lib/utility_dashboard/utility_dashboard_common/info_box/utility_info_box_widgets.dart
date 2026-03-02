@@ -236,16 +236,20 @@ class UtilityInfoBoxWidgets {
                 const SizedBox(height: 4),
 
                 // 🔹 Dòng dưới: boxDeviceId (plain text)
-                Text(
-                  // r.boxDeviceId ?? '',
-                  v,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      // r.boxDeviceId ?? '',
+                      v,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

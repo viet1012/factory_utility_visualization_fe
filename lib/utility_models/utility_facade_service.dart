@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:dio/dio.dart';
 import 'package:factory_utility_visualization/utility_models/response/latest_record.dart';
+import 'package:factory_utility_visualization/utility_models/response/tree_series_response.dart';
 import 'package:factory_utility_visualization/utility_models/response/utility_catalog.dart';
 
 import '../utility_dashboard/utility_dashboard_fac_details/layout/OverlayPosDto.dart';
@@ -80,6 +81,37 @@ class UtilityFacadeService {
           (e) => LatestRecordDto.fromJson((e as Map).cast<String, dynamic>()),
         )
         .toList();
+  }
+
+  Future<TreeSeriesResponse> fetchLatestTree({
+    required List<String> facIds,
+    required List<String> plcAddresses,
+    String? boxDeviceId,
+  }) async {
+    // normalize + tránh gửi rỗng
+    final facs = facIds
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    final plcs = plcAddresses
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    final qp = <String, dynamic>{
+      'facIds': facs.join(','),
+      'plcAddresses': plcs.join(','),
+    };
+
+    final box = boxDeviceId?.trim();
+    if (box != null && box.isNotEmpty) qp['boxDeviceId'] = box;
+
+    final res = await dio.get('/api/utility/latest-tree', queryParameters: qp);
+
+    // Dio thường trả Map<String,dynamic> sẵn
+    final Map<String, dynamic> j = (res.data as Map).cast<String, dynamic>();
+
+    return TreeSeriesResponse.fromJson(j);
   }
 
   Future<List<OverlayPosDto>> getOverlay(String facId) async {

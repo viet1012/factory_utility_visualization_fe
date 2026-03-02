@@ -4,10 +4,10 @@ import 'package:intl/intl.dart';
 
 import '../utility_models/f2_utility_parameter_master.dart';
 import '../utility_models/f2_utility_scada_channel.dart';
-import '../utility_models/response/hour_point.dart';
 import '../utility_models/response/latest_record.dart';
 import '../utility_models/response/minute_point.dart';
 import '../utility_models/response/sum_compare_item.dart';
+import '../utility_models/response/tree_series_response.dart';
 import 'dio_client.dart';
 
 class UtilityApi {
