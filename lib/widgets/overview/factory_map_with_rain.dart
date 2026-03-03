@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
-import '../rain_effect_image_realtime.dart';
-import '../weather/api/weather_api_service.dart';
 import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
+
+import 'package:flutter/material.dart';
+
+import '../rain_effect_image_realtime.dart';
+import '../weather/api/weather_api_service.dart';
 
 class FactoryMapWithRain extends StatelessWidget {
   final String mainImageUrl;
@@ -40,6 +42,7 @@ class FactoryMapWithRain extends StatelessWidget {
 
 class ViewerPage extends StatefulWidget {
   const ViewerPage({super.key});
+
   @override
   State<ViewerPage> createState() => _ViewerPageState();
 }

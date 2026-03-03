@@ -28,7 +28,7 @@ class UtilityFacilityInfoBoxTree extends StatefulWidget {
     required this.headerTitle,
     this.boxDeviceId,
     this.width = 300,
-    this.height = 300,
+    this.height = 200,
   });
 
   @override
