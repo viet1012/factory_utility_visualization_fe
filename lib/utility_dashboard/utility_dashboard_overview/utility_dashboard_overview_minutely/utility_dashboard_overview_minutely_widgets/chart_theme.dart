@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-class MinuteChartTheme {
+class ChartTheme {
   final String title;
   final Color line;
   final Color fillTop;
   final Color fillBottom;
   final Color accent;
 
-  const MinuteChartTheme({
+  const ChartTheme({
     required this.title,
     required this.line,
     required this.fillTop,
@@ -16,15 +16,15 @@ class MinuteChartTheme {
   });
 }
 
-class MinuteChartThemes {
-  static const power = MinuteChartTheme(
-    title: 'POWER',
+class ChartThemes {
+  static const power = ChartTheme(
+    title: 'ELECTRICITY',
     line: Color(0xFFFFB300),
     fillTop: Color(0x66FFB300),
     fillBottom: Color(0x00FFB300),
     accent: Color(0xFFFFA000),
   );
-  static const water = MinuteChartTheme(
+  static const water = ChartTheme(
     title: 'WATER',
     line: Color(0xFF52D6FF),
     // xanh nước
@@ -33,7 +33,7 @@ class MinuteChartThemes {
     accent: Color(0xFF52D6FF),
   );
 
-  static const air = MinuteChartTheme(
+  static const air = ChartTheme(
     title: 'AIR COMPRESSER',
     line: Color(0xFF6CFF6C),
     // xanh lá

@@ -36,8 +36,8 @@ class UtilityDashboardOverviewHourlyHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.white, size: 18),
-          const SizedBox(width: 10),
+          // Icon(icon, color: Colors.white, size: 18),
+          // const SizedBox(width: 10),
 
           // ✅ 1 Text duy nhất -> không bị chia 50/50
           Expanded(
@@ -47,9 +47,10 @@ class UtilityDashboardOverviewHourlyHeader extends StatelessWidget {
                   TextSpan(
                     text: title,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.92),
-                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF5CFF7A).withOpacity(0.9),
                       fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
                     ),
                   ),
                   if (hasSub) ...[

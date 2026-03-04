@@ -110,7 +110,7 @@
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_daily/utility_dashboard_overview_daily_chart.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_compare.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_header.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutely_widgets/minute_chart_theme.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutely_widgets/chart_theme.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutes_chart.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
 import 'package:flutter/material.dart';
@@ -296,21 +296,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                               Expanded(
                                 child: UtilityDashboardOverviewMinutesChart(
                                   facId: selectedFac,
-                                  theme: MinuteChartThemes.power,
-                                ),
-                              ),
-                              Expanded(
-                                child: UtilityDashboardOverviewMinutesChart(
-                                  facId: selectedFac,
-                                  theme: MinuteChartThemes.water,
-                                  nameEng: 'Test',
-                                ),
-                              ),
-                              Expanded(
-                                child: UtilityDashboardOverviewMinutesChart(
-                                  facId: selectedFac,
-                                  theme: MinuteChartThemes.air,
-                                  nameEng: 'Test',
+                                  theme: ChartThemes.power,
                                 ),
                               ),
                             ],
@@ -366,12 +352,13 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 UtilityDashboardOverviewHourlyHeader(
-                                  title: 'Hourly Compare',
+                                  title: '[HOURLY COMPARE]',
                                   subtitle: 'Today: $nowStr  •  Prev: $yStr',
                                 ),
                                 Expanded(
                                   child: UtilityDashboardOverviewHourlyCompare(
                                     facId: selectedFac,
+                                    theme: ChartThemes.power,
                                   ),
                                 ),
                               ],
@@ -383,15 +370,34 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
 
                     // ====== BOTTOM: Bar Chart ======
                     Expanded(
-                      flex: 1,
-                      child: Row(
+                      child: Column(
                         children: [
+                          Container(
+                            padding: EdgeInsets.all(1),
+                            // decoration: BoxDecoration(color: Colors.white),
+                            child: Text(
+                              '[DAILY]',
+                              style: TextStyle(
+                                color: const Color(0xFF5CFF7A).withOpacity(0.9),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
                           Expanded(
-                            child: UtilityDashboardOverviewDailyChart(
-                              facId: selectedFac,
-                              month: monthKey,
-                              height: 320,
-                              theme: MinuteChartThemes.power,
+                            flex: 1,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: UtilityDashboardOverviewDailyChart(
+                                    facId: selectedFac,
+                                    month: monthKey,
+                                    height: 320,
+                                    theme: ChartThemes.power,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],

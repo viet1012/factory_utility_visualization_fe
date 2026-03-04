@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
+import '../../utility_dashboard_overview_minutely/utility_dashboard_overview_minutely_widgets/chart_theme.dart';
+
 class _HourlyCompareDto {
   final int scaleHour; // 1..24
   final double? today;
@@ -49,10 +51,12 @@ class UtilityDashboardOverviewHourlyCompare extends StatefulWidget {
 
   /// UI
   final String title;
+  final ChartTheme theme; // ✅ NEW
 
   const UtilityDashboardOverviewHourlyCompare({
     super.key,
     required this.facId,
+    required this.theme,
     this.hours = 48,
     this.title = 'Hourly Compare',
   });
@@ -168,8 +172,12 @@ class _UtilityDashboardOverviewHourlyCompareState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SummaryBar(loading: loading, error: error, rows: rows),
-
+          _SummaryBar(
+            loading: loading,
+            error: error,
+            rows: rows,
+            theme: widget.theme, // ✅
+          ),
           const SizedBox(height: 8),
           Expanded(
             child: Padding(
@@ -268,7 +276,7 @@ class _UtilityDashboardOverviewHourlyCompareState
         interval: 1,
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(0.05),
+          color: widget.theme.fillBottom.withOpacity(0.12), // ✅ tone theo theme
         ),
         axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
         labelStyle: TextStyle(
@@ -281,7 +289,7 @@ class _UtilityDashboardOverviewHourlyCompareState
         maximum: safeMaxY,
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(0.06),
+          color: widget.theme.fillBottom.withOpacity(0.12), // ✅
         ),
         axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
         labelStyle: TextStyle(
@@ -290,17 +298,24 @@ class _UtilityDashboardOverviewHourlyCompareState
         ),
       ),
       series: <CartesianSeries<_LinePoint, num>>[
-        // Grey background area
+        // ✅ Background area theo theme (nhẹ)
         AreaSeries<_LinePoint, num>(
           name: '',
           dataSource: areaPts,
           xValueMapper: (p, _) => p.hour,
           yValueMapper: (p, _) => p.y,
-          color: Colors.white.withOpacity(0.16),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              widget.theme.fillTop.withOpacity(0.45),
+              widget.theme.fillBottom.withOpacity(0.05),
+            ],
+          ),
           borderColor: Colors.transparent,
         ),
 
-        // Yesterday (grey line)
+        // ✅ Yesterday: dùng accent nhưng mờ
         LineSeries<_LinePoint, num>(
           name: yStr,
           dataSource: ydayPts,
@@ -308,25 +323,29 @@ class _UtilityDashboardOverviewHourlyCompareState
           yValueMapper: (p, _) => p.y,
           width: 2,
           color: Colors.white.withOpacity(0.70),
-          markerSettings: const MarkerSettings(
+          markerSettings: MarkerSettings(
             isVisible: true,
             width: 5,
             height: 5,
+            borderWidth: 1,
+            borderColor: widget.theme.accent.withOpacity(0.8),
           ),
         ),
 
-        // Today (cyan line)
+        // ✅ Today: line chính
         LineSeries<_LinePoint, num>(
           name: nowStr,
           dataSource: todayPts,
           xValueMapper: (p, _) => p.hour,
           yValueMapper: (p, _) => p.y,
           width: 2.6,
-          color: const Color(0xFF00E5FF),
-          markerSettings: const MarkerSettings(
+          color: widget.theme.line,
+          markerSettings: MarkerSettings(
             isVisible: true,
             width: 6,
             height: 6,
+            borderWidth: 1,
+            borderColor: widget.theme.line.withOpacity(0.9),
           ),
         ),
       ],
@@ -338,25 +357,20 @@ class _SummaryBar extends StatelessWidget {
   final bool loading;
   final Object? error;
   final List<_HourlyCompareDto> rows;
+  final ChartTheme theme; // ✅ NEW
 
   const _SummaryBar({
     required this.loading,
     required this.error,
     required this.rows,
+    required this.theme,
   });
 
   @override
   Widget build(BuildContext context) {
-    // trạng thái loading / error
-    if (loading && rows.isEmpty) {
-      return _wrap('Loading summary...');
-    }
-    if (error != null && rows.isEmpty) {
-      return _wrap('Summary: N/A');
-    }
-    if (rows.isEmpty) {
-      return _wrap('Summary: No data');
-    }
+    if (loading && rows.isEmpty) return _wrap('Loading summary...');
+    if (error != null && rows.isEmpty) return _wrap('Summary: N/A');
+    if (rows.isEmpty) return _wrap('Summary: No data');
 
     double sumToday = 0, sumYday = 0;
     int cntToday = 0, cntYday = 0;
@@ -376,9 +390,10 @@ class _SummaryBar extends StatelessWidget {
     final pct = (sumYday == 0) ? null : (delta / sumYday) * 100.0;
 
     final trendUp = delta >= 0;
-    final trendColor = trendUp
-        ? const Color(0xFF5CFF7A)
-        : const Color(0xFFFF6B6B);
+    // ✅ màu tăng/giảm vẫn giữ đỏ/xanh nhưng pha theo theme cho đồng bộ
+    final upColor = theme.line;
+    final downColor = const Color(0xFFFF6B6B);
+    final trendColor = trendUp ? upColor : downColor;
     final trendIcon = trendUp ? Icons.arrow_upward : Icons.arrow_downward;
 
     final left = 'Σ Today: ${sumToday.toStringAsFixed(1)} (${cntToday}h)';
@@ -388,11 +403,12 @@ class _SummaryBar extends StatelessWidget {
         : 'Δ ${delta.toStringAsFixed(1)} (${pct.toStringAsFixed(1)}%)';
 
     return Container(
+      margin: const EdgeInsets.fromLTRB(10, 8, 10, 0),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        border: Border.all(color: theme.fillTop.withOpacity(0.35)), // ✅
       ),
       child: Row(
         children: [
@@ -410,16 +426,17 @@ class _SummaryBar extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(width: 10),
-          // Text(
-          //   right,
-          //   style: TextStyle(
-          //     color: trendColor,
-          //     fontWeight: FontWeight.w900,
-          //     fontSize: 12,
-          //   ),
-          // ),
+          Text(
+            right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: trendColor,
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );
@@ -432,7 +449,7 @@ class _SummaryBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        border: Border.all(color: theme.fillTop.withOpacity(0.25)), // ✅
       ),
       child: Text(
         s,

@@ -9,7 +9,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_common/utility_fac_style.dart';
 import '../data_health.dart';
-import '../utility_dashboard_overview_minutely/utility_dashboard_overview_minutely_widgets/minute_chart_theme.dart';
+import '../utility_dashboard_overview_minutely/utility_dashboard_overview_minutely_widgets/chart_theme.dart';
 import '../utility_dashboard_overview_widgets/health_indicator.dart';
 
 class _DailyDto {
@@ -46,7 +46,7 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
 
   /// optional UI
   final String title; // header title
-  final MinuteChartTheme theme;
+  final ChartTheme theme;
 
   const UtilityDashboardOverviewDailyChart({
     super.key,
@@ -223,7 +223,7 @@ class _UtilityDashboardOverviewDailyChartState
     );
   }
 
-  Widget _body(MinuteChartTheme t, DataHealthResult health) {
+  Widget _body(ChartTheme t, DataHealthResult health) {
     if (!_hasRequired) {
       return Center(
         child: Text(
@@ -323,7 +323,7 @@ class _UtilityDashboardOverviewDailyChartState
     );
   }
 
-  Widget _chart(MinuteChartTheme t) {
+  Widget _chart(ChartTheme t) {
     final data = rows.map((e) => _BarPoint(e.date.toLocal(), e.value)).toList()
       ..sort((a, b) => a.ts.compareTo(b.ts));
 

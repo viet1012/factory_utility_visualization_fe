@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutely_widgets/minute_chart_theme.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutely_widgets/chart_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -21,7 +21,7 @@ class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
   final String? nameEng;
 
   /// UI
-  final MinuteChartTheme theme;
+  final ChartTheme theme;
 
   const UtilityDashboardOverviewMinutesChart({
     super.key,
