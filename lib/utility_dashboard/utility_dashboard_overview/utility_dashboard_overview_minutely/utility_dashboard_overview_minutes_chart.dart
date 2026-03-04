@@ -304,6 +304,13 @@ class _UtilityDashboardOverviewMinutesChartState
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
+          markerSettings: MarkerSettings(
+            isVisible: true,
+            width: 4,
+            height: 4,
+            borderWidth: 1,
+            borderColor: widget.theme.line.withOpacity(0.9),
+          ),
         ),
       ],
     );

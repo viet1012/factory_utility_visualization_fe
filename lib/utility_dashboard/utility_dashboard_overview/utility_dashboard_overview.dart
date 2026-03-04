@@ -112,12 +112,12 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_compare.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_header.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutes_chart.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../widgets/overview/factory_map_with_rain.dart';
-import '../utility_dashboard_widgets/utility_facility_info_box_tree.dart';
 
 class UtilityDashboardOverview extends StatefulWidget {
   final String mainImageUrl;
@@ -346,12 +346,12 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                       0.84,
                                       0.9,
                                     ),
-                                    child: UtilityFacilityInfoBoxTree(
-                                      headerTitle: 'Fac B',
-                                      facIds: const ['Fac_B'],
-                                      plcAddresses: const ['D30'],
-                                      boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
-                                    ),
+                                    child:
+                                        UtilityOverviewMonthlyBox.UtilityOverviewMonthlyBox(
+                                          facId: 'Fac_B',
+                                          month: monthKey,
+                                          headerTitle: 'Fac B',
+                                        ),
                                   ),
                                 ],
                               ),
