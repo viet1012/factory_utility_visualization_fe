@@ -346,12 +346,11 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                       0.84,
                                       0.9,
                                     ),
-                                    child:
-                                        UtilityOverviewMonthlyBox.UtilityOverviewMonthlyBox(
-                                          facId: 'Fac_B',
-                                          month: monthKey,
-                                          headerTitle: 'Fac B',
-                                        ),
+                                    child: UtilityOverviewMonthlyBox(
+                                      facId: 'Fac_B',
+                                      month: monthKey,
+                                      headerTitle: 'Fac B',
+                                    ),
                                   ),
                                 ],
                               ),
