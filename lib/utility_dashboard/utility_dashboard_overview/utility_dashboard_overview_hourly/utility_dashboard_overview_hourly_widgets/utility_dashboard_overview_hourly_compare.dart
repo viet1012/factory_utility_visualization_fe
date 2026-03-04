@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-import '../../utility_dashboard_overview_minutely/utility_dashboard_overview_minutely_widgets/chart_theme.dart';
+import '../../chart_theme.dart';
 
 class _HourlyCompareDto {
   final int scaleHour; // 1..24
@@ -222,24 +222,35 @@ class _UtilityDashboardOverviewHourlyCompareState
     final ydayPts = <_LinePoint>[];
     final areaPts = <_LinePoint>[]; // background grey (max of 2 lines)
 
+    // for (final r in rows) {
+    //   if (r.today != null) todayPts.add(_LinePoint(r.scaleHour, r.today!));
+    //   if (r.yesterday != null) {
+    //     ydayPts.add(_LinePoint(r.scaleHour, r.yesterday!));
+    //   }
+    //
+    //   final a = r.today ?? double.nan;
+    //   final b = r.yesterday ?? double.nan;
+    //   final candidates = <double>[];
+    //   if (!a.isNaN) candidates.add(a);
+    //   if (!b.isNaN) candidates.add(b);
+    //   if (candidates.isNotEmpty) {
+    //     areaPts.add(
+    //       _LinePoint(r.scaleHour, candidates.reduce((m, v) => v > m ? v : m)),
+    //     );
+    //   }
+    // }
+
     for (final r in rows) {
       if (r.today != null) todayPts.add(_LinePoint(r.scaleHour, r.today!));
-      if (r.yesterday != null) {
-        ydayPts.add(_LinePoint(r.scaleHour, r.yesterday!));
-      }
 
-      final a = r.today ?? double.nan;
-      final b = r.yesterday ?? double.nan;
-      final candidates = <double>[];
-      if (!a.isNaN) candidates.add(a);
-      if (!b.isNaN) candidates.add(b);
-      if (candidates.isNotEmpty) {
-        areaPts.add(
-          _LinePoint(r.scaleHour, candidates.reduce((m, v) => v > m ? v : m)),
-        );
+      if (r.yesterday != null) {
+        final p = _LinePoint(r.scaleHour, r.yesterday!);
+        ydayPts.add(p);
+        areaPts.add(p);
+      } else if (r.today != null) {
+        areaPts.add(_LinePoint(r.scaleHour, r.today!)); // fallback
       }
     }
-
     // y-axis safe
     final allY = <double>[
       ...todayPts.map((e) => e.y),
@@ -297,10 +308,63 @@ class _UtilityDashboardOverviewHourlyCompareState
           fontSize: 13,
         ),
       ),
+      // series: <CartesianSeries<_LinePoint, num>>[
+      //   // ✅ Background area theo theme (nhẹ)
+      //   AreaSeries<_LinePoint, num>(
+      //     name: '',
+      //     dataSource: areaPts,
+      //     xValueMapper: (p, _) => p.hour,
+      //     yValueMapper: (p, _) => p.y,
+      //     gradient: LinearGradient(
+      //       begin: Alignment.topCenter,
+      //       end: Alignment.bottomCenter,
+      //       colors: [
+      //         widget.theme.fillTop.withOpacity(0.45),
+      //         widget.theme.fillBottom.withOpacity(0.05),
+      //       ],
+      //     ),
+      //     borderColor: Colors.transparent,
+      //   ),
+      //
+      //   // ✅ Yesterday: dùng accent nhưng mờ
+      //   LineSeries<_LinePoint, num>(
+      //     name: yStr,
+      //     dataSource: ydayPts,
+      //     xValueMapper: (p, _) => p.hour,
+      //     yValueMapper: (p, _) => p.y,
+      //     width: 2,
+      //     color: Colors.white.withOpacity(0.70),
+      //     markerSettings: MarkerSettings(
+      //       isVisible: true,
+      //       width: 5,
+      //       height: 5,
+      //       borderWidth: 1,
+      //       borderColor: widget.theme.accent.withOpacity(0.8),
+      //     ),
+      //   ),
+      //
+      //   // ✅ Today: line chính
+      //   LineSeries<_LinePoint, num>(
+      //     name: nowStr,
+      //     dataSource: todayPts,
+      //     xValueMapper: (p, _) => p.hour,
+      //     yValueMapper: (p, _) => p.y,
+      //     width: 2.6,
+      //     color: widget.theme.line,
+      //     markerSettings: MarkerSettings(
+      //       isVisible: true,
+      //       width: 6,
+      //       height: 6,
+      //       borderWidth: 1,
+      //       borderColor: widget.theme.line.withOpacity(0.9),
+      //     ),
+      //   ),
+      // ],
       series: <CartesianSeries<_LinePoint, num>>[
-        // ✅ Background area theo theme (nhẹ)
+        // ✅ Yesterday = AREA
         AreaSeries<_LinePoint, num>(
-          name: '',
+          name: 'Yesterday ($yStr)',
+          // ⭐ QUAN TRỌNG
           dataSource: areaPts,
           xValueMapper: (p, _) => p.hour,
           yValueMapper: (p, _) => p.y,
@@ -315,26 +379,10 @@ class _UtilityDashboardOverviewHourlyCompareState
           borderColor: Colors.transparent,
         ),
 
-        // ✅ Yesterday: dùng accent nhưng mờ
+        // ✅ Today = LINE
         LineSeries<_LinePoint, num>(
-          name: yStr,
-          dataSource: ydayPts,
-          xValueMapper: (p, _) => p.hour,
-          yValueMapper: (p, _) => p.y,
-          width: 2,
-          color: Colors.white.withOpacity(0.70),
-          markerSettings: MarkerSettings(
-            isVisible: true,
-            width: 5,
-            height: 5,
-            borderWidth: 1,
-            borderColor: widget.theme.accent.withOpacity(0.8),
-          ),
-        ),
-
-        // ✅ Today: line chính
-        LineSeries<_LinePoint, num>(
-          name: nowStr,
+          name: 'Today ($nowStr)',
+          // ⭐ QUAN TRỌNG
           dataSource: todayPts,
           xValueMapper: (p, _) => p.hour,
           yValueMapper: (p, _) => p.y,

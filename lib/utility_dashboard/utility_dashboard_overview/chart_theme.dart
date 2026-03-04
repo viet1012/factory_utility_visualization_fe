@@ -18,7 +18,7 @@ class ChartTheme {
 
 class ChartThemes {
   static const power = ChartTheme(
-    title: 'ELECTRICITY',
+    title: 'ELECTRICITY (kWH)',
     line: Color(0xFFFFB300),
     fillTop: Color(0x66FFB300),
     fillBottom: Color(0x00FFB300),

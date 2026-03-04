@@ -8,8 +8,8 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_common/utility_fac_style.dart';
+import '../chart_theme.dart';
 import '../data_health.dart';
-import '../utility_dashboard_overview_minutely/utility_dashboard_overview_minutely_widgets/chart_theme.dart';
 import '../utility_dashboard_overview_widgets/health_indicator.dart';
 
 class _DailyDto {
@@ -256,10 +256,29 @@ class _UtilityDashboardOverviewDailyChartState
       );
     }
 
-    final last = rows.last;
-    final lastVal = last.value.toStringAsFixed(1);
-    final lastTs = DateFormat('yyyy-MM-dd').format(last.date);
+    final now = DateTime.now();
+    final currentMonth = DateFormat('yyyyMM').format(now);
 
+    // mặc định lấy ngày cuối data
+    _DailyDto lastDto = rows.last;
+
+    // nếu đang xem tháng hiện tại → lấy hôm nay
+    if (widget.month == currentMonth) {
+      final today = DateTime(now.year, now.month, now.day);
+
+      final todayRow = rows.firstWhere(
+        (e) =>
+            e.date.year == today.year &&
+            e.date.month == today.month &&
+            e.date.day == today.day,
+        orElse: () => rows.last,
+      );
+
+      lastDto = todayRow;
+    }
+
+    final lastVal = lastDto.value.toStringAsFixed(1);
+    final lastTs = DateFormat('yyyy-MM-dd').format(lastDto.date);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -268,7 +287,7 @@ class _UtilityDashboardOverviewDailyChartState
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.10)),
+            border: Border.all(color: t.fillTop.withOpacity(0.35)), // ✅
           ),
           child: Row(
             children: [

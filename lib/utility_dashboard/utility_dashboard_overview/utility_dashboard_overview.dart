@@ -107,10 +107,10 @@
 //     );
 //   }
 // }
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/chart_theme.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_daily/utility_dashboard_overview_daily_chart.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_compare.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_header.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutely_widgets/chart_theme.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutes_chart.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
 import 'package:flutter/material.dart';
@@ -299,6 +299,18 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                   theme: ChartThemes.power,
                                 ),
                               ),
+                              Expanded(
+                                child: UtilityDashboardOverviewMinutesChart(
+                                  facId: selectedFac,
+                                  theme: ChartThemes.water,
+                                ),
+                              ),
+                              Expanded(
+                                child: UtilityDashboardOverviewMinutesChart(
+                                  facId: selectedFac,
+                                  theme: ChartThemes.air,
+                                ),
+                              ),
                             ],
                           ),
 
@@ -361,6 +373,18 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                     theme: ChartThemes.power,
                                   ),
                                 ),
+                                Expanded(
+                                  child: UtilityDashboardOverviewHourlyCompare(
+                                    facId: selectedFac,
+                                    theme: ChartThemes.water,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: UtilityDashboardOverviewHourlyCompare(
+                                    facId: selectedFac,
+                                    theme: ChartThemes.air,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -395,6 +419,22 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                     month: monthKey,
                                     height: 320,
                                     theme: ChartThemes.power,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: UtilityDashboardOverviewDailyChart(
+                                    facId: selectedFac,
+                                    month: monthKey,
+                                    height: 320,
+                                    theme: ChartThemes.water,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: UtilityDashboardOverviewDailyChart(
+                                    facId: selectedFac,
+                                    month: monthKey,
+                                    height: 320,
+                                    theme: ChartThemes.air,
                                   ),
                                 ),
                               ],
