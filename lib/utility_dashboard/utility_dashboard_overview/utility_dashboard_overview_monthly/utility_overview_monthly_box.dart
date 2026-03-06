@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
@@ -96,12 +97,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     super.dispose();
   }
 
-  String _format(double v) {
-    if (v >= 1000) return v.toStringAsFixed(1);
-    if (v >= 100) return v.toStringAsFixed(2);
-    return v.toStringAsFixed(3);
-  }
-
   IconData _iconByCate(String cate) {
     switch (cate) {
       case 'Electricity':
@@ -137,6 +132,11 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       default:
         return name.toUpperCase();
     }
+  }
+
+  String _format(double v) {
+    final f = NumberFormat('#,##0.##');
+    return f.format(v);
   }
 
   @override

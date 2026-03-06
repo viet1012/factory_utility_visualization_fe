@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 class ChartTheme {
   final String title;
+  final String unit; // 👈 thêm dòng này
+
   final Color line;
   final Color fillTop;
   final Color fillBottom;
@@ -9,6 +11,7 @@ class ChartTheme {
 
   const ChartTheme({
     required this.title,
+    required this.unit, // 👈 thêm vào constructor
     required this.line,
     required this.fillTop,
     required this.fillBottom,
@@ -18,16 +21,20 @@ class ChartTheme {
 
 class ChartThemes {
   static const power = ChartTheme(
-    title: 'ELECTRICITY (kWH)',
+    title: 'ELECTRICITY',
+    unit: 'kWh',
+    // 👈 thêm
     line: Color(0xFFFFB300),
     fillTop: Color(0x66FFB300),
     fillBottom: Color(0x00FFB300),
     accent: Color(0xFFFFA000),
   );
+
   static const water = ChartTheme(
     title: 'WATER',
+    unit: 'm³',
+    // 👈 thêm
     line: Color(0xFF52D6FF),
-    // xanh nước
     fillTop: Color(0x6652D6FF),
     fillBottom: Color(0x0052D6FF),
     accent: Color(0xFF52D6FF),
@@ -35,8 +42,9 @@ class ChartThemes {
 
   static const air = ChartTheme(
     title: 'AIR COMPRESSER',
+    unit: 'Nm³',
+    // 👈 thêm (chuẩn công nghiệp)
     line: Color(0xFF6CFF6C),
-    // xanh lá
     fillTop: Color(0x666CFF6C),
     fillBottom: Color(0x006CFF6C),
     accent: Color(0xFF6CFF6C),

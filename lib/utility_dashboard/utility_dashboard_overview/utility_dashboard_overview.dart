@@ -138,9 +138,9 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
 
   @override
   Widget build(BuildContext context) {
-    final nowStr = DateFormat('M/d/yyyy').format(DateTime.now());
+    final nowStr = DateFormat('d/M/yyyy').format(DateTime.now());
     final yStr = DateFormat(
-      'M/d/yyyy',
+      'd/M/yyyy',
     ).format(DateTime.now().subtract(const Duration(days: 1)));
 
     final monthKey = toYYYYMM(selectedMonth);

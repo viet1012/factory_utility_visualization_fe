@@ -277,7 +277,7 @@ class _UtilityDashboardOverviewDailyChartState
       lastDto = todayRow;
     }
 
-    final lastVal = lastDto.value.toStringAsFixed(1);
+    final lastVal = '${lastDto.value.toStringAsFixed(1)} ${t.unit}';
     final lastTs = DateFormat('yyyy-MM-dd').format(lastDto.date);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -292,7 +292,7 @@ class _UtilityDashboardOverviewDailyChartState
           child: Row(
             children: [
               // const Icon(Icons.bar_chart, size: 16, color: Colors.white),
-              const SizedBox(width: 8),
+              // const SizedBox(width: 8),
               Text(
                 t.title,
                 style: const TextStyle(
@@ -370,7 +370,8 @@ class _UtilityDashboardOverviewDailyChartState
         maximum: maxX,
         intervalType: DateTimeIntervalType.days,
         interval: 1,
-        dateFormat: DateFormat('MM-dd'),
+        labelRotation: 45,
+        dateFormat: DateFormat('dd-MM'),
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(0.08),
@@ -388,6 +389,15 @@ class _UtilityDashboardOverviewDailyChartState
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(0.08),
+        ),
+        title: AxisTitle(
+          text: t.unit,
+          alignment: ChartAlignment.center,
+          textStyle: TextStyle(
+            color: Colors.white.withOpacity(0.8),
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
         ),
         axisLine: AxisLine(color: Colors.white.withOpacity(0.15), width: 1),
         labelStyle: TextStyle(
