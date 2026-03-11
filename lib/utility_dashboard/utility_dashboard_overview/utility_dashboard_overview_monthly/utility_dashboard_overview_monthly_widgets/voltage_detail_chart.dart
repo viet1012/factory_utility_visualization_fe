@@ -288,10 +288,14 @@ class _VoltageDetailChartState extends State<VoltageDetailChart>
                       series: <CartesianSeries>[
                         // D12
                         SplineSeries<VoltageDetail, DateTime>(
-                          animationDuration: 500,
+                          animationDuration: 0,
                           dataSource: data,
                           xValueMapper: (e, _) => e.time,
-                          yValueMapper: (e, _) => e.d12,
+                          yValueMapper: (e, _) => e.d12 == 0 ? null : e.d12,
+                          emptyPointSettings: const EmptyPointSettings(
+                            mode: EmptyPointMode.gap,
+                          ),
+
                           color: const Color(0xFF00B4FF),
                           name: 'D12',
                           markerSettings: const MarkerSettings(
@@ -301,11 +305,14 @@ class _VoltageDetailChartState extends State<VoltageDetailChart>
                         ),
                         // D14
                         SplineSeries<VoltageDetail, DateTime>(
-                          animationDuration: 500,
+                          animationDuration: 0,
 
                           dataSource: data,
                           xValueMapper: (e, i) => e.time,
-                          yValueMapper: (e, _) => e.d14,
+                          yValueMapper: (e, _) => e.d14 == 0 ? null : e.d14,
+                          emptyPointSettings: const EmptyPointSettings(
+                            mode: EmptyPointMode.gap,
+                          ),
                           color: const Color(0xFFFF9500),
                           width: 2,
                           name: 'D14',
@@ -316,11 +323,14 @@ class _VoltageDetailChartState extends State<VoltageDetailChart>
                         ),
                         // D16
                         SplineSeries<VoltageDetail, DateTime>(
-                          animationDuration: 500,
+                          animationDuration: 0,
 
                           dataSource: data,
                           xValueMapper: (e, i) => e.time,
-                          yValueMapper: (e, _) => e.d16,
+                          yValueMapper: (e, _) => e.d16 == 0 ? null : e.d16,
+                          emptyPointSettings: const EmptyPointSettings(
+                            mode: EmptyPointMode.gap,
+                          ),
                           color: const Color(0xFF2ECC71),
                           width: 2,
                           name: 'D16',
