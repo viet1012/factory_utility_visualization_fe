@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_api/utility_dashboard_overview_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/industrial_side_tab_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -41,8 +42,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   void initState() {
     super.initState();
 
-    const baseUrl = 'http://192.168.122.16:9093';
-    // const baseUrl = 'http://localhost:9999';
+    // const baseUrl = 'http://192.168.122.16:9093';
+    const baseUrl = 'http://localhost:9999';
     DioClient.init(baseUrl: baseUrl);
     _tabController = TabController(length: 4, vsync: this);
     dio = DioClient.dio;
@@ -63,6 +64,11 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     return MultiProvider(
       providers: [
         Provider<Dio>.value(value: dio),
+
+        Provider<UtilityDashboardOverviewApi>.value(
+          value: UtilityDashboardOverviewApi(dio),
+        ),
+
         Provider<UtilityApi>.value(value: api),
         Provider<UtilityFacadeService>.value(value: facade),
         Provider<AlarmApi>.value(value: alarmApi),

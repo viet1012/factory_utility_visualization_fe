@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_detail_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -8,8 +8,72 @@ import 'package:provider/provider.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_common/utility_fac_style.dart';
 import '../data_health.dart';
+import '../utility_dashboard_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
+/// =======================
+/// MODEL ENERGY
+/// =======================
+class EnergyMonthlySummary {
+  final String cate;
+  final String name;
+  final String month;
+  final double value;
+  final String unit;
+  final DateTime timestamp;
+
+  EnergyMonthlySummary({
+    required this.cate,
+    required this.name,
+    required this.month,
+    required this.value,
+    required this.unit,
+    required this.timestamp,
+  });
+
+  factory EnergyMonthlySummary.fromJson(Map<String, dynamic> json) {
+    return EnergyMonthlySummary(
+      cate: json['cate'] ?? '',
+      name: json['name'] ?? '',
+      month: json['month'] ?? '',
+      value: (json['value'] as num?)?.toDouble() ?? 0,
+      unit: json['unit'] ?? '',
+      timestamp: DateTime.parse(json['timestamp']),
+    );
+  }
+}
+
+/// =======================
+/// MODEL VOLTAGE
+/// =======================
+class VoltageStatus {
+  final String name;
+  final double minVol;
+  final double maxVol;
+  final String alarm;
+
+  VoltageStatus({
+    required this.name,
+    required this.minVol,
+    required this.maxVol,
+    required this.alarm,
+  });
+
+  factory VoltageStatus.fromJson(Map<String, dynamic> json) {
+    return VoltageStatus(
+      name: json['name'] ?? '',
+      minVol: (json['minVol'] as num?)?.toDouble() ?? 0,
+      maxVol: (json['maxVol'] as num?)?.toDouble() ?? 0,
+      alarm: json['alarm'] ?? 'Normal',
+    );
+  }
+
+  bool get isAlarm => alarm == "Alarm";
+}
+
+/// =======================
+/// WIDGET
+/// =======================
 class UtilityOverviewMonthlyBox extends StatefulWidget {
   final double width;
   final double? height;
@@ -38,51 +102,64 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   bool loading = true;
   Object? error;
 
-  List<Map<String, dynamic>> items = [];
+  List<EnergyMonthlySummary> items = [];
+
+  VoltageStatus? voltageStatus;
 
   Timer? _timer;
+
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  late UtilityDashboardOverviewApi api;
 
   @override
   void initState() {
     super.initState();
+
+    api = context.read<UtilityDashboardOverviewApi>();
+
     fx = UtilityInfoBoxFx(this)..init();
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+
+    _pulseAnimation = Tween<double>(begin: 1, end: 1.35).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
     _load();
+
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => _load());
   }
 
+  /// =======================
+  /// LOAD DATA
+  /// =======================
   Future<void> _load() async {
     try {
-      final dio = context.read<Dio>();
-
-      final res = await dio.get(
-        '/api/utility/energy-monthly-summary',
-        queryParameters: {
-          'facId': widget.facId,
-          'month': widget.month,
-          'names': ['Total Energy Consumption'],
-        },
+      final raw = await api.getEnergyMonthlySummary(
+        facId: widget.facId,
+        month: widget.month,
       );
+
+      final parsed = raw.map((e) => EnergyMonthlySummary.fromJson(e)).toList();
+
+      final voltage = await api.getVoltageStatus();
 
       if (!mounted) return;
 
-      final List data = res.data as List;
-
-      final parsed = data.map<Map<String, dynamic>>((e) {
-        return {
-          'name': _normalizeName(e['name'] ?? ''),
-          'value': (e['value'] as num?)?.toDouble() ?? 0,
-          'cate': e['cate'] ?? '',
-          'unit': e['unit'] ?? '',
-        };
-      }).toList();
-
       setState(() {
         items = parsed;
+        voltageStatus = voltage;
         loading = false;
         error = null;
       });
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         error = e;
         loading = false;
@@ -94,51 +171,50 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   void dispose() {
     _timer?.cancel();
     fx.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
+  /// =======================
+  /// ICON BY CATEGORY
+  /// =======================
   IconData _iconByCate(String cate) {
     switch (cate) {
-      case 'Electricity':
+      case "Electricity":
         return Icons.flash_on;
-      case 'Water':
+      case "Water":
         return Icons.water_drop;
-      case 'Compressed Air':
+      case "Compressed Air":
         return Icons.air;
       default:
         return Icons.device_unknown;
     }
   }
 
+  /// =======================
+  /// COLOR BY CATEGORY
+  /// =======================
   Color _colorByCate(String cate) {
     switch (cate) {
-      case 'Electricity':
+      case "Electricity":
         return Colors.orangeAccent;
-      case 'Water':
+      case "Water":
         return Colors.lightBlueAccent;
-      case 'Compressed Air':
+      case "Compressed Air":
         return Colors.cyanAccent;
       default:
         return Colors.white70;
     }
   }
 
-  String _normalizeName(String name) {
-    switch (name) {
-      case 'Total Energy Consumption':
-        return 'Total Energy';
-      case 'Total Water Consumption':
-        return 'TOTAL WATER';
-      default:
-        return name.toUpperCase();
-    }
-  }
-
   String _format(double v) {
-    final f = NumberFormat('#,##0.##');
+    final f = NumberFormat("#,##0.##");
     return f.format(v);
   }
 
+  /// =======================
+  /// BUILD
+  /// =======================
   @override
   Widget build(BuildContext context) {
     final facilityColor = UtilityFacStyle.colorFromFac(widget.headerTitle);
@@ -146,17 +222,15 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     final healthResult = DataHealthAnalyzer.analyze(
       loading: loading,
       error: error,
-      timestamps: items.isNotEmpty
-          ? List.generate(items.length, (_) => DateTime.now())
-          : [],
-      values: items.map((e) => e['value'] as double).toList(),
+      timestamps: items.map((e) => e.timestamp).toList(),
+      values: items.map((e) => e.value).toList(),
     );
 
     return SlideTransition(
       position: fx.slide,
       child: AnimatedBuilder(
         animation: fx.listenable,
-        builder: (context, child) {
+        builder: (_, __) {
           return Transform.scale(
             scale: fx.scale.value,
             child: Container(
@@ -181,6 +255,9 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     );
   }
 
+  /// =======================
+  /// BOX STYLE
+  /// =======================
   BoxDecoration _decoration(Color facilityColor) {
     return BoxDecoration(
       borderRadius: BorderRadius.circular(22),
@@ -192,12 +269,11 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
           const Color(0xFF0D47A1).withOpacity(0.28),
         ],
       ),
-      border: Border.all(color: facilityColor.withOpacity(0.3), width: 1),
+      border: Border.all(color: facilityColor.withOpacity(0.3)),
       boxShadow: [
         BoxShadow(
           color: facilityColor.withOpacity(0.25),
           blurRadius: 22,
-          spreadRadius: 2,
           offset: const Offset(0, 10),
         ),
         BoxShadow(
@@ -209,6 +285,83 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     );
   }
 
+  /// =======================
+  /// VOLTAGE ALERT
+  /// =======================
+  Widget _voltageAlert() {
+    if (voltageStatus == null) return const SizedBox();
+
+    final alarm = voltageStatus!.isAlarm;
+    final color = alarm ? Colors.redAccent : _colorByCate("Electricity");
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (_, child) {
+              return Transform.scale(
+                scale: alarm ? _pulseAnimation.value : 1,
+                child: child,
+              );
+            },
+            child: Icon(Icons.flash_on, color: color, size: 26),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Voltage",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Text(
+                      "Min: ${voltageStatus!.minVol.toStringAsFixed(1)}V   ",
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    AnimatedBuilder(
+                      animation: _pulseAnimation,
+                      builder: (_, child) {
+                        return Transform.scale(
+                          scale: alarm ? _pulseAnimation.value : 1,
+                          child: child,
+                        );
+                      },
+                      child: Text(
+                        "Max: ${voltageStatus!.maxVol.toStringAsFixed(1)}V",
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// =======================
+  /// BODY
+  /// =======================
   Widget _body() {
     if (loading) {
       return const Center(
@@ -218,70 +371,87 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
     if (error != null) {
       return const Center(
-        child: Text(
-          'API error',
-          style: TextStyle(color: Colors.redAccent, fontSize: 12),
-        ),
+        child: Text("API error", style: TextStyle(color: Colors.redAccent)),
       );
     }
 
     if (items.isEmpty) {
       return const Center(
-        child: Text('No data', style: TextStyle(color: Colors.white70)),
+        child: Text("No data", style: TextStyle(color: Colors.white70)),
       );
     }
 
-    return ListView.builder(
-      itemCount: items.length,
-      itemBuilder: (_, i) {
-        final item = items[i];
-        final cate = item['cate'] as String;
-        final value = item['value'] as double;
-        final unit = item['unit'] as String;
-        final color = _colorByCate(cate);
-
-        return Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: color.withOpacity(0.8), width: 1),
-                ),
-                child: Icon(_iconByCate(cate), color: color, size: 20),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  item['name'],
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: value),
-                duration: const Duration(milliseconds: 800),
-                builder: (_, v, __) {
-                  return Text(
-                    "${_format(v)} $unit",
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (_) {
+                return Dialog(
+                  backgroundColor: Colors.transparent,
+                  insetPadding: const EdgeInsets.all(20),
+                  child: Container(
+                    width: 1400,
+                    height: 600,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  );
-                },
-              ),
-            ],
+                    child: VoltageDetailChart(api: api),
+                  ),
+                );
+              },
+            );
+          },
+          child: _voltageAlert(),
+        ),
+
+        Expanded(
+          child: ListView.builder(
+            itemCount: items.length,
+            itemBuilder: (_, i) {
+              final item = items[i];
+
+              final color = _colorByCate(item.cate);
+
+              return Padding(
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  children: [
+                    Icon(_iconByCate(item.cate), color: color, size: 26),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        item.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: item.value),
+                      duration: const Duration(milliseconds: 800),
+                      builder: (_, v, __) {
+                        return Text(
+                          "${_format(v)} ${item.unit}",
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 }

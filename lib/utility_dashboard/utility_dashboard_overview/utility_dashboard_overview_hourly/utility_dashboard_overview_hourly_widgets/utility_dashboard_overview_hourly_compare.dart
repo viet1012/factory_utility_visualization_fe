@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../chart_theme.dart';
+import '../../utility_dashboard_api/utility_dashboard_overview_api.dart';
 
 class _HourlyCompareDto {
   final int scaleHour; // 1..24
@@ -117,23 +118,22 @@ class _UtilityDashboardOverviewHourlyCompareState
     }
 
     try {
-      final dio = context.read<Dio>();
-      final res = await dio.get(
-        '/api/utility/energy-hourly',
-        queryParameters: {'facId': widget.facId, 'hours': widget.hours},
-        options: force ? Options(headers: {'Cache-Control': 'no-cache'}) : null,
+      final api = context.read<UtilityDashboardOverviewApi>();
+
+      final res = await api.getEnergyHourly(
+        facId: widget.facId,
+        hours: widget.hours,
       );
 
       final list =
-          (res.data as List)
-              .map(
-                (e) => _HourlyCompareDto.fromJson(Map<String, dynamic>.from(e)),
-              )
+          res
+              .map((e) => _HourlyCompareDto.fromJson(e))
               .where((e) => e.scaleHour >= 1 && e.scaleHour <= 24)
               .toList()
             ..sort((a, b) => a.scaleHour.compareTo(b.scaleHour));
 
       if (!mounted) return;
+
       setState(() {
         rows = list;
         loading = false;
@@ -141,6 +141,7 @@ class _UtilityDashboardOverviewHourlyCompareState
       });
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         error = e;
         loading = false;
@@ -284,6 +285,15 @@ class _UtilityDashboardOverviewHourlyCompareState
           width: 1,
           color: widget.theme.fillBottom.withOpacity(0.12), // ✅
         ),
+        title: AxisTitle(
+          text: widget.theme.unit,
+          alignment: ChartAlignment.center,
+          textStyle: TextStyle(
+            color: Colors.white.withOpacity(0.8),
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
         axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
         labelStyle: TextStyle(
           color: Colors.white.withOpacity(0.55),
@@ -294,7 +304,7 @@ class _UtilityDashboardOverviewHourlyCompareState
       series: <CartesianSeries<_LinePoint, num>>[
         // ✅ Yesterday = AREA
         AreaSeries<_LinePoint, num>(
-          name: 'Yesterday',
+          name: 'Previous',
           // ⭐ QUAN TRỌNG
           dataSource: areaPts,
           xValueMapper: (p, _) => p.hour,
@@ -377,7 +387,6 @@ class _SummaryBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.04),
         borderRadius: BorderRadius.circular(10),
-        // border: Border.all(color: theme.fillTop.withOpacity(0.2)),
       ),
       child: Row(
         children: [
@@ -385,7 +394,7 @@ class _SummaryBar extends StatelessWidget {
           const SizedBox(width: 6),
 
           Text(
-            'T ${sumToday.toStringAsFixed(1)}',
+            'T ${sumToday.toStringAsFixed(1)} ${theme.unit}',
             style: TextStyle(
               color: theme.line,
               fontWeight: FontWeight.w700,
@@ -396,7 +405,7 @@ class _SummaryBar extends StatelessWidget {
           const SizedBox(width: 10),
 
           Text(
-            'P ${sumYday.toStringAsFixed(1)}',
+            'P ${sumYday.toStringAsFixed(1)} ${theme.unit}',
             style: TextStyle(
               color: Colors.white.withOpacity(0.7),
               fontWeight: FontWeight.w600,

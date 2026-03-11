@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/chart_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +9,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import '../../../utility_models/response/minute_point.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../data_health.dart';
+import '../utility_dashboard_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/health_indicator.dart';
 
 class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
@@ -59,20 +59,12 @@ class _UtilityDashboardOverviewMinutesChartState
 
   Future<void> _load() async {
     try {
-      final dio = context.read<Dio>();
-
-      final res = await dio.get(
-        '/api/utility/energy-minute',
-        queryParameters: {
-          'facId': widget.facId,
-          'minutes': widget.minutes,
-          'nameEn': widget.nameEng,
-        },
+      final api = context.read<UtilityDashboardOverviewApi>();
+      final data = await api.getEnergyMinute(
+        facId: widget.facId,
+        minutes: widget.minutes,
+        nameEn: widget.nameEng,
       );
-
-      final data = (res.data as List)
-          .map((e) => MinutePointDto.fromJson(e))
-          .toList();
 
       if (!mounted) return;
 
@@ -277,6 +269,13 @@ class _UtilityDashboardOverviewMinutesChartState
         labelStyle: TextStyle(
           color: Colors.white.withOpacity(0.55),
           fontSize: 13,
+        ),
+        title: AxisTitle(
+          text: t.unit,
+          textStyle: TextStyle(
+            color: Colors.white.withOpacity(.8),
+            fontSize: 13,
+          ),
         ),
       ),
       series: [

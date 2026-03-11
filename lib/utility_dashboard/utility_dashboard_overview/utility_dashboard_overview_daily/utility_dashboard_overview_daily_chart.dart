@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +9,7 @@ import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_common/utility_fac_style.dart';
 import '../chart_theme.dart';
 import '../data_health.dart';
+import '../utility_dashboard_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/health_indicator.dart';
 
 class _DailyDto {
@@ -125,16 +125,14 @@ class _UtilityDashboardOverviewDailyChartState
     }
 
     try {
-      final dio = context.read<Dio>();
-
-      final res = await dio.get(
-        '/api/utility/energy-daily',
-        queryParameters: {'facId': widget.facId, 'month': widget.month},
-        options: force ? Options(headers: {'Cache-Control': 'no-cache'}) : null,
+      final api = context.read<UtilityDashboardOverviewApi>();
+      final res = await api.getEnergyDaily(
+        facId: widget.facId,
+        month: widget.month,
       );
 
       final list =
-          (res.data as List)
+          res
               .map((e) => _DailyDto.fromJson(Map<String, dynamic>.from(e)))
               .toList()
             ..sort((a, b) => a.date.compareTo(b.date));

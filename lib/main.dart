@@ -553,21 +553,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 void main() {
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => FacilityRealtimeProvider()),
-        ChangeNotifierProvider(
-          create: (_) => FacilityRangeProvider(
-            facList: const ['Fac A', 'Fac B', 'Fac C'],
-            from: DateTime.now().subtract(const Duration(hours: 3)),
-            to: DateTime.now(),
-          ),
-        ),
-      ],
-      child: MyApp(),
-    ),
-  );
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
