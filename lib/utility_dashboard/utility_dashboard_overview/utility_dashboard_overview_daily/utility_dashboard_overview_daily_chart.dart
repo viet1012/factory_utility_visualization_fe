@@ -165,7 +165,7 @@ class _UtilityDashboardOverviewDailyChartState
 
       loading: loading,
       error: error,
-      timestamps: valid.map((e) => e.date.toLocal()).toList(),
+      // timestamps: valid.map((e) => e.date.toLocal()).toList(),
       values: valid.map((e) => e.value).toList(),
     );
 
@@ -327,7 +327,7 @@ class _UtilityDashboardOverviewDailyChartState
               Spacer(),
               Expanded(
                 child: Text(
-                  'Last: $lastVal  • $lastTs',
+                  'Last: $lastVal • $lastTs',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(

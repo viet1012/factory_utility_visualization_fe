@@ -121,7 +121,7 @@ class _UtilityDashboardOverviewMinutesChartState
       key: "Minutes_${widget.facId}_${widget.theme.title}",
       loading: loading,
       error: error,
-      timestamps: valid.map((e) => e.ts.toLocal()).toList(),
+      // timestamps: valid.map((e) => e.ts.toLocal()).toList(),
       values: valid.map((e) => e.value!).toList(),
     );
 

@@ -1,79 +1,41 @@
 import 'package:flutter/material.dart';
 
-enum DataHealth { loading, error, empty, ok, stale, noChange }
+enum DataHealth { loading, ok, inactive }
 
 class DataHealthResult {
   final DataHealth health;
-  final Duration? staleFor;
 
-  const DataHealthResult(this.health, {this.staleFor});
+  const DataHealthResult(this.health);
 }
 
 class DataHealthAnalyzer {
   const DataHealthAnalyzer._();
 
-  /// lưu last values theo chart key
-  static final Map<String, List<double>> _lastValues = {};
+  /// =========================
+  /// CHECK HEALTH
+  /// =========================
+  static final Map<String, DataHealth> _lastHealth = {};
 
-  /// =========================
-  /// PUBLIC API
-  /// =========================
   static DataHealthResult analyze({
     required String key,
     required bool loading,
     required Object? error,
-    required List<DateTime> timestamps,
     required List<double> values,
-    Duration staleThreshold = const Duration(minutes: 2),
   }) {
+    DataHealth health;
+
     if (loading) {
-      return const DataHealthResult(DataHealth.loading);
+      health = DataHealth.loading;
+    } else if (error != null || values.isEmpty) {
+      health = DataHealth.inactive;
+    } else {
+      health = DataHealth.ok;
     }
 
-    if (error != null) {
-      return const DataHealthResult(DataHealth.error);
-    }
+    /// lưu trạng thái theo key
+    _lastHealth[key] = health;
 
-    if (values.isEmpty || timestamps.isEmpty) {
-      return const DataHealthResult(DataHealth.empty);
-    }
-
-    /// ===== STALE CHECK =====
-    final lastTs = timestamps.last;
-    final staleFor = DateTime.now().difference(lastTs);
-
-    if (staleFor > staleThreshold) {
-      return DataHealthResult(DataHealth.stale, staleFor: staleFor);
-    }
-
-    /// ===== NO CHANGE CHECK =====
-    final lastValues = _lastValues[key];
-
-    if (lastValues != null &&
-        lastValues.length == values.length &&
-        _isSame(values, lastValues)) {
-      return const DataHealthResult(DataHealth.noChange);
-    }
-
-    /// update last values
-    _lastValues[key] = List<double>.from(values);
-
-    return const DataHealthResult(DataHealth.ok);
-  }
-
-  /// =========================
-  /// VALUE COMPARISON
-  /// =========================
-  static bool _isSame(List<double> a, List<double> b) {
-    const eps = 0.0001;
-
-    for (int i = 0; i < a.length; i++) {
-      if ((a[i] - b[i]).abs() > eps) {
-        return false;
-      }
-    }
-
-    return true;
+    return DataHealthResult(health);
   }
 
   /// =========================
@@ -82,83 +44,191 @@ class DataHealthAnalyzer {
   static Color color(DataHealth h) {
     switch (h) {
       case DataHealth.loading:
-        return const Color(0xFFFFC107);
-
-      case DataHealth.error:
-        return const Color(0xFFFF3B30);
-
-      case DataHealth.empty:
-        return Colors.white38;
+        return const Color(0xFFFFC107); // vàng
 
       case DataHealth.ok:
-        return const Color(0xFF2CFF7A);
+        return const Color(0xFF2CFF7A); // xanh
 
-      case DataHealth.stale:
-        return const Color(0xFFFF9F0A);
-
-      case DataHealth.noChange:
-        return const Color(0xFF52D6FF);
+      case DataHealth.inactive:
+        return Colors.grey; // xám
     }
   }
 
   /// =========================
   /// LABEL
   /// =========================
-  static String label(DataHealthResult r) {
-    switch (r.health) {
+  static String label(DataHealth h) {
+    switch (h) {
       case DataHealth.loading:
-        return 'Loading';
-
-      case DataHealth.error:
-        return 'Error';
-
-      case DataHealth.empty:
-        return 'No data';
+        return "Loading";
 
       case DataHealth.ok:
-        return 'OK';
+        return "Connected";
 
-      case DataHealth.stale:
-        return 'Stale ${_fmtDuration(r.staleFor!)}';
-
-      case DataHealth.noChange:
-        return 'No change';
+      case DataHealth.inactive:
+        return "No Data";
     }
-  }
-
-  /// =========================
-  /// FORMAT TIME
-  /// =========================
-  static String _fmtDuration(Duration d) {
-    if (d.inSeconds < 60) {
-      return '${d.inSeconds}s';
-    }
-
-    if (d.inMinutes < 60) {
-      return '${d.inMinutes}m';
-    }
-
-    return '${d.inHours}h';
-  }
-
-  /// =========================
-  /// DEBUG TOOL
-  /// =========================
-  static void debug({
-    required String key,
-    required DataHealthResult result,
-    required int points,
-  }) {
-    debugPrint(
-      "[DataHealth] "
-      "$key | "
-      "health=${result.health} | "
-      "label=${label(result)} | "
-      "staleFor=${result.staleFor?.inSeconds}s | "
-      "points=$points",
-    );
   }
 }
+// enum DataHealth { loading, error, empty, ok, stale, noChange }
+//
+// class DataHealthResult {
+//   final DataHealth health;
+//   final Duration? staleFor;
+//
+//   const DataHealthResult(this.health, {this.staleFor});
+// }
+//
+// class DataHealthAnalyzer {
+//   const DataHealthAnalyzer._();
+//
+//   /// lưu last values theo chart key
+//   static final Map<String, List<double>> _lastValues = {};
+//
+//   /// =========================
+//   /// PUBLIC API
+//   /// =========================
+//   static DataHealthResult analyze({
+//     required String key,
+//     required bool loading,
+//     required Object? error,
+//     required List<DateTime> timestamps,
+//     required List<double> values,
+//     Duration staleThreshold = const Duration(minutes: 2),
+//   }) {
+//     if (loading) {
+//       return const DataHealthResult(DataHealth.loading);
+//     }
+//
+//     if (error != null) {
+//       return const DataHealthResult(DataHealth.error);
+//     }
+//
+//     if (values.isEmpty || timestamps.isEmpty) {
+//       return const DataHealthResult(DataHealth.empty);
+//     }
+//
+//     /// ===== STALE CHECK =====
+//     final lastTs = timestamps.last;
+//     final staleFor = DateTime.now().difference(lastTs);
+//
+//     if (staleFor > staleThreshold) {
+//       return DataHealthResult(DataHealth.stale, staleFor: staleFor);
+//     }
+//
+//     /// ===== NO CHANGE CHECK =====
+//     final lastValues = _lastValues[key];
+//
+//     if (lastValues != null &&
+//         lastValues.length == values.length &&
+//         _isSame(values, lastValues)) {
+//       return const DataHealthResult(DataHealth.noChange);
+//     }
+//
+//     /// update last values
+//     _lastValues[key] = List<double>.from(values);
+//
+//     return const DataHealthResult(DataHealth.ok);
+//   }
+//
+//   /// =========================
+//   /// VALUE COMPARISON
+//   /// =========================
+//   static bool _isSame(List<double> a, List<double> b) {
+//     const eps = 0.0001;
+//
+//     for (int i = 0; i < a.length; i++) {
+//       if ((a[i] - b[i]).abs() > eps) {
+//         return false;
+//       }
+//     }
+//
+//     return true;
+//   }
+//
+//   /// =========================
+//   /// COLOR
+//   /// =========================
+//   static Color color(DataHealth h) {
+//     switch (h) {
+//       case DataHealth.loading:
+//         return const Color(0xFFFFC107);
+//
+//       case DataHealth.error:
+//         return const Color(0xFFFF3B30);
+//
+//       case DataHealth.empty:
+//         return Colors.white38;
+//
+//       case DataHealth.ok:
+//         return const Color(0xFF2CFF7A);
+//
+//       case DataHealth.stale:
+//         return const Color(0xFFFF9F0A);
+//
+//       case DataHealth.noChange:
+//         return const Color(0xFF52D6FF);
+//     }
+//   }
+//
+//   /// =========================
+//   /// LABEL
+//   /// =========================
+//   static String label(DataHealthResult r) {
+//     switch (r.health) {
+//       case DataHealth.loading:
+//         return 'Loading';
+//
+//       case DataHealth.error:
+//         return 'Error';
+//
+//       case DataHealth.empty:
+//         return 'No data';
+//
+//       case DataHealth.ok:
+//         return 'OK';
+//
+//       case DataHealth.stale:
+//         return 'Stale ${_fmtDuration(r.staleFor!)}';
+//
+//       case DataHealth.noChange:
+//         return 'No change';
+//     }
+//   }
+//
+//   /// =========================
+//   /// FORMAT TIME
+//   /// =========================
+//   static String _fmtDuration(Duration d) {
+//     if (d.inSeconds < 60) {
+//       return '${d.inSeconds}s';
+//     }
+//
+//     if (d.inMinutes < 60) {
+//       return '${d.inMinutes}m';
+//     }
+//
+//     return '${d.inHours}h';
+//   }
+//
+//   /// =========================
+//   /// DEBUG TOOL
+//   /// =========================
+//   static void debug({
+//     required String key,
+//     required DataHealthResult result,
+//     required int points,
+//   }) {
+//     debugPrint(
+//       "[DataHealth] "
+//       "$key | "
+//       "health=${result.health} | "
+//       "label=${label(result)} | "
+//       "staleFor=${result.staleFor?.inSeconds}s | "
+//       "points=$points",
+//     );
+//   }
+// }
 
 // import 'package:flutter/material.dart';
 //
