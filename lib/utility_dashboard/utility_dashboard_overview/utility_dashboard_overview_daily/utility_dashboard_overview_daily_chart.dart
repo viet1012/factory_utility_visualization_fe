@@ -45,7 +45,7 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
   final String month; // yyyyMM (vd: 202603)
 
   /// optional UI
-  final String title; // header title
+  final String nameEng; // header title
   final ChartTheme theme;
 
   const UtilityDashboardOverviewDailyChart({
@@ -53,7 +53,7 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
     required this.facId,
     required this.month,
     required this.theme,
-    this.title = 'Total Energy Consumption',
+    this.nameEng = 'Total Energy Consumption',
     this.width = 520,
     this.height,
   });
@@ -129,6 +129,7 @@ class _UtilityDashboardOverviewDailyChartState
       final res = await api.getEnergyDaily(
         facId: widget.facId,
         month: widget.month,
+        nameEn: widget.nameEng,
       );
 
       final list =
@@ -160,11 +161,14 @@ class _UtilityDashboardOverviewDailyChartState
     final valid = rows.where((e) => e.value != null).toList();
 
     final healthResult = DataHealthAnalyzer.analyze(
+      key: "Daily_${widget.facId}_${widget.theme.title}",
+
       loading: loading,
       error: error,
       timestamps: valid.map((e) => e.date.toLocal()).toList(),
-      values: valid.map((e) => e.value!).toList(),
+      values: valid.map((e) => e.value).toList(),
     );
+
     return SlideTransition(
       position: fx.slide,
       child: MouseRegion(
@@ -208,10 +212,7 @@ class _UtilityDashboardOverviewDailyChartState
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: _body(t, healthResult),
-                  ),
+                  child: _body(t, healthResult),
                 ),
               ),
             );
@@ -245,46 +246,58 @@ class _UtilityDashboardOverviewDailyChartState
       );
     }
 
-    if (rows.isEmpty) {
-      return Center(
-        child: Text(
-          'No data',
-          style: TextStyle(color: Colors.white.withOpacity(0.8)),
-        ),
-      );
-    }
+    // if (rows.isEmpty) {
+    //   return Center(
+    //     child: Text(
+    //       'No data',
+    //       style: TextStyle(color: Colors.white.withOpacity(0.8)),
+    //     ),
+    //   );
+    // }
 
     final now = DateTime.now();
     final currentMonth = DateFormat('yyyyMM').format(now);
 
-    // mặc định lấy ngày cuối data
-    _DailyDto lastDto = rows.last;
+    _DailyDto? lastDto;
 
-    // nếu đang xem tháng hiện tại → lấy hôm nay
-    if (widget.month == currentMonth) {
-      final today = DateTime(now.year, now.month, now.day);
+    if (rows.isNotEmpty) {
+      lastDto = rows.last;
 
-      final todayRow = rows.firstWhere(
-        (e) =>
-            e.date.year == today.year &&
-            e.date.month == today.month &&
-            e.date.day == today.day,
-        orElse: () => rows.last,
-      );
+      final now = DateTime.now();
+      final currentMonth = DateFormat('yyyyMM').format(now);
 
-      lastDto = todayRow;
+      if (widget.month == currentMonth) {
+        final today = DateTime(now.year, now.month, now.day);
+
+        final todayRow = rows.firstWhere(
+          (e) =>
+              e.date.year == today.year &&
+              e.date.month == today.month &&
+              e.date.day == today.day,
+          orElse: () => rows.last,
+        );
+
+        lastDto = todayRow;
+      }
     }
 
-    final lastVal = '${lastDto.value.toStringAsFixed(1)} ${t.unit}';
-    final lastTs = DateFormat('yyyy-MM-dd').format(lastDto.date);
+    final lastVal = lastDto != null
+        ? '${lastDto.value.toStringAsFixed(1)} ${t.unit}'
+        : '--';
+
+    final lastTs = lastDto != null
+        ? DateFormat('yyyy-MM-dd').format(lastDto.date)
+        : '--';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          padding: EdgeInsets.symmetric(horizontal: 4),
+          // padding: EdgeInsets.all(8),
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
+            // borderRadius: BorderRadius.circular(12),
             border: Border.all(color: t.fillTop.withOpacity(0.35)), // ✅
           ),
           child: Row(
@@ -302,7 +315,7 @@ class _UtilityDashboardOverviewDailyChartState
               ),
               const SizedBox(width: 8),
               Padding(
-                padding: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.all(8),
                 child: HealthIndicator(
                   result: health,
                   size: 10,
@@ -311,7 +324,7 @@ class _UtilityDashboardOverviewDailyChartState
                 ),
               ),
               const SizedBox(width: 8),
-
+              Spacer(),
               Expanded(
                 child: Text(
                   'Last: $lastVal  • $lastTs',
@@ -323,19 +336,31 @@ class _UtilityDashboardOverviewDailyChartState
                   ),
                 ),
               ),
-              IconButton(
-                tooltip: 'Refresh',
-                onPressed: () => _load(force: true),
-                icon: Icon(
-                  Icons.refresh_rounded,
-                  color: Colors.white.withOpacity(0.85),
-                ),
-              ),
+              // IconButton(
+              //   tooltip: 'Refresh',
+              //   onPressed: () => _load(force: true),
+              //   icon: Icon(
+              //     Icons.refresh_rounded,
+              //     color: Colors.white.withOpacity(0.85),
+              //   ),
+              // ),
             ],
           ),
         ),
         const SizedBox(height: 6),
-        Expanded(child: _chart(t)),
+        rows.isEmpty
+            ? Expanded(
+                child: Center(
+                  child: Text(
+                    'No data available',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+              )
+            : Expanded(child: _chart(t)),
       ],
     );
   }
@@ -344,8 +369,8 @@ class _UtilityDashboardOverviewDailyChartState
     final data = rows.map((e) => _BarPoint(e.date.toLocal(), e.value)).toList()
       ..sort((a, b) => a.ts.compareTo(b.ts));
 
-    final minX = data.first.ts;
-    final maxX = data.last.ts;
+    final minX = data.first.ts.subtract(const Duration(days: 1));
+    final maxX = data.last.ts.add(const Duration(days: 1));
 
     final ys = data.map((e) => e.y).toList()..sort();
     final maxY = ys.isEmpty ? 1.0 : ys.last;

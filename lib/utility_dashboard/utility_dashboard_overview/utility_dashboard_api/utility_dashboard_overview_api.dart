@@ -19,7 +19,7 @@ class UtilityDashboardOverviewApi {
       '/api/utility/energy-minute',
       queryParameters: {'facId': facId, 'minutes': minutes, 'nameEn': nameEn},
     );
-
+    // print('res: ${res.realUri}');
     final List data = res.data;
 
     return data.map((e) => MinutePointDto.fromJson(e)).toList();
@@ -44,10 +44,11 @@ class UtilityDashboardOverviewApi {
   Future<List<Map<String, dynamic>>> getEnergyDaily({
     required String facId,
     required String month,
+    String? nameEn,
   }) async {
     final res = await dio.get(
       '/api/utility/energy-daily',
-      queryParameters: {'facId': facId, 'month': month},
+      queryParameters: {'facId': facId, 'month': month, 'nameEn': nameEn},
     );
 
     final List data = res.data;
@@ -79,6 +80,7 @@ class UtilityDashboardOverviewApi {
         'names': ['Total Energy Consumption'],
       },
     );
+    print('res: ${res.realUri}');
 
     final List data = res.data as List;
 

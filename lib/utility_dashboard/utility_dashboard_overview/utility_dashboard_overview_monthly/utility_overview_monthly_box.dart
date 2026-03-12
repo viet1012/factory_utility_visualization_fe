@@ -38,7 +38,7 @@ class EnergyMonthlySummary {
       month: json['month'] ?? '',
       value: (json['value'] as num?)?.toDouble() ?? 0,
       unit: json['unit'] ?? '',
-      timestamp: DateTime.parse(json['timestamp']),
+      timestamp: DateTime.parse(json['timestamp']).toLocal(),
     );
   }
 }
@@ -51,12 +51,14 @@ class VoltageStatus {
   final double minVol;
   final double maxVol;
   final String alarm;
+  final DateTime timestamp;
 
   VoltageStatus({
     required this.name,
     required this.minVol,
     required this.maxVol,
     required this.alarm,
+    required this.timestamp,
   });
 
   factory VoltageStatus.fromJson(Map<String, dynamic> json) {
@@ -65,6 +67,7 @@ class VoltageStatus {
       minVol: (json['minVol'] as num?)?.toDouble() ?? 0,
       maxVol: (json['maxVol'] as num?)?.toDouble() ?? 0,
       alarm: json['alarm'] ?? 'Normal',
+      timestamp: DateTime.parse(json['timestamp']).toLocal(),
     );
   }
 
@@ -208,7 +211,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   }
 
   String _format(double v) {
-    final f = NumberFormat("#,##0.##");
+    final f = NumberFormat("#,##0");
     return f.format(v);
   }
 
@@ -218,12 +221,22 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   @override
   Widget build(BuildContext context) {
     final facilityColor = UtilityFacStyle.colorFromFac(widget.headerTitle);
+    final allTimestamps = [
+      ...items.map((e) => e.timestamp),
+      if (voltageStatus != null) voltageStatus!.timestamp,
+    ];
+
+    final allValues = [
+      ...items.map((e) => e.value),
+      if (voltageStatus != null) voltageStatus!.maxVol,
+    ];
 
     final healthResult = DataHealthAnalyzer.analyze(
+      key: "Monthly_${widget.facId}_${widget.headerTitle}",
       loading: loading,
       error: error,
-      timestamps: items.map((e) => e.timestamp).toList(),
-      values: items.map((e) => e.value).toList(),
+      timestamps: allTimestamps,
+      values: allValues,
     );
 
     return SlideTransition(
@@ -327,7 +340,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
                 Row(
                   children: [
                     Text(
-                      "Min: ${voltageStatus!.minVol.toStringAsFixed(1)}V   ",
+                      "Min: ${voltageStatus!.minVol.toStringAsFixed(0)}V   ",
                       style: TextStyle(
                         color: color,
                         fontWeight: FontWeight.bold,
@@ -342,7 +355,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
                         );
                       },
                       child: Text(
-                        "Max: ${voltageStatus!.maxVol.toStringAsFixed(1)}V",
+                        "Max: ${voltageStatus!.maxVol.toStringAsFixed(0)}V",
                         style: TextStyle(
                           color: color,
                           fontWeight: FontWeight.bold,

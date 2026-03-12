@@ -118,6 +118,7 @@ class _UtilityDashboardOverviewMinutesChartState
     final valid = rows.where((e) => e.value != null).toList();
 
     final healthResult = DataHealthAnalyzer.analyze(
+      key: "Minutes_${widget.facId}_${widget.theme.title}",
       loading: loading,
       error: error,
       timestamps: valid.map((e) => e.ts.toLocal()).toList(),
@@ -187,8 +188,8 @@ class _UtilityDashboardOverviewMinutesChartState
     if (rows.isEmpty) {
       return Center(
         child: Text(
-          'No data',
-          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+          'No data available',
+          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 20),
         ),
       );
     }
@@ -259,7 +260,7 @@ class _UtilityDashboardOverviewMinutesChartState
       ),
       primaryYAxis: NumericAxis(
         minimum: 0.0,
-        maximum: safeMax,
+        // maximum: safeMax,
         numberFormat: NumberFormat('0.##'),
         majorGridLines: MajorGridLines(
           width: 1,

@@ -303,12 +303,14 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                 child: UtilityDashboardOverviewMinutesChart(
                                   facId: selectedFac,
                                   theme: ChartThemes.water,
+                                  nameEng: 'Test',
                                 ),
                               ),
                               Expanded(
                                 child: UtilityDashboardOverviewMinutesChart(
                                   facId: selectedFac,
                                   theme: ChartThemes.air,
+                                  nameEng: 'Test',
                                 ),
                               ),
                             ],
@@ -426,6 +428,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                     month: monthKey,
                                     height: 320,
                                     theme: ChartThemes.water,
+                                    nameEng: 'TEST',
                                   ),
                                 ),
                                 Expanded(
@@ -434,6 +437,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                     month: monthKey,
                                     height: 320,
                                     theme: ChartThemes.air,
+                                    nameEng: 'TEST',
                                   ),
                                 ),
                               ],
