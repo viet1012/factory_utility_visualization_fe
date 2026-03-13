@@ -231,7 +231,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+              filter: ImageFilter.blur(sigmaX: 3, sigmaY: 1),
               child: Container(
                 width: widget.width,
                 height: widget.height,
@@ -312,10 +312,10 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       );
     }
     if (items.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          "No data",
-          style: TextStyle(color: Colors.white38, fontSize: 12),
+          'No data available',
+          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 20),
         ),
       );
     }
@@ -327,7 +327,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
           // ── VOLTAGE CARD ──
           if (voltageStatus != null) ...[
             _voltageCard(),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
           ],
 
           // ── DIVIDER ──
@@ -337,13 +337,13 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
               gradient: LinearGradient(
                 colors: [
                   Colors.transparent,
-                  Colors.white.withOpacity(0.08),
+                  Colors.black87,
                   Colors.transparent,
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
 
           // ── ENERGY ITEMS ──
           Expanded(
@@ -404,9 +404,9 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
                 height: 28,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: color.withOpacity(0.3),
+                  color: color.withOpacity(0.15),
                 ),
-                child: Icon(Icons.bolt_rounded, color: color, size: 18),
+                child: Icon(Icons.bolt_rounded, color: color, size: 22),
               ),
             ),
             const SizedBox(width: 10),
@@ -528,6 +528,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       decoration: BoxDecoration(
         color: color.withOpacity(0.04),
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.25)),
       ),
       child: Row(
         children: [
@@ -536,9 +537,9 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
             height: 28,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: color.withOpacity(0.3),
+              color: color.withOpacity(0.15),
             ),
-            child: Icon(_iconByCate(item.cate), color: color, size: 18),
+            child: Icon(_iconByCate(item.cate), color: color, size: 22),
           ),
           const SizedBox(width: 8),
 
