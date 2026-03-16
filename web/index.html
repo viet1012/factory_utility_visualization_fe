@@ -1,50 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <!--
-      If you are serving your web app in a path other than the root, change the
-      href value below to reflect the base path you are serving from.
-
-      The path provided below has to start and end with a slash "/" in order for
-      it to work correctly.
-
-      For more details:
-      * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-      This is a placeholder for base href that will be replaced by the value of
-      the `--base-href` argument provided to `flutter build`.
-    -->
-    <base href="$FLUTTER_BASE_HREF">
-
     <meta charset="UTF-8">
     <meta content="IE=Edge" http-equiv="X-UA-Compatible">
     <meta content="A new Flutter project." name="description">
 
-
     <!-- iOS meta tags & icons -->
-    <meta content="yes" name="mobile-web-app-capable">
+    <meta content="yes" name="apple-mobile-web-app-capable">
     <meta content="black" name="apple-mobile-web-app-status-bar-style">
-    <meta content="factory_utility_visualization" name="apple-mobile-web-app-title">
+    <meta content="flutter_web_app" name="apple-mobile-web-app-title">
     <link href="icons/Icon-192.png" rel="apple-touch-icon">
 
     <!-- Favicon -->
     <link href="favicon.png" rel="icon" type="image/png"/>
-    <style>
-        @font-face {
-          font-family: "Roboto";
-          src: url("assets/fonts/Roboto/Roboto-VariableFont_wdth.ttf") format("truetype");
-          font-weight: normal;
-          font-style: normal;
-        }
 
-        body {
-          font-family: "Roboto", sans-serif;
-        }
-    </style>
     <title>Facility Dashboard</title>
     <link href="manifest.json" rel="manifest">
+
+    <script>
+        // TẮT SERVICE WORKER HOÀN TOÀN
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(regs => {
+                for (let r of regs) r.unregister();
+            });
+        }
+
+        // CONFIG CANVASKIT TỪ SERVER 8381
+        self.flutterConfiguration = {
+            canvasKitBaseUrl: "http://192.168.122.15:8381/"
+        };
+    </script>
+
+    <script defer src="flutter_bootstrap.js"></script>
 </head>
 <body>
-<script async src="flutter_bootstrap.js"></script>
+<script>
+    window.addEventListener('load', function (ev) {
+      _flutter.loader.loadEntrypoint({
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            appRunner.runApp();
+          });
+        }
+      });
+    });
+</script>
 </body>
 </html>
