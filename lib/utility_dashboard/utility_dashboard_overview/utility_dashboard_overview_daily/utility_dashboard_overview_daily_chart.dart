@@ -12,6 +12,10 @@ import '../data_health.dart';
 import '../utility_dashboard_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/health_indicator.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DTOs
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _DailyDto {
   final DateTime date;
   final double value;
@@ -19,9 +23,8 @@ class _DailyDto {
   _DailyDto(this.date, this.value);
 
   factory _DailyDto.fromJson(Map<String, dynamic> json) {
-    final d = (json['date'] ?? '').toString(); // "2026-03-01"
+    final d = (json['date'] ?? '').toString();
     final v = json['value'];
-
     return _DailyDto(
       DateTime.parse(d),
       (v is num) ? v.toDouble() : double.tryParse(v.toString()) ?? 0.0,
@@ -32,20 +35,53 @@ class _DailyDto {
 class _BarPoint {
   final DateTime ts;
   final double y;
-
   _BarPoint(this.ts, this.y);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pre-computed chart data — tính một lần, cache lại
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DailyChartData {
+  final List<_BarPoint> points;
+  final DateTime minX;
+  final DateTime maxX;
+  final double safeMaxY;
+
+  const _DailyChartData({
+    required this.points,
+    required this.minX,
+    required this.maxX,
+    required this.safeMaxY,
+  });
+
+  static _DailyChartData from(List<_DailyDto> rows) {
+    final pts = rows.map((e) => _BarPoint(e.date.toLocal(), e.value)).toList()
+      ..sort((a, b) => a.ts.compareTo(b.ts));
+
+    final maxY = pts.isEmpty
+        ? 1.0
+        : pts.map((e) => e.y).reduce((m, v) => v > m ? v : m);
+
+    return _DailyChartData(
+      points: pts,
+      minX: pts.first.ts.subtract(const Duration(days: 1)),
+      maxX: pts.last.ts.add(const Duration(days: 1)),
+      safeMaxY: maxY <= 0 ? 1.0 : maxY * 1.15,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// StatefulWidget
+// ─────────────────────────────────────────────────────────────────────────────
 
 class UtilityDashboardOverviewDailyChart extends StatefulWidget {
   final double width;
   final double? height;
-
-  /// API
   final String facId;
-  final String month; // yyyyMM (vd: 202603)
-
-  /// optional UI
-  final String nameEng; // header title
+  final String month; // yyyyMM
+  final String nameEng;
   final ChartTheme theme;
 
   const UtilityDashboardOverviewDailyChart({
@@ -72,7 +108,14 @@ class _UtilityDashboardOverviewDailyChartState
   bool loading = true;
   Object? error;
 
-  Timer? _timer;
+  // ── Cache — không tính lại trong build() ─────────────────────────────────
+  DataHealthResult? _cachedHealth;
+  _DailyChartData? _cachedChartData;
+  String? _cachedLastVal;
+  String? _cachedLastTs;
+
+  bool _loadingNow = false;
+  bool _disposed = false;
 
   bool get _hasRequired =>
       widget.facId.trim().isNotEmpty &&
@@ -83,37 +126,37 @@ class _UtilityDashboardOverviewDailyChartState
   void initState() {
     super.initState();
     fx = UtilityInfoBoxFx(this)..init();
-    _load(force: true);
-    // optional auto refresh
-    _timer = Timer.periodic(const Duration(seconds: 60), (_) => _load());
+    _load();
   }
 
   @override
-  void didUpdateWidget(covariant UtilityDashboardOverviewDailyChart oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    final changed =
-        oldWidget.facId != widget.facId || oldWidget.month != widget.month;
-
-    if (!changed) return;
+  void didUpdateWidget(covariant UtilityDashboardOverviewDailyChart old) {
+    super.didUpdateWidget(old);
+    if (old.facId == widget.facId && old.month == widget.month) return;
 
     setState(() {
       loading = true;
       error = null;
       rows = [];
+      _cachedHealth = null;
+      _cachedChartData = null;
+      _cachedLastVal = null;
+      _cachedLastTs = null;
     });
 
-    _load(force: true);
+    _load();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _disposed = true;
     fx.dispose();
     super.dispose();
   }
 
-  Future<void> _load({bool force = false}) async {
+  Future<void> _load() async {
+    if (_loadingNow || _disposed) return;
+
     if (!_hasRequired) {
       if (!mounted) return;
       setState(() {
@@ -123,6 +166,8 @@ class _UtilityDashboardOverviewDailyChartState
       });
       return;
     }
+
+    _loadingNow = true;
 
     try {
       final api = context.read<UtilityDashboardOverviewApi>();
@@ -140,34 +185,96 @@ class _UtilityDashboardOverviewDailyChartState
 
       if (!mounted) return;
 
-      setState(() {
-        rows = list;
-        loading = false;
-        error = null;
-      });
+      // Chỉ rebuild khi data thực sự thay đổi
+      if (_dataChanged(list)) {
+        _recomputeCache(list);
+        setState(() {
+          rows = list;
+          loading = false;
+          error = null;
+        });
+      } else {
+        if (loading) setState(() => loading = false);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         error = e;
         loading = false;
       });
+    } finally {
+      _loadingNow = false;
+    }
+
+    if (!_disposed) {
+      Future.delayed(const Duration(seconds: 60), _load);
     }
   }
+
+  bool _dataChanged(List<_DailyDto> next) {
+    if (next.length != rows.length) return true;
+    for (var i = 0; i < next.length; i++) {
+      if (next[i].value != rows[i].value || next[i].date != rows[i].date)
+        return true;
+    }
+    return false;
+  }
+
+  // Tính toàn bộ derived data một lần, lưu vào cache
+  void _recomputeCache(List<_DailyDto> list) {
+    _cachedHealth = DataHealthAnalyzer.analyze(
+      key: "Daily_${widget.facId}_${widget.theme.title}",
+      loading: false,
+      error: null,
+      values: list.map((e) => e.value).toList(),
+    );
+
+    _cachedChartData = list.isEmpty ? null : _DailyChartData.from(list);
+
+    // lastVal / lastTs
+    if (list.isEmpty) {
+      _cachedLastVal = '--';
+      _cachedLastTs = '--';
+    } else {
+      final now = DateTime.now();
+      final isCurrentMonth = DateFormat('yyyyMM').format(now) == widget.month;
+
+      _DailyDto lastDto;
+      if (isCurrentMonth) {
+        final today = DateTime(now.year, now.month, now.day);
+        lastDto = list.firstWhere(
+          (e) =>
+              e.date.year == today.year &&
+              e.date.month == today.month &&
+              e.date.day == today.day,
+          orElse: () => list.last,
+        );
+      } else {
+        lastDto = list.last;
+      }
+
+      _cachedLastVal =
+          '${lastDto.value.toStringAsFixed(1)} ${widget.theme.unit}';
+      _cachedLastTs = DateFormat('yyyy-MM-dd').format(lastDto.date);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Build — chỉ layout + animation shell, chart KHÔNG rebuild theo animation
+  // ─────────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final facilityColor = UtilityFacStyle.colorFromFac(widget.facId);
-    final t = widget.theme;
-    final valid = rows.where((e) => e.value != null).toList();
 
-    final healthResult = DataHealthAnalyzer.analyze(
-      key: "Daily_${widget.facId}_${widget.theme.title}",
-
-      loading: loading,
-      error: error,
-      // timestamps: valid.map((e) => e.date.toLocal()).toList(),
-      values: valid.map((e) => e.value).toList(),
-    );
+    final healthResult =
+        _cachedHealth ??
+        DataHealthAnalyzer.analyze(
+          key: "Daily_${widget.facId}_${widget.theme.title}",
+          loading: loading,
+          error: error,
+          values: const [],
+        );
 
     return SlideTransition(
       position: fx.slide,
@@ -176,54 +283,113 @@ class _UtilityDashboardOverviewDailyChartState
         onExit: (_) => fx.onHover(false),
         child: AnimatedBuilder(
           animation: fx.listenable,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: fx.scale.value,
-              child: Container(
-                width: widget.width,
-                height: widget.height ?? 320,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFF2E1A47).withOpacity(0.25),
-                      const Color(0xFF1A2A6C).withOpacity(0.18),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.12),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: facilityColor.withOpacity(0.22),
-                      blurRadius: 18,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 8),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.35),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: _body(t, healthResult),
-                ),
-              ),
-            );
-          },
+          // ⭐ child ở đây KHÔNG rebuild theo animation frame
+          builder: (context, child) =>
+              Transform.scale(scale: fx.scale.value, child: child),
+          child: _Shell(
+            width: widget.width,
+            height: widget.height ?? 320,
+            facilityColor: facilityColor,
+            child: _Body(
+              theme: widget.theme,
+              hasRequired: _hasRequired,
+              loading: loading,
+              error: error,
+              rows: rows,
+              health: healthResult,
+              lastVal: _cachedLastVal ?? '--',
+              lastTs: _cachedLastTs ?? '--',
+              chartData: _cachedChartData,
+            ),
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _body(ChartTheme t, DataHealthResult health) {
-    if (!_hasRequired) {
+// ─────────────────────────────────────────────────────────────────────────────
+// _Shell — decoration container, tách ra để không drag chart vào rebuild
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _Shell extends StatelessWidget {
+  final double width;
+  final double height;
+  final Color facilityColor;
+  final Widget child;
+
+  const _Shell({
+    required this.width,
+    required this.height,
+    required this.facilityColor,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF2E1A47).withOpacity(0.25),
+            const Color(0xFF1A2A6C).withOpacity(0.18),
+          ],
+        ),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: facilityColor.withOpacity(0.22),
+            blurRadius: 18,
+            spreadRadius: 2,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(borderRadius: BorderRadius.circular(20), child: child),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _Body — layout + title bar, nhận chart data từ ngoài
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _Body extends StatelessWidget {
+  final ChartTheme theme;
+  final bool hasRequired;
+  final bool loading;
+  final Object? error;
+  final List<_DailyDto> rows;
+  final DataHealthResult health;
+  final String lastVal;
+  final String lastTs;
+  final _DailyChartData? chartData;
+
+  const _Body({
+    required this.theme,
+    required this.hasRequired,
+    required this.loading,
+    required this.error,
+    required this.rows,
+    required this.health,
+    required this.lastVal,
+    required this.lastTs,
+    required this.chartData,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!hasRequired) {
       return Center(
         child: Text(
           'Missing facId or month(yyyyMM)',
@@ -232,7 +398,7 @@ class _UtilityDashboardOverviewDailyChartState
       );
     }
 
-    if (loading) {
+    if (loading && rows.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -246,106 +412,14 @@ class _UtilityDashboardOverviewDailyChartState
       );
     }
 
-    // if (rows.isEmpty) {
-    //   return Center(
-    //     child: Text(
-    //       'No data',
-    //       style: TextStyle(color: Colors.white.withOpacity(0.8)),
-    //     ),
-    //   );
-    // }
-
-    final now = DateTime.now();
-    final currentMonth = DateFormat('yyyyMM').format(now);
-
-    _DailyDto? lastDto;
-
-    if (rows.isNotEmpty) {
-      lastDto = rows.last;
-
-      final now = DateTime.now();
-      final currentMonth = DateFormat('yyyyMM').format(now);
-
-      if (widget.month == currentMonth) {
-        final today = DateTime(now.year, now.month, now.day);
-
-        final todayRow = rows.firstWhere(
-          (e) =>
-              e.date.year == today.year &&
-              e.date.month == today.month &&
-              e.date.day == today.day,
-          orElse: () => rows.last,
-        );
-
-        lastDto = todayRow;
-      }
-    }
-
-    final lastVal = lastDto != null
-        ? '${lastDto.value.toStringAsFixed(1)} ${t.unit}'
-        : '--';
-
-    final lastTs = lastDto != null
-        ? DateFormat('yyyy-MM-dd').format(lastDto.date)
-        : '--';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          // padding: EdgeInsets.all(8),
-          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            // borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: t.fillTop.withOpacity(0.35)), // ✅
-          ),
-          child: Row(
-            children: [
-              // const Icon(Icons.bar_chart, size: 16, color: Colors.white),
-              // const SizedBox(width: 8),
-              Text(
-                t.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: HealthIndicator(
-                  result: health,
-                  size: 10,
-                  showLabel: false, // muốn hiện chữ thì true
-                  enableTooltip: true,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Spacer(),
-              Expanded(
-                child: Text(
-                  'Last: $lastVal • $lastTs',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              // IconButton(
-              //   tooltip: 'Refresh',
-              //   onPressed: () => _load(force: true),
-              //   icon: Icon(
-              //     Icons.refresh_rounded,
-              //     color: Colors.white.withOpacity(0.85),
-              //   ),
-              // ),
-            ],
-          ),
+        _TitleBar(
+          theme: theme,
+          health: health,
+          lastVal: lastVal,
+          lastTs: lastTs,
         ),
         const SizedBox(height: 6),
         rows.isEmpty
@@ -360,22 +434,96 @@ class _UtilityDashboardOverviewDailyChartState
                   ),
                 ),
               )
-            : Expanded(child: _chart(t)),
+            : Expanded(
+                // RepaintBoundary: chart có GPU layer riêng
+                // parent repaint (hover glow, border...) không kéo chart theo
+                child: RepaintBoundary(
+                  child: _DailyBarChart(theme: theme, data: chartData!),
+                ),
+              ),
       ],
     );
   }
+}
 
-  Widget _chart(ChartTheme t) {
-    final data = rows.map((e) => _BarPoint(e.date.toLocal(), e.value)).toList()
-      ..sort((a, b) => a.ts.compareTo(b.ts));
+// ─────────────────────────────────────────────────────────────────────────────
+// _TitleBar — StatelessWidget, rebuild độc lập với chart
+// ─────────────────────────────────────────────────────────────────────────────
 
-    final minX = data.first.ts.subtract(const Duration(days: 1));
-    final maxX = data.last.ts.add(const Duration(days: 1));
+class _TitleBar extends StatelessWidget {
+  final ChartTheme theme;
+  final DataHealthResult health;
+  final String lastVal;
+  final String lastTs;
 
-    final ys = data.map((e) => e.y).toList()..sort();
-    final maxY = ys.isEmpty ? 1.0 : ys.last;
-    final safeMaxY = (maxY <= 0) ? 1.0 : (maxY * 1.15);
+  const _TitleBar({
+    required this.theme,
+    required this.health,
+    required this.lastVal,
+    required this.lastTs,
+  });
 
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        border: Border.all(color: theme.fillTop.withOpacity(0.35)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            theme.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: HealthIndicator(
+              result: health,
+              size: 10,
+              showLabel: false,
+              enableTooltip: true,
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Spacer(),
+          Expanded(
+            child: Text(
+              'Last: $lastVal • $lastTs',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _DailyBarChart — StatelessWidget thuần, KHÔNG bao giờ rebuild trừ khi
+// chartData hoặc theme thay đổi thực sự
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DailyBarChart extends StatelessWidget {
+  final ChartTheme theme;
+  final _DailyChartData data;
+
+  const _DailyBarChart({required this.theme, required this.data});
+
+  @override
+  Widget build(BuildContext context) {
     return SfCartesianChart(
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withOpacity(0.12),
@@ -389,8 +537,8 @@ class _UtilityDashboardOverviewDailyChartState
         ),
       ),
       primaryXAxis: DateTimeAxis(
-        minimum: minX,
-        maximum: maxX,
+        minimum: data.minX,
+        maximum: data.maxX,
         intervalType: DateTimeIntervalType.days,
         interval: 1,
         labelRotation: 45,
@@ -407,14 +555,14 @@ class _UtilityDashboardOverviewDailyChartState
       ),
       primaryYAxis: NumericAxis(
         minimum: 0,
-        maximum: safeMaxY,
+        maximum: data.safeMaxY,
         numberFormat: NumberFormat('0.##'),
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(0.08),
         ),
         title: AxisTitle(
-          text: t.unit,
+          text: theme.unit,
           alignment: ChartAlignment.center,
           textStyle: TextStyle(
             color: Colors.white.withOpacity(0.8),
@@ -431,26 +579,19 @@ class _UtilityDashboardOverviewDailyChartState
       series: <CartesianSeries<_BarPoint, DateTime>>[
         ColumnSeries<_BarPoint, DateTime>(
           animationDuration: 1000,
-          dataSource: data,
+          dataSource: data.points,
           xValueMapper: (p, _) => p.ts,
           yValueMapper: (p, _) => p.y,
           width: 0.75,
           spacing: 0.2,
           borderRadius: const BorderRadius.all(Radius.circular(6)),
-
-          // ✅ màu theo theme
-          color: t.line,
-          // fallback nếu gradient không ăn
-
-          // ✅ gradient theo theme (pro)
+          color: theme.line,
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [t.fillTop, t.fillBottom],
+            colors: [theme.fillTop, theme.fillBottom],
           ),
-
-          // ✅ viền nhẹ
-          borderColor: t.line.withOpacity(0.95),
+          borderColor: theme.line.withOpacity(0.95),
           borderWidth: 0.8,
         ),
       ],

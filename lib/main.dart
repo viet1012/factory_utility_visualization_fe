@@ -546,13 +546,12 @@
 // void main() {
 //   runApp(DashboardApp());
 // }
-import 'package:factory_utility_visualization/provider/facility_range_provider.dart';
-import 'package:factory_utility_visualization/provider/facility_realtime_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 void main() {
+  debugPrintRebuildDirtyWidgets = true;
+
   runApp(MyApp());
 }
 
@@ -560,6 +559,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      showPerformanceOverlay: true,
       debugShowCheckedModeBanner: false,
       title: 'Facility Dashboard',
       theme: ThemeData(primarySwatch: Colors.blue),

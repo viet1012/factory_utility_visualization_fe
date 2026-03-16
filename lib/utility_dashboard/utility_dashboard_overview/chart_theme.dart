@@ -43,7 +43,7 @@ class ChartThemes {
   );
 
   static const air = ChartTheme(
-    title: 'AIR COMPRESSER',
+    title: 'COMPRESSER AIR',
     unit: 'Nm³',
     // 👈 thêm (chuẩn công nghiệp)
     line: Color(0xFF9E9E9E),
@@ -66,7 +66,7 @@ class ChartThemes {
   // );
   //
   // static const air = ChartTheme(
-  //   title: 'AIR COMPRESSER',
+  //   title: 'COMPRESSER AIR',
   //   unit: 'Nm³',
   //   // 👈 thêm (chuẩn công nghiệp)
   //   line: Color(0xFF6CFF6C),

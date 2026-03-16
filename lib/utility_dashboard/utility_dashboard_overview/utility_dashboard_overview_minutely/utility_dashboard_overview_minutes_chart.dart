@@ -47,17 +47,23 @@ class _UtilityDashboardOverviewMinutesChartState
   Object? error;
   bool loading = true;
 
-  Timer? _timer;
+  // ── Cache health result để tránh tính lại trong build() ──────────────────
+  DataHealthResult? _cachedHealth;
+
+  bool _loadingNow = false;
+  bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
     fx = UtilityInfoBoxFx(this)..init();
     _load();
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _load());
   }
 
   Future<void> _load() async {
+    if (_loadingNow || _disposed) return;
+    _loadingNow = true;
+
     try {
       final api = context.read<UtilityDashboardOverviewApi>();
       final data = await api.getEnergyMinute(
@@ -68,18 +74,55 @@ class _UtilityDashboardOverviewMinutesChartState
 
       if (!mounted) return;
 
-      setState(() {
-        rows = data;
-        loading = false;
-        error = null;
-      });
+      // Chỉ setState khi data thực sự thay đổi
+      if (_dataChanged(data)) {
+        final valid = data.where((e) => e.value != null).toList();
+
+        // Tính health result ngoài setState, không tính lại trong build()
+        _cachedHealth = DataHealthAnalyzer.analyze(
+          key: "Minutes_${widget.facId}_${widget.theme.title}",
+          loading: false,
+          error: null,
+          values: valid.map((e) => e.value!).toList(),
+        );
+
+        setState(() {
+          rows = data;
+          loading = false;
+          error = null;
+        });
+      } else {
+        // Data không đổi → chỉ tắt loading, không rebuild chart
+        if (loading) {
+          setState(() {
+            loading = false;
+          });
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         error = e;
         loading = false;
       });
+    } finally {
+      _loadingNow = false;
     }
+
+    // Tiếp tục poll, nhưng chỉ khi chưa dispose
+    if (!_disposed) {
+      Future.delayed(const Duration(seconds: 50), _load);
+    }
+  }
+
+  bool _dataChanged(List<MinutePointDto> newData) {
+    if (newData.length != rows.length) return true;
+    for (var i = 0; i < newData.length; i++) {
+      if (newData[i].value != rows[i].value || newData[i].ts != rows[i].ts) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -90,24 +133,21 @@ class _UtilityDashboardOverviewMinutesChartState
 
     final changed =
         oldWidget.facId != widget.facId || oldWidget.minutes != widget.minutes;
-
     if (!changed) return;
 
     setState(() {
       loading = true;
       error = null;
       rows = [];
+      _cachedHealth = null;
     });
 
     _load();
-
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _load());
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _disposed = true;
     fx.dispose();
     super.dispose();
   }
@@ -115,16 +155,19 @@ class _UtilityDashboardOverviewMinutesChartState
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
-    final valid = rows.where((e) => e.value != null).toList();
+    // debugPrint("BUILD UtilityDashboardOverviewMinutesChart");
 
-    final healthResult = DataHealthAnalyzer.analyze(
-      key: "Minutes_${widget.facId}_${widget.theme.title}",
-      loading: loading,
-      error: error,
-      // timestamps: valid.map((e) => e.ts.toLocal()).toList(),
-      values: valid.map((e) => e.value!).toList(),
-    );
+    // Tính health chỉ khi chưa có cache (loading/error state)
+    final healthResult =
+        _cachedHealth ??
+        DataHealthAnalyzer.analyze(
+          key: "Minutes_${widget.facId}_${widget.theme.title}",
+          loading: loading,
+          error: error,
+          values: const [],
+        );
 
+    // ── Animation chỉ bọc phần SHELL (decoration + scale), KHÔNG bọc chart ─
     return SlideTransition(
       position: fx.slide,
       child: AnimatedBuilder(
@@ -132,35 +175,38 @@ class _UtilityDashboardOverviewMinutesChartState
         builder: (context, child) {
           return Transform.scale(
             scale: fx.scale.value,
-            child: Container(
-              width: widget.width,
-              height: widget.height ?? 220,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0B1324),
-                border: Border.all(color: Colors.white.withOpacity(0.10)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _TitleBar(title: t.title, health: healthResult),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                      child: _body(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            // child được pass từ ngoài vào → KHÔNG rebuild theo animation frame
+            child: child,
           );
         },
+        // Chart nằm ở đây: chỉ build lại khi setState, không bị kéo vào loop
+        child: Container(
+          width: widget.width,
+          height: widget.height ?? 220,
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1324),
+            border: Border.all(color: Colors.white.withOpacity(0.10)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _TitleBar(title: t.title, health: healthResult),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                  child: _body(),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -197,9 +243,10 @@ class _UtilityDashboardOverviewMinutesChartState
     return _chart();
   }
 
+  // ── RepaintBoundary isolate repaint của chart khỏi parent ────────────────
   Widget _chart() {
     final t = widget.theme;
-
+    debugPrint("CHART BUILD");
     final data = rows
         .where((e) => e.value != null)
         .map((e) => _ChartPoint(e.ts.toLocal(), e.value!))
@@ -215,10 +262,9 @@ class _UtilityDashboardOverviewMinutesChartState
     }
 
     final ys = data.map((e) => e.y).toList()..sort();
-    final minY = ys.first;
     final maxY = ys.last;
 
-    final range = (maxY - minY).abs();
+    final range = (maxY - ys.first).abs();
     final pad = range == 0
         ? (maxY.abs() * 0.01).clamp(0.01, 999999)
         : range * 0.12;
@@ -228,91 +274,89 @@ class _UtilityDashboardOverviewMinutesChartState
 
     final totalMinutes = maxX.difference(minX).inMinutes;
     final intervalMin = totalMinutes <= 30 ? 5 : 10;
-    final safeMax = (maxY == 0 ? 1.0 : (maxY + pad).toDouble());
-    return SfCartesianChart(
-      margin: EdgeInsets.zero,
-      plotAreaBorderWidth: 1,
-      plotAreaBorderColor: Colors.white.withOpacity(0.10),
-      tooltipBehavior: TooltipBehavior(
-        enable: true,
-        canShowMarker: true,
-        header: '',
-        textStyle: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
+
+    return RepaintBoundary(
+      child: SfCartesianChart(
+        margin: EdgeInsets.zero,
+        plotAreaBorderWidth: 1,
+        plotAreaBorderColor: Colors.white.withOpacity(0.10),
+        tooltipBehavior: TooltipBehavior(
+          enable: true,
+          canShowMarker: true,
+          header: '',
+          textStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-      ),
-      primaryXAxis: DateTimeAxis(
-        minimum: minX,
-        maximum: maxX,
-        intervalType: DateTimeIntervalType.minutes,
-        interval: intervalMin.toDouble(),
-        dateFormat: DateFormat('HH:mm'),
-        majorGridLines: MajorGridLines(
-          width: 1,
-          color: Colors.white.withOpacity(0.06),
-        ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
-        labelStyle: TextStyle(
-          color: Colors.white.withOpacity(0.55),
-          fontSize: 13,
-        ),
-      ),
-      primaryYAxis: NumericAxis(
-        minimum: 0.0,
-        // maximum: safeMax,
-        numberFormat: NumberFormat('0.##'),
-        majorGridLines: MajorGridLines(
-          width: 1,
-          color: Colors.white.withOpacity(0.06),
-        ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
-        labelStyle: TextStyle(
-          color: Colors.white.withOpacity(0.55),
-          fontSize: 13,
-        ),
-        title: AxisTitle(
-          text: t.unit,
-          textStyle: TextStyle(
-            color: Colors.white.withOpacity(.8),
+        primaryXAxis: DateTimeAxis(
+          minimum: minX,
+          maximum: maxX,
+          intervalType: DateTimeIntervalType.minutes,
+          interval: intervalMin.toDouble(),
+          dateFormat: DateFormat('HH:mm'),
+          majorGridLines: MajorGridLines(
+            width: 1,
+            color: Colors.white.withOpacity(0.06),
+          ),
+          axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
+          labelStyle: TextStyle(
+            color: Colors.white.withOpacity(0.55),
             fontSize: 13,
           ),
         ),
+        primaryYAxis: NumericAxis(
+          minimum: 0.0,
+          numberFormat: NumberFormat('0.##'),
+          majorGridLines: MajorGridLines(
+            width: 1,
+            color: Colors.white.withOpacity(0.06),
+          ),
+          axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
+          labelStyle: TextStyle(
+            color: Colors.white.withOpacity(0.55),
+            fontSize: 13,
+          ),
+          title: AxisTitle(
+            text: t.unit,
+            textStyle: TextStyle(
+              color: Colors.white.withOpacity(.8),
+              fontSize: 13,
+            ),
+          ),
+        ),
+        series: [
+          SplineSeries<_ChartPoint, DateTime>(
+            animationDuration: 1200,
+            dataSource: data,
+            xValueMapper: (p, _) => p.ts,
+            yValueMapper: (p, _) => p.y,
+            color: t.line.withOpacity(0.18),
+            width: 7,
+          ),
+          SplineAreaSeries<_ChartPoint, DateTime>(
+            animationDuration: 1000,
+            dataSource: data,
+            xValueMapper: (p, _) => p.ts,
+            yValueMapper: (p, _) => p.y,
+            splineType: SplineType.natural,
+            borderColor: t.line,
+            borderWidth: 2,
+            gradient: LinearGradient(
+              colors: [t.fillTop, t.fillBottom],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            markerSettings: MarkerSettings(
+              isVisible: true,
+              width: 4,
+              height: 4,
+              borderWidth: 1,
+              borderColor: widget.theme.line.withOpacity(0.9),
+            ),
+          ),
+        ],
       ),
-      series: [
-        // glow layer (mờ, rộng) -> nhìn “pro”
-        SplineSeries<_ChartPoint, DateTime>(
-          animationDuration: 1200,
-          dataSource: data,
-          xValueMapper: (p, _) => p.ts,
-          yValueMapper: (p, _) => p.y,
-          color: t.line.withOpacity(0.18),
-          width: 7,
-        ),
-
-        // main area + line
-        SplineAreaSeries<_ChartPoint, DateTime>(
-          animationDuration: 1000,
-          dataSource: data,
-          xValueMapper: (p, _) => p.ts,
-          yValueMapper: (p, _) => p.y,
-          splineType: SplineType.natural,
-          borderColor: t.line,
-          borderWidth: 2,
-          gradient: LinearGradient(
-            colors: [t.fillTop, t.fillBottom],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          markerSettings: MarkerSettings(
-            isVisible: true,
-            width: 4,
-            height: 4,
-            borderWidth: 1,
-            borderColor: widget.theme.line.withOpacity(0.9),
-          ),
-        ),
-      ],
     );
   }
 }

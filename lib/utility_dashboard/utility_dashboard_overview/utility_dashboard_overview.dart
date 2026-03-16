@@ -378,12 +378,14 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                   child: UtilityDashboardOverviewHourlyCompare(
                                     facId: selectedFac,
                                     theme: ChartThemes.water,
+                                    nameEng: 'Test',
                                   ),
                                 ),
                                 Expanded(
                                   child: UtilityDashboardOverviewHourlyCompare(
                                     facId: selectedFac,
                                     theme: ChartThemes.air,
+                                    nameEng: 'Test',
                                   ),
                                 ),
                               ],

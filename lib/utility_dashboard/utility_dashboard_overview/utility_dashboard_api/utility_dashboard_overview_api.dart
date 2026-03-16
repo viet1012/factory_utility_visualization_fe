@@ -29,10 +29,11 @@ class UtilityDashboardOverviewApi {
   Future<List<Map<String, dynamic>>> getEnergyHourly({
     required String facId,
     required int hours,
+    String? nameEn,
   }) async {
     final res = await dio.get(
       '/api/utility/energy-hourly',
-      queryParameters: {'facId': facId, 'hours': hours},
+      queryParameters: {'facId': facId, 'hours': hours, 'nameEn': nameEn},
     );
 
     final List data = res.data;

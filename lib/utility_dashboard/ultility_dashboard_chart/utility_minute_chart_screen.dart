@@ -364,39 +364,6 @@ class _UtilityAllFactoriesChartsScreenState
     );
   }
 
-  // Widget _summaryBody({
-  //   required String cate,
-  //   required String facId,
-  //   required bool loading,
-  //   required Object? error,
-  //   required List<SignalChartConfig> charts,
-  // }) {
-  //   // time window today
-  //   final now = DateTime.now();
-  //   final today = DateTime(now.year, now.month, now.day);
-  //   final fromTs = today;
-  //   final toTs = today.add(const Duration(days: 1));
-  //
-  //   // ✅ HARD FILTER theo yêu cầu bạn
-  //   const plcAddress = 'D30';
-  //   const cateId = 'E_EneCon';
-  //
-  //   debugPrint(
-  //     '[SUMMARY FIXED] fac=$facId cate=$cate plc=$plcAddress cateId=$cateId',
-  //   );
-  //
-  //   return Center(
-  //     child: UtilityHourlyBarChartPanel(
-  //       facId: 'Fac_B',
-  //       boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
-  //       plcAddress: 'D22',
-  //       range: 'LAST_7_DAYS',
-  //       width: 700,
-  //       height: 360,
-  //     ),
-  //   );
-  // }
-
   Widget _summaryBody({
     required String cate,
     required String facId,

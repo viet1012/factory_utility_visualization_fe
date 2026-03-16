@@ -427,6 +427,43 @@ class VoltageDetail {
 //   }
 // }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Immutable cache — tính một lần sau fetch, không tính trong build()
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _VoltageCache {
+  final List<VoltageDetail> data;
+  final List<VoltageDetail> alarmD12;
+  final List<VoltageDetail> alarmD14;
+  final List<VoltageDetail> alarmD16;
+  final bool hasAlarm;
+
+  const _VoltageCache({
+    required this.data,
+    required this.alarmD12,
+    required this.alarmD14,
+    required this.alarmD16,
+    required this.hasAlarm,
+  });
+
+  static _VoltageCache from(List<VoltageDetail> d) {
+    final a12 = d.where((e) => e.d12 > 245).toList();
+    final a14 = d.where((e) => e.d14 > 245).toList();
+    final a16 = d.where((e) => e.d16 > 245).toList();
+    return _VoltageCache(
+      data: d,
+      alarmD12: a12,
+      alarmD14: a14,
+      alarmD16: a16,
+      hasAlarm: a12.isNotEmpty || a14.isNotEmpty || a16.isNotEmpty,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// StatefulWidget
+// ─────────────────────────────────────────────────────────────────────────────
+
 class VoltageDetailChart extends StatefulWidget {
   final UtilityDashboardOverviewApi api;
 
@@ -437,22 +474,23 @@ class VoltageDetailChart extends StatefulWidget {
 }
 
 class _VoltageDetailChartState extends State<VoltageDetailChart> {
-  List<VoltageDetail> data = [];
+  _VoltageCache? _cache;
   bool isLoading = true;
-  late TooltipBehavior _tooltip;
-  late ZoomPanBehavior _zoomPan;
-  Timer? _timer;
   Object? error;
 
-  // Alarm lists tính sẵn
-  List<VoltageDetail> alarmD12 = [];
-  List<VoltageDetail> alarmD14 = [];
-  List<VoltageDetail> alarmD16 = [];
+  // Khởi tạo một lần, không recreate mỗi build()
+  // late final đảm bảo Syncfusion không tạo lại object nặng
+  late final TooltipBehavior _tooltip;
+  late final ZoomPanBehavior _zoomPan;
+
+  bool _loadingNow = false;
+  bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
 
+    // Tạo đúng một lần — Syncfusion reuse object này xuyên suốt lifecycle
     _tooltip = TooltipBehavior(
       enable: true,
       color: const Color(0xFF1A2E3D),
@@ -467,43 +505,66 @@ class _VoltageDetailChartState extends State<VoltageDetailChart> {
       zoomMode: ZoomMode.x,
     );
 
-    load();
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) => load());
+    _load();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
-    _timer = null;
+    _disposed = true;
     super.dispose();
   }
 
-  Future<void> load() async {
-    if (!mounted) return;
+  Future<void> _load() async {
+    if (_loadingNow || _disposed) return;
+    _loadingNow = true;
+
     try {
       final d = await widget.api.getVoltageDetail();
       if (!mounted) return;
 
-      setState(() {
-        data = d;
-        alarmD12 = d.where((e) => e.d12 > 245).toList();
-        alarmD14 = d.where((e) => e.d14 > 245).toList();
-        alarmD16 = d.where((e) => e.d16 > 245).toList();
-        error = null;
-        isLoading = false;
-      });
+      final next = _VoltageCache.from(d);
+
+      // Chỉ setState khi data thực sự thay đổi
+      if (_dataChanged(next)) {
+        setState(() {
+          _cache = next;
+          error = null;
+          isLoading = false;
+        });
+      } else {
+        if (isLoading) setState(() => isLoading = false);
+      }
     } catch (e) {
-      debugPrint("Voltage API error: $e");
       if (!mounted) return;
       setState(() {
         error = e;
         isLoading = false;
       });
+    } finally {
+      _loadingNow = false;
+    }
+
+    if (!_disposed) {
+      Future.delayed(const Duration(seconds: 30), _load);
     }
   }
 
-  bool get hasAlarm =>
-      alarmD12.isNotEmpty || alarmD14.isNotEmpty || alarmD16.isNotEmpty;
+  bool _dataChanged(_VoltageCache next) {
+    final cur = _cache;
+    if (cur == null) return true;
+    if (next.data.length != cur.data.length) return true;
+    // So sánh sample đầu + cuối để tránh loop toàn bộ list
+    if (next.data.isEmpty) return false;
+    final last = next.data.length - 1;
+    return next.data[0].d12 != cur.data[0].d12 ||
+        next.data[0].time != cur.data[0].time ||
+        next.data[last].d12 != cur.data[last].d12 ||
+        next.data[last].time != cur.data[last].time;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Build — shell + header tách khỏi chart body
+  // ─────────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -527,177 +588,33 @@ class _VoltageDetailChartState extends State<VoltageDetailChart> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── HEADER ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-            child: Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1197D1),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  "VOLTAGE MONITOR",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const Spacer(),
-                // Blink badge — widget RIÊNG, không làm chart rebuild
-                if (hasAlarm) const _AlarmBadge(),
-              ],
-            ),
-          ),
+          // Header — StatelessWidget riêng, rebuild độc lập với chart
+          _VoltageHeader(hasAlarm: _cache?.hasAlarm ?? false),
 
-          // ── CHART — chỉ rebuild khi data thay đổi ──
           Expanded(
             child: isLoading
                 ? const Center(
                     child: CircularProgressIndicator(color: Color(0xFF1197D1)),
                   )
+                : error != null
+                ? Center(
+                    child: Text(
+                      'Error: $error',
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 13,
+                      ),
+                    ),
+                  )
                 : Padding(
                     padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+                    // RepaintBoundary: chart có GPU layer riêng
+                    // header alarm badge blink KHÔNG kéo chart repaint
                     child: RepaintBoundary(
-                      child: SfCartesianChart(
-                        enableAxisAnimation: false,
-                        backgroundColor: Colors.transparent,
-                        plotAreaBackgroundColor: Colors.transparent,
-                        tooltipBehavior: _tooltip,
-                        zoomPanBehavior: _zoomPan,
-                        legend: Legend(
-                          isVisible: true,
-                          position: LegendPosition.top,
-                          overflowMode: LegendItemOverflowMode.wrap,
-                          textStyle: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
-                            fontSize: 14,
-                          ),
-                        ),
-                        primaryXAxis: DateTimeAxis(
-                          dateFormat: DateFormat.Hm(),
-                          intervalType: DateTimeIntervalType.hours,
-                          majorGridLines: MajorGridLines(
-                            color: Colors.white.withOpacity(0.05),
-                          ),
-                          labelStyle: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
-                            fontSize: 14,
-                          ),
-                        ),
-                        primaryYAxis: NumericAxis(
-                          minimum: 190,
-                          interval: 20,
-                          axisLine: const AxisLine(color: Colors.transparent),
-                          majorTickLines: const MajorTickLines(size: 0),
-                          majorGridLines: MajorGridLines(
-                            color: Colors.white.withOpacity(0.08),
-                            width: 1,
-                            dashArray: const [4, 4],
-                          ),
-                          labelStyle: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
-                            fontSize: 14,
-                          ),
-                          labelFormat: '{value}V',
-                          plotBands: [
-                            PlotBand(
-                              start: 205,
-                              end: 245,
-                              color: const Color(0xFF1197D1).withOpacity(0.06),
-                              borderColor: Colors.transparent,
-                            ),
-                            PlotBand(
-                              start: 205,
-                              end: 205,
-                              borderWidth: 1.5,
-                              borderColor: Colors.grey.withOpacity(0.5),
-                              dashArray: const [6, 4],
-                              text: '  205V',
-                              textStyle: TextStyle(
-                                color: Colors.grey.withOpacity(0.7),
-                                fontSize: 18,
-                              ),
-                              verticalTextAlignment: TextAnchor.start,
-                            ),
-                            PlotBand(
-                              start: 245,
-                              end: 245,
-                              borderWidth: 1.5,
-                              borderColor: Colors.red.withOpacity(0.4),
-                              dashArray: const [6, 4],
-                              text: '  245V',
-                              textStyle: TextStyle(
-                                color: Colors.red.withOpacity(0.4),
-                                fontSize: 18,
-                              ),
-                              verticalTextAlignment: TextAnchor.start,
-                            ),
-                          ],
-                        ),
-                        series: <CartesianSeries>[
-                          SplineSeries<VoltageDetail, DateTime>(
-                            animationDuration: 0,
-                            dataSource: data,
-                            xValueMapper: (e, _) => e.time,
-                            yValueMapper: (e, _) => e.d12 == 0 ? null : e.d12,
-                            emptyPointSettings: const EmptyPointSettings(
-                              mode: EmptyPointMode.gap,
-                            ),
-                            color: const Color(0xFF00B4FF),
-                            name: 'D12',
-                            markerSettings: const MarkerSettings(
-                              isVisible: false,
-                            ),
-                            splineType: SplineType.monotonic,
-                          ),
-                          SplineSeries<VoltageDetail, DateTime>(
-                            animationDuration: 0,
-                            dataSource: data,
-                            xValueMapper: (e, _) => e.time,
-                            yValueMapper: (e, _) => e.d14 == 0 ? null : e.d14,
-                            emptyPointSettings: const EmptyPointSettings(
-                              mode: EmptyPointMode.gap,
-                            ),
-                            color: const Color(0xFFFF9500),
-                            width: 2,
-                            name: 'D14',
-                            markerSettings: const MarkerSettings(
-                              isVisible: false,
-                            ),
-                            splineType: SplineType.monotonic,
-                          ),
-                          SplineSeries<VoltageDetail, DateTime>(
-                            animationDuration: 0,
-                            dataSource: data,
-                            xValueMapper: (e, _) => e.time,
-                            yValueMapper: (e, _) => e.d16 == 0 ? null : e.d16,
-                            emptyPointSettings: const EmptyPointSettings(
-                              mode: EmptyPointMode.gap,
-                            ),
-                            color: const Color(0xFF2ECC71),
-                            width: 2,
-                            name: 'D16',
-                            markerSettings: const MarkerSettings(
-                              isVisible: false,
-                            ),
-                            splineType: SplineType.monotonic,
-                          ),
-                          // Static alarm markers — KHÔNG dùng _blink
-                          if (alarmD12.isNotEmpty)
-                            _buildAlarmSeries('D12', alarmD12, (e) => e.d12),
-                          if (alarmD14.isNotEmpty)
-                            _buildAlarmSeries('D14', alarmD14, (e) => e.d14),
-                          if (alarmD16.isNotEmpty)
-                            _buildAlarmSeries('D16', alarmD16, (e) => e.d16),
-                        ],
+                      child: _VoltageChart(
+                        cache: _cache!,
+                        tooltip: _tooltip,
+                        zoomPan: _zoomPan,
                       ),
                     ),
                   ),
@@ -706,15 +623,202 @@ class _VoltageDetailChartState extends State<VoltageDetailChart> {
       ),
     );
   }
+}
 
-  ScatterSeries<VoltageDetail, DateTime> _buildAlarmSeries(
+// ─────────────────────────────────────────────────────────────────────────────
+// _VoltageHeader — StatelessWidget, tách hoàn toàn khỏi chart
+// Khi _AlarmBadge blink → chỉ header repaint, chart KHÔNG bị kéo theo
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _VoltageHeader extends StatelessWidget {
+  final bool hasAlarm;
+
+  const _VoltageHeader({required this.hasAlarm});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 20,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1197D1),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Text(
+            'VOLTAGE MONITOR',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const Spacer(),
+          if (hasAlarm) const _AlarmBadge(),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _VoltageChart — StatelessWidget thuần
+// Chỉ rebuild khi cache reference thay đổi (data mới từ API)
+// _tooltip và _zoomPan được pass vào, không recreate
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _VoltageChart extends StatelessWidget {
+  final _VoltageCache cache;
+  final TooltipBehavior tooltip;
+  final ZoomPanBehavior zoomPan;
+
+  const _VoltageChart({
+    required this.cache,
+    required this.tooltip,
+    required this.zoomPan,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SfCartesianChart(
+      enableAxisAnimation: false,
+      backgroundColor: Colors.transparent,
+      plotAreaBackgroundColor: Colors.transparent,
+      tooltipBehavior: tooltip,
+      zoomPanBehavior: zoomPan,
+      legend: Legend(
+        isVisible: true,
+        position: LegendPosition.top,
+        overflowMode: LegendItemOverflowMode.wrap,
+        textStyle: TextStyle(
+          color: Colors.white.withOpacity(0.85),
+          fontSize: 14,
+        ),
+      ),
+      primaryXAxis: DateTimeAxis(
+        dateFormat: DateFormat.Hm(),
+        intervalType: DateTimeIntervalType.hours,
+        majorGridLines: MajorGridLines(color: Colors.white.withOpacity(0.05)),
+        labelStyle: TextStyle(
+          color: Colors.white.withOpacity(0.5),
+          fontSize: 14,
+        ),
+      ),
+      primaryYAxis: NumericAxis(
+        minimum: 190,
+        interval: 20,
+        axisLine: const AxisLine(color: Colors.transparent),
+        majorTickLines: const MajorTickLines(size: 0),
+        majorGridLines: MajorGridLines(
+          color: Colors.white.withOpacity(0.08),
+          width: 1,
+          dashArray: const [4, 4],
+        ),
+        labelStyle: TextStyle(
+          color: Colors.white.withOpacity(0.5),
+          fontSize: 14,
+        ),
+        labelFormat: '{value}V',
+        plotBands: [
+          PlotBand(
+            start: 205,
+            end: 245,
+            color: const Color(0xFF1197D1).withOpacity(0.06),
+            borderColor: Colors.transparent,
+          ),
+          PlotBand(
+            start: 205,
+            end: 205,
+            borderWidth: 1.5,
+            borderColor: Colors.grey.withOpacity(0.5),
+            dashArray: const [6, 4],
+            text: '  205V',
+            textStyle: TextStyle(
+              color: Colors.grey.withOpacity(0.7),
+              fontSize: 18,
+            ),
+            verticalTextAlignment: TextAnchor.start,
+          ),
+          PlotBand(
+            start: 245,
+            end: 245,
+            borderWidth: 1.5,
+            borderColor: Colors.red.withOpacity(0.4),
+            dashArray: const [6, 4],
+            text: '  245V',
+            textStyle: TextStyle(
+              color: Colors.red.withOpacity(0.4),
+              fontSize: 18,
+            ),
+            verticalTextAlignment: TextAnchor.start,
+          ),
+        ],
+      ),
+      series: <CartesianSeries>[
+        SplineSeries<VoltageDetail, DateTime>(
+          animationDuration: 0,
+          dataSource: cache.data,
+          xValueMapper: (e, _) => e.time,
+          yValueMapper: (e, _) => e.d12 == 0 ? null : e.d12,
+          emptyPointSettings: const EmptyPointSettings(
+            mode: EmptyPointMode.gap,
+          ),
+          color: const Color(0xFF00B4FF),
+          name: 'D12',
+          markerSettings: const MarkerSettings(isVisible: false),
+          splineType: SplineType.monotonic,
+        ),
+        SplineSeries<VoltageDetail, DateTime>(
+          animationDuration: 0,
+          dataSource: cache.data,
+          xValueMapper: (e, _) => e.time,
+          yValueMapper: (e, _) => e.d14 == 0 ? null : e.d14,
+          emptyPointSettings: const EmptyPointSettings(
+            mode: EmptyPointMode.gap,
+          ),
+          color: const Color(0xFFFF9500),
+          width: 2,
+          name: 'D14',
+          markerSettings: const MarkerSettings(isVisible: false),
+          splineType: SplineType.monotonic,
+        ),
+        SplineSeries<VoltageDetail, DateTime>(
+          animationDuration: 0,
+          dataSource: cache.data,
+          xValueMapper: (e, _) => e.time,
+          yValueMapper: (e, _) => e.d16 == 0 ? null : e.d16,
+          emptyPointSettings: const EmptyPointSettings(
+            mode: EmptyPointMode.gap,
+          ),
+          color: const Color(0xFF2ECC71),
+          width: 2,
+          name: 'D16',
+          markerSettings: const MarkerSettings(isVisible: false),
+          splineType: SplineType.monotonic,
+        ),
+        if (cache.alarmD12.isNotEmpty)
+          _alarmSeries('D12', cache.alarmD12, (e) => e.d12),
+        if (cache.alarmD14.isNotEmpty)
+          _alarmSeries('D14', cache.alarmD14, (e) => e.d14),
+        if (cache.alarmD16.isNotEmpty)
+          _alarmSeries('D16', cache.alarmD16, (e) => e.d16),
+      ],
+    );
+  }
+
+  static ScatterSeries<VoltageDetail, DateTime> _alarmSeries(
     String name,
     List<VoltageDetail> alarms,
     double Function(VoltageDetail) valueGetter,
   ) {
     return ScatterSeries<VoltageDetail, DateTime>(
       animationDuration: 0,
-      // ← bắt buộc
       animationDelay: 0,
       isVisibleInLegend: false,
       name: name,
@@ -729,9 +833,9 @@ class _VoltageDetailChartState extends State<VoltageDetailChart> {
         borderColor: Colors.red,
         borderWidth: 2,
       ),
-
       dataLabelMapper: (e, _) =>
-          "$name\n${DateFormat('dd/MM HH:mm').format(e.time)}\n${valueGetter(e).toStringAsFixed(1)}V",
+          '$name\n${DateFormat('dd/MM HH:mm').format(e.time)}\n'
+          '${valueGetter(e).toStringAsFixed(1)}V',
       dataLabelSettings: const DataLabelSettings(
         isVisible: true,
         labelAlignment: ChartDataLabelAlignment.top,
@@ -745,7 +849,11 @@ class _VoltageDetailChartState extends State<VoltageDetailChart> {
   }
 }
 
-// ── Widget blink RIÊNG — tự quản lý animation, không ảnh hưởng chart ──
+// ─────────────────────────────────────────────────────────────────────────────
+// _AlarmBadge — animation hoàn toàn isolated
+// FadeTransition dùng Tween trực tiếp → không setState, không rebuild parent
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _AlarmBadge extends StatefulWidget {
   const _AlarmBadge();
 
@@ -755,8 +863,8 @@ class _AlarmBadge extends StatefulWidget {
 
 class _AlarmBadgeState extends State<_AlarmBadge>
     with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _opacity;
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
 
   @override
   void initState() {
@@ -783,7 +891,7 @@ class _AlarmBadgeState extends State<_AlarmBadge>
         decoration: BoxDecoration(
           color: Colors.red.withOpacity(0.15),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.red, width: 1),
+          border: Border.all(color: Colors.red),
         ),
         child: const Row(
           mainAxisSize: MainAxisSize.min,
@@ -791,7 +899,7 @@ class _AlarmBadgeState extends State<_AlarmBadge>
             Icon(Icons.warning_amber_rounded, color: Colors.red, size: 14),
             SizedBox(width: 4),
             Text(
-              "OVER VOLTAGE",
+              'OVER VOLTAGE',
               style: TextStyle(
                 color: Colors.red,
                 fontSize: 13,
