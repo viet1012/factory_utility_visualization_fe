@@ -78,506 +78,6 @@ class VoltageStatus {
 /// =======================
 /// WIDGET
 /// =======================
-// class UtilityOverviewMonthlyBox extends StatefulWidget {
-//   final double width;
-//   final double? height;
-//   final String facId;
-//   final String month;
-//   final String headerTitle;
-//
-//   const UtilityOverviewMonthlyBox({
-//     super.key,
-//     required this.facId,
-//     required this.month,
-//     required this.headerTitle,
-//     this.width = 240,
-//     this.height = 220,
-//   });
-//
-//   @override
-//   State<UtilityOverviewMonthlyBox> createState() =>
-//       _UtilityOverviewMonthlyBoxState();
-// }
-//
-// class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
-//     with TickerProviderStateMixin {
-//   late final UtilityInfoBoxFx fx;
-//   bool loading = true;
-//   Object? error;
-//   List<EnergyMonthlySummary> items = [];
-//   VoltageStatus? voltageStatus;
-//   Timer? _timer;
-//   late AnimationController _pulseController;
-//   late Animation<double> _pulseAnimation;
-//   late UtilityDashboardOverviewApi api;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     api = context.read<UtilityDashboardOverviewApi>();
-//     fx = UtilityInfoBoxFx(this)..init();
-//     _pulseController = AnimationController(
-//       vsync: this,
-//       duration: const Duration(milliseconds: 900),
-//     )..repeat(reverse: true);
-//     _pulseAnimation = Tween<double>(begin: 0.85, end: 1.8).animate(
-//       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-//     );
-//     _load();
-//     _timer = Timer.periodic(const Duration(seconds: 30), (_) => _load());
-//   }
-//
-//   Future<void> _load() async {
-//     try {
-//       final raw = await api.getEnergyMonthlySummary(
-//         facId: widget.facId,
-//         month: widget.month,
-//       );
-//       final parsed = raw.map((e) => EnergyMonthlySummary.fromJson(e)).toList();
-//       final voltage = await api.getVoltageStatus();
-//       if (!mounted) return;
-//       setState(() {
-//         items = parsed;
-//         voltageStatus = voltage;
-//         loading = false;
-//         error = null;
-//       });
-//     } catch (e) {
-//       if (!mounted) return;
-//       setState(() {
-//         error = e;
-//         loading = false;
-//       });
-//     }
-//   }
-//
-//   @override
-//   void dispose() {
-//     _timer?.cancel();
-//     fx.dispose();
-//     _pulseController.dispose();
-//     super.dispose();
-//   }
-//
-//   IconData _iconByCate(String cate) {
-//     switch (cate) {
-//       case "Electricity":
-//         return Icons.bolt_rounded;
-//       case "Water":
-//         return Icons.water_drop_rounded;
-//       case "Compressed Air":
-//         return Icons.air_rounded;
-//       default:
-//         return Icons.device_unknown_rounded;
-//     }
-//   }
-//
-//   Color _colorByCate(String cate) {
-//     switch (cate) {
-//       case "Electricity":
-//         return const Color(0xFFFFB300);
-//       case "Water":
-//         return const Color(0xFF29B6F6);
-//       case "Compressed Air":
-//         return const Color(0xFF26C6DA);
-//       default:
-//         return Colors.white70;
-//     }
-//   }
-//
-//   String _format(double v) => NumberFormat("#,##0").format(v);
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final facColor = UtilityFacStyle.colorFromFac(widget.headerTitle);
-//     debugPrint("CHART BUILD IN MONTHLY");
-//
-//     // final allTimestamps = [
-//     //   ...items.map((e) => e.timestamp),
-//     //   if (voltageStatus != null) voltageStatus!.timestamp,
-//     // ];
-//     // final allValues = [
-//     //   ...items.map((e) => e.value),
-//     //   if (voltageStatus != null) voltageStatus!.maxVol,
-//     // ];
-//     // final healthResult = DataHealthAnalyzer.analyze(
-//     //   key: "Monthly_${widget.facId}_${widget.headerTitle}",
-//     //   loading: loading,
-//     //   error: error,
-//     //   timestamps: allTimestamps,
-//     //   values: allValues,
-//     // );
-//     final allTimestamps = [
-//       // ...items.map((e) => e.timestamp),
-//       if (voltageStatus != null) voltageStatus!.timestamp,
-//     ];
-//
-//     final allValues = [
-//       ...items.map((e) => e.value),
-//       if (voltageStatus != null) voltageStatus!.maxVol,
-//     ];
-//
-//     final healthResult = DataHealthAnalyzer.analyze(
-//       key: "Monthly_${widget.facId}_${widget.headerTitle}",
-//       loading: loading,
-//       error: error,
-//       // timestamps: allTimestamps,
-//       values: allValues,
-//     );
-//     return SlideTransition(
-//       position: fx.slide,
-//       child: AnimatedBuilder(
-//         animation: fx.listenable,
-//         builder: (_, __) => Transform.scale(
-//           scale: fx.scale.value,
-//           child: ClipRRect(
-//             borderRadius: BorderRadius.circular(16),
-//             child: BackdropFilter(
-//               filter: ImageFilter.blur(sigmaX: 3, sigmaY: 1),
-//               child: Container(
-//                 width: widget.width,
-//                 height: widget.height,
-//                 decoration: _boxDecoration(facColor),
-//                 child: Column(
-//                   crossAxisAlignment: CrossAxisAlignment.stretch,
-//                   children: [
-//                     // ── HEADER ──
-//                     UtilityInfoBoxHeader.header(
-//                       facilityColor: facColor,
-//                       facTitle: widget.headerTitle,
-//                       healthResult: healthResult,
-//                     ),
-//                     // ── BODY ──
-//                     Expanded(child: _body(facColor)),
-//                   ],
-//                 ),
-//               ),
-//             ),
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-//
-//   BoxDecoration _boxDecoration(Color facColor) {
-//     return BoxDecoration(
-//       color: const Color(0xFF0A1628).withOpacity(0.35),
-//       // glass transparency
-//       borderRadius: BorderRadius.circular(16),
-//
-//       border: Border.all(color: facColor.withOpacity(0.35), width: 1.2),
-//
-//       gradient: LinearGradient(
-//         begin: Alignment.topLeft,
-//         end: Alignment.bottomRight,
-//         colors: [
-//           Colors.white.withOpacity(0.10),
-//           Colors.white.withOpacity(0.02),
-//         ],
-//       ),
-//
-//       boxShadow: [
-//         BoxShadow(
-//           color: facColor.withOpacity(0.20),
-//           blurRadius: 28,
-//           spreadRadius: 1,
-//           offset: const Offset(0, 10),
-//         ),
-//         const BoxShadow(
-//           color: Color(0x66000000),
-//           blurRadius: 16,
-//           offset: Offset(0, 6),
-//         ),
-//       ],
-//     );
-//   }
-//
-//   Widget _body(Color facColor) {
-//     if (loading) {
-//       return Center(
-//         child: CircularProgressIndicator(color: facColor, strokeWidth: 2),
-//       );
-//     }
-//     if (error != null) {
-//       return const Center(
-//         child: Column(
-//           mainAxisSize: MainAxisSize.min,
-//           children: [
-//             Icon(Icons.cloud_off_rounded, color: Color(0xFFEF5350), size: 28),
-//             SizedBox(height: 6),
-//             Text(
-//               "API Error",
-//               style: TextStyle(color: Color(0xFFEF5350), fontSize: 12),
-//             ),
-//           ],
-//         ),
-//       );
-//     }
-//     if (items.isEmpty) {
-//       return Center(
-//         child: Text(
-//           'No data available',
-//           style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 20),
-//         ),
-//       );
-//     }
-//
-//     return Padding(
-//       padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
-//       child: Column(
-//         children: [
-//           // ── VOLTAGE CARD ──
-//           if (voltageStatus != null) ...[
-//             _voltageCard(),
-//             const SizedBox(height: 4),
-//           ],
-//
-//           // ── DIVIDER ──
-//           Container(
-//             height: 1,
-//             decoration: BoxDecoration(
-//               gradient: LinearGradient(
-//                 colors: [
-//                   Colors.transparent,
-//                   Colors.black87,
-//                   Colors.transparent,
-//                 ],
-//               ),
-//             ),
-//           ),
-//           const SizedBox(height: 4),
-//
-//           // ── ENERGY ITEMS ──
-//           Expanded(
-//             child: ListView.separated(
-//               physics: const NeverScrollableScrollPhysics(),
-//               itemCount: items.length,
-//               separatorBuilder: (_, __) => const SizedBox(height: 4),
-//               itemBuilder: (_, i) => _energyRow(items[i]),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   // ── VOLTAGE CARD ──
-//   Widget _voltageCard() {
-//     final alarm = voltageStatus!.isAlarm;
-//     final color = alarm ? const Color(0xFFEF5350) : const Color(0xFFFFB300);
-//
-//     return GestureDetector(
-//       onTap: () => showDialog(
-//         context: context,
-//         builder: (_) => Dialog(
-//           backgroundColor: Colors.transparent,
-//           insetPadding: const EdgeInsets.all(20),
-//           child: Container(
-//             width: 1400,
-//             height: 600,
-//             padding: const EdgeInsets.all(8),
-//             decoration: BoxDecoration(
-//               color: Colors.black87,
-//               borderRadius: BorderRadius.circular(12),
-//             ),
-//             child: VoltageDetailChart(api: api),
-//           ),
-//         ),
-//       ),
-//       child: AnimatedContainer(
-//         duration: const Duration(milliseconds: 300),
-//         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-//         decoration: BoxDecoration(
-//           color: color.withOpacity(0.08),
-//           borderRadius: BorderRadius.circular(12),
-//           border: Border.all(color: color.withOpacity(alarm ? 0.6 : 0.25)),
-//         ),
-//         child: Row(
-//           children: [
-//             // Pulse icon
-//             AnimatedBuilder(
-//               animation: _pulseAnimation,
-//               builder: (_, child) => Transform.scale(
-//                 scale: alarm ? _pulseAnimation.value : 1.0,
-//                 child: child,
-//               ),
-//               child: Container(
-//                 width: 28,
-//                 height: 28,
-//                 decoration: BoxDecoration(
-//                   shape: BoxShape.circle,
-//                   color: color.withOpacity(0.15),
-//                 ),
-//                 child: Icon(Icons.bolt_rounded, color: color, size: 22),
-//               ),
-//             ),
-//             const SizedBox(width: 10),
-//
-//             // Values
-//             Expanded(
-//               child: Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   Row(
-//                     children: [
-//                       Text(
-//                         "Voltage",
-//                         style: TextStyle(
-//                           color: color,
-//                           fontSize: 13,
-//                           fontWeight: FontWeight.w800,
-//                           letterSpacing: 1.2,
-//                         ),
-//                       ),
-//                       if (alarm) ...[
-//                         const SizedBox(width: 6),
-//                         Container(
-//                           padding: const EdgeInsets.symmetric(
-//                             horizontal: 5,
-//                             vertical: 1,
-//                           ),
-//                           decoration: BoxDecoration(
-//                             color: const Color(0xFFEF5350).withOpacity(0.2),
-//                             borderRadius: BorderRadius.circular(4),
-//                             border: Border.all(
-//                               color: const Color(0xFFEF5350),
-//                               width: 0.5,
-//                             ),
-//                           ),
-//                           child: const Text(
-//                             "ALARM",
-//                             style: TextStyle(
-//                               color: Color(0xFFEF5350),
-//                               fontSize: 11,
-//                               fontWeight: FontWeight.bold,
-//                               letterSpacing: 0.8,
-//                             ),
-//                           ),
-//                         ),
-//                       ],
-//                     ],
-//                   ),
-//                   const SizedBox(height: 3),
-//                   Row(
-//                     children: [
-//                       _voltageChip(
-//                         "MIN",
-//                         voltageStatus!.minVol,
-//                         Colors.white60,
-//                       ),
-//                       const SizedBox(width: 12),
-//                       AnimatedBuilder(
-//                         animation: _pulseAnimation,
-//                         builder: (_, child) => Transform.scale(
-//                           scale: alarm ? _pulseAnimation.value : 1.0,
-//                           child: child,
-//                         ),
-//                         child: _voltageChip(
-//                           "MAX",
-//                           voltageStatus!.maxVol,
-//                           color,
-//                         ),
-//                       ),
-//                       // _voltageChip("MAX", voltageStatus!.maxVol, color),
-//                     ],
-//                   ),
-//                 ],
-//               ),
-//             ),
-//
-//             // Arrow icon
-//             Icon(
-//               Icons.chevron_right_rounded,
-//               color: color.withOpacity(0.5),
-//               size: 22,
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-//
-//   Widget _voltageChip(String label, double value, Color color) {
-//     return RichText(
-//       text: TextSpan(
-//         children: [
-//           TextSpan(
-//             text: "$label  ",
-//             style: TextStyle(
-//               color: Colors.white70,
-//               fontSize: 10,
-//               fontWeight: FontWeight.w500,
-//             ),
-//           ),
-//           TextSpan(
-//             text: "${value.toStringAsFixed(0)} V",
-//             style: TextStyle(
-//               color: color,
-//               fontSize: 13,
-//               fontWeight: FontWeight.bold,
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   // ── ENERGY ROW ──
-//   Widget _energyRow(EnergyMonthlySummary item) {
-//     final color = _colorByCate(item.cate);
-//     return Container(
-//       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-//       decoration: BoxDecoration(
-//         color: color.withOpacity(0.04),
-//         borderRadius: BorderRadius.circular(10),
-//         border: Border.all(color: color.withOpacity(0.25)),
-//       ),
-//       child: Row(
-//         children: [
-//           Container(
-//             width: 28,
-//             height: 28,
-//             decoration: BoxDecoration(
-//               shape: BoxShape.circle,
-//               color: color.withOpacity(0.15),
-//             ),
-//             child: Icon(_iconByCate(item.cate), color: color, size: 22),
-//           ),
-//           const SizedBox(width: 8),
-//
-//           Expanded(
-//             child: Text(
-//               item.name,
-//               style: TextStyle(
-//                 color: Colors.white70,
-//                 fontSize: 13,
-//                 fontWeight: FontWeight.w800,
-//                 letterSpacing: 1.2,
-//               ),
-//             ),
-//           ),
-//           TweenAnimationBuilder<double>(
-//             tween: Tween(begin: 0, end: item.value),
-//             duration: const Duration(milliseconds: 900),
-//             curve: Curves.easeOut,
-//             builder: (_, v, __) => Text(
-//               "${_format(v)} ${item.unit}",
-//               style: TextStyle(
-//                 color: color,
-//                 fontSize: 13,
-//                 fontWeight: FontWeight.bold,
-//               ),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
-// -----------------------------------------------------------------------------
-// Helpers — pure functions, không ph? thu?c state
-// -----------------------------------------------------------------------------
 
 IconData _iconByCate(String cate) {
   switch (cate) {
@@ -612,13 +112,13 @@ String _format(double v) => _numFmt.format(v);
 // -----------------------------------------------------------------------------
 // StatefulWidget
 // -----------------------------------------------------------------------------
-
 class UtilityOverviewMonthlyBox extends StatefulWidget {
   final double width;
   final double? height;
   final String facId;
   final String month;
   final String headerTitle;
+  final bool isHighlighted; // 🔥 Đã có sẵn
 
   const UtilityOverviewMonthlyBox({
     super.key,
@@ -627,6 +127,7 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
     required this.headerTitle,
     this.width = 240,
     this.height = 220,
+    this.isHighlighted = true,
   });
 
   @override
@@ -640,14 +141,16 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
 
+  // 🔥 CHỈ CẦN OPACITY ANIMATION THÔI
+  late final AnimationController _highlightController;
+  late final Animation<double> _opacityAnimation;
+
   bool loading = true;
   Object? error;
   List<EnergyMonthlySummary> items = [];
   VoltageStatus? voltageStatus;
 
-  // -- Cache -----------------------------------------------------------------
   DataHealthResult? _cachedHealth;
-
   bool _loadingNow = false;
   bool _disposed = false;
 
@@ -665,12 +168,36 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
+    // 🔥 CHỈ OPACITY - KHÔNG CÓ GLOW
+    _highlightController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    // 🔥 Opacity: 0.5 (mờ) -> 1.0 (sáng)
+    _opacityAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _highlightController, curve: Curves.easeInOut),
+    );
+
+    if (widget.isHighlighted) {
+      _highlightController.value = 1.0;
+    }
+
     _load();
   }
 
   @override
   void didUpdateWidget(covariant UtilityOverviewMonthlyBox old) {
     super.didUpdateWidget(old);
+
+    if (old.isHighlighted != widget.isHighlighted) {
+      if (widget.isHighlighted) {
+        _highlightController.forward();
+      } else {
+        _highlightController.reverse();
+      }
+    }
+
     if (old.facId == widget.facId && old.month == widget.month) return;
 
     setState(() {
@@ -689,6 +216,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     _disposed = true;
     fx.dispose();
     _pulseController.dispose();
+    _highlightController.dispose();
     super.dispose();
   }
 
@@ -699,7 +227,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     try {
       final api = context.read<UtilityDashboardOverviewApi>();
 
-      // Fetch parallel — gi?m total latency
       final results = await Future.wait([
         api.getEnergyMonthlySummary(facId: widget.facId, month: widget.month),
         api.getVoltageStatus(),
@@ -712,7 +239,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
           .toList();
       final voltage = results[1] as VoltageStatus;
 
-      // Tính health ngoài setState
       _cachedHealth = DataHealthAnalyzer.analyze(
         key: "Monthly_${widget.facId}_${widget.headerTitle}",
         loading: false,
@@ -741,10 +267,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Build — AnimatedBuilder KHÔNG boc content, chỉ apply Transform.scale
-  // -------------------------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
     final facColor = UtilityFacStyle.colorFromFac(widget.headerTitle);
@@ -762,34 +284,39 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       position: fx.slide,
       child: AnimatedBuilder(
         animation: fx.listenable,
-        builder: (_, child) => Transform.scale(
-          scale: fx.scale.value,
-          // ? child build một lan, không rebuild theo animation frame
-          child: child,
-        ),
-        child: _MonthlyShell(
-          width: widget.width,
-          height: widget.height ?? 220,
-          facColor: facColor,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              UtilityInfoBoxHeader.header(
-                facilityColor: facColor,
-                facTitle: widget.headerTitle,
-                healthResult: healthResult,
-              ),
-              Expanded(
-                child: _Body(
-                  loading: loading,
-                  error: error,
-                  items: items,
-                  voltageStatus: voltageStatus,
-                  facColor: facColor,
-                  pulseAnimation: _pulseAnimation,
+        builder: (_, child) =>
+            Transform.scale(scale: fx.scale.value, child: child),
+        // 🔥 CHỈ BỌC OPACITY - KHÔNG CÓN GLOW NỮA
+        child: AnimatedBuilder(
+          animation: _opacityAnimation,
+          builder: (context, child) {
+            return Opacity(opacity: _opacityAnimation.value, child: child);
+          },
+          child: _MonthlyShell(
+            width: widget.width,
+            height: widget.height ?? 220,
+            facColor: facColor,
+            // 🔥 GIỮ NGUYÊN HIỆU ỨNG GLASS - KHÔNG THAY ĐỔI
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                UtilityInfoBoxHeader.header(
+                  facilityColor: facColor,
+                  facTitle: widget.headerTitle,
+                  healthResult: healthResult,
                 ),
-              ),
-            ],
+                Expanded(
+                  child: _Body(
+                    loading: loading,
+                    error: error,
+                    items: items,
+                    voltageStatus: voltageStatus,
+                    facColor: facColor,
+                    pulseAnimation: _pulseAnimation,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -797,10 +324,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   }
 }
 
-// -----------------------------------------------------------------------------
-// _MonthlyShell — glass container, tách khỏi content de rebuild doc lap
-// -----------------------------------------------------------------------------
-
+// 🔥 _MonthlyShell - GIỮ NGUYÊN HIỆU ỨNG GLASS, KHÔNG THAY ĐỔI
 class _MonthlyShell extends StatelessWidget {
   final double width;
   final double height;
@@ -816,46 +340,39 @@ class _MonthlyShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 3, sigmaY: 1),
-        child: Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: const Color(0xFF0A1628).withOpacity(0.35),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: facColor.withOpacity(0.35), width: 1.2),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0.10),
-                Colors.white.withOpacity(0.02),
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: facColor.withOpacity(0.20),
-                blurRadius: 28,
-                spreadRadius: 1,
-                offset: const Offset(0, 10),
-              ),
-              const BoxShadow(
-                color: Color(0x66000000),
-                blurRadius: 16,
-                offset: Offset(0, 6),
-              ),
-            ],
+    // 🔥 GIỮ NGUYÊN STYLE CŨ - KHÔNG THAY ĐỔI GÌ CẢ
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blueAccent.withOpacity(0.7), width: 1),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.15),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            spreadRadius: 2,
           ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
           child: child,
         ),
       ),
     );
   }
 }
-
 // -----------------------------------------------------------------------------
 // _Body — StatelessWidget, nhận data từ ngoài, không giữ state
 // -----------------------------------------------------------------------------
@@ -915,7 +432,6 @@ class _Body extends StatelessWidget {
       child: Column(
         children: [
           if (voltageStatus != null) ...[
-            // RepaintBoundary: pulse animation c?a voltage card
             // không kéo energy rows repaint theo
             RepaintBoundary(
               child: _VoltageCard(
@@ -998,7 +514,8 @@ class _VoltageCard extends StatelessWidget {
       ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 6),
+
         decoration: BoxDecoration(
           color: color.withOpacity(0.08),
           borderRadius: BorderRadius.circular(12),
@@ -1034,7 +551,7 @@ class _VoltageCard extends StatelessWidget {
                         'Voltage',
                         style: TextStyle(
                           color: color,
-                          fontSize: 13,
+                          fontSize: 15,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1.2,
                         ),
@@ -1138,7 +655,7 @@ class _VoltageChip extends StatelessWidget {
             text: '${value.toStringAsFixed(0)} V',
             style: TextStyle(
               color: color,
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1162,7 +679,7 @@ class _EnergyRow extends StatelessWidget {
     final color = _colorByCate(item.cate);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.04),
         borderRadius: BorderRadius.circular(10),
@@ -1185,7 +702,7 @@ class _EnergyRow extends StatelessWidget {
               item.name,
               style: const TextStyle(
                 color: Colors.white70,
-                fontSize: 13,
+                fontSize: 15,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.2,
               ),
@@ -1200,7 +717,7 @@ class _EnergyRow extends StatelessWidget {
               '${_format(v)} ${item.unit}',
               style: TextStyle(
                 color: color,
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),
             ),

@@ -136,6 +136,14 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
   String toYYYYMM(DateTime d) =>
       '${d.year}${d.month.toString().padLeft(2, '0')}';
 
+  // Helper function để check xem có highlight không
+  bool shouldHighlight(String facId) {
+    if (selectedFac == 'KVH') {
+      return true; // KVH = sáng tất cả
+    }
+    return selectedFac == facId; // Chỉ sáng khi match
+  }
+
   @override
   Widget build(BuildContext context) {
     final nowStr = DateFormat('d/M/yyyy').format(DateTime.now());
@@ -153,106 +161,6 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
           onMonthChanged: (m) =>
               setState(() => selectedMonth = DateTime(m.year, m.month, 1)),
         ),
-
-        // Expanded(
-        //   child: LayoutBuilder(
-        //     builder: (context, c) {
-        //       return Container(
-        //         decoration: BoxDecoration(
-        //           borderRadius: BorderRadius.circular(16),
-        //           boxShadow: [
-        //             BoxShadow(
-        //               color: Colors.black.withOpacity(0.35),
-        //               spreadRadius: 2,
-        //               blurRadius: 10,
-        //               offset: const Offset(0, 5),
-        //             ),
-        //           ],
-        //         ),
-        //         child: Row(
-        //           crossAxisAlignment: CrossAxisAlignment.start,
-        //           children: [
-        //             Expanded(
-        //               child: Align(
-        //                 alignment: Alignment.topCenter,
-        //                 child: UtilityHourlyBarChartPanel(
-        //                   facId: selectedFac, // ✅ dùng fac đang chọn
-        //                   boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
-        //                   plcAddress: 'D30',
-        //                   // nếu chart bạn hỗ trợ month, bạn truyền thêm selectedMonth ở đây
-        //                 ),
-        //               ),
-        //             ),
-        //
-        //             Expanded(
-        //               flex: 3,
-        //               child: ClipRRect(
-        //                 borderRadius: BorderRadius.circular(16),
-        //                 child: Stack(
-        //                   children: [
-        //                     FactoryMapWithRain(
-        //                       mainImageUrl: widget.mainImageUrl,
-        //                     ),
-        //                     // overlay gradient
-        //                     Container(
-        //                       decoration: BoxDecoration(
-        //                         gradient: LinearGradient(
-        //                           begin: Alignment.topCenter,
-        //                           end: Alignment.bottomCenter,
-        //                           colors: [
-        //                             Colors.black.withOpacity(0.1),
-        //                             Colors.transparent,
-        //                             Colors.black.withOpacity(0.15),
-        //                           ],
-        //                         ),
-        //                       ),
-        //                     ),
-        //
-        //                     /// ===== FAC A =====
-        //                     Align(
-        //                       alignment: const FractionalOffset(0.95, 0.04),
-        //                       // child: const UtilityFacilityInfoBox(
-        //                       //   facId: 'Fac_A',
-        //                       //   cateIds: ['E_TTL_KW', 'E_Cur1'],
-        //                       // ),
-        //                     ),
-        //
-        //                     /// ===== FAC B =====
-        //                     Align(
-        //                       alignment: const FractionalOffset(0.95, 0.7),
-        //                       // child: const UtilityFacilityInfoBox(
-        //                       //   facId: 'Fac_B',
-        //                       //   // boxDeviceId: '',
-        //                       //   cateIds: ['E_EneCon'],
-        //                       // ),
-        //                       child: UtilityFacilityInfoBoxTree(
-        //                         headerTitle: 'Fac B',
-        //                         facIds: ['Fac_B'],
-        //                         plcAddresses: ['D30', 'D24'],
-        //                         boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
-        //                       ),
-        //                     ),
-        //
-        //                     /// ===== FAC C =====
-        //                     Align(
-        //                       alignment: const FractionalOffset(0.1, 0.04),
-        //                       // child: const UtilityFacilityInfoBox(
-        //                       //   facId: 'Fac_C',
-        //                       //   cateIds: ['E_TTL_KW', 'E_Cur1'],
-        //                       // ),
-        //                     ),
-        //                   ],
-        //                 ),
-        //               ),
-        //             ),
-        //
-        //             Expanded(child: UtilityCategoryCompareView()),
-        //           ],
-        //         ),
-        //       );
-        //     },
-        //   ),
-        // ),
         Expanded(
           child: LayoutBuilder(
             builder: (context, c) {
@@ -343,6 +251,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                   ),
 
                                   /// ===== FAC B =====
+                                  /// ===== FAC B =====
                                   Align(
                                     alignment: const FractionalOffset(
                                       0.84,
@@ -352,6 +261,21 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                       facId: 'Fac_B',
                                       month: monthKey,
                                       headerTitle: 'Fac B',
+                                      isHighlighted: shouldHighlight('Fac_B'),
+                                    ),
+                                  ),
+
+                                  /// ===== FAC A =====
+                                  Align(
+                                    alignment: const FractionalOffset(
+                                      0.84,
+                                      0.02,
+                                    ),
+                                    child: UtilityOverviewMonthlyBox(
+                                      facId: 'Fac_A',
+                                      month: monthKey,
+                                      headerTitle: 'Fac A',
+                                      isHighlighted: shouldHighlight('Fac_A'),
                                     ),
                                   ),
                                 ],

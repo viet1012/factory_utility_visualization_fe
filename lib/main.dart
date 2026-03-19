@@ -550,7 +550,7 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 
 void main() {
-  debugPrintRebuildDirtyWidgets = true;
+  // debugPrintRebuildDirtyWidgets = true;
 
   runApp(MyApp());
 }
