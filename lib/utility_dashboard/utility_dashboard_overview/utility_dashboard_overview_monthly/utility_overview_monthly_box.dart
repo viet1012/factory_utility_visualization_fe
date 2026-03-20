@@ -229,7 +229,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
       final results = await Future.wait([
         api.getEnergyMonthlySummary(facId: widget.facId, month: widget.month),
-        api.getVoltageStatus(),
+        api.getVoltageStatus(facId: widget.facId),
       ]);
 
       if (!mounted) return;
@@ -313,6 +313,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
                     voltageStatus: voltageStatus,
                     facColor: facColor,
                     pulseAnimation: _pulseAnimation,
+                    facId: widget.facId,
                   ),
                 ),
               ],
@@ -384,6 +385,7 @@ class _Body extends StatelessWidget {
   final VoltageStatus? voltageStatus;
   final Color facColor;
   final Animation<double> pulseAnimation;
+  final String facId;
 
   const _Body({
     required this.loading,
@@ -392,6 +394,7 @@ class _Body extends StatelessWidget {
     required this.voltageStatus,
     required this.facColor,
     required this.pulseAnimation,
+    required this.facId,
   });
 
   @override
@@ -437,6 +440,7 @@ class _Body extends StatelessWidget {
               child: _VoltageCard(
                 status: voltageStatus!,
                 pulseAnimation: pulseAnimation,
+                facId: facId,
               ),
             ),
             const SizedBox(height: 4),
@@ -484,8 +488,13 @@ class _Divider extends StatelessWidget {
 class _VoltageCard extends StatelessWidget {
   final VoltageStatus status;
   final Animation<double> pulseAnimation;
+  final String facId;
 
-  const _VoltageCard({required this.status, required this.pulseAnimation});
+  const _VoltageCard({
+    required this.status,
+    required this.pulseAnimation,
+    required this.facId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -508,6 +517,7 @@ class _VoltageCard extends StatelessWidget {
             ),
             child: VoltageDetailChart(
               api: context.read<UtilityDashboardOverviewApi>(),
+              // facId: facId,
             ),
           ),
         ),

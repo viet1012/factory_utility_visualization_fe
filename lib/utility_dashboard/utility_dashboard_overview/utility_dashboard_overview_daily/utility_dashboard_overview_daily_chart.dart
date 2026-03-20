@@ -35,6 +35,7 @@ class _DailyDto {
 class _BarPoint {
   final DateTime ts;
   final double y;
+
   _BarPoint(this.ts, this.y);
 }
 
@@ -207,7 +208,7 @@ class _UtilityDashboardOverviewDailyChartState
     }
 
     if (!_disposed) {
-      Future.delayed(const Duration(seconds: 60), _load);
+      Future.delayed(const Duration(minutes: 60), _load);
     }
   }
 

@@ -97,8 +97,11 @@ class UtilityDashboardOverviewApi {
   }
 
   /// VOLTAGE STATUS (min/max + alarm)
-  Future<VoltageStatus> getVoltageStatus() async {
-    final res = await dio.get('/api/utility/voltage/status');
+  Future<VoltageStatus> getVoltageStatus({required String facId}) async {
+    final res = await dio.get(
+      '/api/utility/voltage/status',
+      queryParameters: {'facId': facId},
+    );
     return VoltageStatus.fromJson(res.data);
   }
 
@@ -108,6 +111,6 @@ class UtilityDashboardOverviewApi {
 
     final List data = res.data;
 
-    return data.map((e) => VoltageDetail.fromJson(e)).toList();
+    return (res.data as List).map((e) => VoltageDetail.fromJson(e)).toList();
   }
 }
