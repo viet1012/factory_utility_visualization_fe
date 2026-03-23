@@ -24,9 +24,9 @@ class VoltageDetail {
   factory VoltageDetail.fromJson(Map<String, dynamic> json) {
     return VoltageDetail(
       time: DateTime.parse(json["pickAt"]),
-      d12: (json["d12"] ?? 0).toDouble(),
-      d14: (json["d14"] ?? 0).toDouble(),
-      d16: (json["d16"] ?? 0).toDouble(),
+      d12: (json["d108"] ?? 0).toDouble(),
+      d14: (json["d110"] ?? 0).toDouble(),
+      d16: (json["d112"] ?? 0).toDouble(),
       alarm: json["alarm"] ?? "Normal",
     );
   }
@@ -71,8 +71,9 @@ class _VoltageCache {
 
 class VoltageDetailChart extends StatefulWidget {
   final UtilityDashboardOverviewApi api;
+  final String facId;
 
-  const VoltageDetailChart({super.key, required this.api});
+  const VoltageDetailChart({super.key, required this.api, required this.facId});
 
   @override
   State<VoltageDetailChart> createState() => _VoltageDetailChartState();
@@ -122,9 +123,9 @@ class _VoltageDetailChartState extends State<VoltageDetailChart> {
   Future<void> _load() async {
     if (_loadingNow || _disposed) return;
     _loadingNow = true;
-
+    print("widget.facId: ${widget.facId}");
     try {
-      final d = await widget.api.getVoltageDetail();
+      final d = await widget.api.getVoltageDetail(facId: widget.facId);
       if (!mounted) return;
 
       final next = _VoltageCache.from(d);

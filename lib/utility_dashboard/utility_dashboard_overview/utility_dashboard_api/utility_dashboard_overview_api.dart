@@ -106,11 +106,18 @@ class UtilityDashboardOverviewApi {
   }
 
   /// VOLTAGE DETAIL (chart)
-  Future<List<VoltageDetail>> getVoltageDetail() async {
-    final res = await dio.get('/api/utility/voltage/detail');
+  Future<List<VoltageDetail>> getVoltageDetail({required String facId}) async {
+    final uri = Uri.parse(
+      '${dio.options.baseUrl}/api/utility/voltage/detail',
+    ).replace(queryParameters: {'facId': facId});
+
+    print("URL: $uri");
+    final res = await dio.get(
+      '/api/utility/voltage/detail',
+      queryParameters: {'facId': facId},
+    );
 
     final List data = res.data;
-
     return (res.data as List).map((e) => VoltageDetail.fromJson(e)).toList();
   }
 }

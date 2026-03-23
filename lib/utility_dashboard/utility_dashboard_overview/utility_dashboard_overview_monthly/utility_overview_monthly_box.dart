@@ -517,7 +517,7 @@ class _VoltageCard extends StatelessWidget {
             ),
             child: VoltageDetailChart(
               api: context.read<UtilityDashboardOverviewApi>(),
-              // facId: facId,
+              facId: facId,
             ),
           ),
         ),
