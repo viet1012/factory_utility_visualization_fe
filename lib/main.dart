@@ -561,7 +561,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       showPerformanceOverlay: true,
       debugShowCheckedModeBanner: false,
-      title: 'Facility Dashboard',
+      title: 'Utility Dashboard',
       theme: ThemeData(primarySwatch: Colors.blue),
       home: UtilityDashboardScreen(),
       // home: MockTablesPage(),
