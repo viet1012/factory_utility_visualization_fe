@@ -251,10 +251,9 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                   ),
 
                                   /// ===== FAC B =====
-                                  /// ===== FAC B =====
                                   Align(
                                     alignment: const FractionalOffset(
-                                      0.84,
+                                      0.95,
                                       0.9,
                                     ),
                                     child: UtilityOverviewMonthlyBox(
@@ -268,7 +267,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                   /// ===== FAC A =====
                                   Align(
                                     alignment: const FractionalOffset(
-                                      0.84,
+                                      0.95,
                                       0.02,
                                     ),
                                     child: UtilityOverviewMonthlyBox(
