@@ -108,14 +108,18 @@
 //   }
 // }
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/chart_theme.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_api/utility_dashboard_overview_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_daily/utility_dashboard_overview_daily_chart.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_compare.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_header.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutes_chart.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/multi_voltage_alarm_dialog.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card1.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../widgets/overview/factory_map_with_rain.dart';
 
@@ -142,6 +146,52 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
       return true; // KVH = sáng tất cả
     }
     return selectedFac == facId; // Chỉ sáng khi match
+  }
+
+  final ValueNotifier<Map<String, VoltageStatus>> _activeVoltageAlarms =
+      ValueNotifier({});
+  bool _isVoltageAlarmDialogOpen = false;
+
+  void _handleVoltageAlarmChanged(String facId, VoltageStatus? status) {
+    final next = Map<String, VoltageStatus>.from(_activeVoltageAlarms.value);
+
+    if (status == null || !status.isAlarm) {
+      next.remove(facId);
+    } else {
+      next[facId] = status;
+    }
+
+    _activeVoltageAlarms.value = next;
+
+    if (next.isEmpty) {
+      if (_isVoltageAlarmDialogOpen && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _isVoltageAlarmDialogOpen = false;
+      }
+      return;
+    }
+
+    if (_isVoltageAlarmDialogOpen) return;
+
+    _isVoltageAlarmDialogOpen = true;
+    final api = context.read<UtilityDashboardOverviewApi>();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      await showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => MultiVoltageAlarmDialog(
+          alarmsNotifier: _activeVoltageAlarms,
+          api: api,
+          parentContext: context,
+        ),
+      );
+
+      if (!mounted) return;
+      _isVoltageAlarmDialogOpen = false;
+    });
   }
 
   @override
@@ -261,6 +311,8 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                       month: monthKey,
                                       headerTitle: 'Fac B',
                                       isHighlighted: shouldHighlight('Fac_B'),
+                                      onVoltageAlarmChanged:
+                                          _handleVoltageAlarmChanged,
                                     ),
                                   ),
 
@@ -275,6 +327,8 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                       month: monthKey,
                                       headerTitle: 'Fac A',
                                       isHighlighted: shouldHighlight('Fac_A'),
+                                      onVoltageAlarmChanged:
+                                          _handleVoltageAlarmChanged,
                                     ),
                                   ),
                                 ],

@@ -10,39 +10,39 @@
 // // MODEL
 // // =============================================================================
 
-class VoltageStatus {
-  final String fac;
-  final String boxDeviceId;
-  final String name;
-  final double minVol;
-  final double maxVol;
-  final String alarm;
-  final DateTime timestamp;
-
-  VoltageStatus({
-    required this.fac,
-    required this.boxDeviceId,
-    required this.name,
-    required this.minVol,
-    required this.maxVol,
-    required this.alarm,
-    required this.timestamp,
-  });
-
-  factory VoltageStatus.fromJson(Map<String, dynamic> json) {
-    return VoltageStatus(
-      fac: json['fac']?.toString() ?? '',
-      boxDeviceId: json['boxDeviceId']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      minVol: (json['minVol'] as num?)?.toDouble() ?? 0,
-      maxVol: (json['maxVol'] as num?)?.toDouble() ?? 0,
-      alarm: json['alarm']?.toString() ?? 'Normal',
-      timestamp: DateTime.parse(json['timestamp']).toLocal(),
-    );
-  }
-
-  bool get isAlarm => alarm == "Alarm";
-}
+// class VoltageStatus {
+//   final String fac;
+//   final String boxDeviceId;
+//   final String name;
+//   final double minVol;
+//   final double maxVol;
+//   final String alarm;
+//   final DateTime timestamp;
+//
+//   VoltageStatus({
+//     required this.fac,
+//     required this.boxDeviceId,
+//     required this.name,
+//     required this.minVol,
+//     required this.maxVol,
+//     required this.alarm,
+//     required this.timestamp,
+//   });
+//
+//   factory VoltageStatus.fromJson(Map<String, dynamic> json) {
+//     return VoltageStatus(
+//       fac: json['fac']?.toString() ?? '',
+//       boxDeviceId: json['boxDeviceId']?.toString() ?? '',
+//       name: json['name']?.toString() ?? '',
+//       minVol: (json['minVol'] as num?)?.toDouble() ?? 0,
+//       maxVol: (json['maxVol'] as num?)?.toDouble() ?? 0,
+//       alarm: json['alarm']?.toString() ?? 'Normal',
+//       timestamp: DateTime.parse(json['timestamp']).toLocal(),
+//     );
+//   }
+//
+//   bool get isAlarm => alarm == "Alarm";
+// }
 
 //
 // // =============================================================================

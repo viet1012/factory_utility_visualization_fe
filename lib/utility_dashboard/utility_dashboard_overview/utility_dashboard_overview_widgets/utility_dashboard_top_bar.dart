@@ -11,7 +11,7 @@ class UtilityDashboardTopBar extends StatelessWidget {
 
   const UtilityDashboardTopBar({
     super.key,
-    this.title = 'Factory Control System',
+    this.title = 'Utility Control System',
     required this.selectedFac,
     required this.onFacChanged,
     required this.selectedMonth,

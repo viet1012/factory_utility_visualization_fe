@@ -1,8 +1,8 @@
-import 'package:factory_utility_visualization/utility_dashboard/ultility_dashboard_chart/utility_hourly_bar_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_state/chart_catalog_provider.dart';
+import '../ultility_dashboard_chart/utility_hourly_bar_panel.dart';
 import 'utility_minute_chart_panel.dart';
 
 class FacChartConfig {
@@ -15,11 +15,7 @@ class FacChartConfig {
 class SignalChartConfig {
   final String boxDeviceId;
   final String plcAddress;
-
-  // ✅ NEW: 1 cateId cụ thể cho signal (vd: E_EneCon)
   final String? cateId;
-
-  // optional nếu bạn vẫn muốn list
   final List<String>? cateIds;
 
   const SignalChartConfig({
@@ -40,65 +36,151 @@ class UtilityAllFactoriesChartsScreen extends StatefulWidget {
 
 class _UtilityAllFactoriesChartsScreenState
     extends State<UtilityAllFactoriesChartsScreen> {
-  final _cateTabs = const ['Electricity', 'Water', 'Compressed Air'];
-  final _facTabs = const [
-    'Fac_A',
-    'Fac_B',
-    'Fac_C',
-  ]; // ✅ nếu muốn động thì lấy từ /scadas
-  final _viewTabs = const ['Summary', 'Minutes'];
+  static const List<String> _cateTabs = [
+    'Electricity',
+    'Water',
+    'Compressed Air',
+  ];
 
-  int _cateIdx = 0;
-  int _facIdx = 0;
-  int _viewIdx = 1;
-  int _boxIdx = 0;
+  static const List<String> _facTabs = ['Fac_A', 'Fac_B', 'Fac_C'];
 
-  int _summarySignalIdx = 0;
-  String _summaryRange = 'LAST_7_DAYS'; // hoặc TODAY / YESTERDAY / THIS_MONTH
+  static const List<String> _viewTabs = ['Summary', 'Minutes'];
 
-  String get cate => _cateTabs[_cateIdx];
+  static const List<String> _summaryRanges = [
+    'TODAY',
+    'YESTERDAY',
+    'LAST_7_DAYS',
+    'THIS_MONTH',
+  ];
 
-  String get facId => _facTabs[_facIdx];
+  int _selectedCateIndex = 0;
+  int _selectedFacIndex = 0;
+  int _selectedViewIndex = 1;
+  int _selectedBoxIndex = 0;
+  int _selectedSummarySignalIndex = 0;
 
-  bool _importantOnly = false; // mặc định không bật lọc important
+  String _selectedSummaryRange = 'LAST_7_DAYS';
+  bool _importantOnly = false;
+  bool _filtersExpanded = true;
 
-  bool _filtersExpanded = true; // mặc định mở, muốn tiết kiệm thì set false
+  String get selectedCate => _cateTabs[_selectedCateIndex];
+  String get selectedFac => _facTabs[_selectedFacIndex];
+  String get selectedView => _viewTabs[_selectedViewIndex];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final p = context.read<ChartCatalogProvider>();
-      await p.loadBoxes(facId: facId, cate: cate);
-      if (p.boxDeviceIds.isNotEmpty) {
-        await p.loadChartsForBox(
-          facId: facId,
-          cate: cate,
-          boxDeviceId: p.boxDeviceIds.first,
-          importantOnly: _importantOnly ? 1 : 0,
-        );
-      }
+      await _loadInitialData();
     });
   }
 
-  Future<void> _reloadBoxesAndSelectFirst() async {
-    final p = context.read<ChartCatalogProvider>();
-    _boxIdx = 0;
-    _summarySignalIdx = 0;
-    await p.loadBoxes(facId: facId, cate: cate);
-    if (p.boxDeviceIds.isNotEmpty) {
-      await p.loadChartsForBox(
-        facId: facId,
-        cate: cate,
-        boxDeviceId: p.boxDeviceIds.first,
-        importantOnly: _importantOnly ? 1 : 0,
-      );
-    }
+  Future<void> _loadInitialData() async {
+    final catalog = context.read<ChartCatalogProvider>();
+
+    await catalog.loadBoxes(facId: selectedFac, cate: selectedCate);
+
+    await _loadFirstBoxChartsIfAny(catalog);
+  }
+
+  Future<void> _reloadBoxesAndCharts() async {
+    final catalog = context.read<ChartCatalogProvider>();
+
+    _selectedBoxIndex = 0;
+    _selectedSummarySignalIndex = 0;
+
+    await catalog.loadBoxes(facId: selectedFac, cate: selectedCate);
+
+    await _loadFirstBoxChartsIfAny(catalog);
+  }
+
+  Future<void> _loadFirstBoxChartsIfAny(ChartCatalogProvider catalog) async {
+    if (catalog.boxDeviceIds.isEmpty) return;
+
+    await catalog.loadChartsForBox(
+      facId: selectedFac,
+      cate: selectedCate,
+      boxDeviceId: catalog.boxDeviceIds.first,
+      importantOnly: _importantOnly ? 1 : 0,
+    );
+  }
+
+  Future<void> _loadChartsForSelectedBox(
+    ChartCatalogProvider catalog,
+    String boxDeviceId,
+  ) async {
+    await catalog.loadChartsForBox(
+      facId: selectedFac,
+      cate: selectedCate,
+      boxDeviceId: boxDeviceId,
+      importantOnly: _importantOnly ? 1 : 0,
+    );
+  }
+
+  void _onViewChanged(int index) {
+    setState(() {
+      _selectedViewIndex = index;
+    });
+  }
+
+  Future<void> _onCateChanged(int index) async {
+    setState(() {
+      _selectedCateIndex = index;
+    });
+    await _reloadBoxesAndCharts();
+  }
+
+  Future<void> _onFacChanged(int index) async {
+    setState(() {
+      _selectedFacIndex = index;
+    });
+    await _reloadBoxesAndCharts();
+  }
+
+  Future<void> _onBoxChanged(
+    ChartCatalogProvider catalog,
+    List<String> boxTabs,
+    int index,
+  ) async {
+    if (boxTabs.isEmpty) return;
+
+    setState(() {
+      _selectedBoxIndex = index;
+      _selectedSummarySignalIndex = 0;
+    });
+
+    final selectedBox = boxTabs[index];
+
+    await _loadChartsForSelectedBox(catalog, selectedBox);
+  }
+
+  Future<void> _onImportantChanged(
+    ChartCatalogProvider catalog,
+    String? selectedBox,
+    bool value,
+  ) async {
+    setState(() {
+      _importantOnly = value;
+    });
+
+    if (selectedBox == null || selectedBox.trim().isEmpty) return;
+
+    await catalog.loadChartsForBox(
+      facId: selectedFac,
+      cate: selectedCate,
+      boxDeviceId: selectedBox,
+      importantOnly: _importantOnly ? 1 : 0,
+    );
+  }
+
+  void _toggleFilters() {
+    setState(() {
+      _filtersExpanded = !_filtersExpanded;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final view = _viewTabs[_viewIdx];
-
     return Scaffold(
       body: Container(
         padding: const EdgeInsets.all(8),
@@ -110,163 +192,18 @@ class _UtilityAllFactoriesChartsScreenState
           ),
         ),
         child: Consumer<ChartCatalogProvider>(
-          builder: (context, cat, _) {
-            final boxTabs = cat.boxDeviceIds;
-            if (boxTabs.isNotEmpty && _boxIdx >= boxTabs.length) _boxIdx = 0;
-            final selectedBox = boxTabs.isEmpty ? null : boxTabs[_boxIdx];
+          builder: (context, catalog, _) {
+            final boxTabs = catalog.boxDeviceIds;
+            final selectedBox = _getSelectedBox(boxTabs);
 
             return Column(
               children: [
-                // ===== Top compact bar (always visible) =====
-                Row(
-                  children: [
-                    _collapseToggle(expanded: _filtersExpanded),
-                    const SizedBox(width: 12),
-
-                    // luôn hiện View tabs (Summary/Minutes)
-                    Expanded(
-                      child: _tabRow(
-                        labels: _viewTabs,
-                        selectedIndex: _viewIdx,
-                        onSelect: (i) => setState(() => _viewIdx = i),
-                      ),
-                    ),
-                    if (!_filtersExpanded)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Cate: $cate   •   Fac: $facId   •   Box: ${selectedBox ?? "-"}',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.70),
-                            ),
-                          ),
-                        ),
-                      ),
-                    const SizedBox(width: 12),
-
-                    // Important chỉ hiện khi Minutes
-                    if (view == 'Minutes')
-                      _importantSwitch(
-                        cat: cat,
-                        facId: facId,
-                        cate: cate,
-                        selectedBox: selectedBox,
-                      ),
-                  ],
-                ),
-
+                _buildTopBar(catalog: catalog, selectedBox: selectedBox),
                 const SizedBox(height: 8),
-
-                // ===== Expandable area: Cate + Fac + Box tabs =====
-                AnimatedCrossFade(
-                  duration: const Duration(milliseconds: 180),
-                  crossFadeState: _filtersExpanded
-                      ? CrossFadeState.showFirst
-                      : CrossFadeState.showSecond,
-                  firstChild: Column(
-                    children: [
-                      // cate + fac tabs
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _tabRow(
-                              labels: _cateTabs,
-                              selectedIndex: _cateIdx,
-                              onSelect: (i) async {
-                                setState(() => _cateIdx = i);
-                                await _reloadBoxesAndSelectFirst();
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          _tabRow(
-                            labels: _facTabs,
-                            selectedIndex: _facIdx,
-                            onSelect: (i) async {
-                              setState(() => _facIdx = i);
-                              await _reloadBoxesAndSelectFirst();
-                            },
-                            alignRight: true,
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      // box tabs (only when Minutes)
-                      // if (view == 'Minutes')
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: _tabRow(
-                          labels: boxTabs.isEmpty
-                              ? const ['(no boxes)']
-                              : boxTabs,
-                          selectedIndex: boxTabs.isEmpty ? 0 : _boxIdx,
-                          onSelect: (i) async {
-                            setState(() => _boxIdx = i);
-                            if (boxTabs.isEmpty) return;
-
-                            final box = boxTabs[i];
-
-                            _summarySignalIdx = 0;
-
-                            debugPrint('==============================');
-                            debugPrint(
-                              '[BOX SELECT] facId=$facId  cate=$cate  idx=$i  boxDeviceId=$box',
-                            );
-                            debugPrint(
-                              'All boxes (${boxTabs.length}): ${boxTabs.join(", ")}',
-                            );
-
-                            await cat.loadChartsForBox(
-                              facId: facId,
-                              cate: cate,
-                              boxDeviceId: box,
-                              importantOnly: _importantOnly ? 1 : 0,
-                            );
-
-                            debugPrint(
-                              '[BOX SELECT DONE] charts.length=${cat.charts.length} for box=$box',
-                            );
-                            for (final c in cat.charts.take(30)) {
-                              debugPrint(
-                                '  - plc=${c.plcAddress}  cateId=${c.cateId}  cateIds=${c.cateIds}',
-                              );
-                            }
-                            debugPrint('==============================');
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // collapsed child (almost empty)
-                  secondChild: const SizedBox.shrink(),
-                ),
-
+                _buildFiltersArea(catalog: catalog, boxTabs: boxTabs),
                 const SizedBox(height: 4),
-
-                // ===== Body =====
                 Expanded(
-                  child: view == 'Summary'
-                      ? _summaryBody(
-                          cate: cate,
-                          facId: facId,
-                          loading: cat.loading,
-                          error: cat.error,
-                          charts: cat.charts,
-                        )
-                      : _minutesBody(
-                          cate: cate,
-                          facId: facId,
-                          selectedBox: selectedBox,
-                          loading: cat.loading,
-                          error: cat.error,
-                          charts: cat.charts,
-                        ),
+                  child: _buildBody(catalog: catalog, selectedBox: selectedBox),
                 ),
               ],
             );
@@ -276,9 +213,289 @@ class _UtilityAllFactoriesChartsScreenState
     );
   }
 
-  Widget _collapseToggle({required bool expanded}) {
+  String? _getSelectedBox(List<String> boxTabs) {
+    if (boxTabs.isEmpty) return null;
+    if (_selectedBoxIndex >= boxTabs.length) {
+      _selectedBoxIndex = 0;
+    }
+    return boxTabs[_selectedBoxIndex];
+  }
+
+  Widget _buildTopBar({
+    required ChartCatalogProvider catalog,
+    required String? selectedBox,
+  }) {
+    return Row(
+      children: [
+        _buildCollapseToggle(),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildTabRow(
+            labels: _viewTabs,
+            selectedIndex: _selectedViewIndex,
+            onSelect: _onViewChanged,
+          ),
+        ),
+        if (!_filtersExpanded)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Cate: $selectedCate   •   Fac: $selectedFac   •   Box: ${selectedBox ?? "-"}',
+                style: TextStyle(color: Colors.white.withOpacity(0.70)),
+              ),
+            ),
+          ),
+        const SizedBox(width: 12),
+        if (selectedView == 'Minutes')
+          _buildImportantSwitch(catalog: catalog, selectedBox: selectedBox),
+      ],
+    );
+  }
+
+  Widget _buildFiltersArea({
+    required ChartCatalogProvider catalog,
+    required List<String> boxTabs,
+  }) {
+    return AnimatedCrossFade(
+      duration: const Duration(milliseconds: 180),
+      crossFadeState: _filtersExpanded
+          ? CrossFadeState.showFirst
+          : CrossFadeState.showSecond,
+      firstChild: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _buildTabRow(
+                  labels: _cateTabs,
+                  selectedIndex: _selectedCateIndex,
+                  onSelect: (index) => _onCateChanged(index),
+                ),
+              ),
+              const SizedBox(width: 12),
+              _buildTabRow(
+                labels: _facTabs,
+                selectedIndex: _selectedFacIndex,
+                onSelect: (index) => _onFacChanged(index),
+                alignRight: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _buildTabRow(
+              labels: boxTabs.isEmpty ? const ['(no boxes)'] : boxTabs,
+              selectedIndex: boxTabs.isEmpty ? 0 : _selectedBoxIndex,
+              onSelect: (index) => _onBoxChanged(catalog, boxTabs, index),
+            ),
+          ),
+        ],
+      ),
+      secondChild: const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildBody({
+    required ChartCatalogProvider catalog,
+    required String? selectedBox,
+  }) {
+    if (selectedView == 'Summary') {
+      return _buildSummaryBody(
+        loading: catalog.loading,
+        error: catalog.error,
+        charts: catalog.charts,
+      );
+    }
+
+    return _buildMinutesBody(
+      loading: catalog.loading,
+      error: catalog.error,
+      charts: catalog.charts,
+      selectedBox: selectedBox,
+    );
+  }
+
+  Widget _buildSummaryBody({
+    required bool loading,
+    required Object? error,
+    required List<SignalChartConfig> charts,
+  }) {
+    if (loading && charts.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (error != null && charts.isEmpty) {
+      return _buildErrorState(error);
+    }
+
+    if (charts.isEmpty) {
+      return _buildEmptyState(
+        'No signals\ncate=$selectedCate • fac=$selectedFac',
+      );
+    }
+
+    if (_selectedSummarySignalIndex >= charts.length) {
+      _selectedSummarySignalIndex = 0;
+    }
+
+    final selectedSignal = charts[_selectedSummarySignalIndex];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSummaryToolbar(charts),
+        Expanded(
+          child: Center(
+            child: UtilityHourlyBarChartPanel(
+              facId: selectedFac,
+              boxDeviceId: selectedSignal.boxDeviceId,
+              plcAddress: selectedSignal.plcAddress,
+              range: _selectedSummaryRange,
+              width: 700,
+              height: 360,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryToolbar(List<SignalChartConfig> charts) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withOpacity(0.14)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            'Summary:',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.85),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(width: 10),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedSummaryRange,
+              dropdownColor: const Color(0xFF16213e),
+              style: const TextStyle(color: Colors.white),
+              items: _summaryRanges
+                  .map(
+                    (range) =>
+                        DropdownMenuItem(value: range, child: Text(range)),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _selectedSummaryRange = value;
+                });
+              },
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: _selectedSummarySignalIndex,
+                isExpanded: true,
+                dropdownColor: const Color(0xFF16213e),
+                style: const TextStyle(color: Colors.white),
+                items: List.generate(charts.length, (index) {
+                  final chart = charts[index];
+                  return DropdownMenuItem(
+                    value: index,
+                    child: Text(
+                      '${chart.boxDeviceId} • ${chart.plcAddress}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }),
+                onChanged: (index) {
+                  if (index == null) return;
+                  setState(() {
+                    _selectedSummarySignalIndex = index;
+                  });
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMinutesBody({
+    required bool loading,
+    required Object? error,
+    required List<SignalChartConfig> charts,
+    required String? selectedBox,
+  }) {
+    if (loading && charts.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (error != null && charts.isEmpty) {
+      return _buildErrorState(error);
+    }
+
+    if (selectedBox == null) {
+      return _buildEmptyState(
+        'No boxDeviceId for $selectedCate / $selectedFac',
+      );
+    }
+
+    if (charts.isEmpty) {
+      return _buildEmptyState('No signals in $selectedBox');
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = _resolveGridColumnCount(constraints.maxWidth);
+
+        return GridView.builder(
+          itemCount: charts.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 16 / 10,
+          ),
+          itemBuilder: (context, index) {
+            final chart = charts[index];
+
+            return UtilityMinuteChartPanel(
+              facId: selectedFac,
+              cate: selectedCate,
+              boxDeviceId: chart.boxDeviceId,
+              plcAddress: chart.plcAddress,
+              cateIds: chart.cateIds,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  int _resolveGridColumnCount(double width) {
+    if (width >= 1700) return 3;
+    if (width >= 1200) return 2;
+    return 1;
+  }
+
+  Widget _buildCollapseToggle() {
     return InkWell(
-      onTap: () => setState(() => _filtersExpanded = !_filtersExpanded),
+      onTap: _toggleFilters,
       borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -291,13 +508,15 @@ class _UtilityAllFactoriesChartsScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+              _filtersExpanded
+                  ? Icons.expand_less_rounded
+                  : Icons.expand_more_rounded,
               color: Colors.white.withOpacity(0.85),
               size: 18,
             ),
             const SizedBox(width: 8),
             Text(
-              expanded ? 'Hide Tabs' : 'Show Tabs',
+              _filtersExpanded ? 'Hide Tabs' : 'Show Tabs',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.90),
                 fontWeight: FontWeight.w800,
@@ -309,14 +528,10 @@ class _UtilityAllFactoriesChartsScreenState
     );
   }
 
-  Widget _importantSwitch({
-    required ChartCatalogProvider cat,
-    required String facId,
-    required String cate,
+  Widget _buildImportantSwitch({
+    required ChartCatalogProvider catalog,
     required String? selectedBox,
   }) {
-    // Summary của bạn đang FIXED nên không cần selectedBox.
-    // Switch này chủ yếu apply cho Minutes (khi chọn box).
     final enabled = selectedBox != null && selectedBox.trim().isNotEmpty;
 
     return Container(
@@ -347,242 +562,27 @@ class _UtilityAllFactoriesChartsScreenState
             value: _importantOnly,
             onChanged: !enabled
                 ? null
-                : (v) async {
-                    setState(() => _importantOnly = v);
-
-                    // ✅ reload charts theo box đang chọn
-                    await cat.loadChartsForBox(
-                      facId: facId,
-                      cate: cate,
-                      boxDeviceId: selectedBox!,
-                      importantOnly: _importantOnly ? 1 : 0,
-                    );
-                  },
+                : (value) => _onImportantChanged(catalog, selectedBox, value),
           ),
         ],
       ),
     );
   }
 
-  Widget _summaryBody({
-    required String cate,
-    required String facId,
-    required bool loading,
-    required Object? error,
-    required List<SignalChartConfig> charts,
-  }) {
-    if (loading && charts.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (error != null && charts.isEmpty) {
-      return Center(
-        child: Text(
-          'API error:\n$error',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white.withOpacity(0.85)),
-        ),
-      );
-    }
-
-    if (charts.isEmpty) {
-      return Center(
-        child: Text(
-          'No signals\ncate=$cate • fac=$facId',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white.withOpacity(0.85)),
-        ),
-      );
-    }
-
-    // ✅ ensure index safe
-    if (_summarySignalIdx >= charts.length) _summarySignalIdx = 0;
-    final selectedSignal = charts[_summarySignalIdx];
-
-    // ✅ chọn range (tạm để biến _summaryRange)
-    final range = _summaryRange;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // ===== Summary signal picker (không hard-code) =====
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white.withOpacity(0.14)),
-          ),
-          child: Row(
-            children: [
-              Text(
-                'Summary:',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.85),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(width: 10),
-
-              // ✅ range dropdown
-              DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: range,
-                  dropdownColor: const Color(0xFF16213e),
-                  style: const TextStyle(color: Colors.white),
-                  items: const [
-                    DropdownMenuItem(value: 'TODAY', child: Text('TODAY')),
-                    DropdownMenuItem(
-                      value: 'YESTERDAY',
-                      child: Text('YESTERDAY'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'LAST_7_DAYS',
-                      child: Text('LAST_7_DAYS'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'THIS_MONTH',
-                      child: Text('THIS_MONTH'),
-                    ),
-                  ],
-                  onChanged: (v) {
-                    if (v == null) return;
-                    setState(() => _summaryRange = v);
-                  },
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              // ✅ signal dropdown
-              Expanded(
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: _summarySignalIdx,
-                    isExpanded: true,
-                    dropdownColor: const Color(0xFF16213e),
-                    style: const TextStyle(color: Colors.white),
-                    items: List.generate(charts.length, (i) {
-                      final c = charts[i];
-                      return DropdownMenuItem(
-                        value: i,
-                        child: Text(
-                          '${c.boxDeviceId} • ${c.plcAddress}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }),
-                    onChanged: (i) {
-                      if (i == null) return;
-                      setState(() => _summarySignalIdx = i);
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // ===== chart =====
-        Expanded(
-          child: Center(
-            child: UtilityHourlyBarChartPanel(
-              facId: facId,
-              boxDeviceId: selectedSignal.boxDeviceId,
-              plcAddress: selectedSignal.plcAddress,
-              range: range,
-              width: 700,
-              height: 360,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _minutesBody({
-    required String cate,
-    required String facId,
-    required String? selectedBox,
-    required bool loading,
-    required Object? error,
-    required List<SignalChartConfig> charts,
-  }) {
-    if (loading && charts.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (error != null && charts.isEmpty) {
-      return Center(
-        child: Text(
-          'API error:\n$error',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white.withOpacity(0.85)),
-        ),
-      );
-    }
-    if (selectedBox == null) {
-      return Center(
-        child: Text(
-          'No boxDeviceId for $cate / $facId',
-          style: TextStyle(color: Colors.white.withOpacity(0.85)),
-        ),
-      );
-    }
-    if (charts.isEmpty) {
-      return Center(
-        child: Text(
-          'No signals in $selectedBox',
-          style: TextStyle(color: Colors.white.withOpacity(0.85)),
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, c) {
-        final w = c.maxWidth;
-        var cross = 1;
-        if (w >= 1200) cross = 2;
-        if (w >= 1700) cross = 3;
-
-        return GridView.builder(
-          itemCount: charts.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: cross,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 16 / 10,
-          ),
-          itemBuilder: (context, i) {
-            final cfg = charts[i];
-            return UtilityMinuteChartPanel(
-              facId: facId,
-              cate: cate,
-              boxDeviceId: cfg.boxDeviceId,
-              plcAddress: cfg.plcAddress,
-              cateIds: cfg.cateIds,
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // giữ nguyên UI tab của bạn
-  Widget _tabRow({
+  Widget _buildTabRow({
     required List<String> labels,
     required int selectedIndex,
     required ValueChanged<int> onSelect,
     bool alignRight = false,
   }) {
-    final chips = Wrap(
+    final tabs = Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: List.generate(labels.length, (i) {
-        final selected = i == selectedIndex;
+      children: List.generate(labels.length, (index) {
+        final selected = index == selectedIndex;
+
         return InkWell(
-          onTap: () => onSelect(i),
+          onTap: () => onSelect(index),
           borderRadius: BorderRadius.circular(6),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -599,7 +599,7 @@ class _UtilityAllFactoriesChartsScreenState
               ),
             ),
             child: Text(
-              labels[i],
+              labels[index],
               style: TextStyle(
                 color: Colors.white.withOpacity(selected ? 0.95 : 0.80),
                 fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
@@ -610,7 +610,30 @@ class _UtilityAllFactoriesChartsScreenState
       }),
     );
 
-    if (!alignRight) return chips;
-    return Align(alignment: Alignment.topRight, child: chips);
+    if (alignRight) {
+      return Align(alignment: Alignment.topRight, child: tabs);
+    }
+
+    return tabs;
+  }
+
+  Widget _buildErrorState(Object error) {
+    return Center(
+      child: Text(
+        'API error:\n$error',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.white.withOpacity(0.85)),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.white.withOpacity(0.85)),
+      ),
+    );
   }
 }

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card1.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -87,7 +87,9 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
   final String facId;
   final String month;
   final String headerTitle;
-  final bool isHighlighted; // 🔥 Đã có sẵn
+  final bool isHighlighted;
+  final void Function(String facId, VoltageStatus? status)?
+  onVoltageAlarmChanged;
 
   const UtilityOverviewMonthlyBox({
     super.key,
@@ -97,6 +99,7 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
     this.width = 240,
     this.height = 220,
     this.isHighlighted = true,
+    this.onVoltageAlarmChanged,
   });
 
   @override
@@ -122,6 +125,8 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   DataHealthResult? _cachedHealth;
   bool _loadingNow = false;
   bool _disposed = false;
+
+  bool _wasAlarm = false;
 
   @override
   void initState() {
@@ -175,6 +180,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       items = [];
       voltageStatus = null;
       _cachedHealth = null;
+      _wasAlarm = false;
     });
 
     _load();
@@ -203,6 +209,25 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
       if (!mounted) return;
 
+      // final parsed = (results[0] as List)
+      //     .map((e) => EnergyMonthlySummary.fromJson(e))
+      //     .toList();
+      // final voltage = results[1] as VoltageStatus;
+      //
+      // _cachedHealth = DataHealthAnalyzer.analyze(
+      //   key: "Monthly_${widget.facId}_${widget.headerTitle}",
+      //   loading: false,
+      //   error: null,
+      //   values: [...parsed.map((e) => e.value), voltage.maxVol],
+      // );
+      //
+      // setState(() {
+      //   items = parsed;
+      //   voltageStatus = voltage;
+      //   loading = false;
+      //   error = null;
+      // });
+
       final parsed = (results[0] as List)
           .map((e) => EnergyMonthlySummary.fromJson(e))
           .toList();
@@ -215,12 +240,27 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
         values: [...parsed.map((e) => e.value), voltage.maxVol],
       );
 
+      final isAlarmNow = voltage.isAlarm;
+
       setState(() {
         items = parsed;
         voltageStatus = voltage;
         loading = false;
         error = null;
       });
+
+      if (_wasAlarm != isAlarmNow) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+
+          widget.onVoltageAlarmChanged?.call(
+            widget.facId,
+            isAlarmNow ? voltage : null,
+          );
+        });
+      }
+
+      _wasAlarm = isAlarmNow;
     } catch (e) {
       if (!mounted) return;
       setState(() {
