@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -64,7 +66,9 @@ class _UtilityAllFactoriesChartsScreenState
   bool _filtersExpanded = true;
 
   String get selectedCate => _cateTabs[_selectedCateIndex];
+
   String get selectedFac => _facTabs[_selectedFacIndex];
+
   String get selectedView => _viewTabs[_selectedViewIndex];
 
   @override
@@ -583,38 +587,65 @@ class _UtilityAllFactoriesChartsScreenState
 
         return InkWell(
           onTap: () => onSelect(index),
-          borderRadius: BorderRadius.circular(6),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: selected
-                  ? Colors.white.withOpacity(0.14)
-                  : Colors.white.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: selected
-                    ? Colors.white.withOpacity(0.40)
-                    : Colors.white.withOpacity(0.18),
-                width: 1,
-              ),
-            ),
-            child: Text(
-              labels[index],
-              style: TextStyle(
-                color: Colors.white.withOpacity(selected ? 0.95 : 0.80),
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-              ),
+          borderRadius: BorderRadius.circular(12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Stack(
+              children: [
+                // 🔥 blur layer
+                BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(selected ? 0.18 : 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.25), // viền glass
+                      ),
+                    ),
+                    child: Text(
+                      labels[index],
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 🔥 glow khi selected
+                if (selected)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xff009fff).withOpacity(0.35),
+                              blurRadius: 12,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         );
       }),
     );
 
-    if (alignRight) {
-      return Align(alignment: Alignment.topRight, child: tabs);
-    }
-
-    return tabs;
+    return alignRight
+        ? Align(alignment: Alignment.topRight, child: tabs)
+        : tabs;
   }
 
   Widget _buildErrorState(Object error) {

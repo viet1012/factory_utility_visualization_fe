@@ -158,17 +158,6 @@ class UtilityInfoBoxWidgets {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Text(
-                //   '${r.plcAddress} • ${r.boxDeviceId}',
-                //   maxLines: 2,
-                //   overflow: TextOverflow.ellipsis,
-                //   style: TextStyle(
-                //     color: Colors.white.withOpacity(0.75),
-                //     fontSize: 13,
-                //     fontWeight: FontWeight.w600,
-                //   ),
-                // ),
-                // const SizedBox(height: 4),
                 Text(
                   '${r.plcAddress} • ${valueText}',
                   style: TextStyle(
