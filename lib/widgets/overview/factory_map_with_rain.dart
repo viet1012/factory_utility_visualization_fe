@@ -13,29 +13,30 @@ class FactoryMapWithRain extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final WeatherApiService weatherService = WeatherApiService();
-    // final WeatherApiService weatherApiService = MockWeatherService();
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.35),
-            spreadRadius: 2,
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+    final weatherService = WeatherApiService();
+
+    return SizedBox.expand(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.35),
+              spreadRadius: 2,
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: ApiControlledRainImage(
+            imageUrl: mainImageUrl,
+            weatherService: weatherService,
+            fit: BoxFit.cover,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: ApiControlledRainImage(
-          imageUrl: mainImageUrl,
-          weatherService: weatherService,
-          fit: BoxFit.cover,
         ),
       ),
-      // child:ViewerPage(),
     );
   }
 }

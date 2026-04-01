@@ -218,7 +218,6 @@ class MinuteSeriesProvider extends ChangeNotifier {
         to: to,
         boxDeviceId: r.boxDeviceId!.trim(),
         plcAddress: null,
-        // ✅ CHỖ QUAN TRỌNG
         cateIds: _normCateIds(r.cateIds),
       );
 

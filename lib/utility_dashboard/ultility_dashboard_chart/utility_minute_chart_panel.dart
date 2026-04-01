@@ -5,7 +5,6 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../utility_models/response/minute_point.dart';
 import '../../utility_state/minute_series_provider.dart';
-import '../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
 import '../utility_dashboard_common/utility_fac_style.dart';
 
@@ -31,6 +30,18 @@ class _SeriesAnalysis {
     required this.minValue,
     required this.maxValue,
     required this.delta,
+  });
+}
+
+class _PanelVm {
+  final List<MinutePointDto> rows;
+  final Object? error;
+  final bool hasFetchedOnce;
+
+  const _PanelVm({
+    required this.rows,
+    required this.error,
+    required this.hasFetchedOnce,
   });
 }
 
@@ -62,8 +73,7 @@ class UtilityMinuteChartPanel extends StatefulWidget {
 }
 
 class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
-    with TickerProviderStateMixin {
-  late final UtilityInfoBoxFx _fx;
+    with AutomaticKeepAliveClientMixin {
   late String _requestKey;
 
   bool get _canFetchBox {
@@ -78,9 +88,11 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
   }
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
-    _fx = UtilityInfoBoxFx(this)..init();
     _rebuildRequestKey();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -109,12 +121,6 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       if (!mounted) return;
       _registerAndFetch();
     });
-  }
-
-  @override
-  void dispose() {
-    _fx.dispose();
-    super.dispose();
   }
 
   void _rebuildRequestKey() {
@@ -146,17 +152,71 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     }
   }
 
+  // @override
+  // Widget build(BuildContext context) {
+  //   super.build(context);
+  //
+  //   return Selector<MinuteSeriesProvider, _PanelVm>(
+  //     selector: (_, provider) => _PanelVm(
+  //       rows: provider.getRowsForPlc(_requestKey, widget.plcAddress ?? ''),
+  //       error: provider.getError(_requestKey),
+  //       hasFetchedOnce: provider.hasFetchedOnce(_requestKey),
+  //     ),
+  //     shouldRebuild: (prev, next) =>
+  //         !identical(prev.rows, next.rows) ||
+  //         prev.error != next.error ||
+  //         prev.hasFetchedOnce != next.hasFetchedOnce,
+  //     builder: (context, vm, _) {
+  //       final rows = vm.rows;
+  //       final error = vm.error;
+  //       final hasError = error != null;
+  //       final hasFetchedOnce = vm.hasFetchedOnce;
+  //
+  //       final isLoading = !_canFetchBox
+  //           ? false
+  //           : (!hasFetchedOnce && !hasError);
+  //
+  //       final facilityColor = UtilityFacStyle.colorFromFac(widget.facId);
+  //       final signalDisplayName = rows.isNotEmpty
+  //           ? (rows.last.nameEn ?? rows.last.cateId)
+  //           : null;
+  //       final unit = rows.isNotEmpty ? rows.last.unit : null;
+  //
+  //       return RepaintBoundary(
+  //         child: _buildPanelContainer(
+  //           facilityColor: facilityColor,
+  //           isLoading: isLoading,
+  //           hasError: hasError,
+  //           error: error,
+  //           signalDisplayName: signalDisplayName,
+  //           unit: unit,
+  //           rows: rows,
+  //           fetchedOnce: hasFetchedOnce,
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
+
   @override
   Widget build(BuildContext context) {
-    return Consumer<MinuteSeriesProvider>(
-      builder: (context, provider, _) {
-        final rows = provider.getRowsForPlc(
-          _requestKey,
-          widget.plcAddress ?? '',
-        );
-        final error = provider.getError(_requestKey);
+    super.build(context);
+
+    return Selector<MinuteSeriesProvider, _PanelVm>(
+      selector: (_, provider) => _PanelVm(
+        rows: provider.getRowsForPlc(_requestKey, widget.plcAddress ?? ''),
+        error: provider.getError(_requestKey),
+        hasFetchedOnce: provider.hasFetchedOnce(_requestKey),
+      ),
+      shouldRebuild: (prev, next) =>
+          !identical(prev.rows, next.rows) ||
+          prev.error != next.error ||
+          prev.hasFetchedOnce != next.hasFetchedOnce,
+      builder: (context, vm, _) {
+        final rows = vm.rows;
+        final error = vm.error;
         final hasError = error != null;
-        final hasFetchedOnce = provider.hasFetchedOnce(_requestKey);
+        final hasFetchedOnce = vm.hasFetchedOnce;
 
         final isLoading = !_canFetchBox
             ? false
@@ -168,35 +228,16 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
             : null;
         final unit = rows.isNotEmpty ? rows.last.unit : null;
 
-        return SlideTransition(
-          position: _fx.slide,
-          child: MouseRegion(
-            onEnter: (_) => _fx.onHover(true),
-            onExit: (_) => _fx.onHover(false),
-            child: AnimatedBuilder(
-              animation: _fx.listenable,
-              builder: (context, child) {
-                return Transform(
-                  alignment: Alignment.center,
-                  transform: Matrix4.identity()
-                    ..setEntry(3, 2, 0.001)
-                    ..rotateY(_fx.rotate.value),
-                  child: Transform.scale(
-                    scale: _fx.scale.value,
-                    child: _buildPanelContainer(
-                      facilityColor: facilityColor,
-                      isLoading: isLoading,
-                      hasError: hasError,
-                      error: error,
-                      signalDisplayName: signalDisplayName,
-                      unit: unit,
-                      rows: rows,
-                      fetchedOnce: hasFetchedOnce,
-                    ),
-                  ),
-                );
-              },
-            ),
+        return RepaintBoundary(
+          child: _buildPanelContainer(
+            facilityColor: facilityColor,
+            isLoading: isLoading,
+            hasError: hasError,
+            error: error,
+            signalDisplayName: signalDisplayName,
+            unit: unit,
+            rows: rows,
+            fetchedOnce: hasFetchedOnce,
           ),
         );
       },
@@ -329,7 +370,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
   Widget _buildLatestInfoBar(MinutePointDto latestPoint) {
     final latestUnit =
         (latestPoint.unit != null && latestPoint.unit!.isNotEmpty)
-        ? latestPoint.unit
+        ? latestPoint.unit!
         : '';
 
     final latestValue = '${latestPoint.value?.toStringAsFixed(2)}$latestUnit';
@@ -410,6 +451,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     );
 
     return SfCartesianChart(
+      key: ValueKey(
+        '${widget.facId}_${widget.cate}_${widget.boxDeviceId}_${widget.plcAddress}_${data.length}_${data.last.time.millisecondsSinceEpoch}',
+      ),
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withOpacity(0.12),
       tooltipBehavior: tooltip,
@@ -465,6 +509,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       ),
       series: <CartesianSeries<_ChartPoint, DateTime>>[
         SplineAreaSeries<_ChartPoint, DateTime>(
+          animationDuration: 0,
           dataSource: data,
           xValueMapper: (point, _) => point.time,
           yValueMapper: (point, _) => point.value,
@@ -541,7 +586,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     final maxValue = values.last;
 
     final range = (maxValue - minValue).abs();
-    final rangePadding = range * 0.10;
+    final rangePadding = range * 0.2;
 
     final magnitude = maxValue.abs() > minValue.abs()
         ? maxValue.abs()

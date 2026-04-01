@@ -170,6 +170,91 @@ class UtilityApi {
           .map((e) => e.trim())
           .where((e) => e.isNotEmpty)
           .toList();
+      if (cleaned.isNotEmpty) {
+        qp['cateIds'] = cleaned.join(',');
+      }
+    }
+
+    // 🔥 BUILD FULL URL TRƯỚC KHI CALL
+    final baseUrl = _dio.options.baseUrl;
+    final uri = Uri.parse(baseUrl)
+        .resolve('/api/utility/series/minute')
+        .replace(queryParameters: qp.map((k, v) => MapEntry(k, v.toString())));
+
+    // 🔥 LOG REQUEST
+    debugPrint('================ API REQUEST ================');
+    debugPrint('METHOD: GET');
+    debugPrint('URL: $uri');
+    debugPrint('BASE URL: $baseUrl');
+    debugPrint('PATH: /api/utility/series/minute');
+    debugPrint('QUERY PARAMS: $qp');
+    debugPrint('============================================');
+
+    try {
+      final res = await _dio.get(
+        '/api/utility/series/minute',
+        queryParameters: qp,
+      );
+
+      // 🔥 LOG RESPONSE
+      debugPrint('================ API RESPONSE ===============');
+      debugPrint('STATUS CODE: ${res.statusCode}');
+      debugPrint('REAL URL: ${res.realUri}');
+      debugPrint('DATA TYPE: ${res.data.runtimeType}');
+      if (res.data is List) {
+        debugPrint('LENGTH: ${(res.data as List).length}');
+      }
+      debugPrint('============================================');
+
+      final data = res.data;
+
+      if (data is! List) {
+        throw DioException(
+          requestOptions: res.requestOptions,
+          response: res,
+          message: 'minute: Expected List but got: ${data.runtimeType}',
+          type: DioExceptionType.badResponse,
+        );
+      }
+
+      return data
+          .map(
+            (e) => MinutePointDto.fromJson(Map<String, dynamic>.from(e as Map)),
+          )
+          .toList();
+    } catch (e) {
+      // 🔥 LOG ERROR
+      debugPrint('================ API ERROR ==================');
+      debugPrint('ERROR: $e');
+      debugPrint('URL: $uri');
+      debugPrint('PARAMS: $qp');
+      debugPrint('============================================');
+
+      rethrow;
+    }
+  }
+
+  Future<List<MinutePointDto>> getSeriesMinute1({
+    required DateTime from,
+    required DateTime to,
+    String? boxDeviceId,
+    String? plcAddress,
+    List<String>? cateIds,
+  }) async {
+    final qp = <String, dynamic>{'from': _toIsoNoZ(from), 'to': _toIsoNoZ(to)};
+
+    void putIfNotBlank(String k, String? v) {
+      if (v != null && v.trim().isNotEmpty) qp[k] = v.trim();
+    }
+
+    putIfNotBlank('boxDeviceId', boxDeviceId);
+    putIfNotBlank('plcAddress', plcAddress);
+
+    if (cateIds != null) {
+      final cleaned = cateIds
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
       if (cleaned.isNotEmpty) qp['cateIds'] = cleaned.join(',');
     }
 
@@ -177,6 +262,7 @@ class UtilityApi {
       '/api/utility/series/minute',
       queryParameters: qp,
     );
+
     debugPrint('[GET] ${res.realUri}');
 
     final data = res.data;

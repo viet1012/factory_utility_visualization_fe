@@ -7,33 +7,41 @@ import 'package:provider/provider.dart';
 import '../../utility_dashboard_api/utility_dashboard_overview_api.dart';
 
 class VoltageStatus {
-  final String fac;
+  final String facId;
   final String boxDeviceId;
-  final String name;
+  final String cateId;
   final double minVol;
   final double maxVol;
+  final double minVolStd;
+  final double maxVolStd;
   final String alarm;
-  final DateTime timestamp;
+  final DateTime updatedAt;
 
   VoltageStatus({
-    required this.fac,
+    required this.facId,
     required this.boxDeviceId,
-    required this.name,
+    required this.cateId,
     required this.minVol,
     required this.maxVol,
+    required this.minVolStd,
+    required this.maxVolStd,
     required this.alarm,
-    required this.timestamp,
+    required this.updatedAt,
   });
 
   factory VoltageStatus.fromJson(Map<String, dynamic> json) {
     return VoltageStatus(
-      fac: json['fac']?.toString() ?? '',
+      facId: json['facId']?.toString() ?? '',
       boxDeviceId: json['boxDeviceId']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      minVol: (json['minVol'] as num?)?.toDouble() ?? 0,
-      maxVol: (json['maxVol'] as num?)?.toDouble() ?? 0,
+      cateId: json['cateId']?.toString() ?? '',
+      minVol: (json['minVol'] as num?)?.toDouble() ?? 0.0,
+      maxVol: (json['maxVol'] as num?)?.toDouble() ?? 0.0,
+      minVolStd: (json['minVolStd'] as num?)?.toDouble() ?? 0.0,
+      maxVolStd: (json['maxVolStd'] as num?)?.toDouble() ?? 0.0,
       alarm: json['alarm']?.toString() ?? 'Normal',
-      timestamp: DateTime.parse(json['timestamp']).toLocal(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt']).toLocal()
+          : DateTime.now(),
     );
   }
 
@@ -69,7 +77,7 @@ class VoltageCard extends StatelessWidget {
       onTap: () => _showDetailChart(context),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
         decoration: BoxDecoration(
           color: color.withOpacity(0.08),
           borderRadius: BorderRadius.circular(12),
@@ -101,7 +109,7 @@ class VoltageCard extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        'Voltage',
+                        status.cateId.isNotEmpty ? status.cateId : 'Voltage',
                         style: TextStyle(
                           color: color,
                           fontSize: 15,
@@ -138,6 +146,17 @@ class VoltageCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 3),
+                  Text(
+                    status.boxDeviceId,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       _VoltageChip(

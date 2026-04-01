@@ -56,6 +56,14 @@ class _MovingMascotState extends State<MovingMascot>
         oldWidget.alarmCount != widget.alarmCount) {
       _from = _current;
       _to = nextTarget;
+
+      final dx = _to.x - _from.x;
+      final dy = _to.y - _from.y;
+      final distance = math.sqrt(dx * dx + dy * dy);
+
+      // duration theo quãng đường, nhưng có clamp để không quá nhanh / quá chậm
+      final ms = (650 + distance * 950).clamp(800, 1900).toInt();
+      _moveCtrl.duration = Duration(milliseconds: ms);
       _moveCtrl.forward(from: 0);
     }
   }
@@ -73,7 +81,6 @@ class _MovingMascotState extends State<MovingMascot>
       builder: (_, __) {
         final t = Curves.easeInOutCubic.transform(_moveCtrl.value);
 
-        // Quadratic-like curve
         final mid = Alignment(
           (_from.x + _to.x) / 2,
           ((_from.y + _to.y) / 2) - 0.06,
@@ -91,9 +98,11 @@ class _MovingMascotState extends State<MovingMascot>
         final facing = dx >= 0 ? 1.0 : -1.0;
         final walkStrength = isWalking ? (distance * 1.9).clamp(0.0, 1.0) : 0.0;
 
-        // lean strongest in the middle of the move, settles near the end
         final leanEnvelope = math.sin(t * math.pi);
         final lean = dx.clamp(-1.0, 1.0) * 0.10 * leanEnvelope;
+
+        // số bước phụ thuộc quãng đường
+        final stepCount = (distance * 6.0).clamp(1.4, 8.0);
 
         return Align(
           alignment: alignment,
@@ -104,6 +113,8 @@ class _MovingMascotState extends State<MovingMascot>
             lean: lean,
             walkStrength: walkStrength,
             isWalking: isWalking,
+            walkPhase: _moveCtrl.value * math.pi * stepCount,
+            groundY: widget.size * 0.90,
           ),
         );
       },
@@ -122,6 +133,8 @@ class MonitoringMascot extends StatefulWidget {
   final double lean; // body tilt
   final double walkStrength;
   final bool isWalking;
+  final double walkPhase; // 0..2pi
+  final double groundY; // vị trí mặt đất trong widget
 
   const MonitoringMascot({
     super.key,
@@ -131,6 +144,8 @@ class MonitoringMascot extends StatefulWidget {
     this.lean = 0.0,
     this.walkStrength = 0.0,
     this.isWalking = false,
+    this.walkPhase = 0.0,
+    this.groundY = 0.0,
   });
 
   @override
@@ -309,46 +324,86 @@ class _MonitoringMascotState extends State<MonitoringMascot>
       builder: (_, __) {
         final internalDx = _isAlarm ? _shakeX.value : 0.0;
 
-        final walkBob = widget.isWalking ? (_hairBounce.value * 0.35) : 0.0;
-        final internalDy = _isAlarm ? 0.0 : (_floatY.value + walkBob);
+        final walkCos = math.cos(widget.walkPhase);
 
+        final walkBob = widget.isWalking
+            ? (-walkCos.abs() * 6.0 * widget.walkStrength)
+            : 0.0;
+
+        // idle chỉ nhún khi không đi
+        final idleBob = widget.isWalking ? 0.0 : _floatY.value;
+
+        final internalDy = _isAlarm ? 0.0 : (idleBob + walkBob);
         final double armSwingL;
         final double armSwingR;
         final double foreSwing;
         final double hairOffset;
+        final double legSwingL;
+        final double legSwingR;
+        final double kneeBendL;
+        final double kneeBendR;
+        final double footLiftL;
+        final double footLiftR;
 
         if (_isAlarm) {
           armSwingL = _alarmArmSwing.value;
           armSwingR = -_alarmArmSwing.value;
           foreSwing = _forearmLag.value;
           hairOffset = _alarmHairShake.value;
+          legSwingL = _alarmLegSwing.value;
+          legSwingR = -_alarmLegSwing.value;
+
+          kneeBendL = 0.0;
+          kneeBendR = 0.0;
+          footLiftL = 0.0;
+          footLiftR = 0.0;
         } else if (widget.isWalking) {
-          final walkAmp = 0.22 * widget.walkStrength;
-          armSwingL = _idleArmSwing.value * (walkAmp / 0.10);
-          armSwingR = -_idleArmSwing.value * (walkAmp / 0.10);
-          foreSwing = _idleArmSwing.value * 0.7;
-          hairOffset = _hairBounce.value * 0.6;
+          final armAmp = 0.32 * widget.walkStrength;
+          final legAmp = 0.24 * widget.walkStrength;
+
+          double liftWave(double phase) {
+            final s = math.sin(phase);
+            return s > 0 ? s : 0.0; // chỉ nhấc ở nửa vòng đưa chân lên trước
+          }
+
+          final leftPhase = widget.walkPhase;
+          final rightPhase = widget.walkPhase + math.pi;
+
+          final leftSwing = math.sin(leftPhase);
+          final rightSwing = math.sin(rightPhase);
+
+          armSwingL = leftSwing * armAmp;
+          armSwingR = -leftSwing * armAmp;
+
+          foreSwing =
+              (math.sin(widget.walkPhase - 0.45) * 0.16) * widget.walkStrength;
+
+          legSwingL = -leftSwing * legAmp;
+          legSwingR = -rightSwing * legAmp;
+
+          kneeBendL = liftWave(leftPhase) * 0.42;
+          kneeBendR = liftWave(rightPhase) * 0.42;
+
+          footLiftL = liftWave(leftPhase) * 10.0 * widget.walkStrength;
+          footLiftR = liftWave(rightPhase) * 10.0 * widget.walkStrength;
+
+          hairOffset =
+              math.sin(widget.walkPhase - 0.2) * 1.8 * widget.walkStrength;
         } else {
           armSwingL = _idleArmSwing.value;
           armSwingR = -_idleArmSwing.value;
           foreSwing = _idleArmSwing.value * 0.4;
           hairOffset = _hairBounce.value;
-        }
-
-        final double legSwingL;
-        final double legSwingR;
-        if (_isAlarm) {
-          legSwingL = _alarmLegSwing.value;
-          legSwingR = -_alarmLegSwing.value;
-        } else if (widget.isWalking) {
-          final walkLegAmp = 0.16 * widget.walkStrength;
-          legSwingL = _idleLegSwing.value * (walkLegAmp / 0.07);
-          legSwingR = -_idleLegSwing.value * (walkLegAmp / 0.07);
-        } else {
           legSwingL = _idleLegSwing.value;
           legSwingR = -_idleLegSwing.value;
+
+          kneeBendL = 0.0;
+          kneeBendR = 0.0;
+          footLiftL = 0.0;
+          footLiftR = 0.0;
         }
 
+        final groundBaseOffset = widget.groundY - (widget.size * 0.90);
         return SizedBox(
           width: robotWidth,
           height: widget.size,
@@ -356,7 +411,7 @@ class _MonitoringMascotState extends State<MonitoringMascot>
             clipBehavior: Clip.none,
             children: [
               Transform.translate(
-                offset: Offset(internalDx, internalDy),
+                offset: Offset(internalDx, groundBaseOffset + internalDy),
                 child: Transform(
                   alignment: Alignment.center,
                   transform: Matrix4.identity()
@@ -380,14 +435,22 @@ class _MonitoringMascotState extends State<MonitoringMascot>
                         foreSwing: foreSwing,
                         legSwingL: legSwingL,
                         legSwingR: legSwingR,
+                        kneeBendL: kneeBendL,
+                        kneeBendR: kneeBendR,
+                        footLiftL: footLiftL,
+                        footLiftR: footLiftR,
                         hairOffset: hairOffset,
+                        walkStrength: widget.walkStrength,
+                        isWalking: widget.isWalking,
+                        walkPhase: widget.walkPhase,
+                        facing: widget.facing,
                       ),
                     ),
                   ),
                 ),
               ),
               Positioned(
-                top: 1,
+                top: -10,
                 right: -8,
                 child: _StatusBadge(
                   count: widget.alarmCount,
@@ -481,10 +544,19 @@ class _RobotPainter extends CustomPainter {
   final double foreSwing;
   final double legSwingL;
   final double legSwingR;
+  final double kneeBendL;
+  final double kneeBendR;
+  final double footLiftL;
+  final double footLiftR;
   final double hairOffset;
+  final double walkStrength;
+  final bool isWalking;
+  final double walkPhase;
+
+  final double facing;
 
   static const _headBg = Color(0xFF161B22);
-  static const _bodyBg = Color(0xFF161B22);
+  static const _bodyBg = Color(0xFF164EA6);
   static const _neckBg = Color(0xFF21262D);
   static const _headRim = Color(0xFF30363D);
   static const _visorBg = Color(0xFF0D1117);
@@ -518,7 +590,15 @@ class _RobotPainter extends CustomPainter {
     required this.foreSwing,
     required this.legSwingL,
     required this.legSwingR,
+    required this.kneeBendL,
+    required this.kneeBendR,
+    required this.footLiftL,
+    required this.footLiftR,
     required this.hairOffset,
+    required this.walkStrength,
+    required this.isWalking,
+    required this.walkPhase,
+    required this.facing,
   });
 
   @override
@@ -526,10 +606,10 @@ class _RobotPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    final headW = w * 0.72;
+    final headW = w * 0.62;
     final headH = h * 0.22;
-    final bodyW = w * 0.60;
-    final bodyH = h * 0.20;
+    final bodyW = w * 0.5;
+    final bodyH = h * 0.27;
     final headX = (w - headW) / 2;
     final headY = h * 0.15;
     final bodyX = (w - bodyW) / 2;
@@ -550,17 +630,41 @@ class _RobotPainter extends CustomPainter {
       foreSwing: -foreSwing,
       isLeft: false,
     );
+    // ===== SHADOW =====
+    final shadowPhase = math.cos(walkPhase).abs();
+
+    final shadowWidth = isWalking
+        ? (44 - shadowPhase * 10 * walkStrength)
+        : 42.0;
+
+    final shadowOpacity = isWalking
+        ? (0.22 - shadowPhase * 0.08 * walkStrength)
+        : 0.22;
+
+    final shadowCenter = Offset(w / 2, h * 0.90);
+
+    canvas.drawOval(
+      Rect.fromCenter(center: shadowCenter, width: shadowWidth, height: 10),
+      Paint()
+        ..color = Colors.black.withOpacity(shadowOpacity.clamp(0.08, 0.22)),
+    );
+
+    // ===== LEGS =====
 
     _drawLeg(
       canvas: canvas,
       hip: Offset(bodyX + bodyW * 0.33, bodyY + bodyH - 1),
       swing: legSwingL,
+      kneeBend: kneeBendL,
+      footLift: footLiftL,
       isLeft: true,
     );
     _drawLeg(
       canvas: canvas,
       hip: Offset(bodyX + bodyW * 0.67, bodyY + bodyH - 1),
       swing: legSwingR,
+      kneeBend: kneeBendR,
+      footLift: footLiftR,
       isLeft: false,
     );
 
@@ -579,7 +683,7 @@ class _RobotPainter extends CustomPainter {
 
     final bodyRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(bodyX, bodyY, bodyW, bodyH),
-      const Radius.circular(16),
+      const Radius.circular(8),
     );
     canvas.drawRRect(
       bodyRect.inflate(4),
@@ -593,25 +697,13 @@ class _RobotPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2,
     );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(bodyX + 3, bodyY + 3, bodyW - 6, bodyH - 6),
-        const Radius.circular(13),
-      ),
-      Paint()
-        ..color = Colors.white.withOpacity(0.03)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
 
-    _glowCircle(canvas, Offset(cx, bodyY + bodyH * 0.38), 5, accentColor);
-    canvas.drawCircle(
-      Offset(cx, bodyY + bodyH * 0.38),
-      9,
-      Paint()
-        ..color = accentColor.withOpacity(0.15)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
+    _drawSPC(
+      canvas: canvas,
+      bodyX: bodyX,
+      bodyY: bodyY,
+      bodyW: bodyW,
+      bodyH: bodyH,
     );
 
     _drawHair(
@@ -744,29 +836,82 @@ class _RobotPainter extends CustomPainter {
   }) {
     final dy = offset;
 
+    _drawHairPuffs(canvas, headX, headY, headW, headH, dy);
+
+    final curlPaint = Paint()
+      ..color = _hairMid
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final coilPaint = Paint()
+      ..color = _hairBase
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final shinePaint = Paint()..color = _hairShine.withOpacity(0.55);
+
+    for (final c in _buildTopCurls(headX, headY, headW, dy)) {
+      _drawCurlArc(canvas, c, curlPaint);
+    }
+
+    for (final c in _buildSideCurls(
+      headX: headX,
+      headY: headY,
+      headW: headW,
+      headH: headH,
+      dy: dy,
+      isLeft: true,
+    )) {
+      _drawCurlArc(canvas, c, curlPaint);
+    }
+
+    for (final c in _buildSideCurls(
+      headX: headX,
+      headY: headY,
+      headW: headW,
+      headH: headH,
+      dy: dy,
+      isLeft: false,
+    )) {
+      _drawCurlArc(canvas, c, curlPaint);
+    }
+
+    for (final c in _buildCoils(headX, headY, headW, headH, dy)) {
+      _drawSpringCoil(canvas, c, coilPaint);
+    }
+
+    for (final s in _buildShines(headX, headY, headW, headH, dy)) {
+      _drawShine(canvas, s, shinePaint);
+    }
+  }
+
+  void _drawHairPuffs(
+    Canvas canvas,
+    double headX,
+    double headY,
+    double headW,
+    double headH,
+    double dy,
+  ) {
     final puffPaint = Paint()..color = _hairDark;
 
-    canvas.save();
-    canvas.translate(headX + 13, headY + headH * 0.28 + dy);
-    canvas.save();
-    canvas.scale(1, 1.4);
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset.zero, width: 30, height: 22),
-      puffPaint,
-    );
-    canvas.restore();
-    canvas.restore();
+    final puffCenters = <Offset>[
+      Offset(headX + 13, headY + headH * 0.28 + dy),
+      Offset(headX + headW - 13, headY + headH * 0.28 + dy),
+    ];
 
-    canvas.save();
-    canvas.translate(headX + headW - 13, headY + headH * 0.28 + dy);
-    canvas.save();
-    canvas.scale(1, 1.4);
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset.zero, width: 30, height: 22),
-      puffPaint,
-    );
-    canvas.restore();
-    canvas.restore();
+    for (final center in puffCenters) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.scale(1, 1.4);
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: 30, height: 22),
+        puffPaint,
+      );
+      canvas.restore();
+    }
 
     canvas.drawOval(
       Rect.fromCenter(
@@ -776,182 +921,167 @@ class _RobotPainter extends CustomPainter {
       ),
       puffPaint,
     );
+  }
 
-    final midPaint = Paint()
-      ..color = _hairMid
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final topArcs = [
+  List<_CurlSpec> _buildTopCurls(
+    double headX,
+    double headY,
+    double headW,
+    double dy,
+  ) {
+    return [
       _CurlSpec(
-        cx: headX + headW * 0.28,
+        cx: headX + headW * 0.26,
         cy: headY + 2 + dy,
-        rx: 10,
-        ry: 9,
-        startAngle: -math.pi * 0.9,
-        sweep: math.pi * 1.6,
-        thickness: 5.0,
+        rx: 11,
+        ry: 10,
+        startAngle: -math.pi * 0.95,
+        sweep: math.pi * 1.85,
+        thickness: 5.4,
       ),
       _CurlSpec(
         cx: headX + headW * 0.50,
-        cy: headY - 5 + dy,
-        rx: 12,
-        ry: 10,
-        startAngle: -math.pi * 0.8,
-        sweep: math.pi * 1.5,
-        thickness: 5.5,
+        cy: headY - 6 + dy,
+        rx: 13,
+        ry: 11,
+        startAngle: -math.pi * 0.85,
+        sweep: math.pi * 1.75,
+        thickness: 5.8,
       ),
       _CurlSpec(
-        cx: headX + headW * 0.72,
+        cx: headX + headW * 0.74,
         cy: headY + 2 + dy,
-        rx: 10,
-        ry: 9,
-        startAngle: -math.pi * 0.9,
-        sweep: math.pi * 1.6,
-        thickness: 5.0,
-      ),
-    ];
-    for (final c in topArcs) {
-      _drawCurlArc(canvas, c, midPaint);
-    }
-
-    final leftArcs = [
-      _CurlSpec(
-        cx: headX + 8,
-        cy: headY + headH * 0.15 + dy,
-        rx: 8,
-        ry: 11,
-        startAngle: -math.pi * 0.5,
-        sweep: math.pi * 1.4,
-        thickness: 4.5,
-      ),
-      _CurlSpec(
-        cx: headX + 6,
-        cy: headY + headH * 0.42 + dy,
-        rx: 7,
+        rx: 11,
         ry: 10,
-        startAngle: -math.pi * 0.4,
-        sweep: math.pi * 1.3,
-        thickness: 4.0,
-      ),
-      _CurlSpec(
-        cx: headX + 8,
-        cy: headY + headH * 0.65 + dy,
-        rx: 7,
-        ry: 8,
-        startAngle: -math.pi * 0.3,
-        sweep: math.pi * 1.2,
-        thickness: 3.5,
+        startAngle: -math.pi * 0.95,
+        sweep: math.pi * 1.85,
+        thickness: 5.4,
       ),
     ];
-    for (final c in leftArcs) {
-      _drawCurlArc(canvas, c, midPaint);
-    }
+  }
 
-    final rightArcs = [
+  List<_CurlSpec> _buildSideCurls({
+    required double headX,
+    required double headY,
+    required double headW,
+    required double headH,
+    required double dy,
+    required bool isLeft,
+  }) {
+    final x1 = isLeft ? headX + 8 : headX + headW - 8;
+    final x2 = isLeft ? headX + 6 : headX + headW - 6;
+    final x3 = isLeft ? headX + 8 : headX + headW - 8;
+
+    final sweep1 = isLeft ? math.pi * 1.65 : -math.pi * 1.65;
+    final sweep2 = isLeft ? math.pi * 1.50 : -math.pi * 1.50;
+    final sweep3 = isLeft ? math.pi * 1.35 : -math.pi * 1.35;
+
+    return [
       _CurlSpec(
-        cx: headX + headW - 8,
-        cy: headY + headH * 0.15 + dy,
-        rx: 8,
-        ry: 11,
-        startAngle: -math.pi * 0.5,
-        sweep: -math.pi * 1.4,
-        thickness: 4.5,
+        cx: x1,
+        cy: headY + headH * 0.14 + dy,
+        rx: 8.5,
+        ry: 12,
+        startAngle: -math.pi * 0.55,
+        sweep: sweep1,
+        thickness: 4.8,
       ),
       _CurlSpec(
-        cx: headX + headW - 6,
+        cx: x2,
         cy: headY + headH * 0.42 + dy,
-        rx: 7,
-        ry: 10,
-        startAngle: -math.pi * 0.4,
-        sweep: -math.pi * 1.3,
-        thickness: 4.0,
+        rx: 7.5,
+        ry: 10.5,
+        startAngle: -math.pi * 0.42,
+        sweep: sweep2,
+        thickness: 4.2,
       ),
       _CurlSpec(
-        cx: headX + headW - 8,
-        cy: headY + headH * 0.65 + dy,
-        rx: 7,
-        ry: 8,
-        startAngle: -math.pi * 0.3,
-        sweep: -math.pi * 1.2,
-        thickness: 3.5,
-      ),
-    ];
-    for (final c in rightArcs) {
-      _drawCurlArc(canvas, c, midPaint);
-    }
-
-    final coilPaint = Paint()
-      ..color = _hairBase
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final coils = [
-      _CoilSpec(
-        cx: headX + headW * 0.22,
-        cy: headY - 1 + dy,
-        rx: 5,
-        ry: 6,
-        loops: 1.4,
-        thickness: 3.2,
-      ),
-      _CoilSpec(
-        cx: headX + headW * 0.36,
-        cy: headY - 5 + dy,
-        rx: 5,
-        ry: 7,
-        loops: 1.5,
-        thickness: 3.4,
-      ),
-      _CoilSpec(
-        cx: headX + headW * 0.50,
-        cy: headY - 9 + dy,
-        rx: 6,
-        ry: 8,
-        loops: 1.6,
+        cx: x3,
+        cy: headY + headH * 0.67 + dy,
+        rx: 7.5,
+        ry: 8.5,
+        startAngle: -math.pi * 0.32,
+        sweep: sweep3,
         thickness: 3.8,
       ),
+    ];
+  }
+
+  List<_CoilSpec> _buildCoils(
+    double headX,
+    double headY,
+    double headW,
+    double headH,
+    double dy,
+  ) {
+    return [
       _CoilSpec(
-        cx: headX + headW * 0.64,
-        cy: headY - 5 + dy,
-        rx: 5,
-        ry: 7,
-        loops: 1.5,
+        cx: headX + headW * 0.20,
+        cy: headY - 1 + dy,
+        rx: 5.2,
+        ry: 6.6,
+        loops: 1.8,
         thickness: 3.4,
       ),
       _CoilSpec(
-        cx: headX + headW * 0.78,
+        cx: headX + headW * 0.35,
+        cy: headY - 5 + dy,
+        rx: 5.4,
+        ry: 7.4,
+        loops: 1.9,
+        thickness: 3.6,
+      ),
+      _CoilSpec(
+        cx: headX + headW * 0.50,
+        cy: headY - 10 + dy,
+        rx: 6.2,
+        ry: 8.8,
+        loops: 2.1,
+        thickness: 4.0,
+      ),
+      _CoilSpec(
+        cx: headX + headW * 0.65,
+        cy: headY - 5 + dy,
+        rx: 5.4,
+        ry: 7.4,
+        loops: 1.9,
+        thickness: 3.6,
+      ),
+      _CoilSpec(
+        cx: headX + headW * 0.80,
         cy: headY - 1 + dy,
-        rx: 5,
-        ry: 6,
-        loops: 1.4,
-        thickness: 3.2,
+        rx: 5.2,
+        ry: 6.6,
+        loops: 1.8,
+        thickness: 3.4,
       ),
       _CoilSpec(
         cx: headX + 2,
         cy: headY + headH * 0.52 + dy,
-        rx: 4,
-        ry: 6,
-        loops: 1.2,
-        thickness: 2.8,
+        rx: 4.3,
+        ry: 6.4,
+        loops: 1.5,
+        thickness: 3.0,
       ),
       _CoilSpec(
         cx: headX + headW - 2,
         cy: headY + headH * 0.52 + dy,
-        rx: 4,
-        ry: 6,
-        loops: 1.2,
-        thickness: 2.8,
+        rx: 4.3,
+        ry: 6.4,
+        loops: 1.5,
+        thickness: 3.0,
       ),
     ];
-    for (final c in coils) {
-      _drawSpringCoil(canvas, c, coilPaint);
-    }
+  }
 
-    final shinePaint = Paint()..color = _hairShine.withOpacity(0.55);
-    final shines = [
+  List<_ShineSpec> _buildShines(
+    double headX,
+    double headY,
+    double headW,
+    double headH,
+    double dy,
+  ) {
+    return [
       _ShineSpec(
         cx: headX + headW * 0.28,
         cy: headY - 2 + dy,
@@ -988,16 +1118,17 @@ class _RobotPainter extends CustomPainter {
         angle: 0.5,
       ),
     ];
-    for (final s in shines) {
-      canvas.save();
-      canvas.translate(s.cx, s.cy);
-      canvas.rotate(s.angle);
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset.zero, width: s.rx * 2, height: s.ry * 2),
-        shinePaint,
-      );
-      canvas.restore();
-    }
+  }
+
+  void _drawShine(Canvas canvas, _ShineSpec s, Paint paint) {
+    canvas.save();
+    canvas.translate(s.cx, s.cy);
+    canvas.rotate(s.angle);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset.zero, width: s.rx * 2, height: s.ry * 2),
+      paint,
+    );
+    canvas.restore();
   }
 
   void _drawHairFringe({
@@ -1132,19 +1263,19 @@ class _RobotPainter extends CustomPainter {
   void _drawMouth({required Canvas canvas, required Offset center}) {
     final path = Path();
     if (isAlarm) {
-      path.moveTo(center.dx - 13, center.dy + 4);
+      path.moveTo(center.dx - 9, center.dy + 4);
       path.quadraticBezierTo(
         center.dx,
-        center.dy - 6,
-        center.dx + 13,
+        center.dy - 4,
+        center.dx + 10,
         center.dy + 4,
       );
     } else {
-      path.moveTo(center.dx - 13, center.dy - 1);
+      path.moveTo(center.dx - 9, center.dy - 1);
       path.quadraticBezierTo(
         center.dx,
-        center.dy + 9,
-        center.dx + 13,
+        center.dy + 5,
+        center.dx + 9,
         center.dy - 1,
       );
     }
@@ -1167,95 +1298,248 @@ class _RobotPainter extends CustomPainter {
   }) {
     const upperLen = 32.0;
     const foreLen = 24.0;
+
     final baseUpper = isLeft ? -2.38 : -0.76;
     final upperAngle = baseUpper + swing;
-    final foreAngle = upperAngle + (isLeft ? 0.52 : -0.52) + foreSwing;
+    final foreAngle = upperAngle + (isLeft ? 0.58 : -0.58) + foreSwing;
 
     final elbow = Offset(
       shoulder.dx + math.cos(upperAngle) * upperLen,
       shoulder.dy + math.sin(upperAngle) * upperLen,
     );
+
     final wrist = Offset(
       elbow.dx + math.cos(foreAngle) * foreLen,
       elbow.dy + math.sin(foreAngle) * foreLen,
     );
 
-    canvas.drawCircle(shoulder, 5, Paint()..color = _joint);
+    // ---------------------------
+    // paints
+    // ---------------------------
+    final shoulderGlow = Paint()..color = accentColor.withOpacity(0.10);
+
+    final jointFill = Paint()..color = _joint;
+
+    final jointStroke = Paint()
+      ..color = _jointRim
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+
+    final upperPaint = Paint()
+      ..color = _limbUp
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round;
+
+    final upperHighlight = Paint()
+      ..color = Colors.white.withOpacity(0.18)
+      ..strokeWidth = 3.2
+      ..strokeCap = StrokeCap.round;
+
+    final forePaint = Paint()
+      ..color = _limbMid
+      ..strokeWidth = 7.5
+      ..strokeCap = StrokeCap.round;
+
+    final foreHighlight = Paint()
+      ..color = Colors.white.withOpacity(0.14)
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round;
+
+    final handFill = Paint()..color = _limbLow;
+
+    final handStroke = Paint()
+      ..color = _joint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.6;
+
+    // ---------------------------
+    // shoulder
+    // ---------------------------
+    canvas.drawCircle(shoulder, 8, shoulderGlow);
+    canvas.drawCircle(shoulder, 5, jointFill);
+    canvas.drawCircle(shoulder, 5, jointStroke);
+
+    // shoulder hub inner
     canvas.drawCircle(
       shoulder,
-      5,
-      Paint()
-        ..color = _jointRim
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8,
+      2.0,
+      Paint()..color = Colors.white.withOpacity(0.12),
     );
 
+    // ---------------------------
+    // upper arm
+    // ---------------------------
+    canvas.drawLine(shoulder, elbow, upperPaint);
+
+    // subtle highlight lệch lên 1 chút để có cảm giác volume
     canvas.drawLine(
-      shoulder,
-      elbow,
-      Paint()
-        ..color = _limbUp
-        ..strokeWidth = 10
-        ..strokeCap = StrokeCap.round,
+      Offset(shoulder.dx + (isLeft ? 0.6 : -0.6), shoulder.dy - 0.8),
+      Offset(elbow.dx + (isLeft ? 0.6 : -0.6), elbow.dy - 0.8),
+      upperHighlight,
     );
 
-    canvas.drawCircle(elbow, 7, Paint()..color = accentColor.withOpacity(0.08));
-    canvas.drawCircle(elbow, 5, Paint()..color = _joint);
+    // ---------------------------
+    // elbow
+    // ---------------------------
+    canvas.drawCircle(elbow, 8, Paint()..color = accentColor.withOpacity(0.10));
+    canvas.drawCircle(elbow, 5.2, jointFill);
+    canvas.drawCircle(elbow, 5.2, jointStroke);
+
+    // cap ring cho cảm giác mechanical hơn
     canvas.drawCircle(
       elbow,
-      5,
+      7.0,
       Paint()
-        ..color = _jointRim
+        ..color = Colors.white.withOpacity(0.05)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8,
+        ..strokeWidth = 1.0,
     );
 
+    // ---------------------------
+    // forearm
+    // ---------------------------
+    canvas.drawLine(elbow, wrist, forePaint);
+
     canvas.drawLine(
-      elbow,
+      Offset(elbow.dx + (isLeft ? 0.5 : -0.5), elbow.dy - 0.6),
+      Offset(wrist.dx + (isLeft ? 0.5 : -0.5), wrist.dy - 0.6),
+      foreHighlight,
+    );
+
+    // wrist joint
+    canvas.drawCircle(
       wrist,
-      Paint()
-        ..color = _limbMid
-        ..strokeWidth = 7.5
-        ..strokeCap = StrokeCap.round,
+      4.0,
+      Paint()..color = accentColor.withOpacity(0.06),
+    );
+    canvas.drawCircle(wrist, 3.5, Paint()..color = _limbLow);
+
+    // ---------------------------
+    // hand
+    // ---------------------------
+    final handAngle = foreAngle + (isLeft ? -0.08 : 0.08);
+
+    canvas.save();
+    canvas.translate(wrist.dx, wrist.dy + 1.6);
+    canvas.rotate(handAngle);
+
+    final handRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: const Offset(0, 0), width: 12, height: 6.5),
+      const Radius.circular(3.2),
     );
 
-    canvas.drawCircle(wrist, 3.5, Paint()..color = _limbLow);
-    final handRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset(wrist.dx, wrist.dy + 2),
-        width: 11,
-        height: 6,
-      ),
-      const Radius.circular(3),
-    );
-    canvas.drawRRect(handRect, Paint()..color = _limbLow);
+    canvas.drawRRect(handRect, handFill);
+    canvas.drawRRect(handRect, handStroke);
+
+    // highlight trên bàn tay
     canvas.drawRRect(
-      handRect,
-      Paint()
-        ..color = _joint
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.6,
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: const Offset(0, -1.1), width: 8.5, height: 1.8),
+        const Radius.circular(1),
+      ),
+      Paint()..color = Colors.white.withOpacity(0.10),
     );
+
+    // ngón / claw nhỏ
+    final fingerPaint = Paint()
+      ..color = _jointRim
+      ..strokeWidth = 1.1
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(
+      const Offset(3.5, -0.8),
+      const Offset(6.0, -1.6),
+      fingerPaint,
+    );
+    canvas.drawLine(
+      const Offset(3.8, 0.8),
+      const Offset(6.2, 1.6),
+      fingerPaint,
+    );
+
+    canvas.restore();
+  }
+
+  void _drawSPC({
+    required Canvas canvas,
+    required double bodyX,
+    required double bodyY,
+    required double bodyW,
+    required double bodyH,
+  }) {
+    final center = Offset(bodyX + bodyW * 0.70, bodyY + bodyH * 0.34);
+
+    final badgeW = bodyW * 0.46;
+    final badgeH = bodyH * 0.42;
+
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: center, width: badgeW, height: badgeH),
+      Radius.circular(badgeH * 0.22),
+    );
+
+    canvas.drawRRect(rect, Paint()..color = Colors.black.withOpacity(0.20));
+
+    canvas.drawRRect(
+      rect,
+      Paint()
+        ..color = Colors.white.withOpacity(0.26)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9,
+    );
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: 'KVH',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: badgeH * 0.52,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    textPainter.layout();
+
+    // 🔥 FIX MIRROR TEXT
+    canvas.save();
+
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(1 / facing, 1.0); // 👉 fix ngược lại
+
+    textPainter.paint(
+      canvas,
+      Offset(-textPainter.width / 2, -textPainter.height / 2),
+    );
+
+    canvas.restore();
   }
 
   void _drawLeg({
     required Canvas canvas,
     required Offset hip,
     required double swing,
+    required double kneeBend,
+    required double footLift,
     required bool isLeft,
   }) {
     const thighLen = 32.0;
     const shinLen = 26.0;
+
     final thighAngle = 1.57 + swing;
-    final shinAngle = thighAngle + (isLeft ? 0.06 : -0.06);
+
+    // cẳng chân co rõ hơn khi chân được nhấc lên
+    final shinBaseOffset = isLeft ? 0.18 : -0.18;
+    final shinAngle = thighAngle + shinBaseOffset + kneeBend;
 
     final knee = Offset(
       hip.dx + math.cos(thighAngle) * thighLen,
       hip.dy + math.sin(thighAngle) * thighLen,
     );
+
     final ankle = Offset(
       knee.dx + math.cos(shinAngle) * shinLen,
-      knee.dy + math.sin(shinAngle) * shinLen,
+      knee.dy + math.sin(shinAngle) * shinLen - footLift,
     );
 
     canvas.drawCircle(hip, 5, Paint()..color = _joint);
@@ -1267,6 +1551,7 @@ class _RobotPainter extends CustomPainter {
         ..strokeWidth = 12
         ..strokeCap = StrokeCap.round,
     );
+
     canvas.drawCircle(knee, 7, Paint()..color = accentColor.withOpacity(0.08));
     canvas.drawCircle(knee, 5.5, Paint()..color = _joint);
     canvas.drawCircle(
@@ -1277,6 +1562,7 @@ class _RobotPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8,
     );
+
     canvas.drawLine(
       knee,
       ankle,
@@ -1288,9 +1574,14 @@ class _RobotPainter extends CustomPainter {
     canvas.drawCircle(ankle, 3.5, Paint()..color = _joint);
 
     final footOffX = isLeft ? -3.0 : 3.0;
-    final footCenter = Offset(ankle.dx + footOffX, ankle.dy + 5);
+    final footTilt = swing * 0.35;
+
+    canvas.save();
+    canvas.translate(ankle.dx + footOffX, ankle.dy + 2.5);
+    canvas.rotate(footTilt);
+
     final footRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: footCenter, width: 26, height: 10),
+      Rect.fromCenter(center: Offset.zero, width: 26, height: 10),
       const Radius.circular(5),
     );
     canvas.drawRRect(footRect, Paint()..color = _footBg);
@@ -1302,18 +1593,16 @@ class _RobotPainter extends CustomPainter {
         ..strokeWidth = 0.8,
     );
 
-    final toeX = ankle.dx + footOffX + (isLeft ? -7.0 : 7.0);
+    final toeCenter = Offset(isLeft ? -7.0 : 7.0, 2.5);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(toeX, ankle.dy + 5),
-          width: 9,
-          height: 8,
-        ),
+        Rect.fromCenter(center: toeCenter, width: 9, height: 8),
         const Radius.circular(4),
       ),
       Paint()..color = _footRim,
     );
+
+    canvas.restore();
   }
 
   void _glowCircle(Canvas canvas, Offset center, double r, Color color) {
@@ -1341,7 +1630,14 @@ class _RobotPainter extends CustomPainter {
         old.foreSwing != foreSwing ||
         old.legSwingL != legSwingL ||
         old.legSwingR != legSwingR ||
-        old.hairOffset != hairOffset;
+        old.kneeBendL != kneeBendL ||
+        old.kneeBendR != kneeBendR ||
+        old.footLiftL != footLiftL ||
+        old.footLiftR != footLiftR ||
+        old.hairOffset != hairOffset ||
+        old.walkStrength != walkStrength ||
+        old.isWalking != isWalking ||
+        old.walkPhase != walkPhase;
   }
 }
 

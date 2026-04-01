@@ -1,9 +1,20 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
 import '../utility_api/utility_api.dart';
-import '../utility_dashboard/ultility_dashboard_chart/utility_minute_chart_screen.dart';
+
+class SignalChartConfig {
+  final String boxDeviceId;
+  final String plcAddress;
+  final String? cateId;
+  final List<String>? cateIds;
+
+  const SignalChartConfig({
+    required this.boxDeviceId,
+    required this.plcAddress,
+    this.cateId,
+    this.cateIds,
+  });
+}
 
 class ChartCatalogProvider extends ChangeNotifier {
   final UtilityApi api;
@@ -14,42 +25,13 @@ class ChartCatalogProvider extends ChangeNotifier {
   Object? error;
 
   List<String> facs = [];
-  List<String> cates = const [
-    'Electricity',
-    'Water',
-    'Compressed Air',
-  ]; // có thể API hoá sau
+  List<String> cates = const ['Electricity', 'Water', 'Compressed Air'];
 
   List<String> boxDeviceIds = [];
   List<SignalChartConfig> charts = [];
 
   Future<void> loadFacs() async {
-    // nếu bạn có /scadas trả fac list -> parse fac unique
-    // Ở đây mình giả định bạn đã có api.getScadas()
-  }
-
-  Future<void> loadBoxes1({required String facId, required String cate}) async {
-    loading = true;
-    error = null;
-    notifyListeners();
-
-    try {
-      final channels = await api.getChannels(facId: facId, cate: cate);
-      final set = <String>{};
-      for (final c in channels) {
-        final v = c.boxDeviceId.trim();
-        if (v.isNotEmpty) set.add(v);
-      }
-      boxDeviceIds = set.toList()..sort();
-
-      // reset charts khi đổi fac/cate
-      charts = [];
-    } catch (e) {
-      error = e;
-    } finally {
-      loading = false;
-      notifyListeners();
-    }
+    // TODO: implement if needed
   }
 
   Future<void> loadBoxes({required String facId, required String cate}) async {
@@ -60,28 +42,28 @@ class ChartCatalogProvider extends ChangeNotifier {
     try {
       final channels = await api.getChannels(facId: facId, cate: cate);
 
-      // ✅ 1) in số lượng channels + vài dòng sample
       debugPrint('=== /channels facId=$facId cate=$cate');
       debugPrint('channels.length=${channels.length}');
+
       for (final c in channels.take(20)) {
-        debugPrint('  - boxDeviceId=${c.boxDeviceId}  scadaId=${c.scadaId} ');
+        debugPrint('  - boxDeviceId=${c.boxDeviceId}  scadaId=${c.scadaId}');
       }
 
-      // ✅ 2) build boxDeviceIds
       final set = <String>{};
       for (final c in channels) {
         final v = c.boxDeviceId.trim();
-        if (v.isNotEmpty) set.add(v);
+        if (v.isNotEmpty) {
+          set.add(v);
+        }
       }
-      boxDeviceIds = set.toList()..sort();
 
-      // ✅ 3) in danh sách BOX
+      boxDeviceIds = set.toList()..sort();
+      charts = [];
+
       debugPrint('boxDeviceIds (${boxDeviceIds.length}):');
       for (final b in boxDeviceIds) {
         debugPrint('  • $b');
       }
-
-      charts = [];
     } catch (e) {
       error = e;
       debugPrint('loadBoxes error=$e');
@@ -109,7 +91,7 @@ class ChartCatalogProvider extends ChangeNotifier {
         facId: facId,
         cate: cate,
         boxDeviceId: box,
-        importantOnly: importantOnly, // ✅ truyền xuống API
+        importantOnly: importantOnly,
       );
 
       final seen = <String>{};
@@ -128,7 +110,7 @@ class ChartCatalogProvider extends ChangeNotifier {
                 return SignalChartConfig(
                   boxDeviceId: box,
                   plcAddress: addr,
-                  cateId: cateId.isEmpty ? null : cateId, // ✅ dùng single
+                  cateId: cateId.isEmpty ? null : cateId,
                 );
               })
               .whereType<SignalChartConfig>()

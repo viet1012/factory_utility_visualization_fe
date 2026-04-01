@@ -4,29 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_state/chart_catalog_provider.dart';
-import '../ultility_dashboard_chart/utility_hourly_bar_panel.dart';
 import 'utility_minute_chart_panel.dart';
-
-class FacChartConfig {
-  final String facId;
-  final List<SignalChartConfig> charts;
-
-  const FacChartConfig({required this.facId, required this.charts});
-}
-
-class SignalChartConfig {
-  final String boxDeviceId;
-  final String plcAddress;
-  final String? cateId;
-  final List<String>? cateIds;
-
-  const SignalChartConfig({
-    required this.boxDeviceId,
-    required this.plcAddress,
-    this.cateId,
-    this.cateIds,
-  });
-}
 
 class UtilityAllFactoriesChartsScreen extends StatefulWidget {
   const UtilityAllFactoriesChartsScreen({super.key});
@@ -45,25 +23,17 @@ class _UtilityAllFactoriesChartsScreenState
   ];
 
   static const List<String> _facTabs = ['Fac_A', 'Fac_B', 'Fac_C'];
-
-  static const List<String> _viewTabs = ['Summary', 'Minutes'];
-
-  static const List<String> _summaryRanges = [
-    'TODAY',
-    'YESTERDAY',
-    'LAST_7_DAYS',
-    'THIS_MONTH',
-  ];
+  static const List<String> _viewTabs = ['Minutes'];
 
   int _selectedCateIndex = 0;
   int _selectedFacIndex = 0;
-  int _selectedViewIndex = 1;
+  int _selectedViewIndex = 0;
   int _selectedBoxIndex = 0;
-  int _selectedSummarySignalIndex = 0;
 
-  String _selectedSummaryRange = 'LAST_7_DAYS';
   bool _importantOnly = false;
   bool _filtersExpanded = true;
+
+  int _loadToken = 0;
 
   String get selectedCate => _cateTabs[_selectedCateIndex];
 
@@ -71,110 +41,90 @@ class _UtilityAllFactoriesChartsScreenState
 
   String get selectedView => _viewTabs[_selectedViewIndex];
 
+  ChartCatalogProvider get _catalog => context.read<ChartCatalogProvider>();
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _loadInitialData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCatalogForCurrentSelection();
     });
   }
 
-  Future<void> _loadInitialData() async {
-    final catalog = context.read<ChartCatalogProvider>();
+  Future<void> _loadCatalogForCurrentSelection() async {
+    final token = ++_loadToken;
 
-    await catalog.loadBoxes(facId: selectedFac, cate: selectedCate);
+    await _catalog.loadBoxes(facId: selectedFac, cate: selectedCate);
 
-    await _loadFirstBoxChartsIfAny(catalog);
+    if (!mounted || token != _loadToken) return;
+
+    setState(() {
+      _selectedBoxIndex = 0;
+    });
+
+    final firstBox = _safeSelectedBox(_catalog.boxDeviceIds);
+    if (firstBox != null) {
+      await _loadChartsForBox(firstBox, token: token);
+    }
   }
 
-  Future<void> _reloadBoxesAndCharts() async {
-    final catalog = context.read<ChartCatalogProvider>();
+  Future<void> _loadChartsForBox(String boxDeviceId, {int? token}) async {
+    final currentToken = token ?? ++_loadToken;
 
-    _selectedBoxIndex = 0;
-    _selectedSummarySignalIndex = 0;
-
-    await catalog.loadBoxes(facId: selectedFac, cate: selectedCate);
-
-    await _loadFirstBoxChartsIfAny(catalog);
-  }
-
-  Future<void> _loadFirstBoxChartsIfAny(ChartCatalogProvider catalog) async {
-    if (catalog.boxDeviceIds.isEmpty) return;
-
-    await catalog.loadChartsForBox(
-      facId: selectedFac,
-      cate: selectedCate,
-      boxDeviceId: catalog.boxDeviceIds.first,
-      importantOnly: _importantOnly ? 1 : 0,
-    );
-  }
-
-  Future<void> _loadChartsForSelectedBox(
-    ChartCatalogProvider catalog,
-    String boxDeviceId,
-  ) async {
-    await catalog.loadChartsForBox(
+    await _catalog.loadChartsForBox(
       facId: selectedFac,
       cate: selectedCate,
       boxDeviceId: boxDeviceId,
       importantOnly: _importantOnly ? 1 : 0,
     );
+
+    if (!mounted || currentToken != _loadToken) return;
+  }
+
+  Future<void> _onCateChanged(int index) async {
+    if (_selectedCateIndex == index) return;
+    setState(() {
+      _selectedCateIndex = index;
+      _selectedBoxIndex = 0;
+    });
+    await _loadCatalogForCurrentSelection();
+  }
+
+  Future<void> _onFacChanged(int index) async {
+    if (_selectedFacIndex == index) return;
+    setState(() {
+      _selectedFacIndex = index;
+      _selectedBoxIndex = 0;
+    });
+    await _loadCatalogForCurrentSelection();
   }
 
   void _onViewChanged(int index) {
+    if (_selectedViewIndex == index) return;
     setState(() {
       _selectedViewIndex = index;
     });
   }
 
-  Future<void> _onCateChanged(int index) async {
-    setState(() {
-      _selectedCateIndex = index;
-    });
-    await _reloadBoxesAndCharts();
-  }
+  Future<void> _onBoxChanged(List<String> boxTabs, int index) async {
+    if (boxTabs.isEmpty || index >= boxTabs.length) return;
 
-  Future<void> _onFacChanged(int index) async {
-    setState(() {
-      _selectedFacIndex = index;
-    });
-    await _reloadBoxesAndCharts();
-  }
-
-  Future<void> _onBoxChanged(
-    ChartCatalogProvider catalog,
-    List<String> boxTabs,
-    int index,
-  ) async {
-    if (boxTabs.isEmpty) return;
+    final nextBox = boxTabs[index];
 
     setState(() {
       _selectedBoxIndex = index;
-      _selectedSummarySignalIndex = 0;
     });
 
-    final selectedBox = boxTabs[index];
-
-    await _loadChartsForSelectedBox(catalog, selectedBox);
+    await _loadChartsForBox(nextBox);
   }
 
-  Future<void> _onImportantChanged(
-    ChartCatalogProvider catalog,
-    String? selectedBox,
-    bool value,
-  ) async {
+  Future<void> _onImportantChanged(String? selectedBox, bool value) async {
     setState(() {
       _importantOnly = value;
     });
 
     if (selectedBox == null || selectedBox.trim().isEmpty) return;
-
-    await catalog.loadChartsForBox(
-      facId: selectedFac,
-      cate: selectedCate,
-      boxDeviceId: selectedBox,
-      importantOnly: _importantOnly ? 1 : 0,
-    );
+    await _loadChartsForBox(selectedBox);
   }
 
   void _toggleFilters() {
@@ -183,307 +133,166 @@ class _UtilityAllFactoriesChartsScreenState
     });
   }
 
+  String? _safeSelectedBox(List<String> boxTabs) {
+    if (boxTabs.isEmpty) return null;
+
+    if (_selectedBoxIndex < 0 || _selectedBoxIndex >= boxTabs.length) {
+      _selectedBoxIndex = 0;
+    }
+
+    return boxTabs[_selectedBoxIndex];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final boxTabs = context.select<ChartCatalogProvider, List<String>>(
+      (p) => p.boxDeviceIds,
+    );
+    final selectedBox = _safeSelectedBox(boxTabs);
+
     return Scaffold(
       body: Container(
         padding: const EdgeInsets.all(8),
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0a0e27), Color(0xFF1a1a2e), Color(0xFF16213e)],
+            colors: [Color(0xFF0A0E27), Color(0xFF1A1A2E), Color(0xFF16213E)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
         ),
-        child: Consumer<ChartCatalogProvider>(
-          builder: (context, catalog, _) {
-            final boxTabs = catalog.boxDeviceIds;
-            final selectedBox = _getSelectedBox(boxTabs);
+        child: Column(
+          children: [
+            _TopBar(
+              filtersExpanded: _filtersExpanded,
+              selectedCate: selectedCate,
+              selectedFac: selectedFac,
+              selectedBox: selectedBox,
+              viewTabs: _viewTabs,
+              selectedViewIndex: _selectedViewIndex,
+              onViewChanged: _onViewChanged,
+              importantOnly: _importantOnly,
+              onToggleFilters: _toggleFilters,
+              onImportantChanged: (value) =>
+                  _onImportantChanged(selectedBox, value),
+              showImportantSwitch: selectedView == 'Minutes',
+              importantEnabled:
+                  selectedBox != null && selectedBox.trim().isNotEmpty,
+            ),
+            const SizedBox(height: 8),
+            _FiltersArea(
+              expanded: _filtersExpanded,
+              cateTabs: _cateTabs,
+              facTabs: _facTabs,
+              boxTabs: boxTabs,
+              selectedCateIndex: _selectedCateIndex,
+              selectedFacIndex: _selectedFacIndex,
+              selectedBoxIndex: boxTabs.isEmpty ? 0 : _selectedBoxIndex,
+              onCateChanged: _onCateChanged,
+              onFacChanged: _onFacChanged,
+              onBoxChanged: (index) => _onBoxChanged(boxTabs, index),
+            ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: _CatalogBody(
+                selectedBox: selectedBox,
+                selectedCate: selectedCate,
+                selectedFac: selectedFac,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-            return Column(
-              children: [
-                _buildTopBar(catalog: catalog, selectedBox: selectedBox),
-                const SizedBox(height: 8),
-                _buildFiltersArea(catalog: catalog, boxTabs: boxTabs),
-                const SizedBox(height: 4),
-                Expanded(
-                  child: _buildBody(catalog: catalog, selectedBox: selectedBox),
-                ),
-              ],
+class _CatalogBodyState {
+  final bool loading;
+  final Object? error;
+  final List charts;
+
+  const _CatalogBodyState({
+    required this.loading,
+    required this.error,
+    required this.charts,
+  });
+}
+
+class _CatalogBody extends StatelessWidget {
+  final String? selectedBox;
+  final String selectedCate;
+  final String selectedFac;
+
+  const _CatalogBody({
+    required this.selectedBox,
+    required this.selectedCate,
+    required this.selectedFac,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<ChartCatalogProvider, _CatalogBodyState>(
+      selector: (_, p) => _CatalogBodyState(
+        loading: p.loading,
+        error: p.error,
+        charts: p.charts,
+      ),
+      shouldRebuild: (prev, next) =>
+          prev.loading != next.loading ||
+          prev.error != next.error ||
+          !identical(prev.charts, next.charts),
+      builder: (context, vm, _) {
+        if (vm.loading && vm.charts.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (vm.error != null && vm.charts.isEmpty) {
+          return _CenterMessage(message: 'API error:\n${vm.error}');
+        }
+
+        if (selectedBox == null) {
+          return _CenterMessage(
+            message: 'No boxDeviceId for $selectedCate / $selectedFac',
+          );
+        }
+
+        if (vm.charts.isEmpty) {
+          return _CenterMessage(message: 'No signals in $selectedBox');
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final crossAxisCount = _resolveGridColumnCount(
+              constraints.maxWidth,
             );
-          },
-        ),
-      ),
-    );
-  }
 
-  String? _getSelectedBox(List<String> boxTabs) {
-    if (boxTabs.isEmpty) return null;
-    if (_selectedBoxIndex >= boxTabs.length) {
-      _selectedBoxIndex = 0;
-    }
-    return boxTabs[_selectedBoxIndex];
-  }
-
-  Widget _buildTopBar({
-    required ChartCatalogProvider catalog,
-    required String? selectedBox,
-  }) {
-    return Row(
-      children: [
-        _buildCollapseToggle(),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildTabRow(
-            labels: _viewTabs,
-            selectedIndex: _selectedViewIndex,
-            onSelect: _onViewChanged,
-          ),
-        ),
-        if (!_filtersExpanded)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Cate: $selectedCate   •   Fac: $selectedFac   •   Box: ${selectedBox ?? "-"}',
-                style: TextStyle(color: Colors.white.withOpacity(0.70)),
+            return GridView.builder(
+              key: const PageStorageKey('utility_chart_grid'),
+              padding: EdgeInsets.zero,
+              cacheExtent: 1200,
+              itemCount: vm.charts.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 16 / 10,
               ),
-            ),
-          ),
-        const SizedBox(width: 12),
-        if (selectedView == 'Minutes')
-          _buildImportantSwitch(catalog: catalog, selectedBox: selectedBox),
-      ],
-    );
-  }
+              itemBuilder: (context, index) {
+                final chart = vm.charts[index];
 
-  Widget _buildFiltersArea({
-    required ChartCatalogProvider catalog,
-    required List<String> boxTabs,
-  }) {
-    return AnimatedCrossFade(
-      duration: const Duration(milliseconds: 180),
-      crossFadeState: _filtersExpanded
-          ? CrossFadeState.showFirst
-          : CrossFadeState.showSecond,
-      firstChild: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _buildTabRow(
-                  labels: _cateTabs,
-                  selectedIndex: _selectedCateIndex,
-                  onSelect: (index) => _onCateChanged(index),
-                ),
-              ),
-              const SizedBox(width: 12),
-              _buildTabRow(
-                labels: _facTabs,
-                selectedIndex: _selectedFacIndex,
-                onSelect: (index) => _onFacChanged(index),
-                alignRight: true,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _buildTabRow(
-              labels: boxTabs.isEmpty ? const ['(no boxes)'] : boxTabs,
-              selectedIndex: boxTabs.isEmpty ? 0 : _selectedBoxIndex,
-              onSelect: (index) => _onBoxChanged(catalog, boxTabs, index),
-            ),
-          ),
-        ],
-      ),
-      secondChild: const SizedBox.shrink(),
-    );
-  }
-
-  Widget _buildBody({
-    required ChartCatalogProvider catalog,
-    required String? selectedBox,
-  }) {
-    if (selectedView == 'Summary') {
-      return _buildSummaryBody(
-        loading: catalog.loading,
-        error: catalog.error,
-        charts: catalog.charts,
-      );
-    }
-
-    return _buildMinutesBody(
-      loading: catalog.loading,
-      error: catalog.error,
-      charts: catalog.charts,
-      selectedBox: selectedBox,
-    );
-  }
-
-  Widget _buildSummaryBody({
-    required bool loading,
-    required Object? error,
-    required List<SignalChartConfig> charts,
-  }) {
-    if (loading && charts.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (error != null && charts.isEmpty) {
-      return _buildErrorState(error);
-    }
-
-    if (charts.isEmpty) {
-      return _buildEmptyState(
-        'No signals\ncate=$selectedCate • fac=$selectedFac',
-      );
-    }
-
-    if (_selectedSummarySignalIndex >= charts.length) {
-      _selectedSummarySignalIndex = 0;
-    }
-
-    final selectedSignal = charts[_selectedSummarySignalIndex];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildSummaryToolbar(charts),
-        Expanded(
-          child: Center(
-            child: UtilityHourlyBarChartPanel(
-              facId: selectedFac,
-              boxDeviceId: selectedSignal.boxDeviceId,
-              plcAddress: selectedSignal.plcAddress,
-              range: _selectedSummaryRange,
-              width: 700,
-              height: 360,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryToolbar(List<SignalChartConfig> charts) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(0.14)),
-      ),
-      child: Row(
-        children: [
-          Text(
-            'Summary:',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.85),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(width: 10),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedSummaryRange,
-              dropdownColor: const Color(0xFF16213e),
-              style: const TextStyle(color: Colors.white),
-              items: _summaryRanges
-                  .map(
-                    (range) =>
-                        DropdownMenuItem(value: range, child: Text(range)),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _selectedSummaryRange = value;
-                });
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: _selectedSummarySignalIndex,
-                isExpanded: true,
-                dropdownColor: const Color(0xFF16213e),
-                style: const TextStyle(color: Colors.white),
-                items: List.generate(charts.length, (index) {
-                  final chart = charts[index];
-                  return DropdownMenuItem(
-                    value: index,
-                    child: Text(
-                      '${chart.boxDeviceId} • ${chart.plcAddress}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                return RepaintBoundary(
+                  child: UtilityMinuteChartPanel(
+                    key: ValueKey(
+                      '${selectedFac}_${selectedCate}_${chart.boxDeviceId}_${chart.plcAddress}',
                     ),
-                  );
-                }),
-                onChanged: (index) {
-                  if (index == null) return;
-                  setState(() {
-                    _selectedSummarySignalIndex = index;
-                  });
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMinutesBody({
-    required bool loading,
-    required Object? error,
-    required List<SignalChartConfig> charts,
-    required String? selectedBox,
-  }) {
-    if (loading && charts.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (error != null && charts.isEmpty) {
-      return _buildErrorState(error);
-    }
-
-    if (selectedBox == null) {
-      return _buildEmptyState(
-        'No boxDeviceId for $selectedCate / $selectedFac',
-      );
-    }
-
-    if (charts.isEmpty) {
-      return _buildEmptyState('No signals in $selectedBox');
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final crossAxisCount = _resolveGridColumnCount(constraints.maxWidth);
-
-        return GridView.builder(
-          itemCount: charts.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 16 / 10,
-          ),
-          itemBuilder: (context, index) {
-            final chart = charts[index];
-
-            return UtilityMinuteChartPanel(
-              facId: selectedFac,
-              cate: selectedCate,
-              boxDeviceId: chart.boxDeviceId,
-              plcAddress: chart.plcAddress,
-              cateIds: chart.cateIds,
+                    facId: selectedFac,
+                    cate: selectedCate,
+                    boxDeviceId: chart.boxDeviceId,
+                    plcAddress: chart.plcAddress,
+                    cateIds: chart.cateIds,
+                  ),
+                );
+              },
             );
           },
         );
@@ -496,10 +305,152 @@ class _UtilityAllFactoriesChartsScreenState
     if (width >= 1200) return 2;
     return 1;
   }
+}
 
-  Widget _buildCollapseToggle() {
+class _TopBar extends StatelessWidget {
+  final bool filtersExpanded;
+  final String selectedCate;
+  final String selectedFac;
+  final String? selectedBox;
+  final List<String> viewTabs;
+  final int selectedViewIndex;
+  final ValueChanged<int> onViewChanged;
+  final bool importantOnly;
+  final ValueChanged<bool> onImportantChanged;
+  final VoidCallback onToggleFilters;
+  final bool showImportantSwitch;
+  final bool importantEnabled;
+
+  const _TopBar({
+    required this.filtersExpanded,
+    required this.selectedCate,
+    required this.selectedFac,
+    required this.selectedBox,
+    required this.viewTabs,
+    required this.selectedViewIndex,
+    required this.onViewChanged,
+    required this.importantOnly,
+    required this.onImportantChanged,
+    required this.onToggleFilters,
+    required this.showImportantSwitch,
+    required this.importantEnabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _CollapseToggle(expanded: filtersExpanded, onTap: onToggleFilters),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _GlassTabRow(
+            labels: viewTabs,
+            selectedIndex: selectedViewIndex,
+            onSelect: onViewChanged,
+          ),
+        ),
+        if (!filtersExpanded)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Cate: $selectedCate   •   Fac: $selectedFac   •   Box: ${selectedBox ?? "-"}',
+                style: TextStyle(color: Colors.white.withOpacity(0.70)),
+              ),
+            ),
+          ),
+        const SizedBox(width: 12),
+        if (showImportantSwitch)
+          _ImportantSwitch(
+            value: importantOnly,
+            enabled: importantEnabled,
+            onChanged: onImportantChanged,
+          ),
+      ],
+    );
+  }
+}
+
+class _FiltersArea extends StatelessWidget {
+  final bool expanded;
+  final List<String> cateTabs;
+  final List<String> facTabs;
+  final List<String> boxTabs;
+  final int selectedCateIndex;
+  final int selectedFacIndex;
+  final int selectedBoxIndex;
+  final ValueChanged<int> onCateChanged;
+  final ValueChanged<int> onFacChanged;
+  final ValueChanged<int> onBoxChanged;
+
+  const _FiltersArea({
+    required this.expanded,
+    required this.cateTabs,
+    required this.facTabs,
+    required this.boxTabs,
+    required this.selectedCateIndex,
+    required this.selectedFacIndex,
+    required this.selectedBoxIndex,
+    required this.onCateChanged,
+    required this.onFacChanged,
+    required this.onBoxChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      alignment: Alignment.topCenter,
+      child: expanded
+          ? Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _GlassTabRow(
+                        labels: cateTabs,
+                        selectedIndex: selectedCateIndex,
+                        onSelect: onCateChanged,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _GlassTabRow(
+                      labels: facTabs,
+                      selectedIndex: selectedFacIndex,
+                      onSelect: onFacChanged,
+                      alignRight: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _GlassTabRow(
+                    labels: boxTabs.isEmpty ? const ['(no boxes)'] : boxTabs,
+                    selectedIndex: boxTabs.isEmpty ? 0 : selectedBoxIndex,
+                    onSelect: boxTabs.isEmpty ? (_) {} : onBoxChanged,
+                  ),
+                ),
+              ],
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+}
+
+class _CollapseToggle extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onTap;
+
+  const _CollapseToggle({required this.expanded, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
     return InkWell(
-      onTap: _toggleFilters,
+      onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -512,15 +463,13 @@ class _UtilityAllFactoriesChartsScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              _filtersExpanded
-                  ? Icons.expand_less_rounded
-                  : Icons.expand_more_rounded,
+              expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
               color: Colors.white.withOpacity(0.85),
               size: 18,
             ),
             const SizedBox(width: 8),
             Text(
-              _filtersExpanded ? 'Hide Tabs' : 'Show Tabs',
+              expanded ? 'Hide Tabs' : 'Show Tabs',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.90),
                 fontWeight: FontWeight.w800,
@@ -531,13 +480,21 @@ class _UtilityAllFactoriesChartsScreenState
       ),
     );
   }
+}
 
-  Widget _buildImportantSwitch({
-    required ChartCatalogProvider catalog,
-    required String? selectedBox,
-  }) {
-    final enabled = selectedBox != null && selectedBox.trim().isNotEmpty;
+class _ImportantSwitch extends StatelessWidget {
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
 
+  const _ImportantSwitch({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -551,7 +508,7 @@ class _UtilityAllFactoriesChartsScreenState
           Icon(
             Icons.star_rounded,
             size: 18,
-            color: _importantOnly ? Colors.amberAccent : Colors.white54,
+            color: value ? Colors.amberAccent : Colors.white54,
           ),
           const SizedBox(width: 8),
           Text(
@@ -562,23 +519,28 @@ class _UtilityAllFactoriesChartsScreenState
             ),
           ),
           const SizedBox(width: 10),
-          Switch(
-            value: _importantOnly,
-            onChanged: !enabled
-                ? null
-                : (value) => _onImportantChanged(catalog, selectedBox, value),
-          ),
+          Switch(value: value, onChanged: enabled ? onChanged : null),
         ],
       ),
     );
   }
+}
 
-  Widget _buildTabRow({
-    required List<String> labels,
-    required int selectedIndex,
-    required ValueChanged<int> onSelect,
-    bool alignRight = false,
-  }) {
+class _GlassTabRow extends StatelessWidget {
+  final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+  final bool alignRight;
+
+  const _GlassTabRow({
+    required this.labels,
+    required this.selectedIndex,
+    required this.onSelect,
+    this.alignRight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final tabs = Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -592,7 +554,6 @@ class _UtilityAllFactoriesChartsScreenState
             borderRadius: BorderRadius.circular(12),
             child: Stack(
               children: [
-                // 🔥 blur layer
                 BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
@@ -603,9 +564,7 @@ class _UtilityAllFactoriesChartsScreenState
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(selected ? 0.18 : 0.08),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.25), // viền glass
-                      ),
+                      border: Border.all(color: Colors.white.withOpacity(0.25)),
                     ),
                     child: Text(
                       labels[index],
@@ -618,8 +577,6 @@ class _UtilityAllFactoriesChartsScreenState
                     ),
                   ),
                 ),
-
-                // 🔥 glow khi selected
                 if (selected)
                   Positioned.fill(
                     child: IgnorePointer(
@@ -628,7 +585,7 @@ class _UtilityAllFactoriesChartsScreenState
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xff009fff).withOpacity(0.35),
+                              color: const Color(0xFF009FFF).withOpacity(0.35),
                               blurRadius: 12,
                             ),
                           ],
@@ -647,18 +604,15 @@ class _UtilityAllFactoriesChartsScreenState
         ? Align(alignment: Alignment.topRight, child: tabs)
         : tabs;
   }
+}
 
-  Widget _buildErrorState(Object error) {
-    return Center(
-      child: Text(
-        'API error:\n$error',
-        textAlign: TextAlign.center,
-        style: TextStyle(color: Colors.white.withOpacity(0.85)),
-      ),
-    );
-  }
+class _CenterMessage extends StatelessWidget {
+  final String message;
 
-  Widget _buildEmptyState(String message) {
+  const _CenterMessage({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: Text(
         message,

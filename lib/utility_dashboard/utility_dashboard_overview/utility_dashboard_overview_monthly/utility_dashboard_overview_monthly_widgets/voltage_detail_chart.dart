@@ -51,7 +51,7 @@ class _VoltageCache {
 
   static bool isCritical(double v) => _hasValue(v) && (v < 323 || v > 437);
 
-  static bool isAlarm(double v) => _hasValue(v) && (v < 342 || v > 418);
+  static bool isAlarm(double v) => _hasValue(v) && (v < 0 || v > 418);
 
   static bool isWarning(double v) => _hasValue(v) && (v < 360 || v > 400);
 

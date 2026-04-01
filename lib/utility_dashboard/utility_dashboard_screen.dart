@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/utility_catalog_tabs_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_api/utility_dashboard_overview_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/industrial_side_tab_bar.dart';
 import 'package:flutter/material.dart';
@@ -11,12 +12,11 @@ import '../utility_api/dio_client.dart';
 import '../utility_api/utility_api.dart';
 import '../utility_models/utility_facade_service.dart';
 import '../utility_state/chart_catalog_provider.dart';
-import '../utility_state/hourly_series_provider.dart';
+import '../utility_state/latest_provider.dart';
 import '../utility_state/minute_series_provider.dart';
 import '../utility_state/sum_compare_provider.dart';
 import '../utility_state/tree_latest_provider.dart';
 import 'ultility_dashboard_chart/utility_minute_chart_screen.dart';
-import 'utility_catalog/utility_catalog_tabs_screen.dart';
 import 'utility_dashboard_overview/utility_dashboard_overview.dart';
 
 class UtilityDashboardScreen extends StatefulWidget {
@@ -35,27 +35,76 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityFacadeService facade;
   late final AlarmApi alarmApi;
 
-  bool _sideExpanded = true; // ✅ mở/đóng sidebar
-  late TabController _tabController;
+  late final MinuteSeriesProvider minuteSeriesProvider;
+  late final SumCompareProvider sumCompareProvider;
+  late final ChartCatalogProvider chartCatalogProvider;
+  late final LatestProvider latestProvider;
+  late final AlarmProvider alarmProvider;
+  late final TreeLatestProvider treeLatestProvider;
+
+  bool _sideExpanded = true;
+  late final TabController _tabController;
+  int _tabIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    const baseUrl = 'http://localhost:9999';
 
-    const baseUrl = 'http://192.168.122.16:9093';
-    // const baseUrl = 'http://localhost:9999';
+    // const baseUrl = 'http://192.168.122.16:9093';
     DioClient.init(baseUrl: baseUrl);
-    _tabController = TabController(length: 4, vsync: this);
+
     dio = DioClient.dio;
     api = UtilityApi(dio: dio);
-
     facade = UtilityFacadeService(dio);
     alarmApi = AlarmApi(dio);
+
+    minuteSeriesProvider = MinuteSeriesProvider(
+      api: api,
+      interval: const Duration(seconds: 30),
+      window: const Duration(minutes: 60),
+    )..startPolling();
+
+    sumCompareProvider = SumCompareProvider(
+      api: api,
+      interval: const Duration(seconds: 30),
+    );
+
+    chartCatalogProvider = ChartCatalogProvider(api);
+    latestProvider = LatestProvider(api: api);
+
+    alarmProvider = AlarmProvider(
+      api: alarmApi,
+      interval: const Duration(seconds: 15),
+    )..startPolling();
+
+    treeLatestProvider = TreeLatestProvider(facade);
+
+    _tabController = TabController(length: 4, vsync: this);
+    _tabController.addListener(_handleTabChanged);
+  }
+
+  void _handleTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    if (_tabIndex == _tabController.index) return;
+
+    setState(() {
+      _tabIndex = _tabController.index;
+    });
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChanged);
     _tabController.dispose();
+
+    minuteSeriesProvider.dispose();
+    sumCompareProvider.dispose();
+    chartCatalogProvider.dispose();
+    latestProvider.dispose();
+    alarmProvider.dispose();
+    treeLatestProvider.dispose();
+
     super.dispose();
   }
 
@@ -64,49 +113,24 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     return MultiProvider(
       providers: [
         Provider<Dio>.value(value: dio),
-
         Provider<UtilityDashboardOverviewApi>.value(
           value: UtilityDashboardOverviewApi(dio),
         ),
-
         Provider<UtilityApi>.value(value: api),
         Provider<UtilityFacadeService>.value(value: facade),
         Provider<AlarmApi>.value(value: alarmApi),
 
-        ChangeNotifierProvider(
-          create: (_) => SumCompareProvider(
-            api: api,
-            interval: const Duration(seconds: 30),
-          ),
+        ChangeNotifierProvider<MinuteSeriesProvider>.value(
+          value: minuteSeriesProvider,
         ),
-
-        ChangeNotifierProvider(
-          create: (_) {
-            final p = MinuteSeriesProvider(
-              api: api,
-              interval: const Duration(seconds: 30),
-              window: const Duration(minutes: 60),
-            );
-            p.startPolling();
-            return p;
-          },
+        ChangeNotifierProvider<ChartCatalogProvider>.value(
+          value: chartCatalogProvider,
         ),
-
-        ChangeNotifierProvider(create: (_) => TreeSeriesProvider(api)),
-        ChangeNotifierProvider(create: (_) => ChartCatalogProvider(api)),
-
-        ChangeNotifierProvider(
-          create: (_) {
-            final p = AlarmProvider(
-              api: alarmApi,
-              interval: const Duration(seconds: 15),
-            );
-            p.startPolling();
-            return p;
-          },
+        ChangeNotifierProvider<LatestProvider>.value(value: latestProvider),
+        ChangeNotifierProvider<AlarmProvider>.value(value: alarmProvider),
+        ChangeNotifierProvider<TreeLatestProvider>.value(
+          value: treeLatestProvider,
         ),
-
-        ChangeNotifierProvider(create: (_) => TreeLatestProvider(facade)),
       ],
       child: Scaffold(
         body: Container(
@@ -120,7 +144,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
           child: SafeArea(
             child: Row(
               children: [
-                // ✅ SIDEBAR TAB DỌC
                 IndustrialSideTabBar(
                   controller: _tabController,
                   expanded: _sideExpanded,
@@ -145,12 +168,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                     ),
                   ],
                 ),
-
-                // ✅ CONTENT
                 Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    physics: const BouncingScrollPhysics(),
+                  child: IndexedStack(
+                    index: _tabIndex,
                     children: [
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -158,7 +178,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                           mainImageUrl: mainImageUrl,
                         ),
                       ),
-                      const UtilityAllFactoriesChartsScreen(),
+                      const RepaintBoundary(
+                        child: UtilityAllFactoriesChartsScreen(),
+                      ),
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: UtilityCatalogTabsScreen(),

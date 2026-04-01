@@ -114,6 +114,7 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutes_chart.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card1.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/monitoring_mascot.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -526,22 +527,42 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
 
     final monthKey = toYYYYMM(selectedMonth);
 
+    const Map<String, Alignment> facPositions = {
+      'Fac_A': Alignment(0.3, -0.70),
+      'Fac_B': Alignment(0.3, 0.72),
+      'idle': Alignment(-0.60, 0.2),
+    };
+
     return ValueListenableBuilder<Map<String, VoltageStatus>>(
       valueListenable: _activeVoltageAlarms,
       builder: (context, alarms, _) {
+        String targetFacId;
+
+        if (alarms.containsKey(selectedFac)) {
+          targetFacId = selectedFac;
+        } else if (alarms.isNotEmpty) {
+          targetFacId = alarms.keys.first;
+        } else {
+          targetFacId = 'idle';
+        }
         final hasAlarm = alarms.isNotEmpty;
         return AnimatedBuilder(
           animation: _blinkAnimation,
           builder: (context, child) {
             // final hasAlarm =
             //     _activeVoltageAlarms.value.isNotEmpty; // ✅ thêm dòng này
-            return Container(
-              decoration: BoxDecoration(
-                color: hasAlarm
-                    ? Colors.red.withOpacity(_blinkAnimation.value)
-                    : Colors.transparent,
-              ),
-              child: child,
+
+            return Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: hasAlarm
+                        ? Colors.red.withOpacity(_blinkAnimation.value)
+                        : Colors.transparent,
+                  ),
+                  child: child,
+                ),
+              ],
             );
           },
 
@@ -555,7 +576,6 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                   () => selectedMonth = DateTime(m.year, m.month, 1),
                 ),
                 hasAlarm: hasAlarm,
-                // 🔥 thêm dòng này
                 blinkAnimation: _blinkAnimation, // 🔥 thêm luôn animation
               ),
               Expanded(
@@ -616,6 +636,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(16),
                                     child: Stack(
+                                      fit: StackFit.expand,
                                       children: [
                                         FactoryMapWithRain(
                                           mainImageUrl: widget.mainImageUrl,
@@ -633,6 +654,21 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                                 Colors.black.withOpacity(0.15),
                                               ],
                                             ),
+                                          ),
+                                        ),
+
+                                        Transform.scale(
+                                          scale: 0.75,
+                                          child: MovingMascot(
+                                            alarmCount: alarms.length,
+                                            size: 220,
+                                            targetAlignment: targetFacId == null
+                                                ? const Alignment(-0.3, 0.2)
+                                                : facPositions[targetFacId] ??
+                                                      const Alignment(
+                                                        -0.60,
+                                                        0.80,
+                                                      ),
                                           ),
                                         ),
 
