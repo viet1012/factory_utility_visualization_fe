@@ -52,20 +52,23 @@ class _MovingMascotState extends State<MovingMascot>
         ? widget.targetAlignment
         : widget.idleAlignment;
 
-    if (oldWidget.targetAlignment != widget.targetAlignment ||
-        oldWidget.alarmCount != widget.alarmCount) {
-      _from = _current;
-      _to = nextTarget;
+    final shouldMove =
+        oldWidget.targetAlignment != widget.targetAlignment ||
+        oldWidget.idleAlignment != widget.idleAlignment ||
+        oldWidget.alarmCount != widget.alarmCount;
 
-      final dx = _to.x - _from.x;
-      final dy = _to.y - _from.y;
-      final distance = math.sqrt(dx * dx + dy * dy);
+    if (!shouldMove) return;
 
-      // duration theo quãng đường, nhưng có clamp để không quá nhanh / quá chậm
-      final ms = (650 + distance * 950).clamp(800, 1900).toInt();
-      _moveCtrl.duration = Duration(milliseconds: ms);
-      _moveCtrl.forward(from: 0);
-    }
+    _from = _current;
+    _to = nextTarget;
+
+    final dx = _to.x - _from.x;
+    final dy = _to.y - _from.y;
+    final distance = math.sqrt(dx * dx + dy * dy);
+
+    final ms = (650 + distance * 950).clamp(800, 1900).toInt();
+    _moveCtrl.duration = Duration(milliseconds: ms);
+    _moveCtrl.forward(from: 0);
   }
 
   @override
@@ -458,36 +461,10 @@ class _MonitoringMascotState extends State<MonitoringMascot>
                           ),
                         ),
                       ),
-
-                      // Logo KVH: không flip
                       Positioned.fill(
                         child: IgnorePointer(
                           child: CustomPaint(
-                            painter: _RobotPainter(
-                              accentColor: _accentColor,
-                              isAlarm: _isAlarm,
-                              alarmCount: widget.alarmCount,
-                              blinkScale: _blinkScale.value,
-                              eyeTrackX: 0,
-                              eyeTrackY: 0,
-                              antennaScale: 1.0,
-                              angryBrow: 0.0,
-                              armSwingL: 0.0,
-                              armSwingR: 0.0,
-                              foreSwing: 0.0,
-                              legSwingL: 0.0,
-                              legSwingR: 0.0,
-                              kneeBendL: 0.0,
-                              kneeBendR: 0.0,
-                              footLiftL: 0.0,
-                              footLiftR: 0.0,
-                              hairOffset: 0.0,
-                              walkStrength: 0.0,
-                              isWalking: false,
-                              walkPhase: 0.0,
-                              facing: 1.0,
-                              drawBadge: true,
-                            ),
+                            painter: _BadgePainter(accentColor: _accentColor),
                           ),
                         ),
                       ),
@@ -1519,7 +1496,7 @@ class _RobotPainter extends CustomPainter {
   }) {
     final center = Offset(bodyX + bodyW * 0.70, bodyY + bodyH * 0.34);
 
-    final badgeW = bodyW * 0.46;
+    final badgeW = bodyW * 0.6;
     final badgeH = bodyH * 0.42;
 
     final rect = RRect.fromRectAndRadius(
@@ -1547,12 +1524,12 @@ class _RobotPainter extends CustomPainter {
 
     final textPainter = TextPainter(
       text: TextSpan(
-        text: 'KVH',
+        text: 'MiSUMi',
         style: TextStyle(
           color: Colors.white,
-          fontSize: badgeH * 0.52,
+          fontSize: badgeH * 0.4,
           fontWeight: FontWeight.w800,
-          letterSpacing: 0.4,
+          letterSpacing: 1.2,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -1738,4 +1715,86 @@ class _ShineSpec {
     required this.ry,
     required this.angle,
   });
+}
+
+class _BadgePainter extends CustomPainter {
+  final Color accentColor;
+
+  const _BadgePainter({required this.accentColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final headH = h * 0.22;
+    final bodyW = w * 0.5;
+    final bodyH = h * 0.27;
+    final bodyX = (w - bodyW) / 2;
+    final bodyY = h * 0.15 + headH + h * 0.032;
+
+    _drawSPCOnly(
+      canvas: canvas,
+      bodyX: bodyX,
+      bodyY: bodyY,
+      bodyW: bodyW,
+      bodyH: bodyH,
+    );
+  }
+
+  void _drawSPCOnly({
+    required Canvas canvas,
+    required double bodyX,
+    required double bodyY,
+    required double bodyW,
+    required double bodyH,
+  }) {
+    final center = Offset(bodyX + bodyW * 0.70, bodyY + bodyH * 0.34);
+
+    final badgeW = bodyW * 0.6;
+    final badgeH = bodyH * 0.42;
+
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: center, width: badgeW, height: badgeH),
+      Radius.circular(badgeH * 0.22),
+    );
+
+    canvas.drawRRect(rect, Paint()..color = Colors.black.withOpacity(0.20));
+
+    canvas.drawRRect(
+      rect,
+      Paint()
+        ..color = Colors.white.withOpacity(0.26)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9,
+    );
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: 'MiSUMi',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: badgeH * 0.4,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.2,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    textPainter.layout(minWidth: 0, maxWidth: badgeW);
+
+    textPainter.paint(
+      canvas,
+      Offset(
+        center.dx - textPainter.width / 2,
+        center.dy - textPainter.height / 2,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BadgePainter oldDelegate) {
+    return oldDelegate.accentColor != accentColor;
+  }
 }
