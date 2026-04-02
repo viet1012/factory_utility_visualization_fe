@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 
 import '../../../utility_models/response/minute_point.dart';
 import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card1.dart';
-import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_detail_chart.dart';
 
 class UtilityDashboardOverviewApi {
   final Dio dio;
@@ -106,18 +105,14 @@ class UtilityDashboardOverviewApi {
   }
 
   /// VOLTAGE DETAIL (chart)
-  Future<List<VoltageDetail>> getVoltageDetail({required String facId}) async {
-    final uri = Uri.parse(
-      '${dio.options.baseUrl}/api/utility/voltage/detail',
-    ).replace(queryParameters: {'facId': facId});
-
-    print("URL: $uri");
+  Future<List<dynamic>> getVoltageDetail({required String facId}) async {
     final res = await dio.get(
       '/api/utility/voltage/detail',
       queryParameters: {'facId': facId},
     );
 
-    final List data = res.data;
-    return (res.data as List).map((e) => VoltageDetail.fromJson(e)).toList();
+    final data = res.data;
+    if (data is! List) return [];
+    return data;
   }
 }

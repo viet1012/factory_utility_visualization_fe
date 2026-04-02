@@ -209,25 +209,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
       if (!mounted) return;
 
-      // final parsed = (results[0] as List)
-      //     .map((e) => EnergyMonthlySummary.fromJson(e))
-      //     .toList();
-      // final voltage = results[1] as VoltageStatus;
-      //
-      // _cachedHealth = DataHealthAnalyzer.analyze(
-      //   key: "Monthly_${widget.facId}_${widget.headerTitle}",
-      //   loading: false,
-      //   error: null,
-      //   values: [...parsed.map((e) => e.value), voltage.maxVol],
-      // );
-      //
-      // setState(() {
-      //   items = parsed;
-      //   voltageStatus = voltage;
-      //   loading = false;
-      //   error = null;
-      // });
-
       final parsed = (results[0] as List)
           .map((e) => EnergyMonthlySummary.fromJson(e))
           .toList();

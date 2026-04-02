@@ -412,40 +412,86 @@ class _MonitoringMascotState extends State<MonitoringMascot>
             children: [
               Transform.translate(
                 offset: Offset(internalDx, groundBaseOffset + internalDy),
-                child: Transform(
-                  alignment: Alignment.center,
-                  transform: Matrix4.identity()
-                    ..rotateZ(widget.lean)
-                    ..scale(widget.facing, 1.0),
-                  child: SizedBox(
-                    width: robotWidth,
-                    height: widget.size,
-                    child: CustomPaint(
-                      painter: _RobotPainter(
-                        accentColor: _accentColor,
-                        isAlarm: _isAlarm,
-                        alarmCount: widget.alarmCount,
-                        blinkScale: _blinkScale.value,
-                        eyeTrackX: _isAlarm ? _eyeTrackX.value : 0,
-                        eyeTrackY: _isAlarm ? _eyeTrackY.value : 0,
-                        antennaScale: _isAlarm ? _antennaPulse.value : 1.0,
-                        angryBrow: _isAlarm ? _angryBrow.value : 0.0,
-                        armSwingL: armSwingL,
-                        armSwingR: armSwingR,
-                        foreSwing: foreSwing,
-                        legSwingL: legSwingL,
-                        legSwingR: legSwingR,
-                        kneeBendL: kneeBendL,
-                        kneeBendR: kneeBendR,
-                        footLiftL: footLiftL,
-                        footLiftR: footLiftR,
-                        hairOffset: hairOffset,
-                        walkStrength: widget.walkStrength,
-                        isWalking: widget.isWalking,
-                        walkPhase: widget.walkPhase,
-                        facing: widget.facing,
+                child: SizedBox(
+                  width: robotWidth,
+                  height: widget.size,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Robot chính: có flip
+                      Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.identity()
+                          ..rotateZ(widget.lean)
+                          ..scale(widget.facing, 1.0),
+                        child: SizedBox(
+                          width: robotWidth,
+                          height: widget.size,
+                          child: CustomPaint(
+                            painter: _RobotPainter(
+                              accentColor: _accentColor,
+                              isAlarm: _isAlarm,
+                              alarmCount: widget.alarmCount,
+                              blinkScale: _blinkScale.value,
+                              eyeTrackX: _isAlarm ? _eyeTrackX.value : 0,
+                              eyeTrackY: _isAlarm ? _eyeTrackY.value : 0,
+                              antennaScale: _isAlarm
+                                  ? _antennaPulse.value
+                                  : 1.0,
+                              angryBrow: _isAlarm ? _angryBrow.value : 0.0,
+                              armSwingL: armSwingL,
+                              armSwingR: armSwingR,
+                              foreSwing: foreSwing,
+                              legSwingL: legSwingL,
+                              legSwingR: legSwingR,
+                              kneeBendL: kneeBendL,
+                              kneeBendR: kneeBendR,
+                              footLiftL: footLiftL,
+                              footLiftR: footLiftR,
+                              hairOffset: hairOffset,
+                              walkStrength: widget.walkStrength,
+                              isWalking: widget.isWalking,
+                              walkPhase: widget.walkPhase,
+                              facing: widget.facing,
+                              drawBadge: false,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+
+                      // Logo KVH: không flip
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _RobotPainter(
+                              accentColor: _accentColor,
+                              isAlarm: _isAlarm,
+                              alarmCount: widget.alarmCount,
+                              blinkScale: _blinkScale.value,
+                              eyeTrackX: 0,
+                              eyeTrackY: 0,
+                              antennaScale: 1.0,
+                              angryBrow: 0.0,
+                              armSwingL: 0.0,
+                              armSwingR: 0.0,
+                              foreSwing: 0.0,
+                              legSwingL: 0.0,
+                              legSwingR: 0.0,
+                              kneeBendL: 0.0,
+                              kneeBendR: 0.0,
+                              footLiftL: 0.0,
+                              footLiftR: 0.0,
+                              hairOffset: 0.0,
+                              walkStrength: 0.0,
+                              isWalking: false,
+                              walkPhase: 0.0,
+                              facing: 1.0,
+                              drawBadge: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -554,6 +600,7 @@ class _RobotPainter extends CustomPainter {
   final double walkPhase;
 
   final double facing;
+  final bool drawBadge;
 
   static const _headBg = Color(0xFF161B22);
   static const _bodyBg = Color(0xFF164EA6);
@@ -599,6 +646,7 @@ class _RobotPainter extends CustomPainter {
     required this.isWalking,
     required this.walkPhase,
     required this.facing,
+    required this.drawBadge,
   });
 
   @override
@@ -698,13 +746,15 @@ class _RobotPainter extends CustomPainter {
         ..strokeWidth = 1.2,
     );
 
-    _drawSPC(
-      canvas: canvas,
-      bodyX: bodyX,
-      bodyY: bodyY,
-      bodyW: bodyW,
-      bodyH: bodyH,
-    );
+    if (drawBadge) {
+      _drawSPC(
+        canvas: canvas,
+        bodyX: bodyX,
+        bodyY: bodyY,
+        bodyW: bodyW,
+        bodyH: bodyH,
+      );
+    }
 
     _drawHair(
       canvas: canvas,
@@ -1487,6 +1537,14 @@ class _RobotPainter extends CustomPainter {
         ..strokeWidth = 0.9,
     );
 
+    canvas.drawRRect(
+      rect.deflate(1.2),
+      Paint()
+        ..color = Colors.white.withOpacity(0.04)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.6,
+    );
+
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'KVH',
@@ -1494,25 +1552,21 @@ class _RobotPainter extends CustomPainter {
           color: Colors.white,
           fontSize: badgeH * 0.52,
           fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
         ),
       ),
       textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
     );
 
-    textPainter.layout();
+    textPainter.layout(minWidth: 0, maxWidth: badgeW);
 
-    // 🔥 FIX MIRROR TEXT
-    canvas.save();
-
-    canvas.translate(center.dx, center.dy);
-    canvas.scale(1 / facing, 1.0); // 👉 fix ngược lại
-
-    textPainter.paint(
-      canvas,
-      Offset(-textPainter.width / 2, -textPainter.height / 2),
+    final textOffset = Offset(
+      center.dx - textPainter.width / 2,
+      center.dy - textPainter.height / 2,
     );
 
-    canvas.restore();
+    textPainter.paint(canvas, textOffset);
   }
 
   void _drawLeg({
@@ -1637,7 +1691,9 @@ class _RobotPainter extends CustomPainter {
         old.hairOffset != hairOffset ||
         old.walkStrength != walkStrength ||
         old.isWalking != isWalking ||
-        old.walkPhase != walkPhase;
+        old.walkPhase != walkPhase ||
+        old.facing != facing ||
+        old.drawBadge != drawBadge;
   }
 }
 

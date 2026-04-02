@@ -7,65 +7,113 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import '../../utility_dashboard_api/utility_dashboard_overview_api.dart';
 
 class VoltageDetail {
-  final DateTime time;
-  final double d108;
-  final double d110;
-  final double d112;
+  final DateTime recordedMinute;
+  final String cateId;
+  final String boxDeviceId;
+  final double minVol;
+  final double maxVol;
+  final double minVolStd;
+  final double maxVolStd;
   final String alarm;
+  final DateTime updatedAt;
 
-  VoltageDetail({
-    required this.time,
-    required this.d108,
-    required this.d110,
-    required this.d112,
+  const VoltageDetail({
+    required this.recordedMinute,
+    required this.cateId,
+    required this.boxDeviceId,
+    required this.minVol,
+    required this.maxVol,
+    required this.minVolStd,
+    required this.maxVolStd,
     required this.alarm,
+    required this.updatedAt,
   });
 
   factory VoltageDetail.fromJson(Map<String, dynamic> json) {
     return VoltageDetail(
-      time: DateTime.parse(json["pickAt"]),
-      d108: (json["d108"] ?? 0).toDouble(),
-      d110: (json["d110"] ?? 0).toDouble(),
-      d112: (json["d112"] ?? 0).toDouble(),
-      alarm: json["alarm"] ?? "Normal",
+      recordedMinute: DateTime.parse(
+        json['recordedMinute']?.toString() ?? DateTime.now().toIso8601String(),
+      ).toLocal(),
+      cateId: json['cateId']?.toString() ?? '',
+      boxDeviceId: json['boxDeviceId']?.toString() ?? '',
+      minVol: (json['minVol'] as num?)?.toDouble() ?? 0.0,
+      maxVol: (json['maxVol'] as num?)?.toDouble() ?? 0.0,
+      minVolStd: (json['minVolStd'] as num?)?.toDouble() ?? 0.0,
+      maxVolStd: (json['maxVolStd'] as num?)?.toDouble() ?? 0.0,
+      alarm: json['alarm']?.toString() ?? 'Normal',
+      updatedAt: DateTime.parse(
+        json['updatedAt']?.toString() ?? DateTime.now().toIso8601String(),
+      ).toLocal(),
     );
   }
+
+  bool get hasStdRange => minVolStd != 0 || maxVolStd != 0;
+
+  bool get isAlarmByStd {
+    if (!hasStdRange) return false;
+    final lowAlarm = minVol != 0 && minVol < minVolStd;
+    final highAlarm = maxVol != 0 && maxVol > maxVolStd;
+    return lowAlarm || highAlarm;
+  }
+
+  bool get isAlarm =>
+      alarm.toLowerCase() == 'alarm' ||
+      alarm.toLowerCase() == 'critical' ||
+      isAlarmByStd;
 }
 
 class _VoltageCache {
   final List<VoltageDetail> data;
-  final List<VoltageDetail> alarmD12;
-  final List<VoltageDetail> alarmD14;
-  final List<VoltageDetail> alarmD16;
+  final List<VoltageDetail> alarmMin;
+  final List<VoltageDetail> alarmMax;
   final bool hasAlarm;
+  final double minStd;
+  final double maxStd;
 
   const _VoltageCache({
     required this.data,
-    required this.alarmD12,
-    required this.alarmD14,
-    required this.alarmD16,
+    required this.alarmMin,
+    required this.alarmMax,
     required this.hasAlarm,
+    required this.minStd,
+    required this.maxStd,
   });
 
-  static bool _hasValue(double v) => v != 0;
-
-  static bool isCritical(double v) => _hasValue(v) && (v < 323 || v > 437);
-
-  static bool isAlarm(double v) => _hasValue(v) && (v < 0 || v > 418);
-
-  static bool isWarning(double v) => _hasValue(v) && (v < 360 || v > 400);
-
   static _VoltageCache from(List<VoltageDetail> d) {
-    final a12 = d.where((e) => isAlarm(e.d108)).toList(growable: false);
-    final a14 = d.where((e) => isAlarm(e.d110)).toList(growable: false);
-    final a16 = d.where((e) => isAlarm(e.d112)).toList(growable: false);
+    final data = List<VoltageDetail>.unmodifiable(d);
+
+    final alarmMin = data
+        .where((e) => e.minVol != 0 && e.minVol < e.minVolStd)
+        .toList(growable: false);
+
+    final alarmMax = data
+        .where((e) => e.maxVol != 0 && e.maxVol > e.maxVolStd)
+        .toList(growable: false);
+
+    double minStd = 0;
+    double maxStd = 0;
+
+    if (data.isNotEmpty) {
+      final minStdCandidates = data
+          .map((e) => e.minVolStd)
+          .where((v) => v != 0)
+          .toList();
+      final maxStdCandidates = data
+          .map((e) => e.maxVolStd)
+          .where((v) => v != 0)
+          .toList();
+
+      minStd = minStdCandidates.isNotEmpty ? minStdCandidates.first : 0;
+      maxStd = maxStdCandidates.isNotEmpty ? maxStdCandidates.first : 0;
+    }
 
     return _VoltageCache(
-      data: List.unmodifiable(d),
-      alarmD12: a12,
-      alarmD14: a14,
-      alarmD16: a16,
-      hasAlarm: a12.isNotEmpty || a14.isNotEmpty || a16.isNotEmpty,
+      data: data,
+      alarmMin: alarmMin,
+      alarmMax: alarmMax,
+      hasAlarm: alarmMin.isNotEmpty || alarmMax.isNotEmpty,
+      minStd: minStd,
+      maxStd: maxStd,
     );
   }
 }
@@ -106,7 +154,6 @@ class VoltageDetailChartState extends State<VoltageDetailChart> {
         _showChart = false;
       });
 
-      // đợi 1-2 frame để chart unmount hẳn
       await Future.delayed(const Duration(milliseconds: 32));
     }
   }
@@ -162,10 +209,17 @@ class VoltageDetailChartState extends State<VoltageDetailChart> {
     _loadingNow = true;
 
     try {
-      final d = await widget.api.getVoltageDetail(facId: widget.facId);
+      final raw = await widget.api.getVoltageDetail(facId: widget.facId);
+
       if (!mounted || _disposed || _closing) return;
 
-      final next = _VoltageCache.from(d);
+      final details = raw
+          .map<VoltageDetail>(
+            (e) => VoltageDetail.fromJson(Map<String, dynamic>.from(e)),
+          )
+          .toList();
+
+      final next = _VoltageCache.from(details);
 
       setState(() {
         _cache = next;
@@ -192,31 +246,6 @@ class VoltageDetailChartState extends State<VoltageDetailChart> {
     _reloadTimer = Timer(const Duration(seconds: 30), _load);
   }
 
-  bool _dataChanged(_VoltageCache next) {
-    final cur = _cache;
-    if (cur == null) return true;
-    if (next.data.length != cur.data.length) return true;
-    if (next.hasAlarm != cur.hasAlarm) return true;
-    if (next.alarmD12.length != cur.alarmD12.length) return true;
-    if (next.alarmD14.length != cur.alarmD14.length) return true;
-    if (next.alarmD16.length != cur.alarmD16.length) return true;
-    if (next.data.isEmpty) return false;
-
-    final firstNew = next.data.first;
-    final firstCur = cur.data.first;
-    final lastNew = next.data.last;
-    final lastCur = cur.data.last;
-
-    return firstNew.time != firstCur.time ||
-        lastNew.time != lastCur.time ||
-        firstNew.d108 != firstCur.d108 ||
-        firstNew.d110 != firstCur.d110 ||
-        firstNew.d112 != firstCur.d112 ||
-        lastNew.d108 != lastCur.d108 ||
-        lastNew.d110 != lastCur.d110 ||
-        lastNew.d112 != lastCur.d112;
-  }
-
   @override
   Widget build(BuildContext context) {
     final hasAlarm = _cache?.hasAlarm ?? false;
@@ -241,7 +270,15 @@ class VoltageDetailChartState extends State<VoltageDetailChart> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _VoltageHeader(hasAlarm: hasAlarm),
+          _VoltageHeader(
+            hasAlarm: hasAlarm,
+            boxDeviceId: _cache?.data.isNotEmpty == true
+                ? _cache!.data.first.boxDeviceId
+                : null,
+            cateId: _cache?.data.isNotEmpty == true
+                ? _cache!.data.first.cateId
+                : null,
+          ),
           Expanded(child: _buildBody()),
         ],
       ),
@@ -282,53 +319,71 @@ class VoltageDetailChartState extends State<VoltageDetailChart> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _VoltageHeader — StatelessWidget, tách hoàn toàn khỏi chart
-// Khi _AlarmBadge blink → chỉ header repaint, chart KHÔNG bị kéo theo
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _VoltageHeader extends StatelessWidget {
   final bool hasAlarm;
+  final String? boxDeviceId;
+  final String? cateId;
 
-  const _VoltageHeader({required this.hasAlarm});
+  const _VoltageHeader({required this.hasAlarm, this.boxDeviceId, this.cateId});
 
   @override
   Widget build(BuildContext context) {
+    final subtitle = [
+      if (cateId != null && cateId!.trim().isNotEmpty) cateId!.trim(),
+      if (boxDeviceId != null && boxDeviceId!.trim().isNotEmpty)
+        boxDeviceId!.trim(),
+    ].join('  •  ');
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 4,
-            height: 20,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1197D1),
-              borderRadius: BorderRadius.circular(2),
-            ),
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1197D1),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'VOLTAGE MONITOR',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const Spacer(),
+              if (hasAlarm) const _AlarmBadge(),
+            ],
           ),
-          const SizedBox(width: 10),
-          const Text(
-            'VOLTAGE MONITOR',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
+          if (subtitle.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 14),
+              child: Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.72),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
-          ),
-          const Spacer(),
-          if (hasAlarm) const _AlarmBadge(),
+          ],
         ],
       ),
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _VoltageChart — StatelessWidget thuần
-// Chỉ rebuild khi cache reference thay đổi (data mới từ API)
-// _tooltip và _zoomPan được pass vào, không recreate
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _VoltageChart extends StatelessWidget {
   final _VoltageCache cache;
@@ -344,26 +399,19 @@ class _VoltageChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final values = cache.data
-        .expand((e) => [e.d108, e.d110, e.d112])
+        .expand((e) => [e.minVol, e.maxVol, e.minVolStd, e.maxVolStd])
         .where((v) => v != 0)
         .toList();
 
     double minY = values.isEmpty ? 0 : values.reduce((a, b) => a < b ? a : b);
-
     double maxY = values.isEmpty ? 0 : values.reduce((a, b) => a > b ? a : b);
 
-    print('filtered values count: ${values.length}');
-    print('minY: $minY');
-    print('maxY: $maxY');
+    minY -= 4;
+    maxY += 4;
 
-    minY -= 2;
-    maxY += 2;
-    // thêm padding
-    minY = minY - 2;
-    maxY = maxY + 2;
     return SfCartesianChart(
       key: ValueKey(
-        '${cache.data.first.time}_${cache.data.last.time}_${minY}_${maxY}',
+        '${cache.data.first.recordedMinute}_${cache.data.last.recordedMinute}_${minY}_${maxY}_${cache.hasAlarm}',
       ),
       enableAxisAnimation: false,
       backgroundColor: Colors.transparent,
@@ -406,69 +454,68 @@ class _VoltageChart extends StatelessWidget {
         ),
         labelFormat: '{value}V',
         plotBands: [
-          PlotBand(
-            start: 360,
-            end: 400,
-            color: const Color(0xFF1197D1).withOpacity(0.08),
-          ),
-
-          PlotBand(
-            start: 400,
-            end: 418,
-            color: Colors.orange.withOpacity(0.08),
-          ),
-          PlotBand(start: 0, end: 323, color: Colors.red.withOpacity(0.05)),
-          PlotBand(start: 437, end: 500, color: Colors.red.withOpacity(0.05)),
+          if (cache.minStd != 0 && cache.maxStd != 0)
+            PlotBand(
+              start: cache.minStd,
+              end: cache.maxStd,
+              color: const Color(0xFF1197D1).withOpacity(0.08),
+            ),
+          if (cache.minStd != 0)
+            PlotBand(
+              start: 0,
+              end: cache.minStd,
+              color: Colors.red.withOpacity(0.05),
+            ),
+          if (cache.maxStd != 0)
+            PlotBand(
+              start: cache.maxStd,
+              end: maxY,
+              color: Colors.red.withOpacity(0.05),
+            ),
         ],
       ),
       series: <CartesianSeries>[
         SplineSeries<VoltageDetail, DateTime>(
           animationDuration: 0,
           dataSource: cache.data,
-          xValueMapper: (e, _) => e.time,
-          yValueMapper: (e, _) => e.d108 == 0 ? null : e.d108,
+          xValueMapper: (e, _) => e.recordedMinute,
+          yValueMapper: (e, _) => e.minVol == 0 ? null : e.minVol,
           emptyPointSettings: const EmptyPointSettings(
             mode: EmptyPointMode.gap,
           ),
           color: const Color(0xFF00B4FF),
-          name: 'D108',
+          name: 'Min Voltage',
           markerSettings: const MarkerSettings(isVisible: false),
           splineType: SplineType.monotonic,
         ),
         SplineSeries<VoltageDetail, DateTime>(
           animationDuration: 0,
           dataSource: cache.data,
-          xValueMapper: (e, _) => e.time,
-          yValueMapper: (e, _) => e.d110 == 0 ? null : e.d110,
+          xValueMapper: (e, _) => e.recordedMinute,
+          yValueMapper: (e, _) => e.maxVol == 0 ? null : e.maxVol,
           emptyPointSettings: const EmptyPointSettings(
             mode: EmptyPointMode.gap,
           ),
           color: const Color(0xFFFF9500),
           width: 2,
-          name: 'D110',
+          name: 'Max Voltage',
           markerSettings: const MarkerSettings(isVisible: false),
           splineType: SplineType.monotonic,
         ),
-        SplineSeries<VoltageDetail, DateTime>(
-          animationDuration: 0,
-          dataSource: cache.data,
-          xValueMapper: (e, _) => e.time,
-          yValueMapper: (e, _) => e.d112 == 0 ? null : e.d112,
-          emptyPointSettings: const EmptyPointSettings(
-            mode: EmptyPointMode.gap,
+        if (cache.alarmMin.isNotEmpty)
+          _alarmSeries(
+            'MIN',
+            cache.alarmMin,
+            (e) => e.minVol,
+            Colors.redAccent,
           ),
-          color: const Color(0xFF2ECC71),
-          width: 2,
-          name: 'D112',
-          markerSettings: const MarkerSettings(isVisible: false),
-          splineType: SplineType.monotonic,
-        ),
-        if (cache.alarmD12.isNotEmpty)
-          _alarmSeries('D108', cache.alarmD12, (e) => e.d108),
-        if (cache.alarmD14.isNotEmpty)
-          _alarmSeries('D110', cache.alarmD14, (e) => e.d110),
-        if (cache.alarmD16.isNotEmpty)
-          _alarmSeries('D112', cache.alarmD16, (e) => e.d112),
+        if (cache.alarmMax.isNotEmpty)
+          _alarmSeries(
+            'MAX',
+            cache.alarmMax,
+            (e) => e.maxVol,
+            Colors.orangeAccent,
+          ),
       ],
     );
   }
@@ -477,6 +524,7 @@ class _VoltageChart extends StatelessWidget {
     String name,
     List<VoltageDetail> alarms,
     double Function(VoltageDetail) valueGetter,
+    Color color,
   ) {
     return ScatterSeries<VoltageDetail, DateTime>(
       animationDuration: 0,
@@ -484,13 +532,13 @@ class _VoltageChart extends StatelessWidget {
       isVisibleInLegend: false,
       name: name,
       dataSource: List<VoltageDetail>.unmodifiable(alarms),
-      xValueMapper: (e, _) => e.time,
+      xValueMapper: (e, _) => e.recordedMinute,
       yValueMapper: (e, _) {
         final v = valueGetter(e);
         return v == 0 ? null : v;
       },
-      color: Colors.orange,
-      markerSettings: const MarkerSettings(
+      color: color,
+      markerSettings: MarkerSettings(
         isVisible: true,
         width: 18,
         height: 18,
@@ -498,8 +546,9 @@ class _VoltageChart extends StatelessWidget {
         borderWidth: 2,
       ),
       dataLabelMapper: (e, _) =>
-          '$name\n${DateFormat('dd/MM HH:mm').format(e.time)}\n'
-          '${valueGetter(e).toStringAsFixed(1)}V',
+          '$name\n${DateFormat('dd/MM HH:mm').format(e.recordedMinute)}\n'
+          '${valueGetter(e).toStringAsFixed(1)}V\n'
+          'STD ${e.minVolStd.toStringAsFixed(0)}-${e.maxVolStd.toStringAsFixed(0)}V',
       dataLabelSettings: const DataLabelSettings(
         isVisible: true,
         opacity: 1,
@@ -513,11 +562,6 @@ class _VoltageChart extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _AlarmBadge — animation hoàn toàn isolated
-// FadeTransition dùng Tween trực tiếp → không setState, không rebuild parent
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _AlarmBadge extends StatefulWidget {
   const _AlarmBadge();
@@ -600,17 +644,14 @@ class _VoltageChartDialogState extends State<VoltageChartDialog> {
     if (_closing || !mounted) return;
     _closing = true;
 
-    // 1) báo child chuẩn bị đóng
     await _chartKey.currentState?.prepareToClose();
 
     if (!mounted) return;
 
-    // 2) remove chart khỏi tree
     setState(() {
       _showChart = false;
     });
 
-    // 3) đợi thêm 1-2 frame cho Dialog settle
     await Future.delayed(const Duration(milliseconds: 80));
 
     if (mounted) {
@@ -642,7 +683,6 @@ class _VoltageChartDialogState extends State<VoltageChartDialog> {
                 )
               else
                 const SizedBox.expand(),
-
               if (!_closing)
                 Positioned(
                   top: 0,
