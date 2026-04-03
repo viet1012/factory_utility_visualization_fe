@@ -135,7 +135,7 @@ class _ChartData {
       yesterdayPts: yesterdayPts,
       todayUsdPts: todayUsdPts,
       yesterdayUsdPts: yesterdayUsdPts,
-      safeMaxYLeft: maxLeft <= 0 ? 1.0 : maxLeft * 1.15,
+      safeMaxYLeft: maxLeft <= 0 ? 1.0 : maxLeft * 1.3,
       safeMaxYRight: maxRight <= 0 ? 1.0 : maxRight * 1.15,
     );
   }
