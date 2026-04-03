@@ -530,7 +530,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
     const Map<String, Alignment> facPositions = {
       'Fac_A': Alignment(0.3, -0.70),
       'Fac_B': Alignment(0.3, 0.72),
-      'idle': Alignment(-0.60, 0.2),
+      'idle': Alignment(-0.60, 0.9),
     };
 
     return ValueListenableBuilder<Map<String, VoltageStatus>>(
@@ -618,6 +618,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                           UtilityDashboardOverviewMinutesChart(
                                             facId: selectedFac,
                                             theme: ChartThemes.water,
+                                            nameEng: 'test',
                                           ),
                                     ),
                                     Expanded(
@@ -625,6 +626,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                           UtilityDashboardOverviewMinutesChart(
                                             facId: selectedFac,
                                             theme: ChartThemes.air,
+                                            nameEng: 'test',
                                           ),
                                     ),
                                   ],
@@ -657,25 +659,31 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                           ),
                                         ),
 
-                                        Transform.scale(
-                                          scale: 0.75,
-                                          child: MovingMascot(
-                                            alarmCount: alarms.length,
-                                            size: 220,
-                                            targetAlignment: targetFacId == null
-                                                ? const Alignment(-0.3, 0.2)
-                                                : facPositions[targetFacId] ??
-                                                      const Alignment(
-                                                        -0.60,
-                                                        0.80,
-                                                      ),
-                                          ),
+                                        // Transform.scale(
+                                        //    scale: 0.8,
+                                        //   child: MovingMascot(
+                                        //     alarmCount: alarms.length,
+                                        //     size: 220,
+                                        //     targetAlignment:
+                                        //         facPositions[targetFacId] ??
+                                        //         const Alignment(-0.60, 0.80),
+                                        //     idleAlignment:
+                                        //         facPositions['idle']!,
+                                        //   ),
+                                        // ),
+                                        MovingMascot(
+                                          alarmCount: alarms.length,
+                                          size: 180,
+                                          targetAlignment:
+                                              facPositions[targetFacId] ??
+                                              const Alignment(-0.60, 0.80),
+                                          idleAlignment: facPositions['idle']!,
                                         ),
 
                                         /// FAC B
                                         Align(
                                           alignment: const FractionalOffset(
-                                            0.95,
+                                            0.99,
                                             0.9,
                                           ),
                                           child: UtilityOverviewMonthlyBox(
@@ -693,7 +701,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                         /// FAC A
                                         Align(
                                           alignment: const FractionalOffset(
-                                            0.95,
+                                            0.99,
                                             0.02,
                                           ),
                                           child: UtilityOverviewMonthlyBox(
@@ -734,6 +742,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                             UtilityDashboardOverviewHourlyCompare(
                                               facId: selectedFac,
                                               theme: ChartThemes.water,
+                                              nameEng: 'test',
                                             ),
                                       ),
                                       Expanded(
@@ -741,6 +750,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                             UtilityDashboardOverviewHourlyCompare(
                                               facId: selectedFac,
                                               theme: ChartThemes.air,
+                                              nameEng: 'test',
                                             ),
                                       ),
                                     ],
@@ -773,6 +783,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                               facId: selectedFac,
                                               month: monthKey,
                                               theme: ChartThemes.water,
+                                              nameEng: 'test',
                                             ),
                                       ),
                                       Expanded(
@@ -781,6 +792,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                               facId: selectedFac,
                                               month: monthKey,
                                               theme: ChartThemes.air,
+                                              nameEng: 'test',
                                             ),
                                       ),
                                     ],

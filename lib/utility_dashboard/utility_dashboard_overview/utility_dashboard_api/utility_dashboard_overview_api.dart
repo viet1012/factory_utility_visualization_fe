@@ -34,7 +34,7 @@ class UtilityDashboardOverviewApi {
       '/api/utility/energy-hourly',
       queryParameters: {'facId': facId, 'hours': hours, 'nameEn': nameEn},
     );
-
+    print("url: ${res.realUri}");
     final List data = res.data;
 
     return data.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -96,12 +96,16 @@ class UtilityDashboardOverviewApi {
   }
 
   /// VOLTAGE STATUS (min/max + alarm)
-  Future<VoltageStatus> getVoltageStatus({required String facId}) async {
+  Future<List<VoltageStatus>> getVoltageStatus({required String facId}) async {
     final res = await dio.get(
       '/api/utility/voltage/status',
       queryParameters: {'facId': facId},
     );
-    return VoltageStatus.fromJson(res.data);
+
+    final data = res.data;
+    if (data is! List) return const [];
+
+    return List<VoltageStatus>.from(data.map((e) => VoltageStatus.fromJson(e)));
   }
 
   /// VOLTAGE DETAIL (chart)

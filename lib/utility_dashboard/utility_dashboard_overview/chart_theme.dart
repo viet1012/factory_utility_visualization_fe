@@ -8,6 +8,9 @@ class ChartTheme {
   final Color fillTop;
   final Color fillBottom;
   final Color accent;
+  final Color usdLine;
+  final Color usdFillTop;
+  final Color usdFillBottom;
 
   const ChartTheme({
     required this.title,
@@ -16,6 +19,9 @@ class ChartTheme {
     required this.fillTop,
     required this.fillBottom,
     required this.accent,
+    required this.usdLine,
+    required this.usdFillTop,
+    required this.usdFillBottom,
   });
 }
 
@@ -28,6 +34,10 @@ class ChartThemes {
     fillTop: Color(0x66FFB300),
     fillBottom: Color(0x00FFB300),
     accent: Color(0xFFFFA000),
+
+    usdLine: Color(0xFF22C55E), // xanh lá chính (d?p, hi?n d?i)
+    usdFillTop: Color(0x6622C55E), // gradient trên
+    usdFillBottom: Color(0x0022C55E), // fade
   );
 
   static const water = ChartTheme(
@@ -40,6 +50,9 @@ class ChartThemes {
     fillBottom: Color(0x009E9E9E),
     // fade xuống
     accent: Color(0xFFBDBDBD), // xám sáng highlight
+    usdLine: Color(0xFF22C55E), // xanh lá chính (đẹp, hiện đại)
+    usdFillTop: Color(0x6622C55E), // gradient trên
+    usdFillBottom: Color(0x0022C55E), // fade
   );
 
   static const air = ChartTheme(
@@ -52,7 +65,10 @@ class ChartThemes {
     // xám nhạt (opacity)
     fillBottom: Color(0x009E9E9E),
     // fade xuống
-    accent: Color(0xFFBDBDBD), // xám sáng highlight
+    accent: Color(0xFFBDBDBD), // xám sáng
+    usdLine: Color(0xFF22C55E), // xanh lá chính (d?p, hi?n d?i)
+    usdFillTop: Color(0x6622C55E), // gradient trên
+    usdFillBottom: Color(0x0022C55E), // fade
   );
 
   // static const water = ChartTheme(

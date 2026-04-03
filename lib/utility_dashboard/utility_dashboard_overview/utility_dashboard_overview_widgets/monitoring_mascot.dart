@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class MovingMascot extends StatefulWidget {
   final int alarmCount;
@@ -27,11 +29,12 @@ class _MovingMascotState extends State<MovingMascot>
   Alignment _current = const Alignment(-0.60, 0.80);
   Alignment _from = const Alignment(-0.60, 0.80);
   Alignment _to = const Alignment(-0.60, 0.80);
+  ui.Image? _misumiLogo;
 
   @override
   void initState() {
     super.initState();
-
+    _loadLogo();
     _moveCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1100),
@@ -77,6 +80,15 @@ class _MovingMascotState extends State<MovingMascot>
     super.dispose();
   }
 
+  Future<void> _loadLogo() async {
+    final img = await loadUiImage('assets/images/logo_misumi.png');
+    if (mounted) {
+      setState(() {
+        _misumiLogo = img;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -118,6 +130,7 @@ class _MovingMascotState extends State<MovingMascot>
             isWalking: isWalking,
             walkPhase: _moveCtrl.value * math.pi * stepCount,
             groundY: widget.size * 0.90,
+            misumiLogo: _misumiLogo,
           ),
         );
       },
@@ -128,6 +141,15 @@ class _MovingMascotState extends State<MovingMascot>
 // ─────────────────────────────────────────────────────────────────────────────
 // MonitoringMascot
 // ─────────────────────────────────────────────────────────────────────────────
+Future<ui.Image> loadUiImage(String path) async {
+  final data = await rootBundle.load(path);
+  final bytes = data.buffer.asUint8List();
+
+  final codec = await ui.instantiateImageCodec(bytes);
+  final frame = await codec.getNextFrame();
+
+  return frame.image;
+}
 
 class MonitoringMascot extends StatefulWidget {
   final int alarmCount;
@@ -138,6 +160,7 @@ class MonitoringMascot extends StatefulWidget {
   final bool isWalking;
   final double walkPhase; // 0..2pi
   final double groundY; // vị trí mặt đất trong widget
+  final ui.Image? misumiLogo;
 
   const MonitoringMascot({
     super.key,
@@ -149,6 +172,7 @@ class MonitoringMascot extends StatefulWidget {
     this.isWalking = false,
     this.walkPhase = 0.0,
     this.groundY = 0.0,
+    this.misumiLogo,
   });
 
   @override
@@ -320,7 +344,7 @@ class _MonitoringMascotState extends State<MonitoringMascot>
   @override
   Widget build(BuildContext context) {
     final merged = Listenable.merge([_idleCtrl, _alarmCtrl, _blinkCtrl]);
-    final robotWidth = widget.size * 0.65;
+    final robotWidth = widget.size * 0.7;
 
     return AnimatedBuilder(
       animation: merged,
@@ -464,7 +488,10 @@ class _MonitoringMascotState extends State<MonitoringMascot>
                       Positioned.fill(
                         child: IgnorePointer(
                           child: CustomPaint(
-                            painter: _BadgePainter(accentColor: _accentColor),
+                            painter: _BadgePainter(
+                              accentColor: _accentColor,
+                              logoImage: widget.misumiLogo,
+                            ),
                           ),
                         ),
                       ),
@@ -584,7 +611,7 @@ class _RobotPainter extends CustomPainter {
   static const _neckBg = Color(0xFF21262D);
   static const _headRim = Color(0xFF30363D);
   static const _visorBg = Color(0xFF0D1117);
-  static const _limbUp = Color(0xFFC9D1D9);
+  static const _limbUp = Color(0xFF164EA6);
   static const _limbMid = Color(0xFF8B949E);
   static const _limbLow = Color(0xFF6E7681);
   static const _joint = Color(0xFF484F58);
@@ -631,10 +658,10 @@ class _RobotPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    final headW = w * 0.62;
+    final headW = w * 0.6;
     final headH = h * 0.22;
-    final bodyW = w * 0.5;
-    final bodyH = h * 0.27;
+    final bodyW = w * 0.56;
+    final bodyH = h * 0.3;
     final headX = (w - headW) / 2;
     final headY = h * 0.15;
     final bodyX = (w - bodyW) / 2;
@@ -722,16 +749,6 @@ class _RobotPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2,
     );
-
-    if (drawBadge) {
-      _drawSPC(
-        canvas: canvas,
-        bodyX: bodyX,
-        bodyY: bodyY,
-        bodyW: bodyW,
-        bodyH: bodyH,
-      );
-    }
 
     _drawHair(
       canvas: canvas,
@@ -836,8 +853,10 @@ class _RobotPainter extends CustomPainter {
       canvas.restore();
     }
 
-    _drawMouth(canvas: canvas, center: Offset(cx, headY + headH * 0.80));
+    final mouthCenter = Offset(cx, headY + headH * 0.80);
 
+    _drawMouth(canvas: canvas, center: mouthCenter);
+    _drawMustache(canvas: canvas, center: mouthCenter);
     canvas.save();
     canvas.translate(cx, headY - 14 + hairOffset * 0.6);
     canvas.scale(antennaScale, antennaScale);
@@ -1287,6 +1306,90 @@ class _RobotPainter extends CustomPainter {
     canvas.restore();
   }
 
+  void _drawMustache({required Canvas canvas, required Offset center}) {
+    final hairColor = const Color(0xFFCFD8DC);
+
+    final fillPaint = Paint()
+      ..color = hairColor
+      ..style = PaintingStyle.fill;
+
+    final strokePaint = Paint()
+      ..color = const Color(0xFF78909C)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final highlightPaint = Paint()
+      ..color = Colors.white.withOpacity(0.18)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final cx = center.dx;
+    final cy = center.dy;
+
+    // ===== 1) ria mép =====
+    final moustacheY = cy - 2.0;
+    const gap = 2.8;
+
+    final leftMoustache = Path()
+      ..moveTo(cx - gap, moustacheY)
+      ..quadraticBezierTo(cx - 8, moustacheY - 4, cx - 12, moustacheY - 1)
+      ..quadraticBezierTo(cx - 15, moustacheY + 1.5, cx - 11, moustacheY + 3.5)
+      ..quadraticBezierTo(cx - 7, moustacheY + 2.8, cx - gap, moustacheY + 1)
+      ..close();
+
+    final rightMoustache = Path()
+      ..moveTo(cx + gap, moustacheY)
+      ..quadraticBezierTo(cx + 8, moustacheY - 4, cx + 12, moustacheY - 1)
+      ..quadraticBezierTo(cx + 15, moustacheY + 1.5, cx + 11, moustacheY + 3.5)
+      ..quadraticBezierTo(cx + 7, moustacheY + 2.8, cx + gap, moustacheY + 1)
+      ..close();
+
+    // fill
+    canvas.drawPath(leftMoustache, fillPaint);
+    canvas.drawPath(rightMoustache, fillPaint);
+
+    // viền
+    canvas.drawPath(leftMoustache, strokePaint);
+    canvas.drawPath(rightMoustache, strokePaint);
+
+    // highlight mép
+    canvas.drawPath(
+      Path()
+        ..moveTo(cx - gap, moustacheY + 0.4)
+        ..quadraticBezierTo(
+          cx - 7,
+          moustacheY - 2.2,
+          cx - 10,
+          moustacheY - 0.6,
+        ),
+      highlightPaint,
+    );
+
+    canvas.drawPath(
+      Path()
+        ..moveTo(cx + gap, moustacheY + 0.4)
+        ..quadraticBezierTo(
+          cx + 7,
+          moustacheY - 2.2,
+          cx + 10,
+          moustacheY - 0.6,
+        ),
+      highlightPaint,
+    );
+
+    // highlight cằm
+    canvas.drawPath(
+      Path()
+        ..moveTo(cx - 6, cy + 26)
+        ..quadraticBezierTo(cx, cy + 29, cx + 6, cy + 26),
+      highlightPaint,
+    );
+  }
+
   void _drawMouth({required Canvas canvas, required Offset center}) {
     final path = Path();
     if (isAlarm) {
@@ -1487,65 +1590,6 @@ class _RobotPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawSPC({
-    required Canvas canvas,
-    required double bodyX,
-    required double bodyY,
-    required double bodyW,
-    required double bodyH,
-  }) {
-    final center = Offset(bodyX + bodyW * 0.70, bodyY + bodyH * 0.34);
-
-    final badgeW = bodyW * 0.6;
-    final badgeH = bodyH * 0.42;
-
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: center, width: badgeW, height: badgeH),
-      Radius.circular(badgeH * 0.22),
-    );
-
-    canvas.drawRRect(rect, Paint()..color = Colors.black.withOpacity(0.20));
-
-    canvas.drawRRect(
-      rect,
-      Paint()
-        ..color = Colors.white.withOpacity(0.26)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.9,
-    );
-
-    canvas.drawRRect(
-      rect.deflate(1.2),
-      Paint()
-        ..color = Colors.white.withOpacity(0.04)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.6,
-    );
-
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: 'MiSUMi',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: badgeH * 0.4,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.2,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-      textAlign: TextAlign.center,
-    );
-
-    textPainter.layout(minWidth: 0, maxWidth: badgeW);
-
-    final textOffset = Offset(
-      center.dx - textPainter.width / 2,
-      center.dy - textPainter.height / 2,
-    );
-
-    textPainter.paint(canvas, textOffset);
-  }
-
   void _drawLeg({
     required Canvas canvas,
     required Offset hip,
@@ -1578,7 +1622,7 @@ class _RobotPainter extends CustomPainter {
       hip,
       knee,
       Paint()
-        ..color = _limbUp
+        ..color = _limbMid
         ..strokeWidth = 12
         ..strokeCap = StrokeCap.round,
     );
@@ -1719,8 +1763,9 @@ class _ShineSpec {
 
 class _BadgePainter extends CustomPainter {
   final Color accentColor;
+  final ui.Image? logoImage;
 
-  const _BadgePainter({required this.accentColor});
+  const _BadgePainter({required this.accentColor, this.logoImage});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1749,52 +1794,53 @@ class _BadgePainter extends CustomPainter {
     required double bodyW,
     required double bodyH,
   }) {
-    final center = Offset(bodyX + bodyW * 0.70, bodyY + bodyH * 0.34);
-
-    final badgeW = bodyW * 0.6;
-    final badgeH = bodyH * 0.42;
+    final center = Offset(bodyX + bodyW * 0.68, bodyY + bodyH * 0.34);
+    final badgeW = bodyW * 0.62;
+    final badgeH = bodyH * 0.35;
 
     final rect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: center, width: badgeW, height: badgeH),
-      Radius.circular(badgeH * 0.22),
+      Radius.circular(badgeH * 0.16),
     );
 
-    canvas.drawRRect(rect, Paint()..color = Colors.black.withOpacity(0.20));
+    canvas.drawRRect(rect, Paint()..color = Colors.white);
 
     canvas.drawRRect(
       rect,
       Paint()
-        ..color = Colors.white.withOpacity(0.26)
+        ..color = Colors.black.withOpacity(0.10)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.9,
+        ..strokeWidth = 0.8,
     );
 
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: 'MiSUMi',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: badgeH * 0.4,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.2,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
+    final contentRect = Rect.fromLTWH(
+      rect.left + badgeH * 0.015,
+      rect.top + badgeH * 0.015,
+      badgeW - badgeH * 0.03,
+      badgeH - badgeH * 0.03,
     );
 
-    textPainter.layout(minWidth: 0, maxWidth: badgeW);
+    if (logoImage != null) {
+      final src = Rect.fromLTWH(
+        0,
+        0,
+        logoImage!.width.toDouble(),
+        logoImage!.height.toDouble(),
+      );
 
-    textPainter.paint(
-      canvas,
-      Offset(
-        center.dx - textPainter.width / 2,
-        center.dy - textPainter.height / 2,
-      ),
-    );
+      canvas.drawImageRect(
+        logoImage!,
+        src,
+        contentRect,
+        Paint()..filterQuality = FilterQuality.high,
+      );
+      return;
+    }
   }
 
   @override
   bool shouldRepaint(covariant _BadgePainter oldDelegate) {
-    return oldDelegate.accentColor != accentColor;
+    return oldDelegate.accentColor != accentColor ||
+        oldDelegate.logoImage != logoImage;
   }
 }

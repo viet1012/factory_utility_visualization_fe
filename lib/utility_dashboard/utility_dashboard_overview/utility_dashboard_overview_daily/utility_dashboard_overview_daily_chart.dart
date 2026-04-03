@@ -56,7 +56,7 @@ class _DailyChartData {
     required this.safeMaxY,
   });
 
-  static _DailyChartData from(List<_DailyDto> rows) {
+  static _DailyChartData from(List<_DailyDto> rows, String month) {
     final pts = rows.map((e) => _BarPoint(e.date.toLocal(), e.value)).toList()
       ..sort((a, b) => a.ts.compareTo(b.ts));
 
@@ -64,10 +64,28 @@ class _DailyChartData {
         ? 1.0
         : pts.map((e) => e.y).reduce((m, v) => v > m ? v : m);
 
+    // ✅ Parse month (yyyyMM) để tính full tháng
+    final year = int.parse(month.substring(0, 4));
+    final monthNum = int.parse(month.substring(4, 6));
+
+    // ✅ Ngày đầu tháng
+    final firstDay = DateTime(year, monthNum, 1);
+
+    // ✅ Ngày cuối tháng (ngày đầu tháng sau - 1 ngày)
+    final lastDay = DateTime(
+      year,
+      monthNum + 1,
+      1,
+    ).subtract(const Duration(days: 1));
+
+    // ✅ PADDING: Thêm 0.5 ngày trước để không bị cắt
+    final paddedMinX = firstDay.subtract(const Duration(hours: 12));
+    final paddedMaxX = lastDay.add(const Duration(hours: 12));
+
     return _DailyChartData(
       points: pts,
-      minX: pts.first.ts.subtract(const Duration(days: 1)),
-      maxX: pts.last.ts.add(const Duration(days: 1)),
+      minX: paddedMinX, // ✅ Bắt đầu hôm trước ngày 1
+      maxX: paddedMaxX, // ✅ Kết thúc hôm sau ngày cuối
       safeMaxY: maxY <= 0 ? 1.0 : maxY * 1.15,
     );
   }
@@ -230,7 +248,10 @@ class _UtilityDashboardOverviewDailyChartState
       values: list.map((e) => e.value).toList(),
     );
 
-    _cachedChartData = list.isEmpty ? null : _DailyChartData.from(list);
+    // ✅ Pass month vào để tính full tháng
+    _cachedChartData = list.isEmpty
+        ? null
+        : _DailyChartData.from(list, widget.month);
 
     // lastVal / lastTs
     if (list.isEmpty) {
@@ -543,7 +564,8 @@ class _DailyBarChart extends StatelessWidget {
         intervalType: DateTimeIntervalType.days,
         interval: 1,
         labelRotation: 45,
-        dateFormat: DateFormat('dd-MM'),
+        dateFormat: DateFormat('dd'),
+        // ✅ Chỉ hiển thị ngày
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(0.08),
@@ -553,6 +575,10 @@ class _DailyBarChart extends StatelessWidget {
           color: Colors.white.withOpacity(0.75),
           fontSize: 13,
         ),
+        // ✅ Padding để label không bị cắt
+        labelPosition: ChartDataLabelPosition.outside,
+        // ✅ Thêm margin cho trục X
+        edgeLabelPlacement: EdgeLabelPlacement.hide, // Ẩn label ở tepi
       ),
       primaryYAxis: NumericAxis(
         minimum: 0,
@@ -583,7 +609,7 @@ class _DailyBarChart extends StatelessWidget {
           dataSource: data.points,
           xValueMapper: (p, _) => p.ts,
           yValueMapper: (p, _) => p.y,
-          width: 0.75,
+          width: 0.85,
           spacing: 0.2,
           borderRadius: const BorderRadius.all(Radius.circular(6)),
           color: theme.line,
