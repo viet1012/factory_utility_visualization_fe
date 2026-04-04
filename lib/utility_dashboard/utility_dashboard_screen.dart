@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/utility_catalog_tabs_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/industrial_side_tab_bar.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_scada_channel_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_scada_channel_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -30,10 +32,11 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin {
   final String mainImageUrl = 'assets/images/SPC2.png';
 
-  late final UtilityApi api;
   late final Dio dio;
+  late final UtilityApi api;
   late final UtilityFacadeService facade;
   late final AlarmApi alarmApi;
+  late final UtilityScadaChannelApi scadaChannelApi;
 
   late final MinuteSeriesProvider minuteSeriesProvider;
   late final SumCompareProvider sumCompareProvider;
@@ -42,21 +45,25 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final AlarmProvider alarmProvider;
   late final TreeLatestProvider treeLatestProvider;
 
-  bool _sideExpanded = true;
   late final TabController _tabController;
+
+  bool _sideExpanded = true;
   int _tabIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    // const baseUrl = 'http://localhost:9999';
-    const baseUrl = 'http://192.168.122.16:9093';
+
+    // const baseUrl = 'http://192.168.122.16:9093';
+    const baseUrl = 'http://localhost:9999';
+
     DioClient.init(baseUrl: baseUrl);
 
     dio = DioClient.dio;
     api = UtilityApi(dio: dio);
     facade = UtilityFacadeService(dio);
     alarmApi = AlarmApi(dio);
+    scadaChannelApi = UtilityScadaChannelApi(baseUrl: baseUrl);
 
     minuteSeriesProvider = MinuteSeriesProvider(
       api: api,
@@ -79,7 +86,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     treeLatestProvider = TreeLatestProvider(facade);
 
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(_handleTabChanged);
   }
 
@@ -103,6 +110,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     latestProvider.dispose();
     alarmProvider.dispose();
     treeLatestProvider.dispose();
+    scadaChannelApi.dispose();
 
     super.dispose();
   }
@@ -118,7 +126,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         Provider<UtilityApi>.value(value: api),
         Provider<UtilityFacadeService>.value(value: facade),
         Provider<AlarmApi>.value(value: alarmApi),
-
+        Provider<UtilityScadaChannelApi>.value(value: scadaChannelApi),
         ChangeNotifierProvider<MinuteSeriesProvider>.value(
           value: minuteSeriesProvider,
         ),
@@ -135,7 +143,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         body: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF0a0e27), Color(0xFF1a1a2e), Color(0xFF16213e)],
+              colors: [Color(0xFF0A0E27), Color(0xFF1A1A2E), Color(0xFF16213E)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -146,8 +154,11 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                 IndustrialSideTabBar(
                   controller: _tabController,
                   expanded: _sideExpanded,
-                  onToggle: () =>
-                      setState(() => _sideExpanded = !_sideExpanded),
+                  onToggle: () {
+                    setState(() {
+                      _sideExpanded = !_sideExpanded;
+                    });
+                  },
                   tabs: const [
                     IndustrialSideTabItem(
                       icon: Icons.map_outlined,
@@ -164,6 +175,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                     IndustrialSideTabItem(
                       icon: Icons.notifications_active,
                       text: 'ALARMS',
+                    ),
+                    IndustrialSideTabItem(
+                      icon: Icons.settings,
+                      text: 'SCADA CHANNEL',
                     ),
                   ],
                 ),
@@ -187,6 +202,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                       const Padding(
                         padding: EdgeInsets.all(16),
                         child: UtilityAlarmCenterScreen(),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: UtilityScadaChannelScreen(api: scadaChannelApi),
                       ),
                     ],
                   ),

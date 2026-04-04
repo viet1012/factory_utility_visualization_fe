@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../utility_models/response/tree_series_response.dart';
 import '../../utility_state/tree_latest_provider.dart';
-import '../../widgets/facility_info_box.dart';
+import '../utility_dashboard_common/info_box/circuit_pattern_painter.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
 import '../utility_dashboard_common/utility_fac_style.dart';

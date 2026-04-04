@@ -1,14 +1,14 @@
 import 'dart:async';
 
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/chart_theme.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_common/chart_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../../utility_models/response/minute_point.dart';
+import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
-import '../data_health.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/health_indicator.dart';
 

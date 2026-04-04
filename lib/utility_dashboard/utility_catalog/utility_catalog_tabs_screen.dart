@@ -5,7 +5,7 @@ import '../../utility_models/f2_utility_scada_box.dart';
 import '../../utility_models/response/utility_catalog.dart';
 import '../../utility_models/utility_facade_service.dart';
 import '../../utility_state/latest_provider.dart';
-import '../utility_dashboard_common/industrial_tab_bar.dart';
+import '../utility_dashboard_widgets/industrial_tab_bar.dart';
 import 'utility_catalog_widget.dart';
 
 class UtilityCatalogTabsScreen extends StatefulWidget {

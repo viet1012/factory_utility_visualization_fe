@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data_health.dart';
+import '../../utility_dashboard_common/data_health.dart';
 import 'health_indicator.dart';
 
 class UtilityInfoBoxHeader {

@@ -151,7 +151,8 @@
 //   }
 // }
 import 'package:flutter/material.dart';
-import '../data_health.dart';
+
+import '../../utility_dashboard_common/data_health.dart';
 
 class HealthIndicator extends StatefulWidget {
   final DataHealthResult result;

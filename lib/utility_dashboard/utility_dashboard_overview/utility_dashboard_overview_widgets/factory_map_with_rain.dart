@@ -3,8 +3,8 @@ import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
 
-import '../rain_effect_image_realtime.dart';
-import '../weather/api/weather_api_service.dart';
+import '../../../widgets/rain_effect_image_realtime.dart';
+import '../../../widgets/weather/api/weather_api_service.dart';
 
 class FactoryMapWithRain extends StatelessWidget {
   final String mainImageUrl;

@@ -107,7 +107,7 @@
 //     );
 //   }
 // }
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/chart_theme.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_common/chart_theme.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_daily/utility_dashboard_overview_daily_chart.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_compare.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_header.dart';
@@ -119,7 +119,7 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../widgets/overview/factory_map_with_rain.dart';
+import 'utility_dashboard_overview_widgets/factory_map_with_rain.dart';
 
 class UtilityDashboardOverview extends StatefulWidget {
   final String mainImageUrl;
@@ -659,18 +659,6 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                           ),
                                         ),
 
-                                        // Transform.scale(
-                                        //    scale: 0.8,
-                                        //   child: MovingMascot(
-                                        //     alarmCount: alarms.length,
-                                        //     size: 220,
-                                        //     targetAlignment:
-                                        //         facPositions[targetFacId] ??
-                                        //         const Alignment(-0.60, 0.80),
-                                        //     idleAlignment:
-                                        //         facPositions['idle']!,
-                                        //   ),
-                                        // ),
                                         MovingMascot(
                                           alarmCount: alarms.length,
                                           size: 180,

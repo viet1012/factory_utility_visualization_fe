@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-import '../../chart_theme.dart';
-import '../../data_health.dart';
+import '../../../utility_dashboard_common/chart_theme.dart';
+import '../../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../../utility_dashboard_overview_widgets/health_indicator.dart';
 
@@ -525,58 +525,6 @@ class _SummaryBar extends StatelessWidget {
             size: 8,
             showLabel: false,
             enableTooltip: true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoChip({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String value,
-    required String delta,
-    required Color deltaColor,
-    required Color valueColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: iconColor),
-          const SizedBox(width: 6),
-          Text(
-            '$title:',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.65),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            delta,
-            style: TextStyle(
-              color: deltaColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
           ),
         ],
       ),

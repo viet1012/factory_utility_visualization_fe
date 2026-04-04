@@ -1,0 +1,185 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+class UtilityScadaChannel {
+  final int? id;
+  final String? scadaId;
+  final String? cate;
+  final String? boxDeviceId;
+  final String? boxId;
+  final Map<String, dynamic> raw;
+
+  const UtilityScadaChannel({
+    this.id,
+    this.scadaId,
+    this.cate,
+    this.boxDeviceId,
+    this.boxId,
+    this.raw = const {},
+  });
+
+  factory UtilityScadaChannel.fromJson(Map<String, dynamic> json) {
+    return UtilityScadaChannel(
+      id: _toInt(json['id']),
+      scadaId: json['scadaId']?.toString(),
+      cate: json['cate']?.toString(),
+      boxDeviceId: json['boxDeviceId']?.toString(),
+      boxId: json['boxId']?.toString(),
+      raw: Map<String, dynamic>.from(json),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final data = <String, dynamic>{
+      ...raw,
+      'id': id,
+      'scadaId': scadaId,
+      'cate': cate,
+      'boxDeviceId': boxDeviceId,
+      'boxId': boxId,
+    };
+
+    data.removeWhere((key, value) => value == null);
+    return data;
+  }
+
+  UtilityScadaChannel copyWith({
+    int? id,
+    String? scadaId,
+    String? cate,
+    String? boxDeviceId,
+    String? boxId,
+    Map<String, dynamic>? raw,
+  }) {
+    return UtilityScadaChannel(
+      id: id ?? this.id,
+      scadaId: scadaId ?? this.scadaId,
+      cate: cate ?? this.cate,
+      boxDeviceId: boxDeviceId ?? this.boxDeviceId,
+      boxId: boxId ?? this.boxId,
+      raw: raw ?? this.raw,
+    );
+  }
+
+  static int? _toInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse(value.toString());
+  }
+
+  @override
+  String toString() => jsonEncode(toJson());
+}
+
+class UtilityScadaChannelApi {
+  final String baseUrl;
+  final http.Client _client;
+
+  UtilityScadaChannelApi({required this.baseUrl, http.Client? client})
+    : _client = client ?? http.Client();
+
+  Uri _uri([String path = '']) {
+    final normalizedBase = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+
+    final normalizedPath = path.isEmpty
+        ? ''
+        : (path.startsWith('/') ? path : '/$path');
+
+    return Uri.parse('$normalizedBase$normalizedPath');
+  }
+
+  Map<String, String> get _headers => const {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  Future<List<UtilityScadaChannel>> getAll() async {
+    final response = await _client.get(
+      _uri('/api/v1/utility-scada-channels'),
+      headers: _headers,
+    );
+
+    _ensureSuccess(response);
+
+    final body = jsonDecode(response.body);
+    if (body is! List) {
+      throw Exception('Invalid response format: expected a list');
+    }
+
+    return body
+        .map(
+          (e) =>
+              UtilityScadaChannel.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList();
+  }
+
+  Future<UtilityScadaChannel> getById(int id) async {
+    final response = await _client.get(
+      _uri('/api/v1/utility-scada-channels/$id'),
+      headers: _headers,
+    );
+
+    _ensureSuccess(response);
+
+    final body = jsonDecode(response.body);
+    return UtilityScadaChannel.fromJson(Map<String, dynamic>.from(body as Map));
+  }
+
+  Future<UtilityScadaChannel> create(UtilityScadaChannel item) async {
+    final payload = Map<String, dynamic>.from(item.toJson())..remove('id');
+
+    final response = await _client.post(
+      _uri('/api/v1/utility-scada-channels'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    );
+
+    _ensureSuccess(response, allowedStatusCodes: {200, 201});
+
+    final body = jsonDecode(response.body);
+    return UtilityScadaChannel.fromJson(Map<String, dynamic>.from(body as Map));
+  }
+
+  Future<UtilityScadaChannel> update(int id, UtilityScadaChannel item) async {
+    final payload = Map<String, dynamic>.from(item.toJson())..remove('id');
+
+    final response = await _client.put(
+      _uri('/api/v1/utility-scada-channels/$id'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    );
+
+    _ensureSuccess(response, allowedStatusCodes: {200, 201});
+
+    final body = jsonDecode(response.body);
+    return UtilityScadaChannel.fromJson(Map<String, dynamic>.from(body as Map));
+  }
+
+  Future<void> delete(int id) async {
+    final response = await _client.delete(
+      _uri('/api/v1/utility-scada-channels/$id'),
+      headers: _headers,
+    );
+
+    _ensureSuccess(response, allowedStatusCodes: {200, 204});
+  }
+
+  void dispose() {
+    _client.close();
+  }
+
+  void _ensureSuccess(
+    http.Response response, {
+    Set<int> allowedStatusCodes = const {200},
+  }) {
+    if (!allowedStatusCodes.contains(response.statusCode)) {
+      throw Exception(
+        'API error: ${response.statusCode} ${response.reasonPhrase}\n${response.body}',
+      );
+    }
+  }
+}
