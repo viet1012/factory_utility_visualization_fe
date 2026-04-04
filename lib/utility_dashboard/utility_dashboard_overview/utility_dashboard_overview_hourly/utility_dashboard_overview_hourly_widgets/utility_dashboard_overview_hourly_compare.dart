@@ -6,7 +6,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../chart_theme.dart';
 import '../../data_health.dart';
-import '../../utility_dashboard_api/utility_dashboard_overview_api.dart';
+import '../../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../../utility_dashboard_overview_widgets/health_indicator.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,66 +140,6 @@ class _ChartData {
     );
   }
 }
-// class _ChartData {
-//   final List<_LinePoint> todayPts;
-//   final List<_LinePoint> yesterdayPts;
-//   final List<_LinePoint> todayUsdPts;
-//   final List<_LinePoint> yesterdayUsdPts;
-//   final double safeMaxYLeft;
-//   final double safeMaxYRight;
-//
-//   const _ChartData({
-//     required this.todayPts,
-//     required this.yesterdayPts,
-//     required this.todayUsdPts,
-//     required this.yesterdayUsdPts,
-//     required this.safeMaxYLeft,
-//     required this.safeMaxYRight,
-//   });
-//
-//   static _ChartData from(List<_HourlyCompareDto> list) {
-//     final byHour = <int, _HourlyCompareDto>{};
-//     for (final r in list) {
-//       byHour[r.scaleHour] = r;
-//     }
-//
-//     final todayPts = <_LinePoint>[];
-//     final yesterdayPts = <_LinePoint>[];
-//     final todayUsdPts = <_LinePoint>[];
-//     final yesterdayUsdPts = <_LinePoint>[];
-//
-//     final leftY = <double>[];
-//     final rightY = <double>[];
-//
-//     for (int h = 0; h < 24; h++) {
-//       final r = byHour[h];
-//
-//       todayPts.add(_LinePoint(h, r?.today));
-//       yesterdayPts.add(_LinePoint(h, r?.yesterday));
-//       todayUsdPts.add(_LinePoint(h, r?.todayUsd));
-//       yesterdayUsdPts.add(_LinePoint(h, r?.yesterdayUsd));
-//
-//       if (r?.today != null) leftY.add(r!.today!);
-//       if (r?.yesterday != null) leftY.add(r!.yesterday!);
-//       if (r?.todayUsd != null) rightY.add(r!.todayUsd!);
-//       if (r?.yesterdayUsd != null) rightY.add(r!.yesterdayUsd!);
-//     }
-//
-//     final maxLeft = leftY.isEmpty ? 1.0 : leftY.reduce((a, b) => a > b ? a : b);
-//     final maxRight = rightY.isEmpty
-//         ? 1.0
-//         : rightY.reduce((a, b) => a > b ? a : b);
-//
-//     return _ChartData(
-//       todayPts: todayPts,
-//       yesterdayPts: yesterdayPts,
-//       todayUsdPts: todayUsdPts,
-//       yesterdayUsdPts: yesterdayUsdPts,
-//       safeMaxYLeft: maxLeft <= 0 ? 1.0 : maxLeft * 1.15,
-//       safeMaxYRight: maxRight <= 0 ? 1.0 : maxRight * 1.15,
-//     );
-//   }
-// }
 
 class _SummaryData {
   final double sumToday;

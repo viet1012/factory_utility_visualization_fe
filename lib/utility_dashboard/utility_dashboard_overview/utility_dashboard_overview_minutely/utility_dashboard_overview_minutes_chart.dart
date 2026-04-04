@@ -9,7 +9,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import '../../../utility_models/response/minute_point.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../data_health.dart';
-import '../utility_dashboard_api/utility_dashboard_overview_api.dart';
+import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/health_indicator.dart';
 
 class UtilityDashboardOverviewMinutesChart extends StatefulWidget {

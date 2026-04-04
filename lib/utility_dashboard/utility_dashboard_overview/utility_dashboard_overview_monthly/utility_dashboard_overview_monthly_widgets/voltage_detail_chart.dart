@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-import '../../utility_dashboard_api/utility_dashboard_overview_api.dart';
+import '../../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 
 class VoltageDetail {
   final DateTime recordedMinute;

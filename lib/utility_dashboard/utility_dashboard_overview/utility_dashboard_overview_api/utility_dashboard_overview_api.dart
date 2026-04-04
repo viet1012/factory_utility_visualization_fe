@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../utility_models/response/minute_point.dart';
-import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card1.dart';
+import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
 
 class UtilityDashboardOverviewApi {
   final Dio dio;
