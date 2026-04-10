@@ -1,9 +1,8 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_state/chart_catalog_provider.dart';
+import '../utility_dashboard_common/chart_theme.dart';
 import 'utility_minute_chart_panel.dart';
 
 class UtilityAllFactoriesChartsScreen extends StatefulWidget {
@@ -143,12 +142,29 @@ class _UtilityAllFactoriesChartsScreenState
     return boxTabs[_selectedBoxIndex];
   }
 
+  ChartTheme getThemeByCate(String? cate) {
+    switch (cate?.toLowerCase()) {
+      case 'power':
+      case 'electricity':
+        return ChartThemes.power;
+      case 'water':
+        return ChartThemes.water;
+      case 'air':
+      case 'compressed air':
+      case 'compressor_air':
+        return ChartThemes.air;
+      default:
+        return ChartThemes.power;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final boxTabs = context.select<ChartCatalogProvider, List<String>>(
       (p) => p.boxDeviceIds,
     );
     final selectedBox = _safeSelectedBox(boxTabs);
+    final theme = getThemeByCate(selectedCate);
 
     return Scaffold(
       body: Container(
@@ -177,6 +193,7 @@ class _UtilityAllFactoriesChartsScreenState
               showImportantSwitch: selectedView == 'Minutes',
               importantEnabled:
                   selectedBox != null && selectedBox.trim().isNotEmpty,
+              theme: theme,
             ),
             const SizedBox(height: 8),
             _FiltersArea(
@@ -190,6 +207,7 @@ class _UtilityAllFactoriesChartsScreenState
               onCateChanged: _onCateChanged,
               onFacChanged: _onFacChanged,
               onBoxChanged: (index) => _onBoxChanged(boxTabs, index),
+              theme: theme,
             ),
             const SizedBox(height: 4),
             Expanded(
@@ -320,6 +338,7 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onToggleFilters;
   final bool showImportantSwitch;
   final bool importantEnabled;
+  final ChartTheme theme;
 
   const _TopBar({
     required this.filtersExpanded,
@@ -334,19 +353,25 @@ class _TopBar extends StatelessWidget {
     required this.onToggleFilters,
     required this.showImportantSwitch,
     required this.importantEnabled,
+    required this.theme,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _CollapseToggle(expanded: filtersExpanded, onTap: onToggleFilters),
+        _CollapseToggle(
+          expanded: filtersExpanded,
+          onTap: onToggleFilters,
+          theme: theme,
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: _GlassTabRow(
             labels: viewTabs,
             selectedIndex: selectedViewIndex,
             onSelect: onViewChanged,
+            theme: theme,
           ),
         ),
         if (!filtersExpanded)
@@ -366,6 +391,7 @@ class _TopBar extends StatelessWidget {
             value: importantOnly,
             enabled: importantEnabled,
             onChanged: onImportantChanged,
+            theme: theme,
           ),
       ],
     );
@@ -383,6 +409,7 @@ class _FiltersArea extends StatelessWidget {
   final ValueChanged<int> onCateChanged;
   final ValueChanged<int> onFacChanged;
   final ValueChanged<int> onBoxChanged;
+  final ChartTheme theme;
 
   const _FiltersArea({
     required this.expanded,
@@ -395,6 +422,7 @@ class _FiltersArea extends StatelessWidget {
     required this.onCateChanged,
     required this.onFacChanged,
     required this.onBoxChanged,
+    required this.theme,
   });
 
   @override
@@ -414,6 +442,7 @@ class _FiltersArea extends StatelessWidget {
                         labels: cateTabs,
                         selectedIndex: selectedCateIndex,
                         onSelect: onCateChanged,
+                        theme: theme,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -422,6 +451,7 @@ class _FiltersArea extends StatelessWidget {
                       selectedIndex: selectedFacIndex,
                       onSelect: onFacChanged,
                       alignRight: true,
+                      theme: theme,
                     ),
                   ],
                 ),
@@ -432,6 +462,7 @@ class _FiltersArea extends StatelessWidget {
                     labels: boxTabs.isEmpty ? const ['(no boxes)'] : boxTabs,
                     selectedIndex: boxTabs.isEmpty ? 0 : selectedBoxIndex,
                     onSelect: boxTabs.isEmpty ? (_) {} : onBoxChanged,
+                    theme: theme,
                   ),
                 ),
               ],
@@ -444,8 +475,13 @@ class _FiltersArea extends StatelessWidget {
 class _CollapseToggle extends StatelessWidget {
   final bool expanded;
   final VoidCallback onTap;
+  final ChartTheme theme;
 
-  const _CollapseToggle({required this.expanded, required this.onTap});
+  const _CollapseToggle({
+    required this.expanded,
+    required this.onTap,
+    required this.theme,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -455,9 +491,22 @@ class _CollapseToggle extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
+          color: Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(0.14)),
+          border: Border.all(
+            color: expanded
+                ? theme.line.withOpacity(0.30)
+                : Colors.white.withOpacity(0.14),
+          ),
+          boxShadow: expanded
+              ? [
+                  BoxShadow(
+                    color: theme.line.withOpacity(0.18),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -486,11 +535,13 @@ class _ImportantSwitch extends StatelessWidget {
   final bool value;
   final bool enabled;
   final ValueChanged<bool> onChanged;
+  final ChartTheme theme;
 
   const _ImportantSwitch({
     required this.value,
     required this.enabled,
     required this.onChanged,
+    required this.theme,
   });
 
   @override
@@ -498,9 +549,13 @@ class _ImportantSwitch extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(0.14)),
+        border: Border.all(
+          color: value
+              ? theme.line.withOpacity(0.30)
+              : Colors.white.withOpacity(0.14),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -508,7 +563,7 @@ class _ImportantSwitch extends StatelessWidget {
           Icon(
             Icons.star_rounded,
             size: 18,
-            color: value ? Colors.amberAccent : Colors.white54,
+            color: value ? theme.line : Colors.white54,
           ),
           const SizedBox(width: 8),
           Text(
@@ -519,7 +574,11 @@ class _ImportantSwitch extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Switch(value: value, onChanged: enabled ? onChanged : null),
+          Switch(
+            value: value,
+            activeColor: theme.line,
+            onChanged: enabled ? onChanged : null,
+          ),
         ],
       ),
     );
@@ -531,11 +590,13 @@ class _GlassTabRow extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelect;
   final bool alignRight;
+  final ChartTheme theme;
 
   const _GlassTabRow({
     required this.labels,
     required this.selectedIndex,
     required this.onSelect,
+    required this.theme,
     this.alignRight = false,
   });
 
@@ -550,50 +611,42 @@ class _GlassTabRow extends StatelessWidget {
         return InkWell(
           onTap: () => onSelect(index),
           borderRadius: BorderRadius.circular(12),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              children: [
-                BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(selected ? 0.18 : 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withOpacity(0.25)),
-                    ),
-                    child: Text(
-                      labels[index],
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected
+                  ? theme.line.withOpacity(0.14)
+                  : Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected
+                    ? theme.line.withOpacity(0.55)
+                    : Colors.white.withOpacity(0.10),
+              ),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: theme.line.withOpacity(0.22),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
                       ),
-                    ),
-                  ),
-                ),
-                if (selected)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF009FFF).withOpacity(0.35),
-                              blurRadius: 12,
-                            ),
-                          ],
-                        ),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.18),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                  ),
-              ],
+                    ],
+            ),
+            child: Text(
+              labels[index],
+              style: TextStyle(
+                color: selected ? theme.line : Colors.white.withOpacity(0.78),
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
             ),
           ),
         );

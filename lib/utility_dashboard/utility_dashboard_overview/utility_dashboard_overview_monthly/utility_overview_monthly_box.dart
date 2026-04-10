@@ -45,35 +45,6 @@ class EnergyMonthlySummary {
   }
 }
 
-/// =======================
-/// Helpers
-/// =======================
-IconData _iconByCate(String cate) {
-  switch (cate) {
-    case 'Electricity':
-      return Icons.bolt_rounded;
-    case 'Water':
-      return Icons.water_drop_rounded;
-    case 'Compressed Air':
-      return Icons.air_rounded;
-    default:
-      return Icons.device_unknown_rounded;
-  }
-}
-
-Color _colorByCate(String cate) {
-  switch (cate) {
-    case 'Electricity':
-      return const Color(0xFFFFB300);
-    case 'Water':
-      return const Color(0xFF29B6F6);
-    case 'Compressed Air':
-      return const Color(0xFF26C6DA);
-    default:
-      return Colors.white70;
-  }
-}
-
 final _numFmt = NumberFormat('#,##0');
 
 String _format(double v) => _numFmt.format(v);
@@ -608,7 +579,8 @@ class _EnergyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorByCate(item.cate);
+    final icon = UtilityFacStyle.iconByCate(item.cate);
+    final color = UtilityFacStyle.colorByCate(item.cate);
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -626,7 +598,7 @@ class _EnergyRow extends StatelessWidget {
               shape: BoxShape.circle,
               color: color.withOpacity(0.15),
             ),
-            child: Icon(_iconByCate(item.cate), color: color, size: 22),
+            child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(width: 8),
           Expanded(

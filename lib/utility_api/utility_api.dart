@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart';
 
 import '../utility_models/f2_utility_parameter_master.dart';
 import '../utility_models/f2_utility_scada_channel.dart';
@@ -234,54 +233,6 @@ class UtilityApi {
     }
   }
 
-  Future<List<MinutePointDto>> getSeriesMinute1({
-    required DateTime from,
-    required DateTime to,
-    String? boxDeviceId,
-    String? plcAddress,
-    List<String>? cateIds,
-  }) async {
-    final qp = <String, dynamic>{'from': _toIsoNoZ(from), 'to': _toIsoNoZ(to)};
-
-    void putIfNotBlank(String k, String? v) {
-      if (v != null && v.trim().isNotEmpty) qp[k] = v.trim();
-    }
-
-    putIfNotBlank('boxDeviceId', boxDeviceId);
-    putIfNotBlank('plcAddress', plcAddress);
-
-    if (cateIds != null) {
-      final cleaned = cateIds
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-      if (cleaned.isNotEmpty) qp['cateIds'] = cleaned.join(',');
-    }
-
-    final res = await _dio.get(
-      '/api/utility/series/minute',
-      queryParameters: qp,
-    );
-
-    debugPrint('[GET] ${res.realUri}');
-
-    final data = res.data;
-    if (data is! List) {
-      throw DioException(
-        requestOptions: res.requestOptions,
-        response: res,
-        message: 'minute: Expected List but got: ${data.runtimeType}',
-        type: DioExceptionType.badResponse,
-      );
-    }
-
-    return data
-        .map(
-          (e) => MinutePointDto.fromJson(Map<String, dynamic>.from(e as Map)),
-        )
-        .toList();
-  }
-
   // ========== sum compare ==========
   Future<List<SumCompareItem>> sumCompare({
     String by = 'cate',
@@ -318,7 +269,4 @@ class UtilityApi {
     String two(int x) => x.toString().padLeft(2, '0');
     return '${d.year}-${two(d.month)}-${two(d.day)}T${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
   }
-
-  // (nếu bạn còn dùng)
-  String _fmtIso(DateTime dt) => DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(dt);
 }

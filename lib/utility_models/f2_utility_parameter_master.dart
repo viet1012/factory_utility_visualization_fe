@@ -7,8 +7,8 @@ class ParamDto {
   final String category;
   final String nameVi;
   final String nameEn;
-  final bool? isImportant;
-  final bool? isAlert;
+  final int? isImportant;
+  final int? isAlert;
 
   final String? cateId;
   final String? scadaId;
@@ -43,8 +43,8 @@ class ParamDto {
     category: '${j['category'] ?? ''}',
     nameVi: '${j['nameVi'] ?? ''}',
     nameEn: '${j['nameEn'] ?? ''}',
-    isImportant: j['isImportant'] as bool?,
-    isAlert: j['isAlert'] as bool?,
+    isImportant: j['isImportant'] as int?,
+    isAlert: j['isAlert'] as int?,
     cateId: j['cateId']?.toString(),
     scadaId: j['scadaId']?.toString(),
     fac: j['fac']?.toString(),

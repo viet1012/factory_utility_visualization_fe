@@ -5,6 +5,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../utility_models/response/minute_point.dart';
 import '../../utility_state/minute_series_provider.dart';
+import '../utility_dashboard_common/chart_theme.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
 import '../utility_dashboard_common/utility_fac_style.dart';
 
@@ -183,18 +184,18 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
         ? (rows.last.nameEn ?? rows.last.cateId)
         : null;
     final unit = rows.isNotEmpty ? rows.last.unit : null;
-
+    final theme = getThemeByCate(widget.cate);
     return Container(
       width: widget.width,
       height: widget.height ?? 320,
-      decoration: _panelDecoration(facilityColor),
+      decoration: _panelDecoration(theme),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             UtilityInfoBoxWidgets.header(
-              facilityColor: facilityColor,
+              facilityColor: theme.fillTop,
               facTitle: widget.facId,
               boxDeviceId: signalDisplayName,
               plcAddress: widget.plcAddress,
@@ -219,7 +220,43 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     );
   }
 
-  BoxDecoration _panelDecoration(Color facilityColor) {
+  BoxDecoration _panelDecoration(ChartTheme theme) {
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(20),
+
+      // 🌌 nền dark + tint theo category
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.white.withOpacity(0.06),
+          Colors.white.withOpacity(0.02),
+        ],
+      ),
+
+      // 🧊 viền subtle (pro look)
+      border: Border.all(color: theme.line.withOpacity(0.18), width: 1),
+
+      boxShadow: [
+        // 🌈 glow theo category (nhẹ thôi cho sang)
+        BoxShadow(
+          color: theme.line.withOpacity(0.25),
+          blurRadius: 18,
+          spreadRadius: 1,
+          offset: const Offset(0, 6),
+        ),
+
+        // 🌑 shadow depth
+        BoxShadow(
+          color: Colors.black.withOpacity(0.5),
+          blurRadius: 20,
+          offset: const Offset(0, 10),
+        ),
+      ],
+    );
+  }
+
+  BoxDecoration _panelDecoration1(Color facilityColor) {
     return BoxDecoration(
       borderRadius: BorderRadius.circular(20),
       gradient: LinearGradient(
@@ -248,6 +285,24 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
         ),
       ],
     );
+  }
+
+  ChartTheme getThemeByCate(String? cate) {
+    switch (cate?.toLowerCase()) {
+      case 'power':
+      case 'electricity':
+        return ChartThemes.power;
+
+      case 'water':
+        return ChartThemes.water;
+
+      case 'air':
+      case 'compressor_air':
+        return ChartThemes.air;
+
+      default:
+        return ChartThemes.power; // fallback
+    }
   }
 
   Widget _buildBody({
@@ -380,7 +435,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
 
     final axisBounds = _computeYAxisBounds(data);
     final timeBounds = _computeXAxisBounds(data);
-
+    final theme = getThemeByCate(widget.cate);
     return SfCartesianChart(
       key: ValueKey(
         '${widget.facId}_${widget.cate}_${widget.boxDeviceId}_${widget.plcAddress}_${data.length}_${data.last.time.millisecondsSinceEpoch}',
@@ -430,8 +485,17 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
           xValueMapper: (point, _) => point.time,
           yValueMapper: (point, _) => point.value,
           splineType: SplineType.natural,
+          color: theme.line,
+          borderColor: theme.accent,
+          borderWidth: 2,
+
+          gradient: LinearGradient(
+            colors: [theme.fillTop, theme.fillBottom],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
           markerSettings: const MarkerSettings(isVisible: false),
-          opacity: 0.25,
+          // opacity: 0.25,
         ),
       ],
     );

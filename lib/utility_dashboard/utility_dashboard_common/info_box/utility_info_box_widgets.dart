@@ -34,7 +34,7 @@ class UtilityInfoBoxWidgets {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            facilityColor.withOpacity(0.82),
+            facilityColor.withOpacity(0.52),
             facilityColor.withOpacity(0.32),
           ],
         ),

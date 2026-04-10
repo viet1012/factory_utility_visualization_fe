@@ -2,8 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/utility_catalog_tabs_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/industrial_side_tab_bar.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_screens/utility_setting_screen.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_para_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_scada_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_scada_channel_api.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_scada_channel_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -36,7 +38,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityApi api;
   late final UtilityFacadeService facade;
   late final AlarmApi alarmApi;
+
   late final UtilityScadaChannelApi scadaChannelApi;
+  late final UtilityScadaApi scadaApi;
+  late final UtilityParaApi paraApi;
 
   late final MinuteSeriesProvider minuteSeriesProvider;
   late final SumCompareProvider sumCompareProvider;
@@ -63,7 +68,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     api = UtilityApi(dio: dio);
     facade = UtilityFacadeService(dio);
     alarmApi = AlarmApi(dio);
+
     scadaChannelApi = UtilityScadaChannelApi(baseUrl: baseUrl);
+    scadaApi = UtilityScadaApi(baseUrl: baseUrl);
+    paraApi = UtilityParaApi(baseUrl: baseUrl);
 
     minuteSeriesProvider = MinuteSeriesProvider(
       api: api,
@@ -110,7 +118,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     latestProvider.dispose();
     alarmProvider.dispose();
     treeLatestProvider.dispose();
+
     scadaChannelApi.dispose();
+    scadaApi.dispose(); // thêm dòng này
 
     super.dispose();
   }
@@ -126,7 +136,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         Provider<UtilityApi>.value(value: api),
         Provider<UtilityFacadeService>.value(value: facade),
         Provider<AlarmApi>.value(value: alarmApi),
+
         Provider<UtilityScadaChannelApi>.value(value: scadaChannelApi),
+        Provider<UtilityScadaApi>.value(value: scadaApi),
+
         ChangeNotifierProvider<MinuteSeriesProvider>.value(
           value: minuteSeriesProvider,
         ),
@@ -178,7 +191,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                     ),
                     IndustrialSideTabItem(
                       icon: Icons.settings,
-                      text: 'SCADA CHANNEL',
+                      text: 'SETTING',
                     ),
                   ],
                 ),
@@ -205,7 +218,11 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                       ),
                       Padding(
                         padding: const EdgeInsets.all(16),
-                        child: UtilityScadaChannelScreen(api: scadaChannelApi),
+                        child: UtilityScadaSettingScreen(
+                          scadaApi: scadaApi,
+                          channelApi: scadaChannelApi,
+                          paraApi: paraApi,
+                        ),
                       ),
                     ],
                   ),
