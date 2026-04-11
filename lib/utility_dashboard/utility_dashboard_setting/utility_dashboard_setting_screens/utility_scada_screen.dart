@@ -5,7 +5,8 @@ import '../../utility_dashboard_common/utility_fac_style.dart';
 import '../utility_dashboard_setting_dialog/scada_form_dialog.dart';
 import '../utility_dashboard_setting_models/scada_view_model.dart';
 import '../utility_dashboard_setting_models/utility_scada.dart';
-import '../utility_dashboard_setting_widgets/scada_channel_widgets.dart';
+import '../utility_dashboard_setting_widgets/scada_card.dart';
+import '../utility_dashboard_setting_widgets/setting_common_widgets.dart';
 import '../utility_scada_api.dart';
 import 'base_setting_screen.dart';
 

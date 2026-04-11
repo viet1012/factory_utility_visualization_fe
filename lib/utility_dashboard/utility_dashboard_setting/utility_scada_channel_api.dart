@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_models/utility_scada_channel.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_screens/utility_scada_channel_screen.dart';
 import 'package:http/http.dart' as http;
 
 class UtilityScadaChannelApi {
@@ -20,6 +21,28 @@ class UtilityScadaChannelApi {
         : (path.startsWith('/') ? path : '/$path');
 
     return Uri.parse('$normalizedBase$normalizedPath');
+  }
+
+  Future<List<UtilityScadaTreeFacRaw>> getGroupedByFac() async {
+    final response = await _client.get(
+      _uri('/api/v1/utility-scada-channels/group-by-fac'),
+      headers: _headers,
+    );
+
+    _ensureSuccess(response);
+
+    final body = jsonDecode(response.body);
+    if (body is! List) {
+      throw Exception('Invalid response format: expected a list');
+    }
+
+    return body
+        .map(
+          (e) => UtilityScadaTreeFacRaw.fromJson(
+            Map<String, dynamic>.from(e as Map),
+          ),
+        )
+        .toList();
   }
 
   Map<String, String> get _headers => const {

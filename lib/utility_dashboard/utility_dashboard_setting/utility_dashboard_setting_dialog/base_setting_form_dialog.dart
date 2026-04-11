@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utility_dashboard_setting_widgets/form_field_config.dart';
-import '../utility_dashboard_setting_widgets/scada_channel_widgets.dart';
+import '../utility_dashboard_setting_widgets/setting_common_widgets.dart';
 
 class BaseSettingFormDialog extends StatelessWidget {
   final String title;

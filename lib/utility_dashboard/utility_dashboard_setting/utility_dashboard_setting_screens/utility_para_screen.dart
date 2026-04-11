@@ -2,7 +2,8 @@ import 'package:flutter/material.dart' hide SearchBar;
 import 'package:provider/provider.dart';
 
 import '../utility_dashboard_setting_models/utility_para_view_model.dart';
-import '../utility_dashboard_setting_widgets/scada_channel_widgets.dart';
+import '../utility_dashboard_setting_widgets/para_card.dart';
+import '../utility_dashboard_setting_widgets/setting_common_widgets.dart';
 import '../utility_para_api.dart';
 import 'base_setting_screen.dart';
 
