@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart' hide SearchBar;
 
 import '../utility_dashboard_setting_widgets/setting_common_widgets.dart';
@@ -40,10 +42,10 @@ class BaseSettingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: submitting ? null : onAdd,
-        icon: const Icon(Icons.add_rounded),
-        label: Text(addButtonText),
+      floatingActionButton: _AddButton(
+        label: addButtonText,
+        disabled: submitting,
+        onTap: onAdd,
       ),
       body: Stack(
         children: [
@@ -192,6 +194,85 @@ class _IconActionButton extends StatelessWidget {
             icon,
             size: 18,
             color: onTap == null ? Colors.white24 : Colors.white70,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddButton extends StatelessWidget {
+  final String label;
+  final bool disabled;
+  final VoidCallback onTap;
+
+  const _AddButton({
+    required this.label,
+    required this.disabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = const Color(0xFF3B82F6);
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: disabled ? 0.45 : 1,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: disabled ? null : onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+
+                  // 🌫 glass nền
+                  color: Colors.white.withOpacity(0.06),
+
+                  // 🧊 viền kính
+                  border: Border.all(color: Colors.white.withOpacity(0.5)),
+
+                  // 🌈 glow nhẹ
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withOpacity(0.25),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.35),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_rounded, size: 20, color: accent),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: accent,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),

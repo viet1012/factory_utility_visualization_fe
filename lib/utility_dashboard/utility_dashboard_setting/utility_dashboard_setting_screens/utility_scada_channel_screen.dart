@@ -178,6 +178,48 @@ class _UtilityScadaChannelScreenState extends State<UtilityScadaChannelScreen> {
 
   int get _filteredCount => countDevices(_filteredGroupedItems);
 
+  Future<void> _openEditDialog(DeviceTreeNode device) async {
+    if (device.channelId == null) {
+      _showMessage('Missing id', isError: true);
+      return;
+    }
+    final initial = UtilityScadaChannel(
+      id: device.channelId,
+      // channelId chính là id
+      scadaId: device.scadaId,
+      cate: device.cate,
+      boxDeviceId: device.boxDeviceId,
+      boxId: device.boxId,
+    );
+
+    final result = await showDialog<UtilityScadaChannel>(
+      context: context,
+      builder: (_) => ChannelFormDialog(initialValue: initial, isEdit: true),
+    );
+
+    if (result == null) return;
+
+    try {
+      setState(() {
+        _submitting = true;
+      });
+
+      await widget.api.update(device.channelId!, result); // 👈 dùng luôn
+
+      if (!mounted) return;
+      _showMessage('Updated successfully');
+      await _loadGroupedData();
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage(e.toString(), isError: true);
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BaseSettingScreen(
@@ -244,6 +286,7 @@ class _UtilityScadaChannelScreenState extends State<UtilityScadaChannelScreen> {
       child: VerticalTreeBoard(
         data: _filteredGroupedItems,
         expandAll: _shouldExpandAll,
+        onEditDevice: _openEditDialog,
       ),
     );
   }
@@ -348,14 +391,18 @@ class BoxTreeNode {
 }
 
 class DeviceTreeNode {
-  final int? channelId;
+  final int? channelId; // channelId = id
   final String cate;
   final String boxDeviceId;
+  final String scadaId;
+  final String boxId;
 
   const DeviceTreeNode({
     required this.channelId,
     required this.cate,
     required this.boxDeviceId,
+    required this.scadaId,
+    required this.boxId,
   });
 }
 
@@ -380,6 +427,8 @@ List<FacTreeNode> regroupTree(List<UtilityScadaTreeFacRaw> raw) {
                   channelId: d.channelId,
                   cate: d.cate,
                   boxDeviceId: d.boxDeviceId,
+                  scadaId: scadaRaw.scadaId,
+                  boxId: boxRaw.boxId,
                 );
               }).toList(),
             );
@@ -409,11 +458,13 @@ int countDevices(List<FacTreeNode> items) {
 class VerticalTreeBoard extends StatelessWidget {
   final List<FacTreeNode> data;
   final bool expandAll;
+  final ValueChanged<DeviceTreeNode> onEditDevice;
 
   const VerticalTreeBoard({
     super.key,
     required this.data,
     required this.expandAll,
+    required this.onEditDevice,
   });
 
   @override
@@ -422,7 +473,11 @@ class VerticalTreeBoard extends StatelessWidget {
       children: data.map((fac) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
-          child: VerticalFacTree(node: fac, expandAll: expandAll),
+          child: VerticalFacTree(
+            node: fac,
+            expandAll: expandAll,
+            onEditDevice: onEditDevice,
+          ),
         );
       }).toList(),
     );
@@ -432,11 +487,13 @@ class VerticalTreeBoard extends StatelessWidget {
 class VerticalFacTree extends StatelessWidget {
   final FacTreeNode node;
   final bool expandAll;
+  final ValueChanged<DeviceTreeNode> onEditDevice;
 
   const VerticalFacTree({
     super.key,
     required this.node,
     required this.expandAll,
+    required this.onEditDevice,
   });
 
   @override
@@ -488,6 +545,7 @@ class VerticalFacTree extends StatelessWidget {
                   scada: scada,
                   lineColor: facColor,
                   expandAll: expandAll,
+                  onEditDevice: onEditDevice,
                 ),
               ),
             ),
@@ -503,6 +561,7 @@ class VerticalScadaTree extends StatelessWidget {
   final ScadaTreeNode scada;
   final Color lineColor;
   final bool expandAll;
+  final ValueChanged<DeviceTreeNode> onEditDevice;
 
   const VerticalScadaTree({
     super.key,
@@ -510,6 +569,7 @@ class VerticalScadaTree extends StatelessWidget {
     required this.scada,
     required this.lineColor,
     required this.expandAll,
+    required this.onEditDevice,
   });
 
   @override
@@ -559,6 +619,7 @@ class VerticalScadaTree extends StatelessWidget {
                       scadaId: scada.scadaId,
                       box: box,
                       expandAll: expandAll,
+                      onEditDevice: onEditDevice,
                     ),
                   ),
                 ),
@@ -575,6 +636,7 @@ class VerticalBoxTree extends StatelessWidget {
   final String scadaId;
   final BoxTreeNode box;
   final bool expandAll;
+  final ValueChanged<DeviceTreeNode> onEditDevice;
 
   const VerticalBoxTree({
     super.key,
@@ -582,6 +644,7 @@ class VerticalBoxTree extends StatelessWidget {
     required this.scadaId,
     required this.box,
     required this.expandAll,
+    required this.onEditDevice,
   });
 
   @override
@@ -629,7 +692,10 @@ class VerticalBoxTree extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 8),
                     child: _TreeIndent(
                       color: Colors.white24,
-                      child: VerticalDeviceNode(device: device),
+                      child: VerticalDeviceNode(
+                        device: device,
+                        onEdit: () => onEditDevice(device),
+                      ),
                     ),
                   ),
                 ),
@@ -643,8 +709,13 @@ class VerticalBoxTree extends StatelessWidget {
 
 class VerticalDeviceNode extends StatelessWidget {
   final DeviceTreeNode device;
+  final VoidCallback onEdit;
 
-  const VerticalDeviceNode({super.key, required this.device});
+  const VerticalDeviceNode({
+    super.key,
+    required this.device,
+    required this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -677,9 +748,7 @@ class VerticalDeviceNode extends StatelessWidget {
             ),
           ),
           IconButton(
-            onPressed: () {
-              // TODO: nối edit action ở đây
-            },
+            onPressed: onEdit,
             icon: const Icon(Icons.edit_rounded, size: 18),
             color: Colors.white70,
             tooltip: 'Edit',

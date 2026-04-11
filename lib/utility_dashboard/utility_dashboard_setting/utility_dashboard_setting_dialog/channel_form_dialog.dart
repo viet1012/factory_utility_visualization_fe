@@ -16,11 +16,17 @@ class ChannelFormDialog extends StatefulWidget {
 
 class _ChannelFormDialogState extends State<ChannelFormDialog> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  static const List<String> _cateOptions = [
+    'Electricity',
+    'Water',
+    'CompressedAir',
+  ];
 
   late final TextEditingController _scadaIdCtrl;
-  late final TextEditingController _cateCtrl;
   late final TextEditingController _boxDeviceIdCtrl;
   late final TextEditingController _boxIdCtrl;
+
+  late String? _selectedCate;
 
   bool get _isEdit => widget.isEdit || widget.initialValue != null;
 
@@ -29,15 +35,17 @@ class _ChannelFormDialogState extends State<ChannelFormDialog> {
     super.initState();
     final item = widget.initialValue;
     _scadaIdCtrl = TextEditingController(text: item?.scadaId ?? '');
-    _cateCtrl = TextEditingController(text: item?.cate ?? '');
     _boxDeviceIdCtrl = TextEditingController(text: item?.boxDeviceId ?? '');
     _boxIdCtrl = TextEditingController(text: item?.boxId ?? '');
+
+    final cate = item?.cate?.trim();
+
+    _selectedCate = _cateOptions.contains(cate) ? cate : _cateOptions.first;
   }
 
   @override
   void dispose() {
     _scadaIdCtrl.dispose();
-    _cateCtrl.dispose();
     _boxDeviceIdCtrl.dispose();
     _boxIdCtrl.dispose();
     super.dispose();
@@ -49,7 +57,7 @@ class _ChannelFormDialogState extends State<ChannelFormDialog> {
 
     final item = (widget.initialValue ?? const UtilityScadaChannel()).copyWith(
       scadaId: _scadaIdCtrl.text.trim(),
-      cate: _cateCtrl.text.trim(),
+      cate: _selectedCate,
       boxDeviceId: _boxDeviceIdCtrl.text.trim(),
       boxId: _boxIdCtrl.text.trim(),
     );
@@ -71,20 +79,26 @@ class _ChannelFormDialogState extends State<ChannelFormDialog> {
             validatorText: 'SCADA ID is required',
             controller: _scadaIdCtrl,
           ),
-          FormFieldConfig(
+          FormFieldConfig.dropdown(
             label: 'Category',
             validatorText: 'Category is required',
-            controller: _cateCtrl,
-          ),
-          FormFieldConfig(
-            label: 'Box Device ID',
-            validatorText: 'Box Device ID is required',
-            controller: _boxDeviceIdCtrl,
+            value: _selectedCate,
+            items: _cateOptions,
+            onChanged: (value) {
+              setState(() {
+                _selectedCate = value;
+              });
+            },
           ),
           FormFieldConfig(
             label: 'Box ID',
             validatorText: 'Box ID is required',
             controller: _boxIdCtrl,
+          ),
+          FormFieldConfig(
+            label: 'Box Device ID',
+            validatorText: 'Box Device ID is required',
+            controller: _boxDeviceIdCtrl,
           ),
         ],
       ),
