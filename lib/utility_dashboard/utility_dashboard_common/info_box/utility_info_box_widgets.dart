@@ -28,32 +28,67 @@ class UtilityInfoBoxWidgets {
         : (isLoading ? 'Loading...' : 'Live');
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+
+        // ?? GLASS n?n nh?
         gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.06),
+            Colors.white.withOpacity(0.02),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            facilityColor.withOpacity(0.52),
-            facilityColor.withOpacity(0.32),
-          ],
         ),
+
         border: Border(
-          bottom: BorderSide(color: facilityColor.withOpacity(0.55), width: 2),
+          bottom: BorderSide(
+            color: Colors.white.withOpacity(0.08),
+            width: 1,
+          ),
         ),
+
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+          // ?? accent nh? theo cate
+          BoxShadow(
+            color: facilityColor.withOpacity(0.10),
+            blurRadius: 14,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // LEFT: icon + title
-          Icon(Icons.factory, color: Colors.white.withOpacity(0.95), size: 20),
+          // ICON
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.12),
+              ),
+            ),
+            child: Icon(
+              Icons.factory,
+              color: Colors.white.withOpacity(0.9),
+              size: 16,
+            ),
+          ),
+
           const SizedBox(width: 10),
 
-          // MIDDLE: title + sub (co giãn)
+          // TEXT
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   facTitle,
@@ -61,29 +96,22 @@ class UtilityInfoBoxWidgets {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     fontSize: 14,
-                    height: 1.05,
                   ),
                 ),
+
                 if (sub.isNotEmpty) ...[
                   const SizedBox(height: 3),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          sub,
-                          maxLines: 2, // ✅ hẹp thì xuống dòng 2
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
+                  Text(
+                    sub,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.65),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ],
@@ -92,7 +120,7 @@ class UtilityInfoBoxWidgets {
 
           const SizedBox(width: 10),
 
-          // RIGHT: status dot (fixed)
+          // STATUS DOT (x?n hon)
           Tooltip(
             message: statusText,
             child: Container(
@@ -103,9 +131,8 @@ class UtilityInfoBoxWidgets {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: statusColor.withOpacity(0.55),
-                    blurRadius: 8,
-                    spreadRadius: 1,
+                    color: statusColor.withOpacity(0.6),
+                    blurRadius: 10,
                   ),
                 ],
               ),
