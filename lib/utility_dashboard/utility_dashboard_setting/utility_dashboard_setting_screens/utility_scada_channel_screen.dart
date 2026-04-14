@@ -570,7 +570,7 @@ class VerticalFacTree extends StatelessWidget {
             '${node.scadas.length} SCADA • $totalBoxes boxes • $totalDevices devices',
             style: TextStyle(
               color: Colors.white.withOpacity(0.62),
-              fontSize: 13,
+              fontSize: 14,
             ),
           ),
           children: [
@@ -640,7 +640,7 @@ class VerticalScadaTree extends StatelessWidget {
             subtitle: Text(
               '${scada.boxes.length} boxes • $totalDevices devices',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.60),
+                color: Colors.white.withOpacity(0.62),
                 fontSize: 14,
               ),
             ),
@@ -716,7 +716,7 @@ class VerticalBoxTree extends StatelessWidget {
             subtitle: Text(
               '${box.devices.length} devices',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.58),
+                color: Colors.white.withOpacity(0.62),
                 fontSize: 14,
               ),
             ),
@@ -788,12 +788,6 @@ class VerticalDeviceNode extends StatelessWidget {
             password: SettingSecurity.editPassword,
             onVerified: onEdit,
           ),
-          // IconButton(
-          //   onPressed: onEdit,
-          //   icon: const Icon(Icons.edit_rounded, size: 18),
-          //   color: Colors.white70,
-          //   tooltip: 'Edit',
-          // ),
         ],
       ),
     );
