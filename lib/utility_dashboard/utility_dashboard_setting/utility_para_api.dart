@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_models/utility_para.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_screens/utility_para_screen.dart';
 import 'package:http/http.dart' as http;
 
 class UtilityParaApi {
@@ -16,6 +17,30 @@ class UtilityParaApi {
     final res = await _client.get(_uri('/api/v1/utility-para'));
     final body = jsonDecode(res.body);
     return (body as List).map((e) => UtilityPara.fromJson(e)).toList();
+  }
+
+  Future<List<UtilityParaTreeFac>> getGroupedByFacWithParas() async {
+    final response = await _client.get(
+      _uri('/api/v1/utility-para/grouped-by-fac-with-paras'),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'API error: ${response.statusCode} ${response.reasonPhrase}\n${response.body}',
+      );
+    }
+
+    final body = jsonDecode(response.body);
+    if (body is! List) {
+      throw Exception('Invalid response format: expected a list');
+    }
+
+    return body
+        .map(
+          (e) =>
+              UtilityParaTreeFac.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList();
   }
 
   Future<UtilityPara> create(UtilityPara item) async {

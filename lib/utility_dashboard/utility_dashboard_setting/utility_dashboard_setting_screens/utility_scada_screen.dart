@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' hide SearchBar;
 import 'package:provider/provider.dart';
 
 import '../../utility_dashboard_common/utility_fac_style.dart';
+import '../setting_security.dart';
 import '../utility_dashboard_setting_dialog/scada_form_dialog.dart';
 import '../utility_dashboard_setting_models/scada_view_model.dart';
 import '../utility_dashboard_setting_models/utility_scada.dart';
@@ -87,6 +88,8 @@ class _UtilityScadaScreenState extends State<UtilityScadaScreen> {
             onAdd: () => _openFormDialog(),
             searchHint: 'Search by SCADA ID, FAC, PLC IP, PC name, WLAN...',
             addButtonText: 'Add SCADA',
+            requireAddPassword: true,
+            addPassword: SettingSecurity.editPassword,
             body: _buildBody(vm),
           );
         },

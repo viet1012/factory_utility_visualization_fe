@@ -78,12 +78,18 @@ class _UtilityScadaSettingScreenState extends State<UtilityScadaSettingScreen>
       TabSpec(
         label: 'CHANNEL',
         icon: Icons.cable_rounded,
-        child: UtilityScadaChannelScreen(api: widget.channelApi),
+        child: UtilityScadaChannelScreen(
+          api: widget.channelApi,
+          scadaApi: widget.scadaApi,
+        ),
       ),
       TabSpec(
         label: 'PARA',
         icon: Icons.tune_rounded,
-        child: UtilityParaScreen(api: widget.paraApi),
+        child: UtilityParaTreeScreen(
+          api: widget.paraApi,
+          scadaChannelApi: widget.channelApi,
+        ),
       ),
     ];
 

@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../../utility_dashboard_common/utility_fac_style.dart';
+import '../setting_security.dart';
 import '../utility_dashboard_setting_dialog/channel_form_dialog.dart';
 import '../utility_dashboard_setting_models/utility_scada_channel.dart';
+import '../utility_dashboard_setting_widgets/protected_edit_button.dart';
 import '../utility_dashboard_setting_widgets/setting_common_widgets.dart';
+import '../utility_scada_api.dart';
 import '../utility_scada_channel_api.dart';
 import 'base_setting_screen.dart';
 
 class UtilityScadaChannelScreen extends StatefulWidget {
   final UtilityScadaChannelApi api;
+  final UtilityScadaApi scadaApi;
 
-  const UtilityScadaChannelScreen({super.key, required this.api});
+  const UtilityScadaChannelScreen({
+    super.key,
+    required this.api,
+    required this.scadaApi,
+  });
 
   @override
   State<UtilityScadaChannelScreen> createState() =>
@@ -44,6 +52,20 @@ class _UtilityScadaChannelScreenState extends State<UtilityScadaChannelScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<List<String>> _getScadaOptions() async {
+    final scadas = await widget.scadaApi.getAll();
+
+    final values =
+        scadas
+            .map((e) => e.scadaId?.trim() ?? '')
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+
+    return values;
   }
 
   Future<void> _loadGroupedData() async {
@@ -80,15 +102,24 @@ class _UtilityScadaChannelScreenState extends State<UtilityScadaChannelScreen> {
   }
 
   Future<void> _openCreateDialog() async {
-    final result = await showDialog<UtilityScadaChannel>(
-      context: context,
-      builder: (_) =>
-          const ChannelFormDialog(initialValue: null, isEdit: false),
-    );
-
-    if (result == null) return;
-
     try {
+      final scadaOptions = await _getScadaOptions();
+
+      if (!mounted) return;
+
+      if (scadaOptions.isEmpty) {
+        _showMessage('Không có SCADA ID để chọn', isError: true);
+        return;
+      }
+
+      final result = await showDialog<UtilityScadaChannel>(
+        context: context,
+        builder: (_) =>
+            ChannelFormDialog(isEdit: false, scadaOptions: scadaOptions),
+      );
+
+      if (result == null) return;
+
       setState(() {
         _submitting = true;
       });
@@ -191,10 +222,14 @@ class _UtilityScadaChannelScreenState extends State<UtilityScadaChannelScreen> {
       boxDeviceId: device.boxDeviceId,
       boxId: device.boxId,
     );
-
+    final scadaOptions = await _getScadaOptions();
     final result = await showDialog<UtilityScadaChannel>(
       context: context,
-      builder: (_) => ChannelFormDialog(initialValue: initial, isEdit: true),
+      builder: (_) => ChannelFormDialog(
+        initialValue: initial,
+        isEdit: true,
+        scadaOptions: scadaOptions,
+      ),
     );
 
     if (result == null) return;
@@ -235,6 +270,8 @@ class _UtilityScadaChannelScreenState extends State<UtilityScadaChannelScreen> {
       onAdd: _openCreateDialog,
       searchHint: 'Search by facility, SCADA, box, device, category...',
       addButtonText: 'Add Channel',
+      requireAddPassword: true,
+      addPassword: SettingSecurity.editPassword,
       topActions: [
         _TopActionChip(
           icon: Icons.unfold_more_rounded,
@@ -747,12 +784,16 @@ class VerticalDeviceNode extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
-            onPressed: onEdit,
-            icon: const Icon(Icons.edit_rounded, size: 18),
-            color: Colors.white70,
-            tooltip: 'Edit',
+          ProtectedEditButton(
+            password: SettingSecurity.editPassword,
+            onVerified: onEdit,
           ),
+          // IconButton(
+          //   onPressed: onEdit,
+          //   icon: const Icon(Icons.edit_rounded, size: 18),
+          //   color: Colors.white70,
+          //   tooltip: 'Edit',
+          // ),
         ],
       ),
     );

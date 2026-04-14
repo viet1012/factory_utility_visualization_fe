@@ -1,5 +1,7 @@
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_widgets/protected_edit_button.dart';
 import 'package:flutter/material.dart';
 
+import '../setting_security.dart';
 import '../utility_dashboard_setting_models/utility_scada.dart';
 import 'common_action_buttons.dart';
 
@@ -58,7 +60,11 @@ class ScadaCard extends StatelessWidget {
               const SizedBox(height: 14),
               _buildInfoPanel(),
               const Spacer(),
-              _EditButton(disabled: disabled, onTap: onEdit),
+              // _EditButton(disabled: disabled, onTap: onEdit),
+              ProtectedEditButton(
+                password: SettingSecurity.editPassword,
+                onVerified: onEdit,
+              ),
             ],
           ),
         ),

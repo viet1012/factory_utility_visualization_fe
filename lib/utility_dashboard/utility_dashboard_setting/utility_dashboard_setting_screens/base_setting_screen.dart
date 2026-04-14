@@ -20,6 +20,12 @@ class BaseSettingScreen extends StatelessWidget {
   final String addButtonText;
   final List<Widget>? topActions;
 
+  /// Bật/tắt xác thực mật khẩu trước khi Add
+  final bool requireAddPassword;
+
+  /// Mật khẩu dùng để xác thực Add
+  final String addPassword;
+
   const BaseSettingScreen({
     super.key,
     required this.title,
@@ -36,7 +42,206 @@ class BaseSettingScreen extends StatelessWidget {
     required this.searchHint,
     required this.addButtonText,
     this.topActions,
+    this.requireAddPassword = false,
+    this.addPassword = '123456',
   });
+
+  Future<void> _handleAdd(BuildContext context) async {
+    if (!requireAddPassword) {
+      onAdd();
+      return;
+    }
+
+    final ok = await _showPasswordConfirmDialog(
+      context: context,
+      expectedPassword: addPassword,
+    );
+
+    if (ok == true) {
+      onAdd();
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sai mật khẩu hoặc đã huỷ thao tác'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<bool?> _showPasswordConfirmDialog({
+    required BuildContext context,
+    required String expectedPassword,
+  }) async {
+    final passwordCtrl = TextEditingController();
+    bool obscure = true;
+    String? errorText;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF11151C),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              title: const Text(
+                'Xác nhận mật khẩu',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
+              ),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Nhập mật khẩu để thêm mới dữ liệu.',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.72),
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: passwordCtrl,
+                      obscureText: obscure,
+                      autofocus: true,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        labelStyle: TextStyle(
+                          color: Colors.white.withOpacity(0.75),
+                        ),
+                        hintText: 'Nhập mật khẩu',
+                        hintStyle: TextStyle(
+                          color: Colors.white.withOpacity(0.35),
+                        ),
+                        errorText: errorText,
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.05),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: Colors.white.withOpacity(0.10),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: Colors.white.withOpacity(0.10),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF3B82F6),
+                            width: 1.2,
+                          ),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Colors.redAccent,
+                            width: 1.2,
+                          ),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Colors.redAccent,
+                            width: 1.2,
+                          ),
+                        ),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setStateDialog(() {
+                              obscure = !obscure;
+                            });
+                          },
+                          icon: Icon(
+                            obscure
+                                ? Icons.visibility_off_rounded
+                                : Icons.visibility_rounded,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ),
+                      onSubmitted: (_) {
+                        final ok = passwordCtrl.text.trim() == expectedPassword;
+                        if (ok) {
+                          Navigator.of(dialogContext).pop(true);
+                        } else {
+                          setStateDialog(() {
+                            errorText = 'Mật khẩu không đúng';
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: Text(
+                    'Huỷ',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.72),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final ok = passwordCtrl.text.trim() == expectedPassword;
+                    if (ok) {
+                      Navigator.of(dialogContext).pop(true);
+                    } else {
+                      setStateDialog(() {
+                        errorText = 'Mật khẩu không đúng';
+                      });
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3B82F6),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.lock_open_rounded, size: 18),
+                  label: const Text(
+                    'Xác nhận',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    passwordCtrl.dispose();
+    return result;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +250,7 @@ class BaseSettingScreen extends StatelessWidget {
       floatingActionButton: _AddButton(
         label: addButtonText,
         disabled: submitting,
-        onTap: onAdd,
+        onTap: () => _handleAdd(context),
       ),
       body: Stack(
         children: [
@@ -235,14 +440,8 @@ class _AddButton extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-
-                  // 🌫 glass nền
                   color: Colors.white.withOpacity(0.06),
-
-                  // 🧊 viền kính
-                  border: Border.all(color: Colors.white.withOpacity(0.5)),
-
-                  // 🌈 glow nhẹ
+                  border: Border.all(color: Colors.white.withOpacity(0.50)),
                   boxShadow: [
                     BoxShadow(
                       color: accent.withOpacity(0.25),
