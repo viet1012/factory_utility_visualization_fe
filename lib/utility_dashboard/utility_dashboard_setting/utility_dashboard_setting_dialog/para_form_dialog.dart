@@ -26,7 +26,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
 
   static const List<String> _valueTypeOptions = [
     'BOOL',
-    'INT',
+    'INT16',
     'LONG',
     'FLOAT',
     'DOUBLE',
@@ -83,9 +83,11 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
         : null;
 
     final valueType = item?.valueType?.trim();
-    _selectedValueType = _valueTypeOptions.contains(valueType)
-        ? valueType
-        : _valueTypeOptions.first;
+
+    _selectedValueType = _valueTypeOptions.firstWhere(
+      (e) => e.toLowerCase() == valueType?.toLowerCase(),
+      orElse: () => _valueTypeOptions.first,
+    );
 
     _selectedIsImportant = (item?.isImportant ?? 0).toString();
     _selectedIsAlert = (item?.isAlert ?? 0).toString();
