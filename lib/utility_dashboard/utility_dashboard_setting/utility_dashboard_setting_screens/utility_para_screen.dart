@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' hide SearchBar;
 import '../../utility_dashboard_common/utility_fac_style.dart';
 import '../setting_security.dart';
 import '../utility_dashboard_setting_models/utility_para.dart';
+import '../utility_dashboard_setting_widgets/protected_edit_button.dart';
 import '../utility_dashboard_setting_widgets/setting_common_widgets.dart';
 import '../utility_para_api.dart';
 import '../utility_scada_channel_api.dart';
@@ -678,6 +679,49 @@ class _ParaDeviceNode extends StatelessWidget {
 
   const _ParaDeviceNode({required this.device, required this.expandAll});
 
+  void _onEditPara(BuildContext context, UtilityParaItem para) async {
+    final state = context
+        .findAncestorStateOfType<_UtilityParaTreeScreenState>();
+    if (state == null) return;
+
+    final boxDeviceIdOptions = await state._getBoxDeviceIdOptions();
+
+    if (!context.mounted) return;
+
+    final result = await showDialog<UtilityPara>(
+      context: context,
+      builder: (_) => ParaFormDialog(
+        isEdit: true,
+        initialValue: UtilityPara(
+          id: para.id,
+          boxDeviceId: device.boxDeviceId,
+          plcAddress: para.plcAddress,
+          valueType: para.valueType,
+          unit: para.unit,
+          cateId: para.cateId,
+          nameVi: para.nameVi,
+          nameEn: para.nameEn,
+          isImportant: para.isImportant,
+          isAlert: para.isAlert,
+          minAlert: para.minAlert,
+          maxAlert: para.maxAlert,
+        ),
+        boxDeviceIdOptions: boxDeviceIdOptions,
+      ),
+    );
+
+    if (result == null || para.id == null) return;
+
+    await state.widget.api.update(para.id!, result);
+    await state._loadData();
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Updated successfully')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final accent = UtilityFacStyle.colorByCate(device.cate);
@@ -737,7 +781,10 @@ class _ParaDeviceNode extends StatelessWidget {
                       children: device.paras.map((para) {
                         return SizedBox(
                           width: itemWidth,
-                          child: _ParaLeafCard(para: para),
+                          child: _ParaLeafCard(
+                            para: para,
+                            onEdit: () => _onEditPara(context, para),
+                          ),
                         );
                       }).toList(),
                     );
@@ -754,8 +801,9 @@ class _ParaDeviceNode extends StatelessWidget {
 
 class _ParaLeafCard extends StatelessWidget {
   final UtilityParaItem para;
+  final VoidCallback onEdit;
 
-  const _ParaLeafCard({required this.para});
+  const _ParaLeafCard({required this.para, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -780,15 +828,27 @@ class _ParaLeafCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+
+              ProtectedEditButton(
+                password: SettingSecurity.editPassword,
+                onVerified: onEdit,
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           Text(

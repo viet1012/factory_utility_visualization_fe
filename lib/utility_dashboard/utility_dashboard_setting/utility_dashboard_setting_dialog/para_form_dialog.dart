@@ -406,7 +406,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
           FormFieldConfig(label: 'Unit', controller: _unitCtrl),
           FormFieldConfig(
             label: 'Cate ID',
-            validatorText: 'Cate ID is required',
+            // validatorText: 'Cate ID is required',
             controller: _cateIdCtrl,
           ),
           FormFieldConfig(label: 'Name VI', controller: _nameViCtrl),
