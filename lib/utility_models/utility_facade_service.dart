@@ -132,13 +132,7 @@ class UtilityFacadeService {
   }) async {
     await dio.post(
       '/api/utility/overlay/upsert',
-      data: {
-        'facId': facId,
-        'boxDeviceId': boxDeviceId,
-        'plcAddress': plcAddress,
-        'x': x,
-        'y': y,
-      },
+      data: {'facId': facId, 'boxDeviceId': boxDeviceId, 'x': x, 'y': y},
     );
   }
 
@@ -150,7 +144,7 @@ class UtilityFacadeService {
   /// return: [{ boxDeviceId:"...", x01:0.2, y01:0.3 }, ...]
   Future<Map<String, Offset>> getOverlayGroups(String facId) async {
     final res = await dio.get(
-      '/api/utility/overlay-groups',
+      '/api/utility/overlay',
       queryParameters: {'facId': facId},
     );
 
@@ -162,10 +156,11 @@ class UtilityFacadeService {
       final box = (m['boxDeviceId'] ?? '').toString().trim();
       if (box.isEmpty) continue;
 
-      final x = (m['x01'] as num?)?.toDouble() ?? 0.2;
-      final y = (m['y01'] as num?)?.toDouble() ?? 0.2;
+      final x = (m['x'] as num?)?.toDouble() ?? 0.2;
+      final y = (m['y'] as num?)?.toDouble() ?? 0.2;
       out[box] = Offset(x.clamp(0.0, 1.0), y.clamp(0.0, 1.0));
     }
+    print('RAW RESPONSE: ${res.data}');
     return out;
   }
 
@@ -177,12 +172,13 @@ class UtilityFacadeService {
     required Offset pos01,
   }) async {
     await dio.post(
-      '/api/utility/overlay-groups',
+      '/api/utility/overlay/upsert',
+
       data: {
         'facId': facId,
         'boxDeviceId': boxDeviceId,
-        'x01': pos01.dx,
-        'y01': pos01.dy,
+        'x': pos01.dx,
+        'y': pos01.dy,
       },
     );
   }

@@ -7,9 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../utility_models/utility_facade_service.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_common/utility_fac_style.dart';
+import '../../utility_dashboard_fac_details/layout/utility_fac_layout_screen.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
@@ -281,42 +283,57 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
           values: const [],
         );
 
-    return RepaintBoundary(
-      child: SlideTransition(
-        position: fx.slide,
-        child: AnimatedBuilder(
-          animation: fx.listenable,
-          builder: (_, child) {
-            return Transform.scale(scale: fx.scale.value, child: child);
-          },
+    return GestureDetector(
+      onTap: () {
+        final svc = context.read<UtilityFacadeService>(); // ✅ lấy ở đây OK
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UtilityFacDetailScreens(
+              facId: widget.facId,
+              svc: svc, // ✅ pass thẳng
+            ),
+          ),
+        );
+      },
+      child: RepaintBoundary(
+        child: SlideTransition(
+          position: fx.slide,
           child: AnimatedBuilder(
-            animation: _opacityAnimation,
-            builder: (context, child) {
-              return Opacity(opacity: _opacityAnimation.value, child: child);
+            animation: fx.listenable,
+            builder: (_, child) {
+              return Transform.scale(scale: fx.scale.value, child: child);
             },
-            child: _MonthlyShell(
-              width: widget.width,
-              height: widget.height ?? 220,
-              facColor: facColor,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  UtilityInfoBoxHeader.header(
-                    facilityColor: facColor,
-                    facTitle: widget.headerTitle,
-                    healthResult: healthResult,
-                  ),
-                  Expanded(
-                    child: _Body(
-                      loading: loading,
-                      error: error,
-                      items: items,
-                      voltageStatuses: voltageStatuses,
-                      pulseAnimation: _pulseAnimation,
-                      facId: widget.facId,
+            child: AnimatedBuilder(
+              animation: _opacityAnimation,
+              builder: (context, child) {
+                return Opacity(opacity: _opacityAnimation.value, child: child);
+              },
+              child: _MonthlyShell(
+                width: widget.width,
+                height: widget.height ?? 220,
+                facColor: facColor,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    UtilityInfoBoxHeader.header(
+                      facilityColor: facColor,
+                      facTitle: widget.headerTitle,
+                      healthResult: healthResult,
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: _Body(
+                        loading: loading,
+                        error: error,
+                        items: items,
+                        voltageStatuses: voltageStatuses,
+                        pulseAnimation: _pulseAnimation,
+                        facId: widget.facId,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
