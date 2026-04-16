@@ -6,6 +6,18 @@ import '../../../utility_models/utility_facade_service.dart';
 import '../../../utility_state/FacLatestDetailProvider.dart';
 import 'overlay_layout_store.dart';
 
+enum ArrowDirection {
+  right,
+  left,
+  up,
+  down,
+}
+
+enum LabelOrientation {
+  horizontal,
+  vertical,
+}
+
 class UtilityFacDetailScreens extends StatelessWidget {
   final String facId;
   final UtilityFacadeService svc;
@@ -56,6 +68,9 @@ class _FacDetailBodyState extends State<_FacDetailBody>
 
   bool editMode = false;
   String? editingBoxId;
+
+  // luu hu?ng mui tên theo box
+  final Map<String, ArrowDirection> _boxDirections = {};
 
   @override
   void initState() {
@@ -117,19 +132,23 @@ class _FacDetailBodyState extends State<_FacDetailBody>
                       ),
                       boxIds: boxIds,
                       groupLayout: layoutStore.groupLayoutOf(widget.facId),
+                      directions: _boxDirections,
                       editMode: editMode,
                       editingBoxId: editingBoxId,
                       onPickEditingBox: (boxId) {
                         setState(() => editingBoxId = boxId);
                       },
+                      onUpdateDirection: (boxId, direction) {
+                        setState(() {
+                          _boxDirections[boxId] = direction;
+                        });
+                      },
                       onUpdateGroupPos: (boxId, pos01) async {
-                        await context
-                            .read<OverlayGroupLayoutStore>()
-                            .setGroupPos(
-                              facId: widget.facId,
-                              boxDeviceId: boxId,
-                              pos01: pos01,
-                            );
+                        await context.read<OverlayGroupLayoutStore>().setGroupPos(
+                          facId: widget.facId,
+                          boxDeviceId: boxId,
+                          pos01: pos01,
+                        );
                       },
                     ),
                     _ListTab(boxIds: boxIds),
@@ -144,13 +163,12 @@ class _FacDetailBodyState extends State<_FacDetailBody>
   }
 
   List<String> _extractSortedBoxIds(List<LatestRecordDto> rows) {
-    final ids =
-        rows
-            .map((e) => e.boxDeviceId.trim())
-            .where((e) => e.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
+    final ids = rows
+        .map((e) => e.boxDeviceId.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
     return ids;
   }
 
@@ -203,20 +221,25 @@ class _FacOverlayMapGroup extends StatefulWidget {
   final Widget image;
   final List<String> boxIds;
   final Map<String, Offset> groupLayout;
+  final Map<String, ArrowDirection> directions;
   final bool editMode;
   final String? editingBoxId;
   final ValueChanged<String?> onPickEditingBox;
   final void Function(String boxDeviceId, Offset pos01) onUpdateGroupPos;
+  final void Function(String boxDeviceId, ArrowDirection direction)
+  onUpdateDirection;
 
   const _FacOverlayMapGroup({
     required this.facId,
     required this.image,
     required this.boxIds,
     required this.groupLayout,
+    required this.directions,
     required this.editMode,
     required this.editingBoxId,
     required this.onPickEditingBox,
     required this.onUpdateGroupPos,
+    required this.onUpdateDirection,
   });
 
   @override
@@ -225,7 +248,7 @@ class _FacOverlayMapGroup extends StatefulWidget {
 
 class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
   final TransformationController _transformController =
-      TransformationController();
+  TransformationController();
 
   @override
   void dispose() {
@@ -285,8 +308,7 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
                                 _GroupFrame(
                                   boxDeviceId: boxId,
                                   parentSize: Size(width, height),
-                                  groupPos01:
-                                      widget.groupLayout[boxId] ??
+                                  groupPos01: widget.groupLayout[boxId] ??
                                       _autoPlace(widget.boxIds.indexOf(boxId)),
                                   editMode: widget.editMode,
                                   isEditing: widget.editingBoxId == boxId,
@@ -294,11 +316,12 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
                                       ? () => widget.onPickEditingBox(boxId)
                                       : null,
                                   onDragGroup01: widget.editMode
-                                      ? (newPos) => widget.onUpdateGroupPos(
-                                          boxId,
-                                          newPos,
-                                        )
+                                      ? (newPos) =>
+                                      widget.onUpdateGroupPos(boxId, newPos)
                                       : null,
+                                  direction: widget.directions[boxId] ??
+                                      ArrowDirection.right,
+                                  orientation: LabelOrientation.horizontal,
                                 ),
                             ],
                           ),
@@ -324,44 +347,102 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
   }
 
   Widget _editorBar() {
-    return Row(
-      children: [
-        Expanded(
-          child: _Glass(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                isExpanded: true,
-                dropdownColor: const Color(0xFF11183a),
-                value: widget.editingBoxId,
-                hint: const Text(
-                  'Chọn boxDeviceId để đặt/move khung',
-                  style: TextStyle(color: Colors.white70),
-                ),
-                items: widget.boxIds
-                    .map(
-                      (boxId) => DropdownMenuItem(
-                        value: boxId,
-                        child: Text(
-                          boxId,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: widget.onPickEditingBox,
+    final selectedBox = widget.editingBoxId;
+    final selectedDirection =
+        widget.directions[selectedBox] ?? ArrowDirection.right;
+
+    return _Glass(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _DirectionButton(
+              icon: Icons.arrow_left,
+              selected: selectedDirection == ArrowDirection.left,
+              onTap: selectedBox == null
+                  ? null
+                  : () => widget.onUpdateDirection(
+                selectedBox,
+                ArrowDirection.left,
               ),
             ),
+            _DirectionButton(
+              icon: Icons.keyboard_arrow_up,
+              selected: selectedDirection == ArrowDirection.up,
+              onTap: selectedBox == null
+                  ? null
+                  : () =>
+                  widget.onUpdateDirection(selectedBox, ArrowDirection.up),
+            ),
+            _DirectionButton(
+              icon: Icons.keyboard_arrow_down,
+              selected: selectedDirection == ArrowDirection.down,
+              onTap: selectedBox == null
+                  ? null
+                  : () => widget.onUpdateDirection(
+                selectedBox,
+                ArrowDirection.down,
+              ),
+            ),
+            _DirectionButton(
+              icon: Icons.arrow_right,
+              selected: selectedDirection == ArrowDirection.right,
+              onTap: selectedBox == null
+                  ? null
+                  : () => widget.onUpdateDirection(
+                selectedBox,
+                ArrowDirection.right,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DirectionButton extends StatelessWidget {
+  final IconData icon;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  const _DirectionButton({
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: selected
+                ? Colors.white.withOpacity(0.15) // ? nh?
+                : Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected
+                  ? Colors.white.withOpacity(0.5) // ? vi?n sáng nh?
+                  : Colors.white.withOpacity(0.12),
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: selected
+                ? Colors.white // ? b? amber
+                : Colors.white70,
           ),
         ),
-        const SizedBox(width: 10),
-        _Glass(
-          child: IconButton(
-            tooltip: 'Reset zoom',
-            onPressed: () => _transformController.value = Matrix4.identity(),
-            icon: const Icon(Icons.center_focus_strong, color: Colors.white),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -375,6 +456,9 @@ class _GroupFrame extends StatefulWidget {
   final VoidCallback? onTap;
   final ValueChanged<Offset>? onDragGroup01;
 
+  final ArrowDirection direction;
+  final LabelOrientation orientation;
+
   const _GroupFrame({
     required this.boxDeviceId,
     required this.groupPos01,
@@ -383,49 +467,12 @@ class _GroupFrame extends StatefulWidget {
     required this.isEditing,
     required this.onTap,
     required this.onDragGroup01,
+    this.direction = ArrowDirection.right,
+    this.orientation = LabelOrientation.horizontal,
   });
 
   @override
   State<_GroupFrame> createState() => _GroupFrameState();
-}
-
-class _ArrowPainter extends CustomPainter {
-  final Color color;
-  final Color borderColor;
-
-  _ArrowPainter({required this.color, required this.borderColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const arrowWidth = 12.0;
-
-    final path = Path();
-
-    path.moveTo(0, 0);
-    path.lineTo(size.width - arrowWidth, 0);
-
-    // 👉 mũi nhọn
-    path.lineTo(size.width, size.height / 2);
-    path.lineTo(size.width - arrowWidth, size.height);
-
-    path.lineTo(0, size.height);
-    path.close();
-
-    final fill = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final border = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
-    canvas.drawPath(path, fill);
-    canvas.drawPath(path, border);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 class _GroupFrameState extends State<_GroupFrame> {
@@ -443,53 +490,112 @@ class _GroupFrameState extends State<_GroupFrame> {
     pos01 = widget.groupPos01;
   }
 
+  EdgeInsets _padding() {
+    switch (widget.direction) {
+      case ArrowDirection.right:
+        return const EdgeInsets.fromLTRB(10, 8, 20, 8);
+      case ArrowDirection.left:
+        return const EdgeInsets.fromLTRB(20, 8, 10, 8);
+      case ArrowDirection.up:
+        return const EdgeInsets.fromLTRB(10, 20, 10, 8);
+      case ArrowDirection.down:
+        return const EdgeInsets.fromLTRB(10, 8, 10, 20);
+    }
+  }
+
+  Offset _offset() {
+    switch (widget.direction) {
+      case ArrowDirection.right:
+        return const Offset(-10, -10);
+      case ArrowDirection.left:
+        return const Offset(-160, -10);
+      case ArrowDirection.up:
+        return const Offset(-70, -10);
+      case ArrowDirection.down:
+        return const Offset(-70, -70);
+    }
+  }
+
+  Widget _buildLabel() {
+    final text = Text(
+      widget.boxDeviceId,
+      style: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w900,
+        fontSize: 12,
+      ),
+    );
+
+    if (widget.orientation == LabelOrientation.vertical) {
+      return RotatedBox(quarterTurns: 1, child: text);
+    }
+
+    return Flexible(child: text);
+  }
+
+  Widget _buildContent() {
+    if (widget.orientation == LabelOrientation.vertical) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.view_quilt_rounded, size: 16, color: Colors.white70),
+          const SizedBox(height: 6),
+          _buildLabel(),
+        ],
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.view_quilt_rounded, size: 16, color: Colors.white70),
+        const SizedBox(width: 6),
+        _buildLabel(),
+      ],
+    );
+  }
+
+  Alignment _alignment() {
+    switch (widget.direction) {
+      case ArrowDirection.right:
+        return Alignment.centerRight;
+
+      case ArrowDirection.left:
+        return Alignment.centerLeft;
+
+      case ArrowDirection.up:
+        return Alignment.topCenter;
+
+      case ArrowDirection.down:
+        return Alignment.bottomCenter;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final left = pos01.dx * widget.parentSize.width;
     final top = pos01.dy * widget.parentSize.height;
 
-    final borderColor = widget.isEditing ? Colors.amber : Colors.white24;
+    final borderColor = widget.isEditing
+        ? Colors.white.withOpacity(0.6)
+        : Colors.white24;
+
     final backgroundColor = widget.isEditing
-        ? Colors.amber.withOpacity(0.10)
+        ? Colors.white.withOpacity(0.12)
         : Colors.black.withOpacity(0.6);
 
     final frame = CustomPaint(
-      painter: _ArrowPainter(color: backgroundColor, borderColor: borderColor),
+      painter: _ArrowPainter(
+        color: backgroundColor,
+        borderColor: borderColor,
+        direction: widget.direction,
+      ),
       child: Container(
-        constraints: const BoxConstraints(minWidth: 120, maxWidth: 220),
-        padding: const EdgeInsets.fromLTRB(10, 8, 20, 8),
-        // 👉 chừa chỗ cho mũi nhọn
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.view_quilt_rounded,
-              size: 16,
-              color: Colors.white70,
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                widget.boxDeviceId,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-            if (widget.editMode) ...[
-              const SizedBox(width: 6),
-              Icon(
-                widget.isEditing ? Icons.edit : Icons.drag_indicator,
-                size: 16,
-                color: widget.isEditing ? Colors.amber : Colors.white54,
-              ),
-            ],
-          ],
-        ),
+        padding: _padding(),
+        constraints: widget.orientation == LabelOrientation.vertical
+            ? const BoxConstraints(minWidth: 60, maxWidth: 80)
+            : const BoxConstraints(minWidth: 120, maxWidth: 220),
+        child: _buildContent(),
       ),
     );
 
@@ -498,20 +604,18 @@ class _GroupFrameState extends State<_GroupFrame> {
     if (widget.editMode && widget.onDragGroup01 != null) {
       content = GestureDetector(
         onPanUpdate: (details) {
-          final dx01 = details.delta.dx / widget.parentSize.width;
-          final dy01 = details.delta.dy / widget.parentSize.height;
+          final dx = details.delta.dx / widget.parentSize.width;
+          final dy = details.delta.dy / widget.parentSize.height;
 
           final next = Offset(
-            (pos01.dx + dx01).clamp(0.0, 1.0),
-            (pos01.dy + dy01).clamp(0.0, 1.0),
+            (pos01.dx + dx).clamp(0.0, 1.0),
+            (pos01.dy + dy).clamp(0.0, 1.0),
           );
 
-          // chỉ update UI local
           setState(() => pos01 = next);
         },
         onPanEnd: (_) {
-          debugPrint('PAN END SAVE: ${widget.boxDeviceId} -> $pos01');
-          // chỉ save DB khi buông chuột / nhả tay
+          debugPrint('SAVE: ${widget.boxDeviceId} -> $pos01');
           widget.onDragGroup01!(pos01);
         },
         child: content,
@@ -521,12 +625,83 @@ class _GroupFrameState extends State<_GroupFrame> {
     return Positioned(
       left: left,
       top: top,
-      child: Transform.translate(
-        offset: const Offset(-10, -10),
+      child: Align(
+        alignment: _alignment(), // ? m?i
         child: content,
       ),
     );
   }
+}
+
+
+
+class _ArrowPainter extends CustomPainter {
+  final Color color;
+  final Color borderColor;
+  final ArrowDirection direction;
+
+  _ArrowPainter({
+    required this.color,
+    required this.borderColor,
+    required this.direction,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const arrow = 12.0;
+    final path = Path();
+
+    switch (direction) {
+      case ArrowDirection.right:
+        path.moveTo(0, 0);
+        path.lineTo(size.width - arrow, 0);
+        path.lineTo(size.width, size.height / 2);
+        path.lineTo(size.width - arrow, size.height);
+        path.lineTo(0, size.height);
+        break;
+
+      case ArrowDirection.left:
+        path.moveTo(arrow, 0);
+        path.lineTo(size.width, 0);
+        path.lineTo(size.width, size.height);
+        path.lineTo(arrow, size.height);
+        path.lineTo(0, size.height / 2);
+        break;
+
+      case ArrowDirection.up:
+        path.moveTo(0, arrow);
+        path.lineTo(size.width / 2, 0);
+        path.lineTo(size.width, arrow);
+        path.lineTo(size.width, size.height);
+        path.lineTo(0, size.height);
+        break;
+
+      case ArrowDirection.down:
+        path.moveTo(0, 0);
+        path.lineTo(size.width, 0);
+        path.lineTo(size.width, size.height - arrow);
+        path.lineTo(size.width / 2, size.height);
+        path.lineTo(0, size.height - arrow);
+        break;
+    }
+
+    path.close();
+
+    final fill = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final border = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    canvas.drawPath(path, fill);
+    canvas.drawPath(path, border);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArrowPainter oldDelegate) => true;
 }
 
 class _TopHeader extends StatelessWidget {
