@@ -101,7 +101,7 @@ class _FacDetailBodyState extends State<_FacDetailBody>
   List<String> _extractSortedBoxIds(List<LatestRecordDto> rows) {
     final ids =
         rows
-            .map((e) => e.boxDeviceId.trim())
+            .map((e) => (e.boxId ?? '').trim())
             .where((e) => e.isNotEmpty)
             .toSet()
             .toList()
@@ -557,25 +557,30 @@ class _GroupFrameState extends State<_GroupFrame> {
   EdgeInsets _padding() {
     switch (widget.direction) {
       case ArrowDirection.right:
-        return const EdgeInsets.fromLTRB(8, 5, 14, 5);
+        return const EdgeInsets.fromLTRB(10, 6, 16, 6);
       case ArrowDirection.left:
-        return const EdgeInsets.fromLTRB(14, 5, 8, 5);
+        return const EdgeInsets.fromLTRB(16, 6, 10, 6);
       case ArrowDirection.up:
-        return const EdgeInsets.fromLTRB(8, 12, 8, 5);
+        return const EdgeInsets.fromLTRB(10, 14, 10, 6);
       case ArrowDirection.down:
-        return const EdgeInsets.fromLTRB(8, 5, 8, 12);
+        return const EdgeInsets.fromLTRB(10, 6, 10, 14);
     }
   }
 
   Widget _buildLabel(Color textColor) {
     final text = Text(
       widget.boxDeviceId,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      softWrap: false,
       style: TextStyle(
         color: textColor,
-        fontWeight: FontWeight.w900,
-        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        fontSize: 12,
+        height: 1.1,
         shadows: const [
-          Shadow(color: Colors.black, blurRadius: 4, offset: Offset(1, 1)),
+          Shadow(color: Colors.black, blurRadius: 3, offset: Offset(0, 1)),
+          Shadow(color: Colors.black, blurRadius: 8, offset: Offset(0, 0)),
         ],
       ),
     );
@@ -584,7 +589,7 @@ class _GroupFrameState extends State<_GroupFrame> {
       return RotatedBox(quarterTurns: 1, child: text);
     }
 
-    return Flexible(child: text);
+    return text;
   }
 
   Widget _buildContent(Color textColor) {
@@ -595,17 +600,27 @@ class _GroupFrameState extends State<_GroupFrame> {
           Icon(
             Icons.view_quilt_rounded,
             size: 16,
-            color: textColor.withOpacity(0.9),
+            color: textColor.withOpacity(0.95),
           ),
           const SizedBox(height: 6),
-          _buildLabel(textColor),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 70),
+            child: _buildLabel(textColor),
+          ),
         ],
       );
     }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [_buildLabel(textColor)],
+      children: [
+        Flexible(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: _buildLabel(textColor),
+          ),
+        ),
+      ],
     );
   }
 
@@ -624,44 +639,41 @@ class _GroupFrameState extends State<_GroupFrame> {
 
   @override
   Widget build(BuildContext context) {
-    // ===== STYLE STATES =====
-    // Normal: dùng style đẹp như edit cũ
-    // Selected/Edit: đổi sang màu khác nổi bật hơn
     final bool selected = widget.isEditing;
     final bool dragging = _dragging;
 
     final Color borderColor = selected
-        ? const Color(0xFF7C4DFF) // tím sáng khi được chọn
-        : const Color(0xFF122FEA).withOpacity(0.85); // cyan nhẹ khi bình thường
+        ? const Color(0xFFFFD54F)
+        : Colors.white.withOpacity(0.28);
 
     final Color backgroundColor = selected
-        ? const Color(0xFF2A1B4D).withOpacity(0.92) // tím đậm khi chọn
-        : Colors.black.withOpacity(
-            0.82,
-          ); // dùng style edit cũ cho trạng thái thường
+        ? const Color(0xCC1E3A8A)
+        : const Color(0xB3000000);
 
-    final Color textColor = selected
-        ? const Color(0xFFFFD54F) // vàng sáng khi đang chọn
-        : Colors.white; // bình thường vẫn trắng rõ
-
-    final List<BoxShadow> shadows = [
-      BoxShadow(
-        color: selected
-            ? const Color(0xFF7C4DFF).withOpacity(0.35)
-            : const Color(0xFF122FEA).withOpacity(0.18),
-        blurRadius: selected ? 14 : 8,
-        spreadRadius: selected ? 1.5 : 0.5,
-      ),
-    ];
+    final Color textColor = selected ? const Color(0xFFFFF176) : Colors.white;
 
     final frame = RepaintBoundary(
       child: AnimatedScale(
-        scale: dragging ? 1.04 : (selected ? 1.02 : 1.0),
-        duration: const Duration(milliseconds: 70),
+        scale: dragging ? 1.04 : (selected ? 1.03 : 1.0),
+        duration: const Duration(milliseconds: 120),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
-          // decoration: BoxDecoration(boxShadow: shadows),
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.35),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+              if (selected)
+                BoxShadow(
+                  color: const Color(0xFFFFD54F).withOpacity(0.24),
+                  blurRadius: 16,
+                  spreadRadius: 1,
+                ),
+            ],
+          ),
           child: CustomPaint(
             painter: _ArrowPainter(
               color: backgroundColor,
@@ -671,13 +683,17 @@ class _GroupFrameState extends State<_GroupFrame> {
             child: Container(
               padding: _padding(),
               constraints: widget.orientation == LabelOrientation.vertical
-                  ? const BoxConstraints(minWidth: 44, maxWidth: 60)
+                  ? const BoxConstraints(
+                      minWidth: 54,
+                      minHeight: 56,
+                      maxWidth: 76,
+                    )
                   : const BoxConstraints(
-                      minWidth: 78,
-                      maxWidth: 160,
+                      minWidth: 88,
                       minHeight: 40,
+                      maxWidth: 240,
                     ),
-              child: _buildContent(textColor),
+              child: IntrinsicWidth(child: _buildContent(textColor)),
             ),
           ),
         ),
@@ -731,7 +747,7 @@ class _GroupFrameState extends State<_GroupFrame> {
             setState(() {
               _dragging = false;
             });
-            await widget.onDragGroup01!(pos01);
+            await widget.onDragGroup01?.call(pos01);
           },
           onPanCancel: () {
             setState(() {

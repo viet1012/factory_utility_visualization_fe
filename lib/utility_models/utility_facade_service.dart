@@ -76,6 +76,9 @@ class UtilityFacadeService {
       queryParameters: {'facId': facId},
     );
 
+    print('✅ FULL URL: ${res.requestOptions.uri}');
+    // print('📦 RESPONSE: ${res.data}');
+
     final data = (res.data as List).cast<dynamic>();
     return data
         .map(
@@ -146,7 +149,7 @@ class UtilityFacadeService {
       );
     }
 
-    print('RAW RESPONSE: ${res.data}');
+    // print('RAW RESPONSE: ${res.data}');
     return out;
   }
 
