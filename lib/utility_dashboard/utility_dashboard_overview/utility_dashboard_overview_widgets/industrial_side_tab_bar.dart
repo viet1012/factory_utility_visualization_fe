@@ -45,7 +45,7 @@ class IndustrialSideTabBar extends StatelessWidget {
     this.expandedWidth = 200, // ✅ nhỏ hơn 240
     this.padding = const EdgeInsets.symmetric(vertical: 8),
 
-    this.title = 'UTILITY',
+    this.title = 'FAC UTILITY',
     this.brandIcon = Icons.factory_outlined,
 
     this.expandBreakpoint = 150, // ✅ giảm theo expandedWidth mới
