@@ -59,8 +59,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   void initState() {
     super.initState();
 
-    const baseUrl = 'http://192.168.122.16:9093';
+    // const baseUrl = 'http://192.168.122.16:9093';
     // const baseUrl = 'http://localhost:9999';
+    const baseUrl = 'http://192.168.122.16:9999';
 
     DioClient.init(baseUrl: baseUrl);
 

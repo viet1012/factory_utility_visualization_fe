@@ -5,7 +5,8 @@ import 'package:factory_utility_visualization/utility_models/response/latest_rec
 import 'package:factory_utility_visualization/utility_models/response/tree_series_response.dart';
 import 'package:factory_utility_visualization/utility_models/response/utility_catalog.dart';
 
-import '../utility_dashboard/utility_dashboard_fac_details/layout/OverlayPosDto.dart';
+import '../utility_dashboard/utility_dashboard_fac_details/layout/overlay_layout_store.dart';
+import '../utility_dashboard/utility_dashboard_fac_details/layout/utility_fac_layout_screen.dart';
 
 class UtilityFacadeService {
   final Dio dio;
@@ -114,35 +115,13 @@ class UtilityFacadeService {
     return TreeSeriesResponse.fromJson(j);
   }
 
-  Future<List<OverlayPosDto>> getOverlay(String facId) async {
-    final res = await dio.get(
-      '/api/utility/overlay',
-      queryParameters: {'facId': facId},
-    );
-
-    return (res.data as List).map((e) => OverlayPosDto.fromJson(e)).toList();
-  }
-
-  Future<void> upsertOverlay({
-    required String facId,
-    required String boxDeviceId,
-    required String plcAddress,
-    required double x,
-    required double y,
-  }) async {
-    await dio.post(
-      '/api/utility/overlay/upsert',
-      data: {'facId': facId, 'boxDeviceId': boxDeviceId, 'x': x, 'y': y},
-    );
-  }
-
   // =========================
   // ✅ GROUP OVERLAY (NEW)
   // =========================
 
   /// GET /api/utility/overlay-groups?facId=Fac_B
   /// return: [{ boxDeviceId:"...", x01:0.2, y01:0.3 }, ...]
-  Future<Map<String, Offset>> getOverlayGroups(String facId) async {
+  Future<Map<String, OverlayGroupItem>> getOverlayGroups(String facId) async {
     final res = await dio.get(
       '/api/utility/overlay',
       queryParameters: {'facId': facId},
@@ -150,7 +129,8 @@ class UtilityFacadeService {
 
     final data = (res.data as List).cast<dynamic>();
 
-    final out = <String, Offset>{};
+    final out = <String, OverlayGroupItem>{};
+
     for (final j in data) {
       final m = (j as Map).cast<String, dynamic>();
       final box = (m['boxDeviceId'] ?? '').toString().trim();
@@ -158,8 +138,14 @@ class UtilityFacadeService {
 
       final x = (m['x'] as num?)?.toDouble() ?? 0.2;
       final y = (m['y'] as num?)?.toDouble() ?? 0.2;
-      out[box] = Offset(x.clamp(0.0, 1.0), y.clamp(0.0, 1.0));
+      final direction = (m['direction'] ?? 'right').toString();
+
+      out[box] = OverlayGroupItem(
+        pos01: Offset(x.clamp(0.0, 1.0), y.clamp(0.0, 1.0)),
+        direction: direction,
+      );
     }
+
     print('RAW RESPONSE: ${res.data}');
     return out;
   }
@@ -170,15 +156,16 @@ class UtilityFacadeService {
     required String facId,
     required String boxDeviceId,
     required Offset pos01,
+    required ArrowDirection direction, // ⭐ thêm dòng này
   }) async {
     await dio.post(
       '/api/utility/overlay/upsert',
-
       data: {
         'facId': facId,
         'boxDeviceId': boxDeviceId,
         'x': pos01.dx,
         'y': pos01.dy,
+        'direction': direction.name, // ⭐ thêm dòng này
       },
     );
   }
