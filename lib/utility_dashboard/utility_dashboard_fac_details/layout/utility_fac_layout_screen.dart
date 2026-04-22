@@ -774,7 +774,7 @@ class _GroupFrameState extends State<_GroupFrame> {
 
     final Color backgroundColor = selected
         ? baseColor.withOpacity(0.88)
-        : baseColor.withOpacity(0.48);
+        : baseColor.withOpacity(0.58);
 
     final Color textColor = Colors.white;
 
