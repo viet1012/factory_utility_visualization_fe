@@ -131,7 +131,6 @@ class UtilityFacadeService {
     );
 
     final data = (res.data as List).cast<dynamic>();
-
     final out = <String, OverlayGroupItem>{};
 
     for (final j in data) {
@@ -142,14 +141,15 @@ class UtilityFacadeService {
       final x = (m['x'] as num?)?.toDouble() ?? 0.2;
       final y = (m['y'] as num?)?.toDouble() ?? 0.2;
       final direction = (m['direction'] ?? 'right').toString();
+      final color = m['color']?.toString();
 
       out[box] = OverlayGroupItem(
         pos01: Offset(x.clamp(0.0, 1.0), y.clamp(0.0, 1.0)),
         direction: direction,
+        color: color,
       );
     }
 
-    // print('RAW RESPONSE: ${res.data}');
     return out;
   }
 
@@ -159,7 +159,8 @@ class UtilityFacadeService {
     required String facId,
     required String boxDeviceId,
     required Offset pos01,
-    required ArrowDirection direction, // ⭐ thêm dòng này
+    required ArrowDirection direction,
+    String? color,
   }) async {
     await dio.post(
       '/api/utility/overlay/upsert',
@@ -168,7 +169,8 @@ class UtilityFacadeService {
         'boxDeviceId': boxDeviceId,
         'x': pos01.dx,
         'y': pos01.dy,
-        'direction': direction.name, // ⭐ thêm dòng này
+        'direction': direction.name,
+        'color': color,
       },
     );
   }

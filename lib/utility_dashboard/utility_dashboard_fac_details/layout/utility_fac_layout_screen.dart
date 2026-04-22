@@ -77,6 +77,24 @@ class _FacDetailBodyState extends State<_FacDetailBody>
     super.dispose();
   }
 
+  Future<void> _pickColor() async {
+    final boxId = editingBoxId;
+    if (boxId == null) return;
+
+    final color = await showDialog<Color>(
+      context: context,
+      builder: (context) => const _ColorPickerDialog(),
+    );
+
+    if (color != null) {
+      await context.read<OverlayGroupLayoutStore>().setGroupColor(
+        facId: widget.facId,
+        boxDeviceId: boxId,
+        color: color,
+      );
+    }
+  }
+
   Future<void> _updateDirection(ArrowDirection direction) async {
     final boxId = editingBoxId;
     if (boxId == null) return;
@@ -133,6 +151,7 @@ class _FacDetailBodyState extends State<_FacDetailBody>
     }
 
     final lastText = _formatTime(latestProvider.lastUpdated);
+    final boxColors = layoutStore.groupColorOf(widget.facId);
 
     return Scaffold(
       appBar: AppBar(
@@ -150,6 +169,8 @@ class _FacDetailBodyState extends State<_FacDetailBody>
         ),
         actions: [
           if (editMode && editingBoxId != null) ...[
+            _AppBarColorButton(onTap: _pickColor),
+            const SizedBox(width: 6),
             _AppBarDirectionButton(
               icon: Icons.arrow_left,
               selected:
@@ -200,6 +221,7 @@ class _FacDetailBodyState extends State<_FacDetailBody>
                       boxIds: boxIds,
                       groupLayout: layoutStore.groupLayoutOf(widget.facId),
                       directions: mergedDirections,
+                      colors: boxColors,
                       editMode: editMode,
                       editingBoxId: editingBoxId,
                       onPickEditingBox: (boxId) {
@@ -213,24 +235,33 @@ class _FacDetailBodyState extends State<_FacDetailBody>
                         final pos = layoutStore.groupLayoutOf(
                           widget.facId,
                         )[boxId];
+                        final color = layoutStore.groupColorOf(
+                          widget.facId,
+                        )[boxId];
+
                         if (pos != null) {
                           await layoutStore.setGroupPos(
                             facId: widget.facId,
                             boxDeviceId: boxId,
                             pos01: pos,
                             direction: direction,
+                            color: color,
                           );
                         }
                       },
                       onUpdateGroupPos: (boxId, pos01) async {
                         final direction =
                             mergedDirections[boxId] ?? ArrowDirection.right;
+                        final color = layoutStore.groupColorOf(
+                          widget.facId,
+                        )[boxId];
 
                         await layoutStore.setGroupPos(
                           facId: widget.facId,
                           boxDeviceId: boxId,
                           pos01: pos01,
                           direction: direction,
+                          color: color,
                         );
                       },
                     ),
@@ -278,6 +309,94 @@ class _ListTab extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _ColorPickerDialog extends StatelessWidget {
+  const _ColorPickerDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [
+      Colors.red,
+      Colors.green,
+      Colors.blue,
+      Colors.orange,
+      Colors.purple,
+      Colors.cyan,
+      Colors.yellow,
+      Colors.pink,
+      Colors.teal,
+      Colors.indigo,
+      Colors.brown,
+      Colors.grey,
+    ];
+
+    return Dialog(
+      backgroundColor: Colors.black.withOpacity(0.85),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: colors.map((c) {
+            return _ColorPickItem(color: c);
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+class _ColorPickItem extends StatelessWidget {
+  final Color color;
+
+  const _ColorPickItem({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => Navigator.pop(context, color),
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.3)),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 10)],
+        ),
+      ),
+    );
+  }
+}
+
+class _AppBarColorButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AppBarColorButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withOpacity(0.14)),
+          ),
+          child: const Icon(Icons.palette, size: 18, color: Colors.white),
+        ),
+      ),
     );
   }
 }
@@ -338,6 +457,7 @@ class _FacOverlayMapGroup extends StatefulWidget {
   onUpdateGroupPos;
   final Future<void> Function(String boxDeviceId, ArrowDirection direction)
   onUpdateDirection;
+  final Map<String, Color> colors;
 
   const _FacOverlayMapGroup({
     required this.facId,
@@ -350,6 +470,7 @@ class _FacOverlayMapGroup extends StatefulWidget {
     required this.onPickEditingBox,
     required this.onUpdateGroupPos,
     required this.onUpdateDirection,
+    required this.colors,
   });
 
   @override
@@ -488,6 +609,7 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
       top: top,
       child: _GroupFrame(
         boxDeviceId: boxId,
+        boxColor: widget.colors[boxId],
         groupPos01: pos01,
         parentSize: Size(imageRect.width, imageRect.height),
         editMode: widget.editMode,
@@ -519,6 +641,7 @@ class _GroupFrame extends StatefulWidget {
   final Future<void> Function(Offset)? onDragGroup01;
   final ArrowDirection direction;
   final LabelOrientation orientation;
+  final Color? boxColor;
 
   const _GroupFrame({
     required this.boxDeviceId,
@@ -530,6 +653,7 @@ class _GroupFrame extends StatefulWidget {
     required this.onDragGroup01,
     this.direction = ArrowDirection.right,
     this.orientation = LabelOrientation.horizontal,
+    this.boxColor,
   });
 
   @override
@@ -575,12 +699,12 @@ class _GroupFrameState extends State<_GroupFrame> {
       softWrap: false,
       style: TextStyle(
         color: textColor,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w900,
         fontSize: 12,
         height: 1.1,
         shadows: const [
-          Shadow(color: Colors.black, blurRadius: 3, offset: Offset(0, 1)),
-          Shadow(color: Colors.black, blurRadius: 8, offset: Offset(0, 0)),
+          Shadow(color: Colors.black, blurRadius: 4, offset: Offset(0, 1)),
+          Shadow(color: Colors.black, blurRadius: 10, offset: Offset(0, 0)),
         ],
       ),
     );
@@ -642,15 +766,17 @@ class _GroupFrameState extends State<_GroupFrame> {
     final bool selected = widget.isEditing;
     final bool dragging = _dragging;
 
+    final Color baseColor = widget.boxColor ?? const Color(0xFF1E88E5);
+
     final Color borderColor = selected
-        ? const Color(0xFFFFD54F)
-        : Colors.white.withOpacity(0.28);
+        ? Colors.amberAccent
+        : Colors.black.withOpacity(0.85);
 
     final Color backgroundColor = selected
-        ? const Color(0xCC1E3A8A)
-        : const Color(0xB3000000);
+        ? baseColor.withOpacity(0.88)
+        : baseColor.withOpacity(0.48);
 
-    final Color textColor = selected ? const Color(0xFFFFF176) : Colors.white;
+    final Color textColor = Colors.white;
 
     final frame = RepaintBoundary(
       child: AnimatedScale(
@@ -662,16 +788,11 @@ class _GroupFrameState extends State<_GroupFrame> {
           decoration: BoxDecoration(
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.35),
-                blurRadius: 10,
+                color: baseColor.withOpacity(selected ? 0.45 : 0.22),
+                blurRadius: selected ? 16 : 10,
+                spreadRadius: selected ? 1 : 0,
                 offset: const Offset(0, 3),
               ),
-              if (selected)
-                BoxShadow(
-                  color: const Color(0xFFFFD54F).withOpacity(0.24),
-                  blurRadius: 16,
-                  spreadRadius: 1,
-                ),
             ],
           ),
           child: CustomPaint(

@@ -121,7 +121,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     treeLatestProvider.dispose();
 
     scadaChannelApi.dispose();
-    scadaApi.dispose(); // thêm dòng này
+    scadaApi.dispose();
 
     super.dispose();
   }
