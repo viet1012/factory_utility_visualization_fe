@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -45,6 +47,7 @@ class UtilityFacDetailScreens extends StatelessWidget {
     );
   }
 }
+
 
 class _FacDetailBody extends StatefulWidget {
   final String facId;
@@ -118,12 +121,12 @@ class _FacDetailBodyState extends State<_FacDetailBody>
 
   List<String> _extractSortedBoxIds(List<LatestRecordDto> rows) {
     final ids =
-        rows
-            .map((e) => (e.boxId ?? '').trim())
-            .where((e) => e.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
+    rows
+        .map((e) => (e.boxId ?? '').trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
     return ids;
   }
 
@@ -134,6 +137,32 @@ class _FacDetailBodyState extends State<_FacDetailBody>
         '${time.second.toString().padLeft(2, '0')}';
   }
 
+  Map<String, List<LatestRecordDto>> _groupRowsByBox(
+      List<LatestRecordDto> rows,
+      ) {
+    final out = <String, List<LatestRecordDto>>{};
+
+    for (final r in rows) {
+      final boxId = (r.boxId ?? '').trim();
+      if (boxId.isEmpty) continue;
+      out.putIfAbsent(boxId, () => []).add(r);
+    }
+
+    return out;
+  }
+
+  String _uniqueScadaText(List<LatestRecordDto> rows) {
+    final ids =
+    rows
+        .map((e) => (e.scadaId ?? '').trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    return ids.join(', ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final latestProvider = context.watch<FacLatestDetailProvider>();
@@ -142,6 +171,8 @@ class _FacDetailBodyState extends State<_FacDetailBody>
     final boxIds = _extractSortedBoxIds(latestProvider.rows);
     final savedDirections = layoutStore.groupDirectionOf(widget.facId);
     final mergedDirections = {...savedDirections, ..._boxDirections};
+
+    final groupedRows = _groupRowsByBox(latestProvider.rows);
 
     if (editMode && editingBoxId == null && boxIds.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -174,28 +205,28 @@ class _FacDetailBodyState extends State<_FacDetailBody>
             _AppBarDirectionButton(
               icon: Icons.arrow_left,
               selected:
-                  (mergedDirections[editingBoxId] ?? ArrowDirection.right) ==
+              (mergedDirections[editingBoxId] ?? ArrowDirection.right) ==
                   ArrowDirection.left,
               onTap: () => _updateDirection(ArrowDirection.left),
             ),
             _AppBarDirectionButton(
               icon: Icons.keyboard_arrow_up,
               selected:
-                  (mergedDirections[editingBoxId] ?? ArrowDirection.right) ==
+              (mergedDirections[editingBoxId] ?? ArrowDirection.right) ==
                   ArrowDirection.up,
               onTap: () => _updateDirection(ArrowDirection.up),
             ),
             _AppBarDirectionButton(
               icon: Icons.keyboard_arrow_down,
               selected:
-                  (mergedDirections[editingBoxId] ?? ArrowDirection.right) ==
+              (mergedDirections[editingBoxId] ?? ArrowDirection.right) ==
                   ArrowDirection.down,
               onTap: () => _updateDirection(ArrowDirection.down),
             ),
             _AppBarDirectionButton(
               icon: Icons.arrow_right,
               selected:
-                  (mergedDirections[editingBoxId] ?? ArrowDirection.right) ==
+              (mergedDirections[editingBoxId] ?? ArrowDirection.right) ==
                   ArrowDirection.right,
               onTap: () => _updateDirection(ArrowDirection.right),
             ),
@@ -219,6 +250,7 @@ class _FacDetailBodyState extends State<_FacDetailBody>
                         fit: BoxFit.contain,
                       ),
                       boxIds: boxIds,
+                      groupedRows: groupedRows,
                       groupLayout: layoutStore.groupLayoutOf(widget.facId),
                       directions: mergedDirections,
                       colors: boxColors,
@@ -271,6 +303,729 @@ class _FacDetailBodyState extends State<_FacDetailBody>
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FacOverlayMapGroup extends StatefulWidget {
+  final String facId;
+  final Widget image;
+  final List<String> boxIds;
+  final Map<String, Offset> groupLayout;
+  final Map<String, ArrowDirection> directions;
+  final bool editMode;
+  final String? editingBoxId;
+  final ValueChanged<String?> onPickEditingBox;
+  final Future<void> Function(String boxDeviceId, Offset pos01)
+  onUpdateGroupPos;
+  final Future<void> Function(String boxDeviceId, ArrowDirection direction)
+  onUpdateDirection;
+  final Map<String, Color> colors;
+  final Map<String, List<LatestRecordDto>> groupedRows;
+
+  const _FacOverlayMapGroup({
+    required this.facId,
+    required this.image,
+    required this.boxIds,
+    required this.groupedRows,
+    required this.groupLayout,
+    required this.directions,
+    required this.editMode,
+    required this.editingBoxId,
+    required this.onPickEditingBox,
+    required this.onUpdateGroupPos,
+    required this.onUpdateDirection,
+    required this.colors,
+  });
+
+  @override
+  State<_FacOverlayMapGroup> createState() => _FacOverlayMapGroupState();
+}
+
+class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
+  final TransformationController _transformController =
+  TransformationController();
+  final FocusNode _focusNode = FocusNode();
+
+  static const Size _imageSize = Size(1920, 1080);
+
+  String? _hoveredBoxId;
+  bool _hoveringPanel = false;
+  bool _lockViewer = false;
+  Timer? _hoverTimer;
+  final ScrollController _panelScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _hoverTimer?.cancel();
+    _panelScrollController.dispose();
+    _focusNode.dispose();
+    _transformController.dispose();
+    super.dispose();
+  }
+
+  void _scheduleHideHover() {
+    _hoverTimer?.cancel();
+    _hoverTimer = Timer(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      if (_hoveringPanel) return;
+
+      setState(() {
+        _hoveredBoxId = null;
+        _lockViewer = false;
+      });
+    });
+  }
+
+  void _showHover(String boxId) {
+    _hoverTimer?.cancel();
+    setState(() {
+      _hoveredBoxId = boxId;
+    });
+  }
+
+  Widget _buildHoverPanel(String boxId, Rect imageRect) {
+    final rows = widget.groupedRows[boxId] ?? const <LatestRecordDto>[];
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    final pos01 =
+        widget.groupLayout[boxId] ?? _autoPlace(widget.boxIds.indexOf(boxId));
+
+    final left = imageRect.left + pos01.dx * imageRect.width;
+    final top = imageRect.top + pos01.dy * imageRect.height;
+
+    final panelWidth =
+    (imageRect.width * 0.48).clamp(360.0, 680.0).toDouble();
+    final panelHeight =
+    (imageRect.height * 0.58).clamp(260.0, 460.0).toDouble();
+
+    final preferRight = left + 24 + panelWidth < imageRect.right;
+
+    final panelLeft = preferRight
+        ? left + 24
+        : (left - panelWidth - 24).clamp(
+      imageRect.left + 8,
+      imageRect.right - panelWidth - 8,
+    );
+
+    final panelTop = top.clamp(
+      imageRect.top + 8,
+      imageRect.bottom - panelHeight - 8,
+    );
+
+    return Positioned(
+      left: panelLeft,
+      top: panelTop,
+      child: MouseRegion(
+        onEnter: (_) {
+          _hoverTimer?.cancel();
+          _hoveringPanel = true;
+          _lockViewer = true; // ? khóa zoom/pan map
+          if (_hoveredBoxId != boxId) {
+            setState(() {
+              _hoveredBoxId = boxId;
+            });
+          } else {
+            setState(() {});
+          }
+        },
+        onExit: (_) {
+          _hoveringPanel = false;
+          _lockViewer = false; // ? m? l?i zoom/pan map
+          _scheduleHideHover();
+        },
+        child: Material(
+          color: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: panelWidth,
+              maxWidth: panelWidth,
+              maxHeight: imageRect.height * 0.8, // ? gi?i h?n t?i da thôi
+            ),
+            child: IntrinsicHeight( // ? cho phép co giãn theo content
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xF10B1324),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white.withOpacity(0.14)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.45),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min, // ? QUAN TR?NG
+                  children: [
+                    /// HEADER
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.04),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(14),
+                        ),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: Colors.white.withOpacity(0.08),
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Box: $boxId',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${rows.length} items',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.72),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    /// CONTENT
+                    Flexible( // ? ch? scroll khi c?n
+                      child: Scrollbar(
+                        controller: _panelScrollController,
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          controller: _panelScrollController,
+                          padding: const EdgeInsets.all(10),
+                          child: Table(
+                            defaultVerticalAlignment:
+                            TableCellVerticalAlignment.middle,
+                            columnWidths: const {
+                              0: FlexColumnWidth(1.4),
+                              1: FlexColumnWidth(1.6),
+                              2: FlexColumnWidth(0.9),
+                              3: FlexColumnWidth(1.1),
+                            },
+                            border: TableBorder.symmetric(
+                              inside: BorderSide(
+                                color: Colors.white.withOpacity(0.08),
+                              ),
+                            ),
+                            children: [
+                              _tableHeader(),
+                              for (final r in rows) _tableRow(r),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  TableRow _tableHeader() {
+    Text cell(String s) => Text(
+      s,
+      style: TextStyle(
+        color: Colors.white.withOpacity(0.9),
+        fontWeight: FontWeight.w700,
+        fontSize: 13,
+      ),
+    );
+
+    return TableRow(
+      children: [
+        Padding(padding: const EdgeInsets.all(6), child: cell('SCADA')),
+        Padding(padding: const EdgeInsets.all(6), child: cell('PLC')),
+        Padding(padding: const EdgeInsets.all(6), child: cell('Value')),
+        Padding(padding: const EdgeInsets.all(6), child: cell('Time')),
+      ],
+    );
+  }
+
+  TableRow _tableRow(LatestRecordDto r) {
+    Text cell(String s) => Text(
+      s,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(color: Colors.white.withOpacity(0.82), fontSize: 13),
+    );
+
+    final timeText =
+        '${r.recordedAt.hour.toString().padLeft(2, '0')}:'
+        '${r.recordedAt.minute.toString().padLeft(2, '0')}:'
+        '${r.recordedAt.second.toString().padLeft(2, '0')}';
+
+    return TableRow(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(6),
+          child: cell((r.scadaId ?? '').trim()),
+        ),
+        Padding(padding: const EdgeInsets.all(6), child: cell(r.plcAddress)),
+        Padding(
+          padding: const EdgeInsets.all(6),
+          child: cell(r.value?.toStringAsFixed(2) ?? '-'),
+        ),
+        Padding(padding: const EdgeInsets.all(6), child: cell(timeText)),
+      ],
+    );
+  }
+
+  Rect _getImageRect(Size containerSize) {
+    final scaleX = containerSize.width / _imageSize.width;
+    final scaleY = containerSize.height / _imageSize.height;
+    final scale = scaleX < scaleY ? scaleX : scaleY;
+
+    final scaledWidth = _imageSize.width * scale;
+    final scaledHeight = _imageSize.height * scale;
+
+    final dx = (containerSize.width - scaledWidth) / 2;
+    final dy = (containerSize.height - scaledHeight) / 2;
+
+    return Rect.fromLTWH(dx, dy, scaledWidth, scaledHeight);
+  }
+
+  Offset _autoPlace(int index) {
+    final col = index % 3;
+    final row = index ~/ 3;
+    return Offset(0.2 + col * 0.25, 0.2 + row * 0.2);
+  }
+
+  Future<void> _moveSelectedByKeyboard(KeyEvent event) async {
+    if (event is! KeyDownEvent) return;
+    if (!widget.editMode) return;
+
+    final boxId = widget.editingBoxId;
+    if (boxId == null) return;
+
+    final current =
+        widget.groupLayout[boxId] ?? _autoPlace(widget.boxIds.indexOf(boxId));
+
+    final isShift = HardwareKeyboard.instance.isShiftPressed;
+    final isAlt = HardwareKeyboard.instance.isAltPressed;
+    final double step = isAlt ? 0.002 : (isShift ? 0.02 : 0.008);
+
+    Offset delta = Offset.zero;
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      delta = const Offset(0, -1);
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      delta = const Offset(0, 1);
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      delta = const Offset(-1, 0);
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      delta = const Offset(1, 0);
+    } else {
+      return;
+    }
+
+    final next = Offset(
+      (current.dx + delta.dx * step).clamp(0.0, 1.0),
+      (current.dy + delta.dy * step).clamp(0.0, 1.0),
+    );
+
+    await widget.onUpdateGroupPos(boxId, next);
+  }
+
+
+
+  String _uniqueScadaText(List<LatestRecordDto> rows) {
+    final ids =
+    rows
+        .map((e) => (e.scadaId ?? '').trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    return ids.join(', ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final containerSize = Size(
+            constraints.maxWidth,
+            constraints.maxHeight,
+          );
+
+          final imageRect = _getImageRect(containerSize);
+
+          return Focus(
+            focusNode: _focusNode,
+            autofocus: true,
+            onKeyEvent: (_, event) {
+              _moveSelectedByKeyboard(event);
+              return KeyEventResult.handled;
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (_) {
+                _focusNode.requestFocus();
+              },
+              child: InteractiveViewer(
+                transformationController: _transformController,
+                minScale: 0.8,
+                maxScale: 5,
+                panEnabled: !widget.editMode && !_lockViewer,
+                scaleEnabled: !widget.editMode && !_lockViewer,
+                child: SizedBox(
+                  width: containerSize.width,
+                  height: containerSize.height,
+                  child: Stack(
+                    children: [
+                      Positioned.fromRect(rect: imageRect, child: widget.image),
+                      for (final boxId in widget.boxIds)
+                        _buildBox(boxId, imageRect),
+
+                      if (_hoveredBoxId != null &&
+                          widget.groupedRows[_hoveredBoxId!] != null &&
+                          widget.groupedRows[_hoveredBoxId!]!.isNotEmpty)
+                        _buildHoverPanel(_hoveredBoxId!, imageRect),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBox(String boxId, Rect imageRect) {
+    final pos01 =
+        widget.groupLayout[boxId] ?? _autoPlace(widget.boxIds.indexOf(boxId));
+
+    final left = imageRect.left + pos01.dx * imageRect.width;
+    final top = imageRect.top + pos01.dy * imageRect.height;
+
+    final children = widget.groupedRows[boxId] ?? const <LatestRecordDto>[];
+    final scadaText = _uniqueScadaText(children);
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: MouseRegion(
+        onEnter: (_) {
+          _hoveringPanel = false;
+          _showHover(boxId);
+        },
+        onExit: (_) {
+          if (!widget.editMode) {
+            _scheduleHideHover();
+          }
+        },
+        child: _GroupFrame(
+          boxDeviceId: boxId,
+          scadaText: scadaText,
+          boxColor: widget.colors[boxId],
+          groupPos01: pos01,
+          parentSize: Size(imageRect.width, imageRect.height),
+          editMode: widget.editMode,
+          isEditing: widget.editingBoxId == boxId,
+          onTap: widget.editMode
+              ? () {
+            _focusNode.requestFocus();
+            widget.onPickEditingBox(boxId);
+          }
+              : null,
+          onDragGroup01: widget.editMode
+              ? (newPos) async {
+            await widget.onUpdateGroupPos(boxId, newPos);
+          }
+              : null,
+          direction: widget.directions[boxId] ?? ArrowDirection.right,
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupFrame extends StatefulWidget {
+  final String boxDeviceId;
+  final Offset groupPos01;
+  final Size parentSize;
+  final bool editMode;
+  final bool isEditing;
+  final VoidCallback? onTap;
+  final Future<void> Function(Offset)? onDragGroup01;
+  final ArrowDirection direction;
+  final LabelOrientation orientation;
+  final Color? boxColor;
+  final String? scadaText;
+
+  const _GroupFrame({
+    required this.boxDeviceId,
+    required this.groupPos01,
+    required this.parentSize,
+    required this.editMode,
+    required this.isEditing,
+    required this.onTap,
+    required this.onDragGroup01,
+    this.direction = ArrowDirection.right,
+    this.orientation = LabelOrientation.horizontal,
+    this.boxColor,
+    this.scadaText,
+  });
+
+  @override
+  State<_GroupFrame> createState() => _GroupFrameState();
+}
+
+class _GroupFrameState extends State<_GroupFrame> {
+  late Offset pos01;
+  bool _dragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    pos01 = widget.groupPos01;
+  }
+
+  @override
+  void didUpdateWidget(covariant _GroupFrame oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_dragging) {
+      pos01 = widget.groupPos01;
+    }
+  }
+
+  EdgeInsets _padding() {
+    switch (widget.direction) {
+      case ArrowDirection.right:
+        return const EdgeInsets.fromLTRB(10, 6, 16, 6);
+      case ArrowDirection.left:
+        return const EdgeInsets.fromLTRB(16, 6, 10, 6);
+      case ArrowDirection.up:
+        return const EdgeInsets.fromLTRB(10, 14, 10, 6);
+      case ArrowDirection.down:
+        return const EdgeInsets.fromLTRB(10, 6, 10, 14);
+    }
+  }
+
+  Widget _buildLabel(Color textColor) {
+    final text = Text(
+      widget.boxDeviceId,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      softWrap: false,
+      style: TextStyle(
+        color: textColor,
+        fontWeight: FontWeight.w900,
+        fontSize: 12,
+        height: 1.1,
+        shadows: const [
+          Shadow(color: Colors.black, blurRadius: 4, offset: Offset(0, 1)),
+          Shadow(color: Colors.black, blurRadius: 10, offset: Offset(0, 0)),
+        ],
+      ),
+    );
+
+    if (widget.orientation == LabelOrientation.vertical) {
+      return RotatedBox(quarterTurns: 1, child: text);
+    }
+
+    return text;
+  }
+
+  Widget _buildContent(Color textColor) {
+    final hasScada = (widget.scadaText ?? '').trim().isNotEmpty;
+
+    if (widget.orientation == LabelOrientation.vertical) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.view_quilt_rounded,
+            size: 16,
+            color: textColor.withOpacity(0.95),
+          ),
+          const SizedBox(height: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 70),
+            child: _buildLabel(textColor),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel(textColor),
+        if (hasScada) ...[
+          const SizedBox(height: 2),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: Text(
+              widget.scadaText!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.82),
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                height: 1.05,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Alignment _alignment() {
+    switch (widget.direction) {
+      case ArrowDirection.right:
+        return Alignment.centerRight;
+      case ArrowDirection.left:
+        return Alignment.centerLeft;
+      case ArrowDirection.up:
+        return Alignment.topCenter;
+      case ArrowDirection.down:
+        return Alignment.bottomCenter;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool selected = widget.isEditing;
+    final bool dragging = _dragging;
+
+    final Color baseColor = widget.boxColor ?? const Color(0xFF1E88E5);
+
+    final Color borderColor = selected
+        ? Colors.amberAccent
+        : Colors.black.withOpacity(0.85);
+
+    final Color backgroundColor = selected
+        ? baseColor.withOpacity(0.88)
+        : baseColor.withOpacity(0.58);
+
+    final Color textColor = Colors.white;
+
+    final frame = RepaintBoundary(
+      child: AnimatedScale(
+        scale: dragging ? 1.04 : (selected ? 1.03 : 1.0),
+        duration: const Duration(milliseconds: 120),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: baseColor.withOpacity(selected ? 0.45 : 0.22),
+                blurRadius: selected ? 16 : 10,
+                spreadRadius: selected ? 1 : 0,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: CustomPaint(
+            painter: _ArrowPainter(
+              color: backgroundColor,
+              borderColor: borderColor,
+              direction: widget.direction,
+            ),
+            child: Container(
+              padding: _padding(),
+              constraints: widget.orientation == LabelOrientation.vertical
+                  ? const BoxConstraints(
+                minWidth: 54,
+                minHeight: 56,
+                maxWidth: 76,
+              )
+                  : const BoxConstraints(
+                minWidth: 88,
+                minHeight: 40,
+                maxWidth: 240,
+              ),
+              child: IntrinsicWidth(child: _buildContent(textColor)),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (!(widget.editMode && widget.onDragGroup01 != null)) {
+      return Align(
+        alignment: _alignment(),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onTap,
+            child: frame,
+          ),
+        ),
+      );
+    }
+
+    return Align(
+      alignment: _alignment(),
+      child: MouseRegion(
+        cursor: dragging
+            ? SystemMouseCursors.grabbing
+            : SystemMouseCursors.grab,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          onPanStart: (_) {
+            setState(() {
+              _dragging = true;
+            });
+          },
+          onPanUpdate: (details) {
+            final dx = details.delta.dx / widget.parentSize.width;
+            final dy = details.delta.dy / widget.parentSize.height;
+
+            final next = Offset(
+              (pos01.dx + dx).clamp(0.0, 1.0),
+              (pos01.dy + dy).clamp(0.0, 1.0),
+            );
+
+            if (next != pos01) {
+              setState(() {
+                pos01 = next;
+              });
+            }
+          },
+          onPanEnd: (_) async {
+            setState(() {
+              _dragging = false;
+            });
+            await widget.onDragGroup01?.call(pos01);
+          },
+          onPanCancel: () {
+            setState(() {
+              _dragging = false;
+            });
+          },
+          child: frame,
         ),
       ),
     );
@@ -438,444 +1193,6 @@ class _AppBarDirectionButton extends StatelessWidget {
             size: 18,
             color: selected ? Colors.amberAccent : Colors.white,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FacOverlayMapGroup extends StatefulWidget {
-  final String facId;
-  final Widget image;
-  final List<String> boxIds;
-  final Map<String, Offset> groupLayout;
-  final Map<String, ArrowDirection> directions;
-  final bool editMode;
-  final String? editingBoxId;
-  final ValueChanged<String?> onPickEditingBox;
-  final Future<void> Function(String boxDeviceId, Offset pos01)
-  onUpdateGroupPos;
-  final Future<void> Function(String boxDeviceId, ArrowDirection direction)
-  onUpdateDirection;
-  final Map<String, Color> colors;
-
-  const _FacOverlayMapGroup({
-    required this.facId,
-    required this.image,
-    required this.boxIds,
-    required this.groupLayout,
-    required this.directions,
-    required this.editMode,
-    required this.editingBoxId,
-    required this.onPickEditingBox,
-    required this.onUpdateGroupPos,
-    required this.onUpdateDirection,
-    required this.colors,
-  });
-
-  @override
-  State<_FacOverlayMapGroup> createState() => _FacOverlayMapGroupState();
-}
-
-class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
-  final TransformationController _transformController =
-      TransformationController();
-  final FocusNode _focusNode = FocusNode();
-
-  static const Size _imageSize = Size(1920, 1080);
-
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    _transformController.dispose();
-    super.dispose();
-  }
-
-  Rect _getImageRect(Size containerSize) {
-    final scaleX = containerSize.width / _imageSize.width;
-    final scaleY = containerSize.height / _imageSize.height;
-    final scale = scaleX < scaleY ? scaleX : scaleY;
-
-    final scaledWidth = _imageSize.width * scale;
-    final scaledHeight = _imageSize.height * scale;
-
-    final dx = (containerSize.width - scaledWidth) / 2;
-    final dy = (containerSize.height - scaledHeight) / 2;
-
-    return Rect.fromLTWH(dx, dy, scaledWidth, scaledHeight);
-  }
-
-  Offset _autoPlace(int index) {
-    final col = index % 3;
-    final row = index ~/ 3;
-    return Offset(0.2 + col * 0.25, 0.2 + row * 0.2);
-  }
-
-  Future<void> _moveSelectedByKeyboard(KeyEvent event) async {
-    if (event is! KeyDownEvent) return;
-    if (!widget.editMode) return;
-
-    final boxId = widget.editingBoxId;
-    if (boxId == null) return;
-
-    final current =
-        widget.groupLayout[boxId] ?? _autoPlace(widget.boxIds.indexOf(boxId));
-
-    final isShift = HardwareKeyboard.instance.isShiftPressed;
-    final isAlt = HardwareKeyboard.instance.isAltPressed;
-    final double step = isAlt ? 0.002 : (isShift ? 0.02 : 0.008);
-
-    Offset delta = Offset.zero;
-
-    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      delta = const Offset(0, -1);
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      delta = const Offset(0, 1);
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      delta = const Offset(-1, 0);
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      delta = const Offset(1, 0);
-    } else {
-      return;
-    }
-
-    final next = Offset(
-      (current.dx + delta.dx * step).clamp(0.0, 1.0),
-      (current.dy + delta.dy * step).clamp(0.0, 1.0),
-    );
-
-    await widget.onUpdateGroupPos(boxId, next);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final containerSize = Size(
-            constraints.maxWidth,
-            constraints.maxHeight,
-          );
-
-          final imageRect = _getImageRect(containerSize);
-
-          return Focus(
-            focusNode: _focusNode,
-            autofocus: true,
-            onKeyEvent: (_, event) {
-              _moveSelectedByKeyboard(event);
-              return KeyEventResult.handled;
-            },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (_) {
-                _focusNode.requestFocus();
-              },
-              child: InteractiveViewer(
-                transformationController: _transformController,
-                minScale: 0.8,
-                maxScale: 5,
-                panEnabled: !widget.editMode,
-                scaleEnabled: !widget.editMode,
-                child: SizedBox(
-                  width: containerSize.width,
-                  height: containerSize.height,
-                  child: Stack(
-                    children: [
-                      Positioned.fromRect(rect: imageRect, child: widget.image),
-                      for (final boxId in widget.boxIds)
-                        _buildBox(boxId, imageRect),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildBox(String boxId, Rect imageRect) {
-    final pos01 =
-        widget.groupLayout[boxId] ?? _autoPlace(widget.boxIds.indexOf(boxId));
-
-    final left = imageRect.left + pos01.dx * imageRect.width;
-    final top = imageRect.top + pos01.dy * imageRect.height;
-
-    return Positioned(
-      left: left,
-      top: top,
-      child: _GroupFrame(
-        boxDeviceId: boxId,
-        boxColor: widget.colors[boxId],
-        groupPos01: pos01,
-        parentSize: Size(imageRect.width, imageRect.height),
-        editMode: widget.editMode,
-        isEditing: widget.editingBoxId == boxId,
-        onTap: widget.editMode
-            ? () {
-                _focusNode.requestFocus();
-                widget.onPickEditingBox(boxId);
-              }
-            : null,
-        onDragGroup01: widget.editMode
-            ? (newPos) async {
-                await widget.onUpdateGroupPos(boxId, newPos);
-              }
-            : null,
-        direction: widget.directions[boxId] ?? ArrowDirection.right,
-      ),
-    );
-  }
-}
-
-class _GroupFrame extends StatefulWidget {
-  final String boxDeviceId;
-  final Offset groupPos01;
-  final Size parentSize;
-  final bool editMode;
-  final bool isEditing;
-  final VoidCallback? onTap;
-  final Future<void> Function(Offset)? onDragGroup01;
-  final ArrowDirection direction;
-  final LabelOrientation orientation;
-  final Color? boxColor;
-
-  const _GroupFrame({
-    required this.boxDeviceId,
-    required this.groupPos01,
-    required this.parentSize,
-    required this.editMode,
-    required this.isEditing,
-    required this.onTap,
-    required this.onDragGroup01,
-    this.direction = ArrowDirection.right,
-    this.orientation = LabelOrientation.horizontal,
-    this.boxColor,
-  });
-
-  @override
-  State<_GroupFrame> createState() => _GroupFrameState();
-}
-
-class _GroupFrameState extends State<_GroupFrame> {
-  late Offset pos01;
-  bool _dragging = false;
-
-  @override
-  void initState() {
-    super.initState();
-    pos01 = widget.groupPos01;
-  }
-
-  @override
-  void didUpdateWidget(covariant _GroupFrame oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!_dragging) {
-      pos01 = widget.groupPos01;
-    }
-  }
-
-  EdgeInsets _padding() {
-    switch (widget.direction) {
-      case ArrowDirection.right:
-        return const EdgeInsets.fromLTRB(10, 6, 16, 6);
-      case ArrowDirection.left:
-        return const EdgeInsets.fromLTRB(16, 6, 10, 6);
-      case ArrowDirection.up:
-        return const EdgeInsets.fromLTRB(10, 14, 10, 6);
-      case ArrowDirection.down:
-        return const EdgeInsets.fromLTRB(10, 6, 10, 14);
-    }
-  }
-
-  Widget _buildLabel(Color textColor) {
-    final text = Text(
-      widget.boxDeviceId,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      softWrap: false,
-      style: TextStyle(
-        color: textColor,
-        fontWeight: FontWeight.w900,
-        fontSize: 12,
-        height: 1.1,
-        shadows: const [
-          Shadow(color: Colors.black, blurRadius: 4, offset: Offset(0, 1)),
-          Shadow(color: Colors.black, blurRadius: 10, offset: Offset(0, 0)),
-        ],
-      ),
-    );
-
-    if (widget.orientation == LabelOrientation.vertical) {
-      return RotatedBox(quarterTurns: 1, child: text);
-    }
-
-    return text;
-  }
-
-  Widget _buildContent(Color textColor) {
-    if (widget.orientation == LabelOrientation.vertical) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.view_quilt_rounded,
-            size: 16,
-            color: textColor.withOpacity(0.95),
-          ),
-          const SizedBox(height: 6),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 70),
-            child: _buildLabel(textColor),
-          ),
-        ],
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Flexible(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 220),
-            child: _buildLabel(textColor),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Alignment _alignment() {
-    switch (widget.direction) {
-      case ArrowDirection.right:
-        return Alignment.centerRight;
-      case ArrowDirection.left:
-        return Alignment.centerLeft;
-      case ArrowDirection.up:
-        return Alignment.topCenter;
-      case ArrowDirection.down:
-        return Alignment.bottomCenter;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool selected = widget.isEditing;
-    final bool dragging = _dragging;
-
-    final Color baseColor = widget.boxColor ?? const Color(0xFF1E88E5);
-
-    final Color borderColor = selected
-        ? Colors.amberAccent
-        : Colors.black.withOpacity(0.85);
-
-    final Color backgroundColor = selected
-        ? baseColor.withOpacity(0.88)
-        : baseColor.withOpacity(0.58);
-
-    final Color textColor = Colors.white;
-
-    final frame = RepaintBoundary(
-      child: AnimatedScale(
-        scale: dragging ? 1.04 : (selected ? 1.03 : 1.0),
-        duration: const Duration(milliseconds: 120),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: baseColor.withOpacity(selected ? 0.45 : 0.22),
-                blurRadius: selected ? 16 : 10,
-                spreadRadius: selected ? 1 : 0,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: CustomPaint(
-            painter: _ArrowPainter(
-              color: backgroundColor,
-              borderColor: borderColor,
-              direction: widget.direction,
-            ),
-            child: Container(
-              padding: _padding(),
-              constraints: widget.orientation == LabelOrientation.vertical
-                  ? const BoxConstraints(
-                      minWidth: 54,
-                      minHeight: 56,
-                      maxWidth: 76,
-                    )
-                  : const BoxConstraints(
-                      minWidth: 88,
-                      minHeight: 40,
-                      maxWidth: 240,
-                    ),
-              child: IntrinsicWidth(child: _buildContent(textColor)),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    if (!(widget.editMode && widget.onDragGroup01 != null)) {
-      return Align(
-        alignment: _alignment(),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: widget.onTap,
-            child: frame,
-          ),
-        ),
-      );
-    }
-
-    return Align(
-      alignment: _alignment(),
-      child: MouseRegion(
-        cursor: dragging
-            ? SystemMouseCursors.grabbing
-            : SystemMouseCursors.grab,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          onPanStart: (_) {
-            setState(() {
-              _dragging = true;
-            });
-          },
-          onPanUpdate: (details) {
-            final dx = details.delta.dx / widget.parentSize.width;
-            final dy = details.delta.dy / widget.parentSize.height;
-
-            final next = Offset(
-              (pos01.dx + dx).clamp(0.0, 1.0),
-              (pos01.dy + dy).clamp(0.0, 1.0),
-            );
-
-            if (next != pos01) {
-              setState(() {
-                pos01 = next;
-              });
-            }
-          },
-          onPanEnd: (_) async {
-            setState(() {
-              _dragging = false;
-            });
-            await widget.onDragGroup01?.call(pos01);
-          },
-          onPanCancel: () {
-            setState(() {
-              _dragging = false;
-            });
-          },
-          child: frame,
         ),
       ),
     );
