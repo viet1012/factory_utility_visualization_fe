@@ -14,9 +14,15 @@ class UtilityInfoBoxWidgets {
     String? unit,
   }) {
     final sub = [
-      if ((boxDeviceId ?? '').trim().isNotEmpty) boxDeviceId!.trim(),
-      if ((plcAddress ?? '').trim().isNotEmpty) plcAddress!.trim(),
-      if ((unit ?? '').trim().isNotEmpty) unit!.trim(),
+      if ((boxDeviceId ?? '')
+          .trim()
+          .isNotEmpty) boxDeviceId!.trim(),
+      if ((plcAddress ?? '')
+          .trim()
+          .isNotEmpty) plcAddress!.trim(),
+      if ((unit ?? '')
+          .trim()
+          .isNotEmpty) unit!.trim(),
     ].join(' • ');
 
     final statusColor = hasError
@@ -28,11 +34,10 @@ class UtilityInfoBoxWidgets {
         : (isLoading ? 'Loading...' : 'Live');
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
 
-        // ?? GLASS n?n nh?
         gradient: LinearGradient(
           colors: [
             Colors.white.withOpacity(0.06),
