@@ -218,12 +218,20 @@ class ChartCatalogProvider extends ChangeNotifier {
     required int importantOnly,
     required bool addGroupLabel,
   }) async {
-    final ps = await api.getParams(
-      facId: facId,
-      cate: cate,
-      boxDeviceId: boxDeviceId,
-      importantOnly: importantOnly,
-    );
+    ////////////////////////////////////////////////////////////
+    /// API + FILTER SLAVE
+    ////////////////////////////////////////////////////////////
+    final ps =
+        (await api.getParams(
+          facId: facId,
+          cate: cate,
+          boxDeviceId: boxDeviceId,
+          importantOnly: importantOnly,
+        )).where((p) {
+          final name = (p.nameEn ?? '').toString().toLowerCase();
+
+          return !name.contains('slave');
+        }).toList();
 
     final seen = <String>{};
 
@@ -235,6 +243,7 @@ class ChartCatalogProvider extends ChangeNotifier {
           if (addr.isEmpty) return null;
 
           final key = '$boxDeviceId|$addr';
+
           if (!seen.add(key)) return null;
 
           return SignalChartConfig(
