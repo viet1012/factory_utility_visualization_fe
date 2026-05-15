@@ -33,8 +33,11 @@ class _HoverBoxPanelState extends State<HoverBoxPanel> {
     super.dispose();
   }
 
-  Rect get _rect =>
-      calculatePanelRect(imageRect: widget.imageRect, pos01: widget.pos01);
+  Rect get _rect => calculatePanelRect(
+    imageRect: widget.imageRect,
+    pos01: widget.pos01,
+    rowCount: widget.rows.length,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -49,24 +52,24 @@ class _HoverBoxPanelState extends State<HoverBoxPanel> {
         child: Material(
           color: Colors.transparent,
           child: AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
             child: Container(
               width: _rect.width,
-              constraints: BoxConstraints(
-                maxHeight: widget.imageRect.height * 0.85,
-              ),
+              constraints: BoxConstraints(maxHeight: _rect.height),
               decoration: PanelStyle.panelDecoration,
               child: ClipRRect(
                 borderRadius: PanelStyle.radius,
                 child: Column(
-                  mainAxisSize: MainAxisSize.min, // 👈 QUAN TRỌNG
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     PanelHeader(boxId: widget.boxId, total: widget.rows.length),
 
-                    ////////////////////////////////////////////////////
-                    /// LIST (AUTO RESIZE)
-                    ////////////////////////////////////////////////////
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(10, 10, 10, 6),
+                      child: TableHeader(),
+                    ),
+
                     Flexible(child: _buildList()),
                   ],
                 ),
@@ -78,50 +81,50 @@ class _HoverBoxPanelState extends State<HoverBoxPanel> {
     );
   }
 
-  ////////////////////////////////////////////////////////////
-  /// LIST
-  ////////////////////////////////////////////////////////////
   Widget _buildList() {
     return Scrollbar(
       controller: _scrollController,
       thumbVisibility: true,
+      radius: const Radius.circular(999),
       child: ListView.builder(
         controller: _scrollController,
         shrinkWrap: true,
-        // 👈 QUAN TRỌNG
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-        itemCount: widget.rows.length + 1,
+        padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+        itemCount: widget.rows.length,
         itemBuilder: (context, index) {
-          if (index == 0) {
-            return const Column(children: [TableHeader(), SizedBox(height: 6)]);
-          }
+          final row = widget.rows[index];
 
-          final row = widget.rows[index - 1];
-          return DataRowTile(row: row, isEven: (index - 1).isEven);
+          return DataRowTile(row: row, isEven: index.isEven);
         },
       ),
     );
   }
 }
 
-////////////////////////////////////////////////////////////////
-/// STYLE
-////////////////////////////////////////////////////////////////
-
 class PanelStyle {
   static const panelBg = Color(0xF20B1324);
   static const headerBg = Color(0xFF13223A);
   static const accent = Color(0xFF38BDF8);
+
+  static const double scadaW = 72;
+  static const double plcW = 78;
+  static const double valueW = 92;
+  static const double timeW = 92;
+  static const double gap = 12;
 
   static final radius = BorderRadius.circular(18);
 
   static final panelDecoration = BoxDecoration(
     color: panelBg,
     borderRadius: radius,
-    border: Border.all(color: accent.withOpacity(0.35)),
+    border: Border.all(color: accent.withOpacity(0.36)),
     boxShadow: [
-      BoxShadow(color: Colors.black54, blurRadius: 24, offset: Offset(0, 12)),
+      const BoxShadow(
+        color: Colors.black54,
+        blurRadius: 24,
+        offset: Offset(0, 12),
+      ),
       BoxShadow(
         color: accent.withOpacity(0.16),
         blurRadius: 18,
@@ -132,28 +135,36 @@ class PanelStyle {
 }
 
 class TextStyles {
+  ////////////////////////////////////////////////////////////
+  /// HEADER
+  ////////////////////////////////////////////////////////////
   static final header = TextStyle(
-    color: Colors.white.withOpacity(0.78),
+    color: Colors.white.withOpacity(0.74),
     fontWeight: FontWeight.w800,
-    fontSize: 15,
+    fontSize: 14.5,
+    letterSpacing: 0.2,
   );
 
+  ////////////////////////////////////////////////////////////
+  /// CELL
+  ////////////////////////////////////////////////////////////
   static final cell = TextStyle(
-    color: Colors.white.withOpacity(0.84),
-    fontWeight: FontWeight.w600,
-    fontSize: 15,
+    color: Colors.white.withOpacity(0.90),
+    fontWeight: FontWeight.w800,
+    fontSize: 15.5,
+    height: 1.0,
   );
 
+  ////////////////////////////////////////////////////////////
+  /// VALUE
+  ////////////////////////////////////////////////////////////
   static const value = TextStyle(
     color: PanelStyle.accent,
     fontWeight: FontWeight.w900,
-    fontSize: 15,
+    fontSize: 16,
+    letterSpacing: 0.3,
   );
 }
-
-////////////////////////////////////////////////////////////////
-/// HEADER
-////////////////////////////////////////////////////////////////
 
 class PanelHeader extends StatelessWidget {
   final String boxId;
@@ -165,7 +176,7 @@ class PanelHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: PanelStyle.headerBg,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
       child: Row(
         children: [
           const Icon(
@@ -208,39 +219,43 @@ class PanelHeader extends StatelessWidget {
   }
 }
 
-////////////////////////////////////////////////////////////////
-/// TABLE HEADER
-////////////////////////////////////////////////////////////////
-
 class TableHeader extends StatelessWidget {
   const TableHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 10),
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withOpacity(0.07),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: const Row(
         children: [
-          Expanded(flex: 18, child: HeaderText('SCADA')),
-          Expanded(flex: 20, child: HeaderText('PLC')),
-          Expanded(
-            flex: 10,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: HeaderText('Value'),
-            ),
+          SizedBox(width: PanelStyle.scadaW, child: HeaderText('SCADA')),
+
+          SizedBox(width: PanelStyle.gap),
+
+          Expanded(child: HeaderText('Name')),
+
+          SizedBox(width: PanelStyle.gap),
+
+          SizedBox(width: PanelStyle.plcW, child: HeaderText('PLC')),
+
+          SizedBox(width: PanelStyle.gap),
+
+          SizedBox(
+            width: PanelStyle.valueW,
+            child: HeaderText('Value', align: TextAlign.right),
           ),
-          Expanded(
-            flex: 13,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: HeaderText('Time'),
-            ),
+
+          SizedBox(width: PanelStyle.gap),
+
+          SizedBox(
+            width: PanelStyle.timeW,
+            child: HeaderText('Time', align: TextAlign.right),
           ),
         ],
       ),
@@ -250,18 +265,21 @@ class TableHeader extends StatelessWidget {
 
 class HeaderText extends StatelessWidget {
   final String text;
+  final TextAlign align;
 
-  const HeaderText(this.text, {super.key});
+  const HeaderText(this.text, {super.key, this.align = TextAlign.left});
 
   @override
   Widget build(BuildContext context) {
-    return Text(text, style: TextStyles.header);
+    return Text(
+      text,
+      textAlign: align,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyles.header,
+    );
   }
 }
-
-////////////////////////////////////////////////////////////////
-/// DATA ROW
-////////////////////////////////////////////////////////////////
 
 class DataRowTile extends StatefulWidget {
   final LatestRecordDto row;
@@ -280,66 +298,93 @@ class _DataRowTileState extends State<DataRowTile> {
 
   @override
   Widget build(BuildContext context) {
+    final row = widget.row;
+
     final bg = _hovered
         ? PanelStyle.accent.withOpacity(0.13)
         : widget.isEven
         ? Colors.white.withOpacity(0.035)
         : Colors.transparent;
 
-    final valueText = widget.row.value?.toStringAsFixed(2) ?? '-';
-
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) {
+        if (!_hovered) {
+          setState(() => _hovered = true);
+        }
+      },
+      onExit: (_) {
+        if (_hovered) {
+          setState(() => _hovered = false);
+        }
+      },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
+        duration: const Duration(milliseconds: 110),
+        height: 39,
         margin: const EdgeInsets.only(bottom: 5),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: _hovered
-                ? PanelStyle.accent.withOpacity(0.18)
-                : Colors.white.withOpacity(0.04),
+                ? PanelStyle.accent.withOpacity(0.20)
+                : Colors.white.withOpacity(0.045),
           ),
         ),
         child: Row(
           children: [
-            Expanded(
-              flex: 18,
-              child: CellText((widget.row.scadaId ?? '').trim()),
+            SizedBox(
+              width: PanelStyle.scadaW,
+              child: CellText(clean(row.scadaId), bold: true),
             ),
-            Expanded(flex: 20, child: CellText(widget.row.plcAddress)),
+
+            const SizedBox(width: PanelStyle.gap),
+
             Expanded(
-              flex: 10,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(valueText, style: TextStyles.value),
+              child: Tooltip(
+                message: clean(row.nameEn).isEmpty ? '-' : clean(row.nameEn),
+                waitDuration: const Duration(milliseconds: 450),
+                child: CellText(clean(row.nameEn)),
               ),
             ),
-            Expanded(
-              flex: 13,
+
+            const SizedBox(width: PanelStyle.gap),
+
+            SizedBox(
+              width: PanelStyle.plcW,
+              child: CellText(row.plcAddress, bold: true),
+            ),
+
+            const SizedBox(width: PanelStyle.gap),
+
+            SizedBox(
+              width: PanelStyle.valueW,
               child: Align(
                 alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.schedule_rounded,
-                      size: 13,
-                      color: Colors.white.withOpacity(0.52),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _timeText,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.76),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  fmtValue(row.value),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyles.value,
+                ),
+              ),
+            ),
+
+            const SizedBox(width: PanelStyle.gap),
+
+            SizedBox(
+              width: PanelStyle.timeW,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  _timeText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.72),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ),
@@ -352,36 +397,46 @@ class _DataRowTileState extends State<DataRowTile> {
 
 class CellText extends StatelessWidget {
   final String value;
+  final bool bold;
 
-  const CellText(this.value, {super.key});
+  const CellText(this.value, {super.key, this.bold = false});
 
   @override
   Widget build(BuildContext context) {
+    final text = value.trim().isEmpty ? '-' : value.trim();
+
     return Text(
-      value.isEmpty ? '-' : value,
+      text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: TextStyles.cell,
+      style: TextStyles.cell.copyWith(
+        fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+      ),
     );
   }
 }
 
-////////////////////////////////////////////////////////////////
-/// HELPERS
-////////////////////////////////////////////////////////////////
-
-Rect calculatePanelRect({required Rect imageRect, required Offset pos01}) {
+Rect calculatePanelRect({
+  required Rect imageRect,
+  required Offset pos01,
+  int rowCount = 0,
+}) {
   final anchorLeft = imageRect.left + pos01.dx * imageRect.width;
   final anchorTop = imageRect.top + pos01.dy * imageRect.height;
 
-  final width = (imageRect.width * 0.46).clamp(380.0, 720.0).toDouble();
-  final height = (imageRect.height * 0.62).clamp(280.0, 500.0).toDouble();
+  final width = (imageRect.width * 0.68).clamp(700.0, 980.0).toDouble();
 
-  final preferRight = anchorLeft + 28 + width < imageRect.right;
+  final rowHeight = 44.0;
+  final headerHeight = 92.0;
+  final contentHeight = headerHeight + rowCount * rowHeight;
+
+  final height = contentHeight.clamp(220.0, imageRect.height * 0.82).toDouble();
+
+  final preferRight = anchorLeft + 26 + width < imageRect.right;
 
   final left = preferRight
-      ? anchorLeft + 28
-      : (anchorLeft - width - 28).clamp(
+      ? anchorLeft + 26
+      : (anchorLeft - width - 26).clamp(
           imageRect.left + 8,
           imageRect.right - width - 8,
         );
@@ -389,6 +444,20 @@ Rect calculatePanelRect({required Rect imageRect, required Offset pos01}) {
   final top = anchorTop.clamp(imageRect.top + 8, imageRect.bottom - height - 8);
 
   return Rect.fromLTWH(left, top, width, height);
+}
+
+String clean(String? value) {
+  return value?.trim() ?? '';
+}
+
+String fmtValue(double? value) {
+  if (value == null) return '-';
+
+  if (value % 1 == 0) {
+    return value.toInt().toString();
+  }
+
+  return value.toStringAsFixed(2);
 }
 
 String formatTime(DateTime t) {
