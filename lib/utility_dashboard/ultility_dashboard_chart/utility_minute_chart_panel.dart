@@ -174,6 +174,16 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
 
   Widget _buildPanel(_PanelVm vm) {
     final rows = vm.rows;
+
+    final shouldHide = rows.any((e) {
+      final name = (e.nameEn ?? '').trim().toLowerCase();
+      return name.contains('slave multifunction meter');
+    });
+
+    if (shouldHide) {
+      return const SizedBox.shrink();
+    }
+
     final error = vm.error;
     final hasError = error != null;
     final isLoading = _canFetch && !vm.hasFetchedOnce && !hasError;
@@ -181,8 +191,10 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     final signalDisplayName = rows.isNotEmpty
         ? (rows.last.nameEn ?? rows.last.cateId)
         : null;
+
     final unit = rows.isNotEmpty ? rows.last.unit : null;
     final theme = getThemeByCate(widget.cate);
+
     return Container(
       width: widget.width,
       height: widget.height ?? 320,
@@ -249,37 +261,6 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
           color: Colors.black.withOpacity(0.5),
           blurRadius: 20,
           offset: const Offset(0, 10),
-        ),
-      ],
-    );
-  }
-
-  BoxDecoration _panelDecoration1(Color facilityColor) {
-    return BoxDecoration(
-      borderRadius: BorderRadius.circular(20),
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          const Color(0xFF1A237E).withOpacity(0.25),
-          const Color(0xFF0D47A1).withOpacity(0.20),
-        ],
-      ),
-      border: Border.all(
-        color: const Color(0xFF0D47A1).withOpacity(0.25),
-        width: 1,
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: facilityColor.withOpacity(0.25),
-          blurRadius: 20,
-          spreadRadius: 2,
-          offset: const Offset(0, 8),
-        ),
-        BoxShadow(
-          color: Colors.black.withOpacity(0.35),
-          blurRadius: 15,
-          offset: const Offset(0, 4),
         ),
       ],
     );
@@ -592,12 +573,6 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     final intervalMinutes = totalMinutes <= 30 ? 5 : 10;
 
     return (minX: minX, maxX: maxX, intervalMinutes: intervalMinutes);
-  }
-
-  String _formatDuration(Duration duration) {
-    if (duration.inSeconds < 60) return '${duration.inSeconds}s';
-    if (duration.inMinutes < 60) return '${duration.inMinutes}m';
-    return '${duration.inHours}h${(duration.inMinutes % 60).toString().padLeft(2, '0')}m';
   }
 
   Widget _buildCenteredMessage(String message) {
