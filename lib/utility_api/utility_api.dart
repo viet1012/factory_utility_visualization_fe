@@ -14,93 +14,135 @@ class UtilityApi {
 
   UtilityApi({Dio? dio}) : _dio = dio ?? DioClient.dio;
 
-  // ========== tree-series ==========
+  // ================== HELPERS ==================
+
+  String? _clean(String? v) {
+    final t = v?.trim();
+    return (t == null || t.isEmpty) ? null : t;
+  }
+
+  List<String> _cleanList(List<String>? list) {
+    if (list == null) return [];
+    return list.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+  }
+
+  Map<String, dynamic> _qp(Map<String, dynamic> raw) {
+    final out = <String, dynamic>{};
+    raw.forEach((k, v) {
+      if (v == null) return;
+      if (v is String && v.trim().isEmpty) return;
+      out[k] = v;
+    });
+    return out;
+  }
+
+  List<dynamic> _asList(dynamic data, String path) {
+    if (data is! List) {
+      throw DioException(
+        requestOptions: RequestOptions(path: path),
+        message: '$path: expected List but got ${data.runtimeType}',
+        type: DioExceptionType.badResponse,
+      );
+    }
+    return data.cast<dynamic>();
+  }
+
+  Map<String, dynamic> _asMap(dynamic data, String path) {
+    if (data is! Map) {
+      throw DioException(
+        requestOptions: RequestOptions(path: path),
+        message: '$path: expected Map but got ${data.runtimeType}',
+        type: DioExceptionType.badResponse,
+      );
+    }
+    return data.cast<String, dynamic>();
+  }
+
+  void _log(Response res) {
+    debugPrint('[GET] ${res.realUri}');
+  }
+
+  String _toIsoNoZ(DateTime dt) {
+    final d = dt.toLocal();
+    String two(int x) => x.toString().padLeft(2, '0');
+    return '${d.year}-${two(d.month)}-${two(d.day)}T${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
+  }
+
+  // ================== API ==================
+
+  // ---------- TREE SERIES ----------
   Future<TreeSeriesResponse> getTreeSeries({
     required String fac,
     required String boxDeviceId,
     required String plcAddress,
-    String? range, // TODAY/YESTERDAY/LAST_7_DAYS/THIS_MONTH nếu BE support
+    String? range,
     int? year,
     int? month,
   }) async {
     const path = '/api/utility/chart/tree-series';
 
-    final qp = <String, dynamic>{
-      'fac': fac.trim(),
-      'boxDeviceId': boxDeviceId.trim(),
-      'plcAddress': plcAddress.trim(),
-      if (range != null && range.trim().isNotEmpty) 'range': range.trim(),
-      if (year != null) 'year': year,
-      if (month != null) 'month': month,
-    };
+    final res = await _dio.get(
+      path,
+      queryParameters: _qp({
+        'fac': _clean(fac),
+        'boxDeviceId': _clean(boxDeviceId),
+        'plcAddress': _clean(plcAddress),
+        'range': _clean(range),
+        'year': year,
+        'month': month,
+      }),
+    );
 
-    final res = await _dio.get(path, queryParameters: qp);
-    debugPrint('[GET] ${res.realUri}');
+    _log(res);
 
-    final data = res.data;
-    if (data is! Map) {
-      throw DioException(
-        requestOptions: res.requestOptions,
-        response: res,
-        message: 'tree-series: Expected Map but got ${data.runtimeType}',
-        type: DioExceptionType.badResponse,
-      );
-    }
-    return TreeSeriesResponse.fromJson((data as Map).cast<String, dynamic>());
+    return TreeSeriesResponse.fromJson(_asMap(res.data, path));
   }
 
-  // ========== channels ==========
+  // ---------- CHANNELS ----------
   Future<List<ScadaChannelDto>> getChannels({
     String? facId,
     String? cate,
   }) async {
-    final qp = <String, dynamic>{};
-    if (facId != null && facId.trim().isNotEmpty) qp['facId'] = facId.trim();
-    if (cate != null && cate.trim().isNotEmpty) qp['cate'] = cate.trim();
+    const path = '/api/utility/channels';
 
-    final res = await _dio.get('/api/utility/channels', queryParameters: qp);
-    final data = res.data;
-    if (data is! List) throw Exception('channels: expected List');
+    final res = await _dio.get(
+      path,
+      queryParameters: _qp({'facId': _clean(facId), 'cate': _clean(cate)}),
+    );
 
-    return data
-        .map(
-          (e) => ScadaChannelDto.fromJson(Map<String, dynamic>.from(e as Map)),
-        )
+    return _asList(res.data, path)
+        .map((e) => ScadaChannelDto.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
-  // ========== params ==========
+  // ---------- PARAMS ----------
   Future<List<ParamDto>> getParams({
     String? facId,
     String? cate,
     String? boxDeviceId,
     int? importantOnly,
   }) async {
-    final qp = <String, dynamic>{};
+    const path = '/api/utility/params';
 
-    final fac = facId?.trim();
-    if (fac != null && fac.isNotEmpty) qp['facId'] = fac;
+    final res = await _dio.get(
+      path,
+      queryParameters: _qp({
+        'facId': _clean(facId),
+        'cate': _clean(cate),
+        'boxDeviceId': _clean(boxDeviceId),
+        if (importantOnly != null) 'importantOnly': importantOnly == 1 ? 1 : 0,
+      }),
+    );
 
-    final c = cate?.trim();
-    if (c != null && c.isNotEmpty) qp['cate'] = c;
+    _log(res);
 
-    final box = boxDeviceId?.trim();
-    if (box != null && box.isNotEmpty) qp['boxDeviceId'] = box;
-
-    if (importantOnly != null) qp['importantOnly'] = importantOnly == 1 ? 1 : 0;
-
-    final res = await _dio.get('/api/utility/params', queryParameters: qp);
-    debugPrint('[GET] ${res.realUri}');
-
-    final data = res.data;
-    if (data is! List) throw Exception('params: expected List');
-
-    return data
-        .map((e) => ParamDto.fromJson(Map<String, dynamic>.from(e as Map)))
-        .toList();
+    return _asList(
+      res.data,
+      path,
+    ).map((e) => ParamDto.fromJson(Map<String, dynamic>.from(e))).toList();
   }
 
-  // ========== latest ==========
+  // ---------- LATEST ----------
   Future<List<LatestRecordDto>> getLatest({
     String? facId,
     String? scadaId,
@@ -108,46 +150,28 @@ class UtilityApi {
     String? boxDeviceId,
     List<String>? cateIds,
   }) async {
-    final params = <String, dynamic>{};
+    const path = '/api/utility/latest';
 
-    void putIfNotBlank(String key, String? val) {
-      if (val != null && val.trim().isNotEmpty) params[key] = val.trim();
-    }
+    final res = await _dio.get(
+      path,
+      queryParameters: _qp({
+        'facId': _clean(facId),
+        'scadaId': _clean(scadaId),
+        'cate': _clean(cate),
+        'boxDeviceId': _clean(boxDeviceId),
+        if (_cleanList(cateIds).isNotEmpty)
+          'cateIds': _cleanList(cateIds).join(','),
+      }),
+    );
 
-    putIfNotBlank('facId', facId);
-    putIfNotBlank('scadaId', scadaId);
-    putIfNotBlank('cate', cate);
-    putIfNotBlank('boxDeviceId', boxDeviceId);
+    _log(res);
 
-    if (cateIds != null) {
-      final cleaned = cateIds
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-      if (cleaned.isNotEmpty) params['cateIds'] = cleaned.join(',');
-    }
-
-    final res = await _dio.get('/api/utility/latest', queryParameters: params);
-    final data = res.data;
-    debugPrint('[GET] ${res.realUri}');
-
-    if (data is! List) {
-      throw DioException(
-        requestOptions: res.requestOptions,
-        response: res,
-        message: 'latest: Expected List but got: ${data.runtimeType}',
-        type: DioExceptionType.badResponse,
-      );
-    }
-
-    return data
-        .map(
-          (e) => LatestRecordDto.fromJson(Map<String, dynamic>.from(e as Map)),
-        )
+    return _asList(res.data, path)
+        .map((e) => LatestRecordDto.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
-  // ========== minute series ==========
+  // ---------- MINUTE SERIES ----------
   Future<List<MinutePointDto>> getSeriesMinute({
     required DateTime from,
     required DateTime to,
@@ -155,85 +179,34 @@ class UtilityApi {
     String? plcAddress,
     List<String>? cateIds,
   }) async {
-    final qp = <String, dynamic>{'from': _toIsoNoZ(from), 'to': _toIsoNoZ(to)};
+    const path = '/api/utility/series/minute';
 
-    void putIfNotBlank(String k, String? v) {
-      if (v != null && v.trim().isNotEmpty) qp[k] = v.trim();
-    }
-
-    putIfNotBlank('boxDeviceId', boxDeviceId);
-    putIfNotBlank('plcAddress', plcAddress);
-
-    if (cateIds != null) {
-      final cleaned = cateIds
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-      if (cleaned.isNotEmpty) {
-        qp['cateIds'] = cleaned.join(',');
-      }
-    }
-
-    // 🔥 BUILD FULL URL TRƯỚC KHI CALL
-    final baseUrl = _dio.options.baseUrl;
-    final uri = Uri.parse(baseUrl)
-        .resolve('/api/utility/series/minute')
-        .replace(queryParameters: qp.map((k, v) => MapEntry(k, v.toString())));
-
-    // 🔥 LOG REQUEST
-    debugPrint('================ API REQUEST ================');
-    debugPrint('METHOD: GET');
-    debugPrint('URL: $uri');
-    debugPrint('BASE URL: $baseUrl');
-    debugPrint('PATH: /api/utility/series/minute');
-    debugPrint('QUERY PARAMS: $qp');
-    debugPrint('============================================');
+    final qp = _qp({
+      'from': _toIsoNoZ(from),
+      'to': _toIsoNoZ(to),
+      'boxDeviceId': _clean(boxDeviceId),
+      'plcAddress': _clean(plcAddress),
+      if (_cleanList(cateIds).isNotEmpty)
+        'cateIds': _cleanList(cateIds).join(','),
+    });
 
     try {
-      final res = await _dio.get(
-        '/api/utility/series/minute',
-        queryParameters: qp,
-      );
+      final res = await _dio.get(path, queryParameters: qp);
 
-      // 🔥 LOG RESPONSE
-      debugPrint('================ API RESPONSE ===============');
-      debugPrint('STATUS CODE: ${res.statusCode}');
-      debugPrint('REAL URL: ${res.realUri}');
-      debugPrint('DATA TYPE: ${res.data.runtimeType}');
-      if (res.data is List) {
-        debugPrint('LENGTH: ${(res.data as List).length}');
-      }
-      debugPrint('============================================');
+      _log(res);
 
-      final data = res.data;
-
-      if (data is! List) {
-        throw DioException(
-          requestOptions: res.requestOptions,
-          response: res,
-          message: 'minute: Expected List but got: ${data.runtimeType}',
-          type: DioExceptionType.badResponse,
-        );
-      }
-
-      return data
-          .map(
-            (e) => MinutePointDto.fromJson(Map<String, dynamic>.from(e as Map)),
-          )
+      return _asList(res.data, path)
+          .map((e) => MinutePointDto.fromJson(Map<String, dynamic>.from(e)))
           .toList();
     } catch (e) {
-      // 🔥 LOG ERROR
-      debugPrint('================ API ERROR ==================');
-      debugPrint('ERROR: $e');
-      debugPrint('URL: $uri');
+      debugPrint('❌ API ERROR: $path');
       debugPrint('PARAMS: $qp');
-      debugPrint('============================================');
-
+      debugPrint('ERROR: $e');
       rethrow;
     }
   }
 
-  // ========== sum compare ==========
+  // ---------- SUM COMPARE ----------
   Future<List<SumCompareItem>> sumCompare({
     String by = 'cate',
     String? facId,
@@ -244,29 +217,24 @@ class UtilityApi {
     List<String>? cateIds,
     List<String>? nameEns,
   }) async {
+    const path = '/api/utility/sum-compare';
+
     final res = await _dio.get(
-      '/api/utility/sum-compare',
-      queryParameters: {
+      path,
+      queryParameters: _qp({
         'by': by,
-        if (facId?.trim().isNotEmpty == true) 'facId': facId,
-        if (scadaId?.trim().isNotEmpty == true) 'scadaId': scadaId,
-        if (cate?.trim().isNotEmpty == true) 'cate': cate,
-        if (boxDeviceId?.trim().isNotEmpty == true) 'boxDeviceId': boxDeviceId,
-        if (deviceIds?.isNotEmpty == true) 'deviceIds': deviceIds,
-        if (cateIds?.isNotEmpty == true) 'cateIds': cateIds,
-        if (nameEns?.isNotEmpty == true) 'nameEns': nameEns,
-      },
+        'facId': _clean(facId),
+        'scadaId': _clean(scadaId),
+        'cate': _clean(cate),
+        'boxDeviceId': _clean(boxDeviceId),
+        if (_cleanList(deviceIds).isNotEmpty) 'deviceIds': deviceIds,
+        if (_cleanList(cateIds).isNotEmpty) 'cateIds': cateIds,
+        if (_cleanList(nameEns).isNotEmpty) 'nameEns': nameEns,
+      }),
     );
 
-    final list = (res.data as List).cast<dynamic>();
-    return list
-        .map((e) => SumCompareItem.fromJson((e as Map).cast<String, dynamic>()))
+    return _asList(res.data, path)
+        .map((e) => SumCompareItem.fromJson(Map<String, dynamic>.from(e)))
         .toList();
-  }
-
-  String _toIsoNoZ(DateTime dt) {
-    final d = dt.toLocal();
-    String two(int x) => x.toString().padLeft(2, '0');
-    return '${d.year}-${two(d.month)}-${two(d.day)}T${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
   }
 }

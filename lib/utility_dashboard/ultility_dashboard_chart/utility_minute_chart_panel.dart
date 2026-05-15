@@ -7,7 +7,6 @@ import '../../utility_models/response/minute_point.dart';
 import '../../utility_state/minute_series_provider.dart';
 import '../utility_dashboard_common/chart_theme.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
-import '../utility_dashboard_common/utility_fac_style.dart';
 
 class _ChartPoint {
   final DateTime time;
@@ -179,7 +178,6 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     final hasError = error != null;
     final isLoading = _canFetch && !vm.hasFetchedOnce && !hasError;
 
-    final facilityColor = UtilityFacStyle.colorFromFac(widget.facId);
     final signalDisplayName = rows.isNotEmpty
         ? (rows.last.nameEn ?? rows.last.cateId)
         : null;
