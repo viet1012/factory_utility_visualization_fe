@@ -45,8 +45,6 @@ class MinutePointDto {
       boxDeviceId: (json['boxDeviceId'] ?? '').toString(),
       plcAddress: (json['plcAddress'] ?? '').toString(),
       cateId: json['cateId']?.toString(),
-
-      // ✅ NEW fields (tên key phải đúng với backend record)
       nameEn: json['nameEn']?.toString(),
       nameVi: json['nameVi']?.toString(),
       fac: json['fac']?.toString(),

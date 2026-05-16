@@ -7,6 +7,7 @@ import '../../utility_models/response/minute_point.dart';
 import '../../utility_state/minute_series_provider.dart';
 import '../utility_dashboard_common/chart_theme.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
+import '../utility_dashboard_widgets/center_message.dart';
 
 class _ChartPoint {
   final DateTime time;
@@ -292,7 +293,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     final hasError = error != null;
 
     if (!_canRenderSignal) {
-      return _buildCenteredMessage('Missing boxDeviceId + plcAddress');
+      return CenterMessage(message: 'Missing boxDeviceId + plcAddress');
     }
 
     if (!hasFetchedOnce && !hasError) {
@@ -300,18 +301,18 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     }
 
     if (hasError && rows.isEmpty) {
-      return _buildCenteredMessage('API error:\n$error');
+      return CenterMessage(message: 'API error:\n$error');
     }
 
     if (rows.isEmpty) {
-      return _buildCenteredMessage('No data in selected window');
+      return CenterMessage(message: 'No data in selected window');
     }
 
     final chartPoints = _toChartPoints(rows);
     final latestPoint = _findLatestPoint(rows);
 
     if (chartPoints.isEmpty) {
-      return _buildCenteredMessage('No valid numeric points');
+      return CenterMessage(message: 'No valid numeric points');
     }
 
     final analysis = _analyzeSeries(chartPoints);
@@ -409,7 +410,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
 
   Widget _buildChart(List<_ChartPoint> data, _SeriesAnalysis analysis) {
     if (data.length < 2) {
-      return _buildCenteredMessage('Not enough points');
+      return CenterMessage(message: 'Not enough points');
     }
 
     final axisBounds = _computeYAxisBounds(data);
@@ -573,15 +574,5 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     final intervalMinutes = totalMinutes <= 30 ? 5 : 10;
 
     return (minX: minX, maxX: maxX, intervalMinutes: intervalMinutes);
-  }
-
-  Widget _buildCenteredMessage(String message) {
-    return Center(
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: TextStyle(color: Colors.white.withOpacity(0.8)),
-      ),
-    );
   }
 }

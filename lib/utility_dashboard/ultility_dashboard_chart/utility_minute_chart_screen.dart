@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../utility_state/chart_catalog_provider.dart';
 import '../utility_dashboard_common/chart_theme.dart';
+import '../utility_dashboard_widgets/center_message.dart';
 import 'utility_minute_chart_panel.dart';
 
 class UtilityAllFactoriesChartsScreen extends StatefulWidget {
@@ -280,6 +281,13 @@ class _UtilityAllFactoriesChartsScreenState
               onFacChanged: _onFacChanged,
               onBoxIdChanged: (i) => _onBoxIdChanged(boxIdTabs, i),
               onBoxDeviceChanged: (i) => _onBoxDeviceChanged(boxDeviceTabs, i),
+              onAllDevicesSelected: () async {
+                setState(() {
+                  _selectedBoxDeviceIndex = -1;
+                });
+
+                await _loadChartsForCurrentBoxGroup();
+              },
               theme: theme,
             ),
             const SizedBox(height: 4),
@@ -338,11 +346,11 @@ class _CatalogBody extends StatelessWidget {
         }
 
         if (vm.error != null && vm.charts.isEmpty) {
-          return _CenterMessage(message: 'API error:\n${vm.error}');
+          return CenterMessage(message: 'API error:\n${vm.error}');
         }
 
         if (vm.charts.isEmpty) {
-          return _CenterMessage(message: 'No signals in ${selectedBox ?? "-"}');
+          return CenterMessage(message: 'No signals in ${selectedBox ?? "-"}');
         }
 
         return LayoutBuilder(
@@ -483,6 +491,7 @@ class _FiltersArea extends StatelessWidget {
   final ValueChanged<int> onFacChanged;
   final ValueChanged<int> onBoxIdChanged;
   final ValueChanged<int> onBoxDeviceChanged;
+  final VoidCallback onAllDevicesSelected;
   final ChartTheme theme;
 
   const _FiltersArea({
@@ -500,6 +509,7 @@ class _FiltersArea extends StatelessWidget {
     required this.onFacChanged,
     required this.onBoxIdChanged,
     required this.onBoxDeviceChanged,
+    required this.onAllDevicesSelected,
     required this.theme,
   });
 
@@ -559,6 +569,7 @@ class _FiltersArea extends StatelessWidget {
                     theme: theme,
                     showAllChip: true,
                     allChipSelected: selectedAllDevices,
+                    onAllTap: onAllDevicesSelected,
                   ),
                 ),
               ],
@@ -689,6 +700,7 @@ class _GlassTabRow extends StatelessWidget {
   final ChartTheme theme;
   final bool showAllChip;
   final bool allChipSelected;
+  final VoidCallback? onAllTap;
 
   const _GlassTabRow({
     required this.labels,
@@ -698,6 +710,7 @@ class _GlassTabRow extends StatelessWidget {
     this.alignRight = false,
     this.showAllChip = false,
     this.allChipSelected = false,
+    this.onAllTap,
   });
 
   Widget _buildChip({
@@ -755,10 +768,13 @@ class _GlassTabRow extends StatelessWidget {
 
     if (showAllChip) {
       children.add(
-        _buildChip(label: 'ALL', selected: allChipSelected, onTap: () {}),
+        _buildChip(
+          label: 'ALL',
+          selected: allChipSelected,
+          onTap: onAllTap ?? () {},
+        ),
       );
     }
-
     children.addAll(
       List.generate(labels.length, (index) {
         final selected = index == selectedIndex;
@@ -776,22 +792,5 @@ class _GlassTabRow extends StatelessWidget {
     return alignRight
         ? Align(alignment: Alignment.topRight, child: tabs)
         : tabs;
-  }
-}
-
-class _CenterMessage extends StatelessWidget {
-  final String message;
-
-  const _CenterMessage({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: TextStyle(color: Colors.white.withOpacity(0.85)),
-      ),
-    );
   }
 }
