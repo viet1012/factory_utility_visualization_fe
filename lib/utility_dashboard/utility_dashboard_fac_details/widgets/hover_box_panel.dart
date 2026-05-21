@@ -109,7 +109,7 @@ class PanelStyle {
 
   static const double scadaW = 72;
   static const double plcW = 78;
-  static const double valueW = 92;
+  static const double valueW = 112;
   static const double timeW = 92;
   static const double gap = 12;
 
@@ -356,16 +356,29 @@ class _DataRowTileState extends State<DataRowTile> {
             ),
 
             const SizedBox(width: PanelStyle.gap),
-
             SizedBox(
               width: PanelStyle.valueW,
               child: Align(
                 alignment: Alignment.centerRight,
-                child: Text(
-                  fmtValue(row.value),
+                child: RichText(
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyles.value,
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: fmtValue(row.value),
+                        style: TextStyles.value,
+                      ),
+                      TextSpan(
+                        text: ' ${clean(row.unit)}',
+                        style: TextStyles.value.copyWith(
+                          fontSize: 13,
+                          color: Colors.white.withOpacity(0.55),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

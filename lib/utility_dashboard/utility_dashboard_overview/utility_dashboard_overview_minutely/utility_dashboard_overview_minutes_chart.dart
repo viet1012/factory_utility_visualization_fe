@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math';
 
+import 'package:dio/dio.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_common/chart_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -10,17 +12,15 @@ import '../../../utility_models/response/minute_point.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
-import '../utility_dashboard_overview_widgets/health_indicator.dart';
+import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../utility_dashboard_overview_widgets/common_chart_title_bar.dart';
 
 class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
   final String facId;
   final int minutes;
-
   final double width;
   final double? height;
   final String? nameEng;
-
-  /// UI
   final ChartTheme theme;
 
   const UtilityDashboardOverviewMinutesChart({
@@ -41,87 +41,119 @@ class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
 class _UtilityDashboardOverviewMinutesChartState
     extends State<UtilityDashboardOverviewMinutesChart>
     with TickerProviderStateMixin {
+  static const Duration _pollInterval = Duration(seconds: 50);
+  static const Duration _requestTimeout = Duration(seconds: 12);
+
   late final UtilityInfoBoxFx fx;
 
   List<MinutePointDto> rows = [];
   Object? error;
   bool loading = true;
-
-  // ── Cache health result để tránh tính lại trong build() ──────────────────
   DataHealthResult? _cachedHealth;
 
   bool _loadingNow = false;
-  bool _disposed = false;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     fx = UtilityInfoBoxFx(this)..init();
+
     _load();
+    _startPolling();
   }
 
-  Future<void> _load() async {
-    if (_loadingNow || _disposed) return;
+  void _startPolling() {
+    _pollTimer?.cancel();
+
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (!_loadingNow && mounted) {
+        _load(silent: true);
+      }
+    });
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (_loadingNow || !mounted) return;
+
     _loadingNow = true;
+
+    if (!silent && rows.isEmpty) {
+      setState(() {
+        loading = true;
+        error = null;
+      });
+    }
 
     try {
       final api = context.read<UtilityDashboardOverviewApi>();
-      final data = await api.getEnergyMinute(
-        facId: widget.facId,
-        minutes: widget.minutes,
-        nameEn: widget.nameEng,
-      );
+
+      final data = await api
+          .getEnergyMinute(
+            facId: widget.facId,
+            minutes: widget.minutes,
+            nameEn: widget.nameEng,
+          )
+          .timeout(_requestTimeout);
 
       if (!mounted) return;
 
-      // Chỉ setState khi data thực sự thay đổi
-      if (_dataChanged(data)) {
-        final valid = data.where((e) => e.value != null).toList();
+      final valid = data.where((e) => e.value != null).toList();
 
-        // Tính health result ngoài setState, không tính lại trong build()
-        _cachedHealth = DataHealthAnalyzer.analyze(
-          key: "Minutes_${widget.facId}_${widget.theme.title}",
-          loading: false,
-          error: null,
-          values: valid.map((e) => e.value!).toList(),
-        );
+      _cachedHealth = DataHealthAnalyzer.analyze(
+        key: 'Minutes_${widget.facId}_${widget.theme.title}',
+        loading: false,
+        error: null,
+        values: valid.map((e) => e.value!).toList(),
+      );
 
+      if (_dataChanged(data) || loading || error != null) {
         setState(() {
           rows = data;
           loading = false;
           error = null;
         });
-      } else {
-        // Data không đổi → chỉ tắt loading, không rebuild chart
-        if (loading) {
-          setState(() {
-            loading = false;
-          });
-        }
       }
+    } on TimeoutException catch (e) {
+      _handleLoadError(e, '[TIMEOUT]');
+    } on DioException catch (e) {
+      _handleLoadError(e, '[DIO] ${e.type}');
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        error = e;
-        loading = false;
-      });
+      _handleLoadError(e, '[ERROR]');
     } finally {
       _loadingNow = false;
     }
+  }
 
-    // Tiếp tục poll, nhưng chỉ khi chưa dispose
-    if (!_disposed) {
-      Future.delayed(const Duration(seconds: 50), _load);
-    }
+  void _handleLoadError(Object e, String tag) {
+    debugPrint('$tag $e');
+
+    if (!mounted) return;
+
+    _cachedHealth = DataHealthAnalyzer.analyze(
+      key: 'Minutes_${widget.facId}_${widget.theme.title}',
+      loading: false,
+      error: true,
+      values: rows.where((e) => e.value != null).map((e) => e.value!).toList(),
+    );
+
+    setState(() {
+      loading = false;
+      error = e;
+
+      // Giữ rows cũ để chart không bị trắng khi API lỗi.
+    });
   }
 
   bool _dataChanged(List<MinutePointDto> newData) {
     if (newData.length != rows.length) return true;
+
     for (var i = 0; i < newData.length; i++) {
       if (newData[i].value != rows[i].value || newData[i].ts != rows[i].ts) {
         return true;
       }
     }
+
     return false;
   }
 
@@ -132,22 +164,28 @@ class _UtilityDashboardOverviewMinutesChartState
     super.didUpdateWidget(oldWidget);
 
     final changed =
-        oldWidget.facId != widget.facId || oldWidget.minutes != widget.minutes;
+        oldWidget.facId != widget.facId ||
+        oldWidget.minutes != widget.minutes ||
+        oldWidget.nameEng != widget.nameEng;
+
     if (!changed) return;
 
+    _pollTimer?.cancel();
+
     setState(() {
+      rows = [];
       loading = true;
       error = null;
-      rows = [];
       _cachedHealth = null;
     });
 
     _load();
+    _startPolling();
   }
 
   @override
   void dispose() {
-    _disposed = true;
+    _pollTimer?.cancel();
     fx.dispose();
     super.dispose();
   }
@@ -155,31 +193,24 @@ class _UtilityDashboardOverviewMinutesChartState
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
-    // debugPrint("BUILD UtilityDashboardOverviewMinutesChart");
+    final last = rows.isEmpty ? null : rows.last;
 
-    // Tính health chỉ khi chưa có cache (loading/error state)
     final healthResult =
         _cachedHealth ??
         DataHealthAnalyzer.analyze(
-          key: "Minutes_${widget.facId}_${widget.theme.title}",
+          key: 'Minutes_${widget.facId}_${widget.theme.title}',
           loading: loading,
           error: error,
           values: const [],
         );
 
-    // ── Animation chỉ bọc phần SHELL (decoration + scale), KHÔNG bọc chart ─
     return SlideTransition(
       position: fx.slide,
       child: AnimatedBuilder(
         animation: fx.listenable,
         builder: (context, child) {
-          return Transform.scale(
-            scale: fx.scale.value,
-            // child được pass từ ngoài vào → KHÔNG rebuild theo animation frame
-            child: child,
-          );
+          return Transform.scale(scale: fx.scale.value, child: child);
         },
-        // Chart nằm ở đây: chỉ build lại khi setState, không bị kéo vào loop
         child: Container(
           width: widget.width,
           height: widget.height ?? 220,
@@ -197,7 +228,19 @@ class _UtilityDashboardOverviewMinutesChartState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _TitleBar(title: t.title, health: healthResult),
+              // _TitleBar(title: t.title, health: healthResult),
+              CommonChartTitleBar(
+                title: t.title,
+                health: healthResult,
+
+                lastVal: last == null
+                    ? '--'
+                    : '${last.value?.toStringAsFixed(1) ?? '--'} ${t.unit}',
+
+                lastTs: last == null
+                    ? '--'
+                    : DateFormat('HH:mm:ss').format(last.ts.toLocal()),
+              ),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
@@ -212,7 +255,7 @@ class _UtilityDashboardOverviewMinutesChartState
   }
 
   Widget _body() {
-    if (loading) {
+    if (loading && rows.isEmpty) {
       return const Center(
         child: SizedBox(
           width: 18,
@@ -222,31 +265,42 @@ class _UtilityDashboardOverviewMinutesChartState
       );
     }
 
-    if (error != null) {
-      return Center(
-        child: Text(
-          '$error',
-          style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
-        ),
-      );
+    if (error != null && rows.isEmpty) {
+      return ChartApiErrorState(color: widget.theme.line, onRetry: _load);
     }
 
     if (rows.isEmpty) {
-      return Center(
-        child: Text(
-          'No data available',
-          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 20),
-        ),
+      return const EmptyChartState(
+        title: 'No Data Available',
+        message: 'No minute data found for this period.',
       );
     }
 
     return _chart();
   }
 
-  // ── RepaintBoundary isolate repaint của chart khỏi parent ────────────────
+  double _niceStep(double rawStep) {
+    if (rawStep <= 0) return 1;
+
+    final exp = (log(rawStep) / ln10).floor();
+    final base = pow(10, exp).toDouble();
+    final fraction = rawStep / base;
+
+    if (fraction <= 1) return 1 * base;
+    if (fraction <= 2) return 2 * base;
+    if (fraction <= 5) return 5 * base;
+
+    return 10 * base;
+  }
+
+  double _niceCeil(double value, double step) {
+    if (step <= 0) return value;
+    return (value / step).ceil() * step;
+  }
+
   Widget _chart() {
     final t = widget.theme;
-    debugPrint("CHART BUILD");
+
     final data = rows
         .where((e) => e.value != null)
         .map((e) => _ChartPoint(e.ts.toLocal(), e.value!))
@@ -262,18 +316,24 @@ class _UtilityDashboardOverviewMinutesChartState
     }
 
     final ys = data.map((e) => e.y).toList()..sort();
-    final maxY = ys.last;
+    final minDataY = ys.first;
+    final maxDataY = ys.last;
 
-    final range = (maxY - ys.first).abs();
-    final pad = range == 0
-        ? (maxY.abs() * 0.01).clamp(0.01, 999999)
-        : range * 0.12;
+    final dataRange = (maxDataY - minDataY).abs();
+
+    final pad = dataRange == 0
+        ? (maxDataY.abs() * 0.1).clamp(0.5, 999999).toDouble()
+        : dataRange * 0.15;
 
     final minX = data.first.ts;
     final maxX = data.last.ts;
 
-    final totalMinutes = maxX.difference(minX).inMinutes;
-    final intervalMin = totalMinutes <= 30 ? 5 : 10;
+    final minY = 0.0;
+    final rawMaxY = maxDataY + pad;
+    final rawStep = (rawMaxY - minY) / 5;
+
+    final yInterval = _niceStep(rawStep);
+    final maxYWithPad = _niceCeil(rawMaxY, yInterval);
 
     return RepaintBoundary(
       child: SfCartesianChart(
@@ -293,7 +353,6 @@ class _UtilityDashboardOverviewMinutesChartState
           minimum: minX,
           maximum: maxX,
           intervalType: DateTimeIntervalType.minutes,
-          interval: intervalMin.toDouble(),
           dateFormat: DateFormat('HH:mm'),
           majorGridLines: MajorGridLines(
             width: 1,
@@ -306,7 +365,9 @@ class _UtilityDashboardOverviewMinutesChartState
           ),
         ),
         primaryYAxis: NumericAxis(
-          minimum: 0.0,
+          minimum: minY,
+          maximum: maxYWithPad,
+          interval: yInterval,
           numberFormat: NumberFormat('0.##'),
           majorGridLines: MajorGridLines(
             width: 1,
@@ -353,53 +414,6 @@ class _UtilityDashboardOverviewMinutesChartState
               height: 4,
               borderWidth: 1,
               borderColor: widget.theme.line.withOpacity(0.9),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TitleBar extends StatelessWidget {
-  final String title;
-  final DataHealthResult health;
-
-  const _TitleBar({required this.title, required this.health});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0B1324),
-        border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.10)),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                fontSize: 13,
-                letterSpacing: 0.6,
-              ),
-            ),
-          ),
-
-          // ✅ dùng widget chung (pulse/blink/tooltip)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: HealthIndicator(
-              result: health,
-              size: 10,
-              showLabel: false, // muốn hiện chữ thì true
-              enableTooltip: true,
             ),
           ),
         ],

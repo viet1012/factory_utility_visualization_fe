@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../utility_models/response/minute_point.dart';
+import '../utility_dashboard_overview_monthly/monthly_utility_usage_panel.dart';
 import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
 
 class UtilityDashboardOverviewApi {
@@ -18,7 +19,7 @@ class UtilityDashboardOverviewApi {
       '/api/utility/energy-minute',
       queryParameters: {'facId': facId, 'minutes': minutes, 'nameEn': nameEn},
     );
-    // print('res: ${res.realUri}');
+    print('viett: ${res.realUri}');
     final List data = res.data;
 
     return data.map((e) => MinutePointDto.fromJson(e)).toList();
@@ -118,5 +119,30 @@ class UtilityDashboardOverviewApi {
     final data = res.data;
     if (data is! List) return [];
     return data;
+  }
+
+  Future<List<MonthlyUtilityUsage>> getMonthlyUtilityUsage({
+    required String facId,
+    required int year,
+    required int month,
+    String nameEn = 'Total Energy Consumption',
+  }) async {
+    final res = await dio.get(
+      '/api/utility/monthly-usage',
+      queryParameters: {
+        'fac': facId,
+        'year': year,
+        'month': month,
+        'nameEn': nameEn,
+      },
+    );
+
+    final data = res.data;
+
+    if (data is! List) return const [];
+
+    return data
+        .map((e) => MonthlyUtilityUsage.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
   }
 }

@@ -10,6 +10,7 @@ class LatestRecordDto {
   final String? fac;
   final String? cate;
   final String? boxId;
+  final String? unit;
 
   // 🔥 thêm alarm + min max
   final String? alarm;
@@ -35,6 +36,7 @@ class LatestRecordDto {
     this.maxVol,
     this.minVolStd,
     this.maxVolStd,
+    this.unit,
   });
 
   factory LatestRecordDto.fromJson(Map<String, dynamic> json) {
@@ -76,6 +78,8 @@ class LatestRecordDto {
       maxVol: _toDouble(json['maxVol']),
       minVolStd: _toDouble(json['minVolStd']),
       maxVolStd: _toDouble(json['maxVolStd']),
+
+      unit: json['unit']?.toString(),
     );
   }
 }

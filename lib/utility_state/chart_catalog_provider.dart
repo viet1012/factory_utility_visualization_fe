@@ -8,8 +8,6 @@ class SignalChartConfig {
   final String plcAddress;
   final String? cateId;
   final List<String>? cateIds;
-
-  /// dùng khi xem ALL devices trong 1 BoxId
   final String? groupLabel;
 
   const SignalChartConfig({
@@ -19,22 +17,6 @@ class SignalChartConfig {
     this.cateIds,
     this.groupLabel,
   });
-
-  SignalChartConfig copyWith({
-    String? boxDeviceId,
-    String? plcAddress,
-    String? cateId,
-    List<String>? cateIds,
-    String? groupLabel,
-  }) {
-    return SignalChartConfig(
-      boxDeviceId: boxDeviceId ?? this.boxDeviceId,
-      plcAddress: plcAddress ?? this.plcAddress,
-      cateId: cateId ?? this.cateId,
-      cateIds: cateIds ?? this.cateIds,
-      groupLabel: groupLabel ?? this.groupLabel,
-    );
-  }
 }
 
 class ChartCatalogProvider extends ChangeNotifier {
@@ -48,61 +30,114 @@ class ChartCatalogProvider extends ChangeNotifier {
   List<String> facs = [];
   List<String> cates = const ['Electricity', 'Water', 'Compressed Air'];
 
+  List<String> scadaIds = [];
   List<String> boxIds = [];
   List<String> boxDeviceIds = [];
   List<SignalChartConfig> charts = [];
 
   List<ScadaChannelDto> _channels = [];
+
+  String? _selectedScadaId;
   String? _selectedBoxId;
+
+  String? get selectedScadaId => _selectedScadaId;
 
   String? get selectedBoxId => _selectedBoxId;
 
   Future<void> loadFacs() async {
-    // TODO: implement if needed
+    // TODO if needed
   }
 
-  Future<void> loadBoxes({required String facId, required String cate}) async {
+  Future<void> loadScadas({required String facId, required String cate}) async {
     loading = true;
     error = null;
     charts = [];
+    scadaIds = [];
     boxIds = [];
     boxDeviceIds = [];
+    _selectedScadaId = null;
     _selectedBoxId = null;
     notifyListeners();
 
     try {
       final channels = await api.getChannels(facId: facId, cate: cate);
+
       _channels = channels;
 
-      final boxIdSet = <String>{};
+      final set = <String>{};
+
       for (final c in channels) {
-        final v = c.boxId.trim();
+        final v = c.scadaId.trim();
         if (v.isNotEmpty) {
-          boxIdSet.add(v);
+          set.add(v);
         }
       }
 
-      boxIds = boxIdSet.toList()..sort();
+      scadaIds = set.toList()..sort();
 
-      if (boxIds.isNotEmpty) {
-        _selectedBoxId = boxIds.first;
+      if (scadaIds.isNotEmpty) {
+        _selectedScadaId = scadaIds.first;
+        _refreshBoxIdsForSelectedScada();
         _refreshBoxDeviceIdsForSelectedBox();
-      } else {
-        _selectedBoxId = null;
-        boxDeviceIds = [];
       }
     } catch (e) {
       error = e;
       _channels = [];
+      scadaIds = [];
       boxIds = [];
       boxDeviceIds = [];
-      _selectedBoxId = null;
       charts = [];
-      debugPrint('loadBoxes error=$e');
+      debugPrint('loadScadas error=$e');
     } finally {
       loading = false;
       notifyListeners();
     }
+  }
+
+  void selectScadaId(String scadaId) {
+    final next = scadaId.trim();
+    if (next.isEmpty) return;
+
+    _selectedScadaId = next;
+    _selectedBoxId = null;
+    charts = [];
+
+    _refreshBoxIdsForSelectedScada();
+
+    if (boxIds.isNotEmpty) {
+      _selectedBoxId = boxIds.first;
+      _refreshBoxDeviceIdsForSelectedBox();
+    } else {
+      boxDeviceIds = [];
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> loadBoxes({
+    required String facId,
+    required String cate,
+    String? scadaId,
+  }) async {
+    if (_channels.isEmpty) {
+      await loadScadas(facId: facId, cate: cate);
+    }
+
+    if (scadaId != null && scadaId.trim().isNotEmpty) {
+      _selectedScadaId = scadaId.trim();
+    }
+
+    _refreshBoxIdsForSelectedScada();
+
+    if (boxIds.isNotEmpty) {
+      _selectedBoxId = boxIds.first;
+      _refreshBoxDeviceIdsForSelectedBox();
+    } else {
+      _selectedBoxId = null;
+      boxDeviceIds = [];
+    }
+
+    notifyListeners();
   }
 
   void selectBoxId(String boxId) {
@@ -112,32 +147,60 @@ class ChartCatalogProvider extends ChangeNotifier {
     _selectedBoxId = next;
     _refreshBoxDeviceIdsForSelectedBox();
     charts = [];
+
     notifyListeners();
   }
 
+  void _refreshBoxIdsForSelectedScada() {
+    final scada = _selectedScadaId;
+
+    if (scada == null || scada.isEmpty) {
+      boxIds = [];
+      return;
+    }
+
+    final set = <String>{};
+
+    for (final c in _channels) {
+      if (c.scadaId.trim() != scada) continue;
+
+      final boxId = c.boxId.trim();
+      if (boxId.isNotEmpty) {
+        set.add(boxId);
+      }
+    }
+
+    boxIds = set.toList()..sort();
+  }
+
   void _refreshBoxDeviceIdsForSelectedBox() {
-    final selected = _selectedBoxId;
-    if (selected == null || selected.isEmpty) {
+    final scada = _selectedScadaId;
+    final box = _selectedBoxId;
+
+    if (scada == null || scada.isEmpty || box == null || box.isEmpty) {
       boxDeviceIds = [];
       return;
     }
 
-    final deviceSet = <String>{};
-    for (final c in _channels) {
-      if (c.boxId.trim() != selected) continue;
+    final set = <String>{};
 
-      final v = c.boxDeviceId.trim();
-      if (v.isNotEmpty) {
-        deviceSet.add(v);
+    for (final c in _channels) {
+      if (c.scadaId.trim() != scada) continue;
+      if (c.boxId.trim() != box) continue;
+
+      final dev = c.boxDeviceId.trim();
+      if (dev.isNotEmpty) {
+        set.add(dev);
       }
     }
 
-    boxDeviceIds = deviceSet.toList()..sort();
+    boxDeviceIds = set.toList()..sort();
   }
 
   Future<void> loadChartsForBox({
     required String facId,
     required String cate,
+    String? scadaId,
     required String boxDeviceId,
     int importantOnly = 0,
   }) async {
@@ -166,6 +229,7 @@ class ChartCatalogProvider extends ChangeNotifier {
   Future<void> loadChartsForBoxGroup({
     required String facId,
     required String cate,
+    String? scadaId,
     int importantOnly = 0,
   }) async {
     loading = true;
@@ -174,6 +238,12 @@ class ChartCatalogProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      if (scadaId != null && scadaId.trim().isNotEmpty) {
+        _selectedScadaId = scadaId.trim();
+      }
+
+      _refreshBoxDeviceIdsForSelectedBox();
+
       final boxes = List<String>.from(boxDeviceIds);
 
       if (boxes.isEmpty) {
@@ -198,6 +268,7 @@ class ChartCatalogProvider extends ChangeNotifier {
       merged.sort((a, b) {
         final g = (a.groupLabel ?? '').compareTo(b.groupLabel ?? '');
         if (g != 0) return g;
+
         return a.plcAddress.compareTo(b.plcAddress);
       });
 
@@ -218,9 +289,6 @@ class ChartCatalogProvider extends ChangeNotifier {
     required int importantOnly,
     required bool addGroupLabel,
   }) async {
-    ////////////////////////////////////////////////////////////
-    /// API + FILTER SLAVE
-    ////////////////////////////////////////////////////////////
     final ps =
         (await api.getParams(
           facId: facId,
@@ -229,7 +297,6 @@ class ChartCatalogProvider extends ChangeNotifier {
           importantOnly: importantOnly,
         )).where((p) {
           final name = (p.nameEn ?? '').toString().toLowerCase();
-
           return !name.contains('slave');
         }).toList();
 

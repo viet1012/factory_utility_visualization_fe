@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../utility_state/chart_catalog_provider.dart';
 import '../utility_dashboard_common/chart_theme.dart';
-import '../utility_dashboard_widgets/center_message.dart';
+import '../utility_dashboard_overview/utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import 'utility_minute_chart_panel.dart';
 
 class UtilityAllFactoriesChartsScreen extends StatefulWidget {
@@ -28,8 +28,9 @@ class _UtilityAllFactoriesChartsScreenState
   int _selectedCateIndex = 0;
   int _selectedFacIndex = 0;
   int _selectedViewIndex = 0;
+  int _selectedScadaIndex = 0;
   int _selectedBoxIdIndex = 0;
-  int _selectedBoxDeviceIndex = -1; // -1 = đang xem all devices của BoxId
+  int _selectedBoxDeviceIndex = -1;
 
   bool _importantOnly = false;
   bool _filtersExpanded = true;
@@ -47,6 +48,7 @@ class _UtilityAllFactoriesChartsScreenState
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCatalogForCurrentSelection();
     });
@@ -55,33 +57,54 @@ class _UtilityAllFactoriesChartsScreenState
   Future<void> _loadCatalogForCurrentSelection() async {
     final token = ++_loadToken;
 
-    await _catalog.loadBoxes(facId: selectedFac, cate: selectedCate);
+    await _catalog.loadScadas(facId: selectedFac, cate: selectedCate);
+
+    if (!mounted || token != _loadToken) return;
+
+    final scadas = _catalog.scadaIds;
+
+    setState(() {
+      _selectedScadaIndex = 0;
+      _selectedBoxIdIndex = 0;
+      _selectedBoxDeviceIndex = -1;
+    });
+
+    if (scadas.isEmpty) return;
+
+    final scadaId = scadas.first;
+
+    _catalog.selectScadaId(scadaId);
+
+    await _catalog.loadBoxes(
+      facId: selectedFac,
+      cate: selectedCate,
+      scadaId: scadaId,
+    );
 
     if (!mounted || token != _loadToken) return;
 
     final boxIds = _catalog.boxIds;
 
-    setState(() {
-      _selectedBoxIdIndex = 0;
-      _selectedBoxDeviceIndex = -1;
-    });
+    if (boxIds.isEmpty) return;
 
-    if (boxIds.isNotEmpty) {
-      _catalog.selectBoxId(boxIds.first);
-      await _catalog.loadChartsForBoxGroup(
-        facId: selectedFac,
-        cate: selectedCate,
-        importantOnly: _importantOnly ? 1 : 0,
-      );
-    }
+    _catalog.selectBoxId(boxIds.first);
+
+    await _catalog.loadChartsForBoxGroup(
+      facId: selectedFac,
+      cate: selectedCate,
+      scadaId: scadaId,
+      importantOnly: _importantOnly ? 1 : 0,
+    );
   }
 
   Future<void> _loadChartsForBox(String boxDeviceId, {int? token}) async {
     final currentToken = token ?? ++_loadToken;
+    final scadaId = _safeSelectedScada(_catalog.scadaIds);
 
     await _catalog.loadChartsForBox(
       facId: selectedFac,
       cate: selectedCate,
+      scadaId: scadaId,
       boxDeviceId: boxDeviceId,
       importantOnly: _importantOnly ? 1 : 0,
     );
@@ -91,10 +114,12 @@ class _UtilityAllFactoriesChartsScreenState
 
   Future<void> _loadChartsForCurrentBoxGroup({int? token}) async {
     final currentToken = token ?? ++_loadToken;
+    final scadaId = _safeSelectedScada(_catalog.scadaIds);
 
     await _catalog.loadChartsForBoxGroup(
       facId: selectedFac,
       cate: selectedCate,
+      scadaId: scadaId,
       importantOnly: _importantOnly ? 1 : 0,
     );
 
@@ -106,6 +131,7 @@ class _UtilityAllFactoriesChartsScreenState
 
     setState(() {
       _selectedCateIndex = index;
+      _selectedScadaIndex = 0;
       _selectedBoxIdIndex = 0;
       _selectedBoxDeviceIndex = -1;
     });
@@ -118,6 +144,7 @@ class _UtilityAllFactoriesChartsScreenState
 
     setState(() {
       _selectedFacIndex = index;
+      _selectedScadaIndex = 0;
       _selectedBoxIdIndex = 0;
       _selectedBoxDeviceIndex = -1;
     });
@@ -125,8 +152,37 @@ class _UtilityAllFactoriesChartsScreenState
     await _loadCatalogForCurrentSelection();
   }
 
+  Future<void> _onScadaChanged(List<String> tabs, int index) async {
+    if (tabs.isEmpty || index >= tabs.length) return;
+
+    final scadaId = tabs[index];
+
+    setState(() {
+      _selectedScadaIndex = index;
+      _selectedBoxIdIndex = 0;
+      _selectedBoxDeviceIndex = -1;
+    });
+
+    _catalog.selectScadaId(scadaId);
+
+    await _catalog.loadBoxes(
+      facId: selectedFac,
+      cate: selectedCate,
+      scadaId: scadaId,
+    );
+
+    final boxIds = _catalog.boxIds;
+
+    if (boxIds.isNotEmpty) {
+      _catalog.selectBoxId(boxIds.first);
+    }
+
+    await _loadChartsForCurrentBoxGroup();
+  }
+
   void _onViewChanged(int index) {
     if (_selectedViewIndex == index) return;
+
     setState(() {
       _selectedViewIndex = index;
     });
@@ -143,6 +199,7 @@ class _UtilityAllFactoriesChartsScreenState
     });
 
     _catalog.selectBoxId(boxId);
+
     await _loadChartsForCurrentBoxGroup();
   }
 
@@ -167,9 +224,11 @@ class _UtilityAllFactoriesChartsScreenState
       final selectedBoxDevice = _safeSelectedBoxDevice(
         context.read<ChartCatalogProvider>().boxDeviceIds,
       );
+
       if (selectedBoxDevice != null && selectedBoxDevice.trim().isNotEmpty) {
         await _loadChartsForBox(selectedBoxDevice);
       }
+
       return;
     }
 
@@ -180,6 +239,16 @@ class _UtilityAllFactoriesChartsScreenState
     setState(() {
       _filtersExpanded = !_filtersExpanded;
     });
+  }
+
+  String? _safeSelectedScada(List<String> tabs) {
+    if (tabs.isEmpty) return null;
+
+    if (_selectedScadaIndex < 0 || _selectedScadaIndex >= tabs.length) {
+      _selectedScadaIndex = 0;
+    }
+
+    return tabs[_selectedScadaIndex];
   }
 
   String? _safeSelectedBoxId(List<String> tabs) {
@@ -209,6 +278,7 @@ class _UtilityAllFactoriesChartsScreenState
         return ChartThemes.power;
       case 'water':
         return ChartThemes.water;
+      case 'compressed air':
       case 'compressor_air':
         return ChartThemes.air;
       default:
@@ -218,6 +288,10 @@ class _UtilityAllFactoriesChartsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final scadaTabs = context.select<ChartCatalogProvider, List<String>>(
+      (p) => p.scadaIds,
+    );
+
     final boxIdTabs = context.select<ChartCatalogProvider, List<String>>(
       (p) => p.boxIds,
     );
@@ -226,6 +300,7 @@ class _UtilityAllFactoriesChartsScreenState
       (p) => p.boxDeviceIds,
     );
 
+    final selectedScada = _safeSelectedScada(scadaTabs);
     final selectedBoxId = _safeSelectedBoxId(boxIdTabs);
     final selectedBoxDevice = _safeSelectedBoxDevice(boxDeviceTabs);
 
@@ -251,6 +326,7 @@ class _UtilityAllFactoriesChartsScreenState
               filtersExpanded: _filtersExpanded,
               selectedCate: selectedCate,
               selectedFac: selectedFac,
+              selectedScada: selectedScada,
               selectedBox: selectedDisplay,
               viewTabs: _viewTabs,
               selectedViewIndex: _selectedViewIndex,
@@ -267,10 +343,12 @@ class _UtilityAllFactoriesChartsScreenState
               expanded: _filtersExpanded,
               cateTabs: _cateTabs,
               facTabs: _facTabs,
+              scadaTabs: scadaTabs,
               boxIdTabs: boxIdTabs,
               boxDeviceTabs: boxDeviceTabs,
               selectedCateIndex: _selectedCateIndex,
               selectedFacIndex: _selectedFacIndex,
+              selectedScadaIndex: scadaTabs.isEmpty ? 0 : _selectedScadaIndex,
               selectedBoxIdIndex: boxIdTabs.isEmpty ? 0 : _selectedBoxIdIndex,
               selectedBoxDeviceIndex:
                   boxDeviceTabs.isEmpty || _selectedBoxDeviceIndex < 0
@@ -279,6 +357,7 @@ class _UtilityAllFactoriesChartsScreenState
               selectedAllDevices: _selectedBoxDeviceIndex < 0,
               onCateChanged: _onCateChanged,
               onFacChanged: _onFacChanged,
+              onScadaChanged: (i) => _onScadaChanged(scadaTabs, i),
               onBoxIdChanged: (i) => _onBoxIdChanged(boxIdTabs, i),
               onBoxDeviceChanged: (i) => _onBoxDeviceChanged(boxDeviceTabs, i),
               onAllDevicesSelected: () async {
@@ -296,6 +375,8 @@ class _UtilityAllFactoriesChartsScreenState
                 selectedBox: selectedDisplay,
                 selectedCate: selectedCate,
                 selectedFac: selectedFac,
+                selectedScada: selectedScada,
+                importantOnly: _importantOnly,
               ),
             ),
           ],
@@ -321,15 +402,21 @@ class _CatalogBody extends StatelessWidget {
   final String? selectedBox;
   final String selectedCate;
   final String selectedFac;
+  final String? selectedScada;
+  final bool importantOnly;
 
   const _CatalogBody({
     required this.selectedBox,
     required this.selectedCate,
     required this.selectedFac,
+    required this.selectedScada,
+    required this.importantOnly,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = _getThemeByCate(selectedCate);
+
     return Selector<ChartCatalogProvider, _CatalogBodyState>(
       selector: (_, p) => _CatalogBodyState(
         loading: p.loading,
@@ -342,15 +429,36 @@ class _CatalogBody extends StatelessWidget {
           !identical(prev.charts, next.charts),
       builder: (context, vm, _) {
         if (vm.loading && vm.charts.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+            child: CircularProgressIndicator(
+              color: theme.line,
+              strokeWidth: 2.4,
+            ),
+          );
         }
 
         if (vm.error != null && vm.charts.isEmpty) {
-          return CenterMessage(message: 'API error:\n${vm.error}');
+          return ChartApiErrorState(
+            color: theme.line,
+            onRetry: () {
+              context.read<ChartCatalogProvider>().loadChartsForBoxGroup(
+                facId: selectedFac,
+                cate: selectedCate,
+                scadaId: selectedScada,
+                importantOnly: importantOnly ? 1 : 0,
+              );
+            },
+          );
         }
 
         if (vm.charts.isEmpty) {
-          return CenterMessage(message: 'No signals in ${selectedBox ?? "-"}');
+          return EmptyChartState(
+            icon: Icons.sensors_off_rounded,
+            title: 'No Signals Available',
+            message:
+                'No utility signals found in ${selectedBox ?? "-"} / ${selectedScada ?? "-"}',
+            color: Colors.white.withOpacity(0.58),
+          );
         }
 
         return LayoutBuilder(
@@ -360,8 +468,10 @@ class _CatalogBody extends StatelessWidget {
             );
 
             return GridView.builder(
-              key: const PageStorageKey('utility_chart_grid'),
-              padding: EdgeInsets.zero,
+              key: PageStorageKey(
+                'utility_chart_grid_${selectedFac}_${selectedCate}_${selectedScada ?? ""}',
+              ),
+              padding: const EdgeInsets.only(top: 4),
               cacheExtent: 1200,
               itemCount: vm.charts.length,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -378,9 +488,10 @@ class _CatalogBody extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                     child: UtilityMinuteChartPanel(
                       key: ValueKey(
-                        '${selectedFac}_${selectedCate}_${chart.boxDeviceId}_${chart.plcAddress}',
+                        '${selectedFac}_${selectedCate}_${selectedScada}_${chart.boxDeviceId}_${chart.plcAddress}',
                       ),
                       facId: selectedFac,
+                      scadaId: selectedScada,
                       cate: selectedCate,
                       boxDeviceId: chart.boxDeviceId,
                       plcAddress: chart.plcAddress,
@@ -401,12 +512,27 @@ class _CatalogBody extends StatelessWidget {
     if (width >= 1200) return 2;
     return 1;
   }
+
+  ChartTheme _getThemeByCate(String cate) {
+    switch (cate.toLowerCase()) {
+      case 'electricity':
+        return ChartThemes.power;
+      case 'water':
+        return ChartThemes.water;
+      case 'compressed air':
+      case 'compressor_air':
+        return ChartThemes.air;
+      default:
+        return ChartThemes.power;
+    }
+  }
 }
 
 class _TopBar extends StatelessWidget {
   final bool filtersExpanded;
   final String selectedCate;
   final String selectedFac;
+  final String? selectedScada;
   final String? selectedBox;
   final List<String> viewTabs;
   final int selectedViewIndex;
@@ -422,6 +548,7 @@ class _TopBar extends StatelessWidget {
     required this.filtersExpanded,
     required this.selectedCate,
     required this.selectedFac,
+    required this.selectedScada,
     required this.selectedBox,
     required this.viewTabs,
     required this.selectedViewIndex,
@@ -453,14 +580,12 @@ class _TopBar extends StatelessWidget {
           ),
         ),
         if (!filtersExpanded)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Cate: $selectedCate   •   Fac: $selectedFac   •   Box: ${selectedBox ?? "-"}',
-                style: TextStyle(color: Colors.white.withOpacity(0.70)),
-              ),
+          Expanded(
+            child: Text(
+              'Cate: $selectedCate   •   Fac: $selectedFac   •   SCADA: ${selectedScada ?? "-"}   •   Box: ${selectedBox ?? "-"}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.white.withOpacity(0.70)),
             ),
           ),
         const SizedBox(width: 12),
@@ -480,15 +605,18 @@ class _FiltersArea extends StatelessWidget {
   final bool expanded;
   final List<String> cateTabs;
   final List<String> facTabs;
+  final List<String> scadaTabs;
   final List<String> boxIdTabs;
   final List<String> boxDeviceTabs;
   final int selectedCateIndex;
   final int selectedFacIndex;
+  final int selectedScadaIndex;
   final int selectedBoxIdIndex;
   final int selectedBoxDeviceIndex;
   final bool selectedAllDevices;
   final ValueChanged<int> onCateChanged;
   final ValueChanged<int> onFacChanged;
+  final ValueChanged<int> onScadaChanged;
   final ValueChanged<int> onBoxIdChanged;
   final ValueChanged<int> onBoxDeviceChanged;
   final VoidCallback onAllDevicesSelected;
@@ -498,15 +626,18 @@ class _FiltersArea extends StatelessWidget {
     required this.expanded,
     required this.cateTabs,
     required this.facTabs,
+    required this.scadaTabs,
     required this.boxIdTabs,
     required this.boxDeviceTabs,
     required this.selectedCateIndex,
     required this.selectedFacIndex,
+    required this.selectedScadaIndex,
     required this.selectedBoxIdIndex,
     required this.selectedBoxDeviceIndex,
     required this.selectedAllDevices,
     required this.onCateChanged,
     required this.onFacChanged,
+    required this.onScadaChanged,
     required this.onBoxIdChanged,
     required this.onBoxDeviceChanged,
     required this.onAllDevicesSelected,
@@ -540,6 +671,18 @@ class _FiltersArea extends StatelessWidget {
                       theme: theme,
                     ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _GlassTabRow(
+                    labels: scadaTabs.isEmpty
+                        ? const ['(no scada)']
+                        : scadaTabs,
+                    selectedIndex: scadaTabs.isEmpty ? 0 : selectedScadaIndex,
+                    onSelect: scadaTabs.isEmpty ? (_) {} : onScadaChanged,
+                    theme: theme,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Align(

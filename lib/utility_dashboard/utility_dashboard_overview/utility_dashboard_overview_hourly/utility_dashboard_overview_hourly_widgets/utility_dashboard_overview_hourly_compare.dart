@@ -7,6 +7,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import '../../../utility_dashboard_common/chart_theme.dart';
 import '../../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import '../../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../../utility_dashboard_overview_widgets/health_indicator.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -285,11 +286,21 @@ class _UtilityDashboardOverviewHourlyCompareState
 
     if (widget.facId.trim().isEmpty) {
       if (!mounted) return;
+
       setState(() {
         loading = false;
-        error = 'Missing facId';
+        error = true;
         rows = [];
+        _cachedChartData = null;
+        _cachedSummary = null;
+        _cachedHealth = DataHealthAnalyzer.analyze(
+          key: 'Hourly_${widget.facId}_${widget.theme.title}',
+          loading: false,
+          error: true,
+          values: const [],
+        );
       });
+
       return;
     }
 
@@ -297,6 +308,7 @@ class _UtilityDashboardOverviewHourlyCompareState
 
     try {
       final api = context.read<UtilityDashboardOverviewApi>();
+
       final res = await api.getEnergyHourly(
         facId: widget.facId,
         hours: widget.hours,
@@ -335,11 +347,22 @@ class _UtilityDashboardOverviewHourlyCompareState
         loading = false;
         error = null;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
+
+      _cachedHealth = DataHealthAnalyzer.analyze(
+        key: 'Hourly_${widget.facId}_${widget.theme.title}',
+        loading: false,
+        error: true,
+        values: const [],
+      );
+
       setState(() {
-        error = e;
         loading = false;
+        error = true;
+        rows = [];
+        _cachedChartData = null;
+        _cachedSummary = null;
       });
     } finally {
       _loadingNow = false;
@@ -396,31 +419,26 @@ class _UtilityDashboardOverviewHourlyCompareState
 
   Widget _body() {
     if (loading && rows.isEmpty) {
-      return const Center(
+      return Center(
         child: SizedBox(
           width: 18,
           height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: widget.theme.line,
+          ),
         ),
       );
     }
 
     if (error != null && rows.isEmpty) {
-      return Center(
-        child: Text(
-          'API error:\n$error',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white.withOpacity(0.85)),
-        ),
-      );
+      return ChartApiErrorState(color: widget.theme.line, onRetry: _load);
     }
 
     if (rows.isEmpty) {
-      return Center(
-        child: Text(
-          'No data',
-          style: TextStyle(color: Colors.white.withOpacity(0.75)),
-        ),
+      return const EmptyChartState(
+        title: 'No Hourly Data',
+        message: 'No hourly comparison data found for this period.',
       );
     }
 
@@ -532,20 +550,28 @@ class _SummaryBar extends StatelessWidget {
   }
 
   Widget _wrapState(String s) {
+    final isError = s == 'N/A';
+
     return Container(
       margin: const EdgeInsets.fromLTRB(10, 8, 10, 0),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: isError
+            ? Colors.redAccent.withOpacity(0.10)
+            : Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.fillTop.withOpacity(0.25)),
+        border: Border.all(
+          color: isError
+              ? Colors.redAccent.withOpacity(0.35)
+              : theme.fillTop.withOpacity(0.25),
+        ),
       ),
       child: Text(
         s,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: Colors.white.withOpacity(0.75),
+          color: isError ? Colors.redAccent : Colors.white.withOpacity(0.75),
           fontWeight: FontWeight.w800,
           fontSize: 13,
         ),

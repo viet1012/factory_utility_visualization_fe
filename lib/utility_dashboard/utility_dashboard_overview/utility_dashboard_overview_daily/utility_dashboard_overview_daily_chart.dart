@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -10,11 +12,9 @@ import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_common/utility_fac_style.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../utility_dashboard_overview_widgets/common_chart_title_bar.dart';
 import '../utility_dashboard_overview_widgets/health_indicator.dart';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DTOs
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _DailyDto {
   final DateTime date;
@@ -25,9 +25,10 @@ class _DailyDto {
   factory _DailyDto.fromJson(Map<String, dynamic> json) {
     final d = (json['date'] ?? '').toString();
     final v = json['value'];
+
     return _DailyDto(
       DateTime.parse(d),
-      (v is num) ? v.toDouble() : double.tryParse(v.toString()) ?? 0.0,
+      v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0.0,
     );
   }
 }
@@ -39,67 +40,78 @@ class _BarPoint {
   _BarPoint(this.ts, this.y);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Pre-computed chart data — tính một lần, cache lại
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _DailyChartData {
   final List<_BarPoint> points;
   final DateTime minX;
   final DateTime maxX;
-  final double safeMaxY;
+  final double maxY;
+  final double yInterval;
 
   const _DailyChartData({
     required this.points,
     required this.minX,
     required this.maxX,
-    required this.safeMaxY,
+    required this.maxY,
+    required this.yInterval,
   });
 
   static _DailyChartData from(List<_DailyDto> rows, String month) {
-    final pts = rows.map((e) => _BarPoint(e.date.toLocal(), e.value)).toList()
-      ..sort((a, b) => a.ts.compareTo(b.ts));
+    final points =
+        rows.map((e) => _BarPoint(e.date.toLocal(), e.value)).toList()
+          ..sort((a, b) => a.ts.compareTo(b.ts));
 
-    final maxY = pts.isEmpty
-        ? 1.0
-        : pts.map((e) => e.y).reduce((m, v) => v > m ? v : m);
-
-    // ✅ Parse month (yyyyMM) để tính full tháng
     final year = int.parse(month.substring(0, 4));
     final monthNum = int.parse(month.substring(4, 6));
 
-    // ✅ Ngày đầu tháng
     final firstDay = DateTime(year, monthNum, 1);
-
-    // ✅ Ngày cuối tháng (ngày đầu tháng sau - 1 ngày)
     final lastDay = DateTime(
       year,
       monthNum + 1,
       1,
     ).subtract(const Duration(days: 1));
 
-    // ✅ PADDING: Thêm 0.5 ngày trước để không bị cắt
-    final paddedMinX = firstDay.subtract(const Duration(hours: 12));
-    final paddedMaxX = lastDay.add(const Duration(hours: 12));
+    final maxDataY = points.isEmpty
+        ? 1.0
+        : points.map((e) => e.y).reduce((a, b) => a > b ? a : b);
+
+    final rawMaxY = maxDataY <= 0 ? 1.0 : maxDataY * 1.15;
+    final interval = _niceStep(rawMaxY / 5);
+    final maxY = _niceCeil(rawMaxY, interval);
 
     return _DailyChartData(
-      points: pts,
-      minX: paddedMinX, // ✅ Bắt đầu hôm trước ngày 1
-      maxX: paddedMaxX, // ✅ Kết thúc hôm sau ngày cuối
-      safeMaxY: maxY <= 0 ? 1.0 : maxY * 1.15,
+      points: points,
+      minX: firstDay.subtract(const Duration(hours: 12)),
+      maxX: lastDay.add(const Duration(hours: 12)),
+      maxY: maxY,
+      yInterval: interval,
     );
   }
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// StatefulWidget
-// ─────────────────────────────────────────────────────────────────────────────
+  static double _niceStep(double rawStep) {
+    if (rawStep <= 0) return 1;
+
+    final exp = (log(rawStep) / ln10).floor();
+    final base = pow(10, exp).toDouble();
+    final fraction = rawStep / base;
+
+    if (fraction <= 1) return 1 * base;
+    if (fraction <= 2) return 2 * base;
+    if (fraction <= 5) return 5 * base;
+
+    return 10 * base;
+  }
+
+  static double _niceCeil(double value, double step) {
+    if (step <= 0) return value;
+    return (value / step).ceil() * step;
+  }
+}
 
 class UtilityDashboardOverviewDailyChart extends StatefulWidget {
   final double width;
   final double? height;
   final String facId;
-  final String month; // yyyyMM
+  final String month;
   final String nameEng;
   final ChartTheme theme;
 
@@ -121,80 +133,85 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
 class _UtilityDashboardOverviewDailyChartState
     extends State<UtilityDashboardOverviewDailyChart>
     with TickerProviderStateMixin {
+  static const Duration _pollInterval = Duration(minutes: 60);
+  static const Duration _requestTimeout = Duration(seconds: 15);
+
   late final UtilityInfoBoxFx fx;
 
   List<_DailyDto> rows = [];
   bool loading = true;
   Object? error;
 
-  // ── Cache — không tính lại trong build() ─────────────────────────────────
   DataHealthResult? _cachedHealth;
   _DailyChartData? _cachedChartData;
-  String? _cachedLastVal;
-  String? _cachedLastTs;
+  String _lastVal = '--';
+  String _lastTs = '--';
 
   bool _loadingNow = false;
-  bool _disposed = false;
+  Timer? _pollTimer;
 
-  bool get _hasRequired =>
-      widget.facId.trim().isNotEmpty &&
-      widget.month.trim().isNotEmpty &&
-      RegExp(r'^\d{6}$').hasMatch(widget.month.trim());
+  bool get _hasRequired {
+    final fac = widget.facId.trim();
+    final month = widget.month.trim();
+
+    return fac.isNotEmpty && RegExp(r'^\d{6}$').hasMatch(month);
+  }
 
   @override
   void initState() {
     super.initState();
+
     fx = UtilityInfoBoxFx(this)..init();
+
     _load();
+    _startPolling();
   }
 
-  @override
-  void didUpdateWidget(covariant UtilityDashboardOverviewDailyChart old) {
-    super.didUpdateWidget(old);
-    if (old.facId == widget.facId && old.month == widget.month) return;
+  void _startPolling() {
+    _pollTimer?.cancel();
 
-    setState(() {
-      loading = true;
-      error = null;
-      rows = [];
-      _cachedHealth = null;
-      _cachedChartData = null;
-      _cachedLastVal = null;
-      _cachedLastTs = null;
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (!_loadingNow && mounted) {
+        _load(silent: true);
+      }
     });
-
-    _load();
   }
 
-  @override
-  void dispose() {
-    _disposed = true;
-    fx.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    if (_loadingNow || _disposed) return;
+  Future<void> _load({bool silent = false}) async {
+    if (_loadingNow || !mounted) return;
 
     if (!_hasRequired) {
-      if (!mounted) return;
       setState(() {
         loading = false;
         error = 'Missing/invalid facId or month(yyyyMM)';
         rows = [];
+        _cachedHealth = null;
+        _cachedChartData = null;
+        _lastVal = '--';
+        _lastTs = '--';
       });
       return;
     }
 
     _loadingNow = true;
 
+    if (!silent && rows.isEmpty) {
+      setState(() {
+        loading = true;
+        error = null;
+      });
+    }
+
     try {
       final api = context.read<UtilityDashboardOverviewApi>();
-      final res = await api.getEnergyDaily(
-        facId: widget.facId,
-        month: widget.month,
-        nameEn: widget.nameEng,
-      );
+
+      final res = await api
+          .getEnergyDaily(
+            facId: widget.facId,
+            month: widget.month,
+            nameEn: widget.nameEng,
+          )
+          .timeout(_requestTimeout);
 
       final list =
           res
@@ -204,86 +221,126 @@ class _UtilityDashboardOverviewDailyChartState
 
       if (!mounted) return;
 
-      // Chỉ rebuild khi data thực sự thay đổi
-      if (_dataChanged(list)) {
+      if (_dataChanged(list) || loading || error != null) {
         _recomputeCache(list);
+
         setState(() {
           rows = list;
           loading = false;
           error = null;
         });
-      } else {
-        if (loading) setState(() => loading = false);
       }
+    } on TimeoutException catch (e) {
+      _handleLoadError(e, '[TIMEOUT]');
+    } on DioException catch (e) {
+      _handleLoadError(e, '[DIO] ${e.type}');
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        error = e;
-        loading = false;
-      });
+      _handleLoadError(e, '[ERROR]');
     } finally {
       _loadingNow = false;
     }
+  }
 
-    if (!_disposed) {
-      Future.delayed(const Duration(minutes: 60), _load);
-    }
+  void _handleLoadError(Object e, String tag) {
+    debugPrint('$tag $e');
+
+    if (!mounted) return;
+
+    _cachedHealth = DataHealthAnalyzer.analyze(
+      key: 'Daily_${widget.facId}_${widget.theme.title}',
+      loading: false,
+      error: true,
+      values: rows.map((e) => e.value).toList(),
+    );
+
+    setState(() {
+      loading = false;
+      error = e;
+
+      // Giữ rows cũ để chart không bị trắng khi API lỗi.
+    });
   }
 
   bool _dataChanged(List<_DailyDto> next) {
     if (next.length != rows.length) return true;
+
     for (var i = 0; i < next.length; i++) {
-      if (next[i].value != rows[i].value || next[i].date != rows[i].date)
+      if (next[i].value != rows[i].value || next[i].date != rows[i].date) {
         return true;
+      }
     }
+
     return false;
   }
 
-  // Tính toàn bộ derived data một lần, lưu vào cache
   void _recomputeCache(List<_DailyDto> list) {
     _cachedHealth = DataHealthAnalyzer.analyze(
-      key: "Daily_${widget.facId}_${widget.theme.title}",
+      key: 'Daily_${widget.facId}_${widget.theme.title}',
       loading: false,
       error: null,
       values: list.map((e) => e.value).toList(),
     );
 
-    // ✅ Pass month vào để tính full tháng
     _cachedChartData = list.isEmpty
         ? null
         : _DailyChartData.from(list, widget.month);
 
-    // lastVal / lastTs
     if (list.isEmpty) {
-      _cachedLastVal = '--';
-      _cachedLastTs = '--';
-    } else {
-      final now = DateTime.now();
-      final isCurrentMonth = DateFormat('yyyyMM').format(now) == widget.month;
-
-      _DailyDto lastDto;
-      if (isCurrentMonth) {
-        final today = DateTime(now.year, now.month, now.day);
-        lastDto = list.firstWhere(
-          (e) =>
-              e.date.year == today.year &&
-              e.date.month == today.month &&
-              e.date.day == today.day,
-          orElse: () => list.last,
-        );
-      } else {
-        lastDto = list.last;
-      }
-
-      _cachedLastVal =
-          '${lastDto.value.toStringAsFixed(1)} ${widget.theme.unit}';
-      _cachedLastTs = DateFormat('yyyy-MM-dd').format(lastDto.date);
+      _lastVal = '--';
+      _lastTs = '--';
+      return;
     }
+
+    final now = DateTime.now();
+    final isCurrentMonth = DateFormat('yyyyMM').format(now) == widget.month;
+
+    final lastDto = isCurrentMonth
+        ? list.firstWhere(
+            (e) =>
+                e.date.year == now.year &&
+                e.date.month == now.month &&
+                e.date.day == now.day,
+            orElse: () => list.last,
+          )
+        : list.last;
+
+    _lastVal = '${lastDto.value.toStringAsFixed(1)} ${widget.theme.unit}';
+    _lastTs = DateFormat('yyyy-MM-dd').format(lastDto.date);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Build — chỉ layout + animation shell, chart KHÔNG rebuild theo animation
-  // ─────────────────────────────────────────────────────────────────────────
+  @override
+  void didUpdateWidget(covariant UtilityDashboardOverviewDailyChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final changed =
+        oldWidget.facId != widget.facId ||
+        oldWidget.month != widget.month ||
+        oldWidget.nameEng != widget.nameEng;
+
+    if (!changed) return;
+
+    _pollTimer?.cancel();
+
+    setState(() {
+      rows = [];
+      loading = true;
+      error = null;
+      _cachedHealth = null;
+      _cachedChartData = null;
+      _lastVal = '--';
+      _lastTs = '--';
+    });
+
+    _load();
+    _startPolling();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    fx.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -292,7 +349,7 @@ class _UtilityDashboardOverviewDailyChartState
     final healthResult =
         _cachedHealth ??
         DataHealthAnalyzer.analyze(
-          key: "Daily_${widget.facId}_${widget.theme.title}",
+          key: 'Daily_${widget.facId}_${widget.theme.title}',
           loading: loading,
           error: error,
           values: const [],
@@ -305,34 +362,83 @@ class _UtilityDashboardOverviewDailyChartState
         onExit: (_) => fx.onHover(false),
         child: AnimatedBuilder(
           animation: fx.listenable,
-          // ⭐ child ở đây KHÔNG rebuild theo animation frame
-          builder: (context, child) =>
-              Transform.scale(scale: fx.scale.value, child: child),
+          builder: (context, child) {
+            return Transform.scale(scale: fx.scale.value, child: child);
+          },
           child: _Shell(
             width: widget.width,
             height: widget.height ?? 320,
             facilityColor: facilityColor,
-            child: _Body(
-              theme: widget.theme,
-              hasRequired: _hasRequired,
-              loading: loading,
-              error: error,
-              rows: rows,
-              health: healthResult,
-              lastVal: _cachedLastVal ?? '--',
-              lastTs: _cachedLastTs ?? '--',
-              chartData: _cachedChartData,
-            ),
+            child: _body(healthResult),
           ),
         ),
       ),
     );
   }
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _Shell — decoration container, tách ra để không drag chart vào rebuild
-// ─────────────────────────────────────────────────────────────────────────────
+  Widget _body(DataHealthResult health) {
+    if (!_hasRequired) {
+      return const EmptyChartState(
+        icon: Icons.warning_amber_rounded,
+        title: 'Invalid Parameters',
+        message: 'Missing facId or invalid month format.',
+      );
+    }
+
+    if (loading && rows.isEmpty) {
+      return Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.2,
+            color: widget.theme.line,
+          ),
+        ),
+      );
+    }
+
+    if (error != null && rows.isEmpty) {
+      return ChartApiErrorState(color: widget.theme.line, onRetry: _load);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+
+      children: [
+        CommonChartTitleBar(
+          title: widget.theme.title,
+          health: health,
+          lastVal: _lastVal,
+          lastTs: _lastTs,
+          borderColor: widget.theme.fillTop.withOpacity(0.35),
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: rows.isEmpty || _cachedChartData == null
+              ? const EmptyChartState(
+                  title: 'No Daily Data',
+                  message:
+                      'No utility consumption data available for this month.',
+                )
+              : DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withOpacity(0.06)),
+                    color: Colors.black.withOpacity(0.05),
+                  ),
+                  child: RepaintBoundary(
+                    child: _DailyBarChart(
+                      theme: widget.theme,
+                      data: _cachedChartData!,
+                    ),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
 
 class _Shell extends StatelessWidget {
   final double width;
@@ -382,96 +488,6 @@ class _Shell extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _Body — layout + title bar, nhận chart data từ ngoài
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _Body extends StatelessWidget {
-  final ChartTheme theme;
-  final bool hasRequired;
-  final bool loading;
-  final Object? error;
-  final List<_DailyDto> rows;
-  final DataHealthResult health;
-  final String lastVal;
-  final String lastTs;
-  final _DailyChartData? chartData;
-
-  const _Body({
-    required this.theme,
-    required this.hasRequired,
-    required this.loading,
-    required this.error,
-    required this.rows,
-    required this.health,
-    required this.lastVal,
-    required this.lastTs,
-    required this.chartData,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (!hasRequired) {
-      return Center(
-        child: Text(
-          'Missing facId or month(yyyyMM)',
-          style: TextStyle(color: Colors.white.withOpacity(0.8)),
-        ),
-      );
-    }
-
-    if (loading && rows.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (error != null && rows.isEmpty) {
-      return Center(
-        child: Text(
-          'API error:\n$error',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white.withOpacity(0.8)),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _TitleBar(
-          theme: theme,
-          health: health,
-          lastVal: lastVal,
-          lastTs: lastTs,
-        ),
-        const SizedBox(height: 6),
-        rows.isEmpty
-            ? Expanded(
-                child: Center(
-                  child: Text(
-                    'No data available',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 20,
-                    ),
-                  ),
-                ),
-              )
-            : Expanded(
-                // RepaintBoundary: chart có GPU layer riêng
-                // parent repaint (hover glow, border...) không kéo chart theo
-                child: RepaintBoundary(
-                  child: _DailyBarChart(theme: theme, data: chartData!),
-                ),
-              ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _TitleBar — StatelessWidget, rebuild độc lập với chart
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _TitleBar extends StatelessWidget {
   final ChartTheme theme;
   final DataHealthResult health;
@@ -495,35 +511,37 @@ class _TitleBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(
-            theme.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 13,
-              letterSpacing: 0.6,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: HealthIndicator(
-              result: health,
-              size: 10,
-              showLabel: false,
-              enableTooltip: true,
-            ),
-          ),
-          const SizedBox(width: 8),
-          const Spacer(),
           Expanded(
             child: Text(
-              'Last: $lastVal • $lastTs',
+              theme.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          HealthIndicator(
+            result: health,
+            size: 10,
+            showLabel: false,
+            enableTooltip: true,
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              'Last: $lastVal • $lastTs',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Colors.white,
                 fontWeight: FontWeight.w800,
+                fontSize: 12,
               ),
             ),
           ),
@@ -532,11 +550,6 @@ class _TitleBar extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _DailyBarChart — StatelessWidget thuần, KHÔNG bao giờ rebuild trừ khi
-// chartData hoặc theme thay đổi thực sự
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _DailyBarChart extends StatelessWidget {
   final ChartTheme theme;
@@ -565,7 +578,6 @@ class _DailyBarChart extends StatelessWidget {
         interval: 1,
         labelRotation: 45,
         dateFormat: DateFormat('dd'),
-        // ✅ Chỉ hiển thị ngày
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(0.08),
@@ -575,14 +587,13 @@ class _DailyBarChart extends StatelessWidget {
           color: Colors.white.withOpacity(0.75),
           fontSize: 13,
         ),
-        // ✅ Padding để label không bị cắt
         labelPosition: ChartDataLabelPosition.outside,
-        // ✅ Thêm margin cho trục X
-        edgeLabelPlacement: EdgeLabelPlacement.hide, // Ẩn label ở tepi
+        edgeLabelPlacement: EdgeLabelPlacement.hide,
       ),
       primaryYAxis: NumericAxis(
         minimum: 0,
-        maximum: data.safeMaxY,
+        maximum: data.maxY,
+        interval: data.yInterval,
         numberFormat: NumberFormat('0.##'),
         majorGridLines: MajorGridLines(
           width: 1,

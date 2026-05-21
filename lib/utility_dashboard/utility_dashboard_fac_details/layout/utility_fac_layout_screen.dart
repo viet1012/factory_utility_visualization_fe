@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import '../../../utility_models/response/latest_record.dart';
 import '../../../utility_models/utility_facade_service.dart';
 import '../../../utility_state/FacLatestDetailProvider.dart';
+import '../../utility_dashboard_overview/utility_dashboard_overview_monthly/monthly_utility_usage_panel.dart';
+import '../widgets/hover_box_panel.dart';
 import 'overlay_layout_store.dart';
 
 enum ArrowDirection { right, left, up, down }
@@ -189,31 +191,111 @@ class _FacDetailBodyState extends State<_FacDetailBody> {
               onChangeDirection: _saveEditingDirection,
             ),
         ],
-      ),
+      ), // body: _ScadaGradient(
+      //   child: SafeArea(
+      //     child: _FacOverlayMapGroup(
+      //       facId: widget.facId,
+      //       image: Image.asset(
+      //         'assets/images/${widget.facId.toLowerCase()}.png',
+      //         fit: BoxFit.contain,
+      //       ),
+      //       boxIds: boxIds,
+      //       groupedRows: groupedRows,
+      //       groupLayout: layoutStore.groupLayoutOf(widget.facId),
+      //       directions: directions,
+      //       colors: layoutStore.groupColorOf(widget.facId),
+      //       editMode: _editMode,
+      //       editingBoxId: _editingBoxId,
+      //       onPickEditingBox: _selectEditingBox,
+      //       onUpdateDirection: _saveDirection,
+      //       onUpdateGroupPos: (boxId, pos01) {
+      //         return _saveGroupLayout(
+      //           boxId: boxId,
+      //           pos01: pos01,
+      //           direction: directions[boxId] ?? ArrowDirection.right,
+      //         );
+      //       },
+      //     ),
+      //   ),
+      // ),
       body: _ScadaGradient(
         child: SafeArea(
-          child: _FacOverlayMapGroup(
-            facId: widget.facId,
-            image: Image.asset(
-              'assets/images/${widget.facId.toLowerCase()}.png',
-              fit: BoxFit.contain,
-            ),
-            boxIds: boxIds,
-            groupedRows: groupedRows,
-            groupLayout: layoutStore.groupLayoutOf(widget.facId),
-            directions: directions,
-            colors: layoutStore.groupColorOf(widget.facId),
-            editMode: _editMode,
-            editingBoxId: _editingBoxId,
-            onPickEditingBox: _selectEditingBox,
-            onUpdateDirection: _saveDirection,
-            onUpdateGroupPos: (boxId, pos01) {
-              return _saveGroupLayout(
-                boxId: boxId,
-                pos01: pos01,
-                direction: directions[boxId] ?? ArrowDirection.right,
-              );
-            },
+          child: Row(
+            children: [
+              //////////////////////////////////////////////////////////
+              /// LEFT CHART PANEL
+              //////////////////////////////////////////////////////////
+              // SizedBox(width: 380, child: _ChartSidebar(facId: widget.facId)),
+              SizedBox(
+                width: 380,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: MonthlyUtilityUsagePanel(fac: widget.facId),
+                    ),
+                    Expanded(
+                      child: MonthlyUtilityUsagePanel(
+                        fac: widget.facId,
+                        nameEn: "TEST",
+                      ),
+                    ),
+                    Expanded(
+                      child: MonthlyUtilityUsagePanel(
+                        fac: widget.facId,
+                        nameEn: "TEST",
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              //////////////////////////////////////////////////////////
+              /// MAP
+              //////////////////////////////////////////////////////////
+              Expanded(
+                child: _FacOverlayMapGroup(
+                  facId: widget.facId,
+
+                  image: Image.asset(
+                    'assets/images/${widget.facId.toLowerCase()}.png',
+
+                    fit: BoxFit.contain,
+                  ),
+
+                  boxIds: boxIds,
+
+                  groupedRows: groupedRows,
+
+                  groupLayout: layoutStore.groupLayoutOf(widget.facId),
+
+                  directions: directions,
+
+                  colors: layoutStore.groupColorOf(widget.facId),
+
+                  editMode: _editMode,
+
+                  editingBoxId: _editingBoxId,
+
+                  onPickEditingBox: _selectEditingBox,
+
+                  onUpdateDirection: _saveDirection,
+
+                  onUpdateGroupPos: (boxId, pos01) {
+                    return _saveGroupLayout(
+                      boxId: boxId,
+                      pos01: pos01,
+                      direction: directions[boxId] ?? ArrowDirection.right,
+                    );
+                  },
+                ),
+              ),
+              SizedBox(
+                width: 380,
+                child: MonthlyUtilityUsagePanel(
+                  fac: widget.facId,
+                  nameEn: "TEST",
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -221,6 +303,7 @@ class _FacDetailBodyState extends State<_FacDetailBody> {
   }
 }
 
+///////////////////////////////////////////////////////////////////////////////////
 class _FacOverlayMapGroup extends StatefulWidget {
   final String facId;
   final Widget image;
@@ -257,10 +340,17 @@ class _FacOverlayMapGroup extends StatefulWidget {
 }
 
 class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
-  final _transformController = TransformationController();
-  final _focusNode = FocusNode();
+  final TransformationController _transformController =
+      TransformationController();
+
+  final FocusNode _focusNode = FocusNode();
 
   Size _realImageSize = _ScadaStyle.imageFallbackSize;
+
+  String? _hoveredBoxId;
+  bool _hoveringPanel = false;
+  bool _lockViewer = false;
+  Timer? _hoverTimer;
 
   @override
   void initState() {
@@ -273,12 +363,26 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.facId != widget.facId) {
+      _hoverTimer?.cancel();
+
+      setState(() {
+        _hoveredBoxId = null;
+        _hoveringPanel = false;
+        _lockViewer = false;
+        _realImageSize = _ScadaStyle.imageFallbackSize;
+      });
+
       _loadImageSize();
+    }
+
+    if (widget.editMode && _hoveredBoxId != null) {
+      _clearHover();
     }
   }
 
   @override
   void dispose() {
+    _hoverTimer?.cancel();
     _focusNode.dispose();
     _transformController.dispose();
     super.dispose();
@@ -351,7 +455,6 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
   double _keyboardStep() {
     if (HardwareKeyboard.instance.isAltPressed) return 0.002;
     if (HardwareKeyboard.instance.isShiftPressed) return 0.02;
-
     return 0.008;
   }
 
@@ -368,10 +471,55 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
     return Offset(value.dx.clamp(0.0, 1.0), value.dy.clamp(0.0, 1.0));
   }
 
+  void _showHover(String boxId) {
+    if (widget.editMode) return;
+
+    final rows = widget.groupedRows[boxId];
+    if (rows == null || rows.isEmpty) return;
+
+    _hoverTimer?.cancel();
+
+    if (_hoveredBoxId == boxId && _lockViewer) return;
+
+    setState(() {
+      _hoveredBoxId = boxId;
+      _hoveringPanel = false;
+      _lockViewer = true;
+    });
+  }
+
+  void _clearHover() {
+    _hoverTimer?.cancel();
+
+    if (_hoveredBoxId == null && !_lockViewer && !_hoveringPanel) return;
+
+    setState(() {
+      _hoveredBoxId = null;
+      _hoveringPanel = false;
+      _lockViewer = false;
+    });
+  }
+
+  void _scheduleHideHover() {
+    if (widget.editMode) return;
+
+    _hoverTimer?.cancel();
+
+    _hoverTimer = Timer(const Duration(milliseconds: 220), () {
+      if (!mounted) return;
+      if (_hoveringPanel) return;
+
+      setState(() {
+        _hoveredBoxId = null;
+        _lockViewer = false;
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final containerSize = Size(
@@ -392,16 +540,20 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
                 transformationController: _transformController,
                 minScale: 0.8,
                 maxScale: 5,
-                panEnabled: !widget.editMode,
-                scaleEnabled: !widget.editMode,
+                panEnabled: !widget.editMode && !_lockViewer,
+                scaleEnabled: !widget.editMode && !_lockViewer,
                 child: SizedBox(
                   width: containerSize.width,
                   height: containerSize.height,
                   child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
                       Positioned.fromRect(rect: imageRect, child: widget.image),
+
                       for (final boxId in widget.boxIds)
                         _buildBox(boxId: boxId, imageRect: imageRect),
+
+                      _buildHoverPanel(imageRect),
                     ],
                   ),
                 ),
@@ -410,6 +562,38 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildHoverPanel(Rect imageRect) {
+    final boxId = _hoveredBoxId;
+    if (boxId == null) return const SizedBox.shrink();
+
+    final rows = widget.groupedRows[boxId];
+    if (rows == null || rows.isEmpty) return const SizedBox.shrink();
+
+    final pos01 =
+        widget.groupLayout[boxId] ?? _autoPlace(widget.boxIds.indexOf(boxId));
+
+    return HoverBoxPanel(
+      boxId: boxId,
+      imageRect: imageRect,
+      pos01: pos01,
+      rows: rows,
+      onEnterPanel: () {
+        _hoverTimer?.cancel();
+
+        if (!_hoveringPanel || !_lockViewer) {
+          setState(() {
+            _hoveringPanel = true;
+            _lockViewer = true;
+          });
+        }
+      },
+      onExitPanel: () {
+        _hoveringPanel = false;
+        _scheduleHideHover();
+      },
     );
   }
 
@@ -423,25 +607,32 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
     return Positioned(
       left: imageRect.left + pos01.dx * imageRect.width,
       top: imageRect.top + pos01.dy * imageRect.height,
-      child: _GroupFrame(
-        boxDeviceId: boxId,
-        scadaText: _uniqueScadaText(rows),
-        boxColor: hasAlarm ? Colors.redAccent : widget.colors[boxId],
-        hasAlarm: hasAlarm,
-        groupPos01: pos01,
-        parentSize: imageRect.size,
-        editMode: widget.editMode,
-        isEditing: widget.editingBoxId == boxId,
-        direction: widget.directions[boxId] ?? ArrowDirection.right,
-        onTap: widget.editMode
-            ? () {
-                _focusNode.requestFocus();
-                widget.onPickEditingBox(boxId);
-              }
-            : null,
-        onDragGroup01: widget.editMode
-            ? (newPos) => widget.onUpdateGroupPos(boxId, newPos)
-            : null,
+      child: MouseRegion(
+        cursor: widget.editMode
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        onEnter: (_) => _showHover(boxId),
+        onExit: (_) => _scheduleHideHover(),
+        child: _GroupFrame(
+          boxDeviceId: boxId,
+          scadaText: _uniqueScadaText(rows),
+          boxColor: hasAlarm ? Colors.redAccent : widget.colors[boxId],
+          hasAlarm: hasAlarm,
+          groupPos01: pos01,
+          parentSize: imageRect.size,
+          editMode: widget.editMode,
+          isEditing: widget.editingBoxId == boxId,
+          direction: widget.directions[boxId] ?? ArrowDirection.right,
+          onTap: widget.editMode
+              ? () {
+                  _focusNode.requestFocus();
+                  widget.onPickEditingBox(boxId);
+                }
+              : null,
+          onDragGroup01: widget.editMode
+              ? (newPos) => widget.onUpdateGroupPos(boxId, newPos)
+              : null,
+        ),
       ),
     );
   }
@@ -541,7 +732,6 @@ class _GroupFrameState extends State<_GroupFrame>
 
   MouseCursor get _cursor {
     if (!_canDrag) return SystemMouseCursors.click;
-
     return _dragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab;
   }
 
