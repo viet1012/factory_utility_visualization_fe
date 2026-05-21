@@ -10,12 +10,8 @@ import '../../utility_dashboard_overview_api/utility_dashboard_overview_api.dart
 import '../../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../../utility_dashboard_overview_widgets/health_indicator.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DTOs
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _HourlyCompareDto {
-  final int scaleHour; // 0..23
+  final int scaleHour;
   final double? today;
   final double? yesterday;
   final double? todayUsd;
@@ -44,17 +40,12 @@ class _HourlyCompareDto {
 
     double? sanitizeEnergy(double? v) {
       if (v == null || v.isNaN || v.isInfinite) return null;
-
-      // Chặn outlier rõ ràng để chart không vỡ scale.
-      // Có thể chỉnh lại theo domain thực tế.
       if (v < 0 || v > 5000) return null;
       return v;
     }
 
     double? sanitizeUsd(double? v) {
       if (v == null || v.isNaN || v.isInfinite) return null;
-
-      // Chặn outlier USD quá lớn.
       if (v < 0 || v > 1000) return null;
       return v;
     }
@@ -62,7 +53,7 @@ class _HourlyCompareDto {
     final h = json['scaleHour'];
 
     return _HourlyCompareDto(
-      scaleHour: (h is num) ? h.toInt() : int.tryParse(h.toString()) ?? 0,
+      scaleHour: h is num ? h.toInt() : int.tryParse(h.toString()) ?? 0,
       today: sanitizeEnergy(toD(json['today'])),
       yesterday: sanitizeEnergy(toD(json['yesterday'])),
       todayUsd: sanitizeUsd(round2(json['todayUsd'])),
@@ -78,9 +69,6 @@ class _LinePoint {
   const _LinePoint(this.hour, this.y);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Cache objects
-// ─────────────────────────────────────────────────────────────────────────────
 class _ChartData {
   final List<_LinePoint> todayPts;
   final List<_LinePoint> yesterdayPts;
@@ -100,6 +88,7 @@ class _ChartData {
 
   static _ChartData from(List<_HourlyCompareDto> list) {
     final byHour = <int, _HourlyCompareDto>{};
+
     for (final r in list) {
       byHour[r.scaleHour] = r;
     }
@@ -112,7 +101,7 @@ class _ChartData {
     final leftY = <double>[];
     final rightY = <double>[];
 
-    for (int h = 0; h < 24; h++) {
+    for (var h = 0; h < 24; h++) {
       final r = byHour[h];
 
       todayPts.add(_LinePoint(h, r?.today));
@@ -127,6 +116,7 @@ class _ChartData {
     }
 
     final maxLeft = leftY.isEmpty ? 1.0 : leftY.reduce((a, b) => a > b ? a : b);
+
     final maxRight = rightY.isEmpty
         ? 1.0
         : rightY.reduce((a, b) => a > b ? a : b);
@@ -175,17 +165,17 @@ class _SummaryData {
     double sumYdayUsd = 0;
 
     for (final r in rows) {
-      sumToday += r.today ?? 0.0;
-      sumYday += r.yesterday ?? 0.0;
-      sumTodayUsd += r.todayUsd ?? 0.0;
-      sumYdayUsd += r.yesterdayUsd ?? 0.0;
+      sumToday += r.today ?? 0;
+      sumYday += r.yesterday ?? 0;
+      sumTodayUsd += r.todayUsd ?? 0;
+      sumYdayUsd += r.yesterdayUsd ?? 0;
     }
 
     final delta = sumToday - sumYday;
-    final pct = sumYday == 0 ? null : (delta / sumYday) * 100.0;
+    final pct = sumYday == 0 ? null : delta / sumYday * 100;
 
     final deltaUsd = sumTodayUsd - sumYdayUsd;
-    final pctUsd = sumYdayUsd == 0 ? null : (deltaUsd / sumYdayUsd) * 100.0;
+    final pctUsd = sumYdayUsd == 0 ? null : deltaUsd / sumYdayUsd * 100;
 
     return _SummaryData(
       sumToday: sumToday,
@@ -201,10 +191,6 @@ class _SummaryData {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Main widget
-// ─────────────────────────────────────────────────────────────────────────────
 
 class UtilityDashboardOverviewHourlyCompare extends StatefulWidget {
   final String facId;
@@ -229,6 +215,8 @@ class UtilityDashboardOverviewHourlyCompare extends StatefulWidget {
 
 class _UtilityDashboardOverviewHourlyCompareState
     extends State<UtilityDashboardOverviewHourlyCompare> {
+  static const Duration _requestTimeout = Duration(seconds: 15);
+
   List<_HourlyCompareDto> rows = [];
   bool loading = true;
   Object? error;
@@ -238,15 +226,11 @@ class _UtilityDashboardOverviewHourlyCompareState
   DataHealthResult? _cachedHealth;
 
   bool _loadingNow = false;
-  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) _load();
-    });
   }
 
   @override
@@ -275,21 +259,32 @@ class _UtilityDashboardOverviewHourlyCompareState
     _load();
   }
 
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    super.dispose();
+  bool _dataChanged(List<_HourlyCompareDto> next) {
+    if (next.length != rows.length) return true;
+
+    for (var i = 0; i < next.length; i++) {
+      final old = rows[i];
+      final cur = next[i];
+
+      if (old.scaleHour != cur.scaleHour ||
+          old.today != cur.today ||
+          old.yesterday != cur.yesterday ||
+          old.todayUsd != cur.todayUsd ||
+          old.yesterdayUsd != cur.yesterdayUsd) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   Future<void> _load() async {
-    if (_loadingNow) return;
+    if (_loadingNow || !mounted) return;
 
     if (widget.facId.trim().isEmpty) {
-      if (!mounted) return;
-
       setState(() {
         loading = false;
-        error = true;
+        error = 'Missing facId';
         rows = [];
         _cachedChartData = null;
         _cachedSummary = null;
@@ -300,20 +295,28 @@ class _UtilityDashboardOverviewHourlyCompareState
           values: const [],
         );
       });
-
       return;
     }
 
     _loadingNow = true;
 
+    if (rows.isEmpty) {
+      setState(() {
+        loading = true;
+        error = null;
+      });
+    }
+
     try {
       final api = context.read<UtilityDashboardOverviewApi>();
 
-      final res = await api.getEnergyHourly(
-        facId: widget.facId,
-        hours: widget.hours,
-        nameEn: widget.nameEng,
-      );
+      final res = await api
+          .getEnergyHourly(
+            facId: widget.facId,
+            hours: widget.hours,
+            nameEn: widget.nameEng,
+          )
+          .timeout(_requestTimeout);
 
       final list =
           res
@@ -324,9 +327,14 @@ class _UtilityDashboardOverviewHourlyCompareState
 
       if (!mounted) return;
 
-      _cachedChartData = _ChartData.from(list);
-      _cachedSummary = _SummaryData.from(list);
-      _cachedHealth = DataHealthAnalyzer.analyze(
+      if (!_dataChanged(list) && error == null && !loading) {
+        return;
+      }
+
+      final chartData = _ChartData.from(list);
+      final summary = _SummaryData.from(list);
+
+      final health = DataHealthAnalyzer.analyze(
         key: 'Hourly_${widget.facId}_${widget.theme.title}',
         loading: false,
         error: null,
@@ -346,27 +354,45 @@ class _UtilityDashboardOverviewHourlyCompareState
         rows = list;
         loading = false;
         error = null;
+        _cachedChartData = chartData;
+        _cachedSummary = summary;
+        _cachedHealth = health;
       });
-    } catch (_) {
-      if (!mounted) return;
-
-      _cachedHealth = DataHealthAnalyzer.analyze(
-        key: 'Hourly_${widget.facId}_${widget.theme.title}',
-        loading: false,
-        error: true,
-        values: const [],
-      );
-
-      setState(() {
-        loading = false;
-        error = true;
-        rows = [];
-        _cachedChartData = null;
-        _cachedSummary = null;
-      });
+    } on TimeoutException catch (e) {
+      _handleLoadError(e);
+    } catch (e) {
+      debugPrint('Hourly compare load error: $e');
+      _handleLoadError(e);
     } finally {
       _loadingNow = false;
     }
+  }
+
+  void _handleLoadError(Object e) {
+    if (!mounted) return;
+
+    _cachedHealth = DataHealthAnalyzer.analyze(
+      key: 'Hourly_${widget.facId}_${widget.theme.title}',
+      loading: false,
+      error: true,
+      values: rows
+          .expand(
+            (e) => [
+              if (e.today != null) e.today!,
+              if (e.yesterday != null) e.yesterday!,
+              if (e.todayUsd != null) e.todayUsd!,
+              if (e.yesterdayUsd != null) e.yesterdayUsd!,
+            ],
+          )
+          .toList(),
+    );
+
+    setState(() {
+      loading = false;
+      error = e;
+
+      // Gi? rows/cache cu d? chart không b? tr?ng khi API l?i.
+    });
   }
 
   @override
@@ -462,10 +488,6 @@ class _UtilityDashboardOverviewHourlyCompareState
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Summary bar
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _SummaryBar extends StatelessWidget {
   final bool loading;
   final Object? error;
@@ -502,12 +524,10 @@ class _SummaryBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Row(
         children: [
-          // ? kWh
           Expanded(
             child: Text(
               'T ${s.sumToday.toStringAsFixed(0)} / '
-              'P ${s.sumYday.toStringAsFixed(0)} ${theme.unit}  ',
-              // '(${s.delta >= 0 ? '+' : ''}${s.delta.toStringAsFixed(0)})',
+              'P ${s.sumYday.toStringAsFixed(0)} ${theme.unit}',
               style: TextStyle(
                 color: energyColor,
                 fontSize: 12,
@@ -516,15 +536,11 @@ class _SummaryBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-
           const SizedBox(width: 8),
-
-          // ?? USD
           Expanded(
             child: Text(
               '\$${s.sumTodayUsd.toStringAsFixed(2)} / '
-              '\$${s.sumYdayUsd.toStringAsFixed(2)}  ',
-              // '(${s.deltaUsd >= 0 ? '+' : ''}${s.deltaUsd.toStringAsFixed(2)})',
+              '\$${s.sumYdayUsd.toStringAsFixed(2)}',
               style: TextStyle(
                 color: usdColor,
                 fontSize: 12,
@@ -534,10 +550,7 @@ class _SummaryBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-
           const SizedBox(width: 6),
-
-          // health nh? g?n
           HealthIndicator(
             result: health,
             size: 8,
@@ -579,9 +592,6 @@ class _SummaryBar extends StatelessWidget {
     );
   }
 }
-// ─────────────────────────────────────────────────────────────────────────────
-// Chart
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _HourlyChart extends StatelessWidget {
   final _ChartData chartData;
@@ -595,8 +605,6 @@ class _HourlyChart extends StatelessWidget {
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withOpacity(0.10),
-
-      // Dùng built-in legend để click ẩn/hiện series
       legend: Legend(
         isVisible: true,
         position: LegendPosition.top,
@@ -607,7 +615,6 @@ class _HourlyChart extends StatelessWidget {
           fontSize: 11,
         ),
       ),
-
       tooltipBehavior: TooltipBehavior(
         enable: true,
         header: '',
@@ -618,7 +625,6 @@ class _HourlyChart extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
-
       primaryXAxis: NumericAxis(
         minimum: 0,
         maximum: 23,
@@ -628,7 +634,7 @@ class _HourlyChart extends StatelessWidget {
           final h = args.value.toInt();
 
           return ChartAxisLabel(
-            h.toString(), // 👈 chỉ 0,1,2...23
+            h.toString(),
             TextStyle(
               color: Colors.white.withOpacity(0.7),
               fontSize: 11,
@@ -642,7 +648,6 @@ class _HourlyChart extends StatelessWidget {
         ),
         axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
       ),
-
       primaryYAxis: NumericAxis(
         name: 'leftAxis',
         minimum: 0,
@@ -651,7 +656,7 @@ class _HourlyChart extends StatelessWidget {
         axisLabelFormatter: (args) {
           return ChartAxisLabel(
             args.value.toStringAsFixed(0),
-            TextStyle(color: Colors.white54, fontSize: 11),
+            const TextStyle(color: Colors.white54, fontSize: 11),
           );
         },
         majorGridLines: MajorGridLines(
@@ -699,7 +704,6 @@ class _HourlyChart extends StatelessWidget {
           axisLine: AxisLine(color: theme.usdLine.withOpacity(0.35)),
         ),
       ],
-
       series: <CartesianSeries<_LinePoint, num>>[
         AreaSeries<_LinePoint, num>(
           name: 'Previous',

@@ -191,33 +191,7 @@ class _FacDetailBodyState extends State<_FacDetailBody> {
               onChangeDirection: _saveEditingDirection,
             ),
         ],
-      ), // body: _ScadaGradient(
-      //   child: SafeArea(
-      //     child: _FacOverlayMapGroup(
-      //       facId: widget.facId,
-      //       image: Image.asset(
-      //         'assets/images/${widget.facId.toLowerCase()}.png',
-      //         fit: BoxFit.contain,
-      //       ),
-      //       boxIds: boxIds,
-      //       groupedRows: groupedRows,
-      //       groupLayout: layoutStore.groupLayoutOf(widget.facId),
-      //       directions: directions,
-      //       colors: layoutStore.groupColorOf(widget.facId),
-      //       editMode: _editMode,
-      //       editingBoxId: _editingBoxId,
-      //       onPickEditingBox: _selectEditingBox,
-      //       onUpdateDirection: _saveDirection,
-      //       onUpdateGroupPos: (boxId, pos01) {
-      //         return _saveGroupLayout(
-      //           boxId: boxId,
-      //           pos01: pos01,
-      //           direction: directions[boxId] ?? ArrowDirection.right,
-      //         );
-      //       },
-      //     ),
-      //   ),
-      // ),
+      ),
       body: _ScadaGradient(
         child: SafeArea(
           child: Row(
@@ -227,7 +201,7 @@ class _FacDetailBodyState extends State<_FacDetailBody> {
               //////////////////////////////////////////////////////////
               // SizedBox(width: 380, child: _ChartSidebar(facId: widget.facId)),
               SizedBox(
-                width: 380,
+                width: 270,
                 child: Column(
                   children: [
                     Expanded(
@@ -289,7 +263,7 @@ class _FacDetailBodyState extends State<_FacDetailBody> {
                 ),
               ),
               SizedBox(
-                width: 380,
+                width: 270,
                 child: MonthlyUtilityUsagePanel(
                   fac: widget.facId,
                   nameEn: "TEST",
@@ -518,50 +492,44 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final containerSize = Size(
-            constraints.maxWidth,
-            constraints.maxHeight,
-          );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final containerSize = Size(constraints.maxWidth, constraints.maxHeight);
 
-          final imageRect = _containRect(containerSize, _realImageSize);
+        final imageRect = _containRect(containerSize, _realImageSize);
 
-          return Focus(
-            focusNode: _focusNode,
-            autofocus: true,
-            onKeyEvent: (_, event) => _handleKeyEvent(event),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (_) => _focusNode.requestFocus(),
-              child: InteractiveViewer(
-                transformationController: _transformController,
-                minScale: 0.8,
-                maxScale: 5,
-                panEnabled: !widget.editMode && !_lockViewer,
-                scaleEnabled: !widget.editMode && !_lockViewer,
-                child: SizedBox(
-                  width: containerSize.width,
-                  height: containerSize.height,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned.fromRect(rect: imageRect, child: widget.image),
+        return Focus(
+          focusNode: _focusNode,
+          autofocus: true,
+          onKeyEvent: (_, event) => _handleKeyEvent(event),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (_) => _focusNode.requestFocus(),
+            child: InteractiveViewer(
+              transformationController: _transformController,
+              minScale: 0.8,
+              maxScale: 5,
+              panEnabled: !widget.editMode && !_lockViewer,
+              scaleEnabled: !widget.editMode && !_lockViewer,
+              child: SizedBox(
+                width: containerSize.width,
+                height: containerSize.height,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fromRect(rect: imageRect, child: widget.image),
 
-                      for (final boxId in widget.boxIds)
-                        _buildBox(boxId: boxId, imageRect: imageRect),
+                    for (final boxId in widget.boxIds)
+                      _buildBox(boxId: boxId, imageRect: imageRect),
 
-                      _buildHoverPanel(imageRect),
-                    ],
-                  ),
+                    _buildHoverPanel(imageRect),
+                  ],
                 ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
