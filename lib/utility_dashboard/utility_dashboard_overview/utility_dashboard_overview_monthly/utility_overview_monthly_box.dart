@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../utility_models/utility_facade_service.dart';
+import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_common/utility_fac_style.dart';
@@ -15,18 +16,15 @@ import '../../utility_dashboard_fac_details/layout/utility_fac_layout_screen.dar
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
-/// =======================
-/// MODEL ENERGY
-/// =======================
 class EnergyMonthlySummary {
   final String cate;
   final String name;
   final String month;
   final double value;
   final String unit;
-  final DateTime timestamp;
+  final DateTime? timestamp;
 
-  EnergyMonthlySummary({
+  const EnergyMonthlySummary({
     required this.cate,
     required this.name,
     required this.month,
@@ -37,23 +35,22 @@ class EnergyMonthlySummary {
 
   factory EnergyMonthlySummary.fromJson(Map<String, dynamic> json) {
     return EnergyMonthlySummary(
-      cate: json['cate'] ?? '',
-      name: json['name'] ?? '',
-      month: json['month'] ?? '',
+      cate: (json['cate'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      month: (json['month'] ?? '').toString(),
       value: (json['value'] as num?)?.toDouble() ?? 0,
-      unit: json['unit'] ?? '',
-      timestamp: DateTime.parse(json['timestamp']).toLocal(),
+      unit: (json['unit'] ?? '').toString(),
+      timestamp: DateTime.tryParse(
+        (json['timestamp'] ?? '').toString(),
+      )?.toLocal(),
     );
   }
 }
 
-final _numFmt = NumberFormat('#,##0');
+final NumberFormat _numFmt = NumberFormat('#,##0');
 
 String _format(double v) => _numFmt.format(v);
 
-/// =======================
-/// WIDGET
-/// =======================
 class UtilityOverviewMonthlyBox extends StatefulWidget {
   final double width;
   final double? height;
@@ -82,51 +79,42 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
 
 class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     with TickerProviderStateMixin {
-  late final UtilityInfoBoxFx fx;
-  late final AnimationController _pulseController;
-  late final Animation<double> _pulseAnimation;
+  static const Duration _refreshInterval = Duration(seconds: 30);
+  static const Duration _requestTimeout = Duration(seconds: 15);
+
+  late final UtilityInfoBoxFx _fx;
   late final AnimationController _highlightController;
   late final Animation<double> _opacityAnimation;
 
-  bool loading = true;
-  Object? error;
-  List<EnergyMonthlySummary> items = const <EnergyMonthlySummary>[];
-  List<VoltageStatus> voltageStatuses = const <VoltageStatus>[];
+  Timer? _refreshTimer;
 
-  DataHealthResult? _cachedHealth;
-
+  bool _loading = true;
   bool _loadingNow = false;
   bool _disposed = false;
   bool _screenActive = true;
   bool _wasAlarm = false;
 
-  Timer? _refreshTimer;
+  Object? _error;
+  DataHealthResult? _cachedHealth;
 
-  static const Duration _refreshInterval = Duration(seconds: 30);
+  List<EnergyMonthlySummary> _items = const [];
+  List<VoltageStatus> _voltageStatuses = const [];
 
   @override
   void initState() {
     super.initState();
 
-    fx = UtilityInfoBoxFx(this)..init();
-
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-
-    _pulseAnimation = Tween<double>(begin: 0.85, end: 1.8).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
+    _fx = UtilityInfoBoxFx(this)..init();
 
     _highlightController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
-      value: widget.isHighlighted ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 280),
+      value: widget.isHighlighted ? 1.0 : 0.55,
     );
 
-    _opacityAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(parent: _highlightController, curve: Curves.easeInOut),
+    _opacityAnimation = CurvedAnimation(
+      parent: _highlightController,
+      curve: Curves.easeInOut,
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -136,7 +124,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
     _refreshTimer = Timer.periodic(_refreshInterval, (_) {
       if (!mounted || _disposed || !_screenActive) return;
-      _load();
+      _load(silent: true);
     });
   }
 
@@ -172,14 +160,15 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     _cachedHealth = null;
     _wasAlarm = false;
 
+    setState(() {
+      _loading = true;
+      _error = null;
+      _items = const [];
+      _voltageStatuses = const [];
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _disposed) return;
-      setState(() {
-        loading = true;
-        error = null;
-        items = const <EnergyMonthlySummary>[];
-        voltageStatuses = const <VoltageStatus>[];
-      });
       _load();
     });
   }
@@ -189,30 +178,39 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     _disposed = true;
     _screenActive = false;
     _refreshTimer?.cancel();
-    fx.dispose();
-    _pulseController.dispose();
+    _fx.dispose();
     _highlightController.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool silent = false}) async {
     if (_loadingNow || _disposed || !mounted || !_screenActive) return;
-    if (widget.facId.trim().isEmpty) return;
+
+    final facId = widget.facId.trim();
+    if (facId.isEmpty) return;
 
     _loadingNow = true;
+
+    if (!silent && _items.isEmpty) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
 
     try {
       final api = context.read<UtilityDashboardOverviewApi>();
 
       final results = await Future.wait<dynamic>([
-        api.getEnergyMonthlySummary(facId: widget.facId, month: widget.month),
-        api.getVoltageStatus(facId: widget.facId),
-      ]);
+        api.getEnergyMonthlySummary(facId: facId, month: widget.month),
+        api.getVoltageStatus(facId: facId),
+      ]).timeout(_requestTimeout);
 
       if (!mounted || _disposed || !_screenActive) return;
 
       final parsedItems = (results[0] as List)
-          .map((e) => EnergyMonthlySummary.fromJson(e))
+          .whereType<Map<String, dynamic>>()
+          .map(EnergyMonthlySummary.fromJson)
           .toList(growable: false);
 
       final parsedVoltages = List<VoltageStatus>.from(
@@ -222,52 +220,60 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       final alarmVoltages = parsedVoltages
           .where((e) => e.isAlarm)
           .toList(growable: false);
+
       final hasAlarmNow = alarmVoltages.isNotEmpty;
 
       final healthValues = <double>[
         ...parsedItems.map((e) => e.value).where((v) => v != 0),
         ...parsedVoltages
-            .expand((v) => [v.minVol, v.maxVol])
+            .expand((e) => [e.minVol, e.maxVol])
             .where((v) => v != 0),
       ];
 
       final nextHealth = DataHealthAnalyzer.analyze(
-        key: "Monthly_${widget.facId}_${widget.headerTitle}",
+        key: 'Monthly_${widget.facId}_${widget.headerTitle}',
         loading: false,
         error: null,
         values: healthValues,
       );
 
-      if (!mounted || _disposed || !_screenActive) return;
-
       setState(() {
-        items = parsedItems;
-        voltageStatuses = parsedVoltages;
+        _items = parsedItems;
+        _voltageStatuses = parsedVoltages;
         _cachedHealth = nextHealth;
-        loading = false;
-        error = null;
+        _loading = false;
+        _error = null;
       });
 
       if (_wasAlarm != hasAlarmNow) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || _disposed || !_screenActive) return;
-          widget.onVoltageAlarmChanged?.call(
-            widget.facId,
-            hasAlarmNow ? alarmVoltages.first : null,
-          );
-        });
+        widget.onVoltageAlarmChanged?.call(
+          widget.facId,
+          hasAlarmNow ? alarmVoltages.first : null,
+        );
       }
 
       _wasAlarm = hasAlarmNow;
     } catch (e) {
       if (!mounted || _disposed || !_screenActive) return;
+
       setState(() {
-        error = e;
-        loading = false;
+        _error = e;
+        _loading = false;
       });
     } finally {
       _loadingNow = false;
     }
+  }
+
+  void _openFacilityDetail() {
+    final svc = context.read<UtilityFacadeService>();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UtilityFacDetailScreens(facId: widget.facId, svc: svc),
+      ),
+    );
   }
 
   @override
@@ -277,63 +283,48 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     final healthResult =
         _cachedHealth ??
         DataHealthAnalyzer.analyze(
-          key: "Monthly_${widget.facId}_${widget.headerTitle}",
-          loading: loading,
-          error: error,
+          key: 'Monthly_${widget.facId}_${widget.headerTitle}',
+          loading: _loading,
+          error: _error,
           values: const [],
         );
 
     return GestureDetector(
-      onTap: () {
-        final svc = context.read<UtilityFacadeService>(); // ✅ lấy ở đây OK
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => UtilityFacDetailScreens(
-              facId: widget.facId,
-              svc: svc, // ✅ pass thẳng
-            ),
-          ),
-        );
-      },
+      onTap: _openFacilityDetail,
       child: RepaintBoundary(
         child: SlideTransition(
-          position: fx.slide,
+          position: _fx.slide,
           child: AnimatedBuilder(
-            animation: fx.listenable,
+            animation: Listenable.merge([_fx.listenable, _opacityAnimation]),
             builder: (_, child) {
-              return Transform.scale(scale: fx.scale.value, child: child);
+              return Opacity(
+                opacity: _opacityAnimation.value,
+                child: Transform.scale(scale: _fx.scale.value, child: child),
+              );
             },
-            child: AnimatedBuilder(
-              animation: _opacityAnimation,
-              builder: (context, child) {
-                return Opacity(opacity: _opacityAnimation.value, child: child);
-              },
-              child: _MonthlyShell(
-                width: widget.width,
-                height: widget.height ?? 220,
-                facColor: facColor,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    UtilityInfoBoxHeader.header(
-                      facilityColor: facColor,
-                      facTitle: widget.headerTitle,
-                      healthResult: healthResult,
+            child: _MonthlyShell(
+              width: widget.width,
+              height: widget.height ?? 220,
+              facColor: facColor,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  UtilityInfoBoxHeader.header(
+                    facilityColor: facColor,
+                    facTitle: widget.headerTitle,
+                    healthResult: healthResult,
+                  ),
+                  Expanded(
+                    child: _MonthlyBody(
+                      loading: _loading,
+                      error: _error,
+                      items: _items,
+                      voltageStatuses: _voltageStatuses,
+                      facId: widget.facId,
+                      onRetry: _load,
                     ),
-                    Expanded(
-                      child: _Body(
-                        loading: loading,
-                        error: error,
-                        items: items,
-                        voltageStatuses: voltageStatuses,
-                        pulseAnimation: _pulseAnimation,
-                        facId: widget.facId,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -362,28 +353,34 @@ class _MonthlyShell extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blueAccent.withOpacity(0.7), width: 1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: facColor.withOpacity(0.45), width: 1),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(0.05),
-            Colors.white.withOpacity(0.05),
+            Colors.white.withOpacity(0.07),
+            Colors.white.withOpacity(0.025),
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 15,
-            spreadRadius: 2,
+            color: facColor.withOpacity(0.14),
+            blurRadius: 18,
+            spreadRadius: 1,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.26),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+          filter: ImageFilter.blur(sigmaX: 1.4, sigmaY: 1.4),
           child: child,
         ),
       ),
@@ -391,26 +388,26 @@ class _MonthlyShell extends StatelessWidget {
   }
 }
 
-class _Body extends StatelessWidget {
+class _MonthlyBody extends StatelessWidget {
   final bool loading;
   final Object? error;
   final List<EnergyMonthlySummary> items;
   final List<VoltageStatus> voltageStatuses;
-  final Animation<double> pulseAnimation;
   final String facId;
+  final Future<void> Function() onRetry;
 
-  const _Body({
+  const _MonthlyBody({
     required this.loading,
     required this.error,
     required this.items,
     required this.voltageStatuses,
-    required this.pulseAnimation,
     required this.facId,
+    required this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
+    if (loading && items.isEmpty) {
       return const Center(
         child: SizedBox(
           width: 18,
@@ -420,16 +417,20 @@ class _Body extends StatelessWidget {
       );
     }
 
-    if (error != null) {
-      return const Center(child: Text('API Error'));
+    if (error != null && items.isEmpty) {
+      return _InlineState(
+        icon: Icons.cloud_off_rounded,
+        title: 'API Error',
+        message: 'Tap to retry',
+        onTap: onRetry,
+      );
     }
 
     if (items.isEmpty) {
-      return Center(
-        child: Text(
-          'No data available',
-          style: TextStyle(color: Colors.white.withOpacity(0.7)),
-        ),
+      return const _InlineState(
+        icon: Icons.dataset_outlined,
+        title: 'No Data',
+        message: 'No monthly utility data.',
       );
     }
 
@@ -437,29 +438,81 @@ class _Body extends StatelessWidget {
         .where((e) => e.isAlarm)
         .toList(growable: false);
 
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        children: [
-          if (alarms.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: RepaintBoundary(
-                child: _AlarmBanner(alarms: alarms, facId: facId),
-              ),
-            ),
-          const _Divider(),
-          const SizedBox(height: 4),
-          Expanded(
-            child: ListView.separated(
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 4),
-              itemBuilder: (_, i) =>
-                  RepaintBoundary(child: _EnergyRow(item: items[i])),
-            ),
+    return Column(
+      children: [
+        if (alarms.isNotEmpty) ...[
+          RepaintBoundary(
+            child: _AlarmBanner(alarms: alarms, facId: facId),
           ),
+          const SizedBox(height: 8),
         ],
+        const _SoftDivider(),
+        const SizedBox(height: 5),
+        Expanded(
+          child: ListView.separated(
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 2),
+            itemBuilder: (_, index) {
+              return RepaintBoundary(child: _EnergyRow(item: items[index]));
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InlineState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final Future<void> Function()? onTap;
+
+  const _InlineState({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: Colors.white.withOpacity(0.55), size: 22),
+        const SizedBox(height: 6),
+        Text(
+          title,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.84),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          message,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.52),
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+
+    if (onTap == null) {
+      return Center(child: content);
+    }
+
+    return Center(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(padding: const EdgeInsets.all(10), child: content),
       ),
     );
   }
@@ -487,83 +540,51 @@ class _AlarmBanner extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(9),
         onTap: () => _openDetail(context),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
           decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.red.withOpacity(0.5), width: 1),
+            color: Colors.red.withOpacity(0.14),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: Colors.red.withOpacity(0.45), width: 1),
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(4),
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.red.withOpacity(0.3),
+                  color: Colors.red.withOpacity(0.22),
                 ),
                 child: const Icon(
                   Icons.warning_rounded,
                   color: Colors.red,
-                  size: 18,
+                  size: 16,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Voltage Alarm',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      alarms.length == 1
-                          ? '${alarm.boxDeviceId} exceeded threshold'
-                          : '${alarms.length} issues detected - tap to view detail',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  alarms.length == 1
+                      ? '${alarm.boxDeviceId} voltage alarm'
+                      : '${alarms.length} voltage issues detected',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
-              if (alarms.length > 1)
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    '${alarms.length}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+              const SizedBox(width: 6),
               Icon(
                 Icons.chevron_right_rounded,
                 color: Colors.white.withOpacity(0.7),
-                size: 20,
+                size: 18,
               ),
             ],
           ),
@@ -573,16 +594,20 @@ class _AlarmBanner extends StatelessWidget {
   }
 }
 
-class _Divider extends StatelessWidget {
-  const _Divider();
+class _SoftDivider extends StatelessWidget {
+  const _SoftDivider();
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 1,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.transparent, Colors.black87, Colors.transparent],
+          colors: [
+            Colors.transparent,
+            Colors.white.withOpacity(0.16),
+            Colors.transparent,
+          ],
         ),
       ),
     );
@@ -596,53 +621,80 @@ class _EnergyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = UtilityFacStyle.iconByCate(item.cate);
-    final color = UtilityFacStyle.colorByCate(item.cate);
+    final theme = ChartThemes.getThemeByCate(item.cate);
+    final icon = ChartThemes.cateIcon(item.cate);
+    final color = ChartThemes.cateIconColor(item.cate, theme);
+
+    final title = item.name.trim().isNotEmpty ? item.name.trim() : theme.title;
+    final unit = item.unit.trim().isNotEmpty ? item.unit.trim() : theme.unit;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.25)),
+        color: Colors.black.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.20)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             width: 28,
             height: 28,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withOpacity(0.15),
+              color: color.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: color.withOpacity(0.24)),
             ),
-            child: Icon(icon, color: color, size: 22),
+            child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 8),
+
+          const SizedBox(width: 10),
+
           Expanded(
-            child: Text(
-              item.name,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0, end: item.value),
-            duration: const Duration(milliseconds: 900),
-            curve: Curves.easeOut,
-            builder: (_, v, __) {
-              return Text(
-                '${_format(v)} ${item.unit}',
-                style: TextStyle(
-                  color: color,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.70),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              );
-            },
+
+                const SizedBox(height: 4),
+
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: item.value),
+                  duration: const Duration(milliseconds: 750),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, value, __) {
+                    return Text(
+                      '${_format(value)} $unit',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.25,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
