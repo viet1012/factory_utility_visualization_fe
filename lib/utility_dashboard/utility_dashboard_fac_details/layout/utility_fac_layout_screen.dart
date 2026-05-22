@@ -211,12 +211,14 @@ class _FacDetailBodyState extends State<_FacDetailBody> {
                       child: MonthlyUtilityUsagePanel(
                         fac: widget.facId,
                         nameEn: "TEST",
+                        cate: "water",
                       ),
                     ),
                     Expanded(
                       child: MonthlyUtilityUsagePanel(
                         fac: widget.facId,
                         nameEn: "TEST",
+                        cate: "compressed air",
                       ),
                     ),
                   ],
@@ -228,31 +230,20 @@ class _FacDetailBodyState extends State<_FacDetailBody> {
               Expanded(
                 child: _FacOverlayMapGroup(
                   facId: widget.facId,
-
                   image: Image.asset(
                     'assets/images/${widget.facId.toLowerCase()}.png',
 
                     fit: BoxFit.contain,
                   ),
-
                   boxIds: boxIds,
-
                   groupedRows: groupedRows,
-
                   groupLayout: layoutStore.groupLayoutOf(widget.facId),
-
                   directions: directions,
-
                   colors: layoutStore.groupColorOf(widget.facId),
-
                   editMode: _editMode,
-
                   editingBoxId: _editingBoxId,
-
                   onPickEditingBox: _selectEditingBox,
-
                   onUpdateDirection: _saveDirection,
-
                   onUpdateGroupPos: (boxId, pos01) {
                     return _saveGroupLayout(
                       boxId: boxId,

@@ -14,15 +14,9 @@ class UtilityInfoBoxWidgets {
     String? unit,
   }) {
     final sub = [
-      if ((boxDeviceId ?? '')
-          .trim()
-          .isNotEmpty) boxDeviceId!.trim(),
-      if ((plcAddress ?? '')
-          .trim()
-          .isNotEmpty) plcAddress!.trim(),
-      if ((unit ?? '')
-          .trim()
-          .isNotEmpty) unit!.trim(),
+      if ((boxDeviceId ?? '').trim().isNotEmpty) boxDeviceId!.trim(),
+      if ((plcAddress ?? '').trim().isNotEmpty) plcAddress!.trim(),
+      if ((unit ?? '').trim().isNotEmpty) unit!.trim(),
     ].join(' • ');
 
     final statusColor = hasError
@@ -48,10 +42,7 @@ class UtilityInfoBoxWidgets {
         ),
 
         border: Border(
-          bottom: BorderSide(
-            color: Colors.white.withOpacity(0.08),
-            width: 1,
-          ),
+          bottom: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
         ),
 
         boxShadow: [
@@ -70,78 +61,44 @@ class UtilityInfoBoxWidgets {
       ),
       child: Row(
         children: [
-          // ICON
           Container(
-            width: 28,
-            height: 28,
+            width: 3,
+            height: 22,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withOpacity(0.12),
-              ),
-            ),
-            child: Icon(
-              Icons.factory,
-              color: Colors.white.withOpacity(0.9),
-              size: 16,
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          // TEXT
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  facTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
+              color: facilityColor.withOpacity(0.95),
+              borderRadius: BorderRadius.circular(99),
+              boxShadow: [
+                BoxShadow(
+                  color: facilityColor.withOpacity(0.45),
+                  blurRadius: 8,
                 ),
-
-                if (sub.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    sub,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.65),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
 
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
-          // STATUS DOT (x?n hon)
-          Tooltip(
-            message: statusText,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: statusColor,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: statusColor.withOpacity(0.6),
-                    blurRadius: 10,
-                  ),
-                ],
+          Expanded(
+            child: Text(
+              sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
               ),
             ),
+          ),
+
+          ////////////////////////////////////////////////////////////
+          /// PUSH STATUS TO RIGHT
+          ////////////////////////////////////////////////////////////
+          const SizedBox(width: 8),
+          _StatusDot(
+            color: statusColor,
+            tooltip: statusText,
+            animate: !hasError,
           ),
         ],
       ),
@@ -276,6 +233,117 @@ class UtilityInfoBoxWidgets {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StatusDot extends StatefulWidget {
+  final Color color;
+  final String tooltip;
+  final bool animate;
+
+  const _StatusDot({
+    required this.color,
+    required this.tooltip,
+    required this.animate,
+  });
+
+  @override
+  State<_StatusDot> createState() => _StatusDotState();
+}
+
+class _StatusDotState extends State<_StatusDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+
+    _scale = Tween<double>(
+      begin: 1,
+      end: 1.9,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
+    _opacity = Tween<double>(
+      begin: 0.45,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
+    if (widget.animate) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _StatusDot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.animate && !_controller.isAnimating) {
+      _controller.repeat();
+    } else if (!widget.animate && _controller.isAnimating) {
+      _controller.stop();
+      _controller.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.tooltip,
+      child: SizedBox(
+        width: 18,
+        height: 18,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (widget.animate)
+              AnimatedBuilder(
+                animation: _controller,
+                builder: (_, __) {
+                  return Transform.scale(
+                    scale: _scale.value,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: widget.color.withOpacity(_opacity.value),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: widget.color,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.color.withOpacity(0.55),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

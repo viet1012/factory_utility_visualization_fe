@@ -415,7 +415,7 @@ class _CatalogBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = _getThemeByCate(selectedCate);
+    final theme = ChartThemes.getThemeByCate(selectedCate);
 
     return Selector<ChartCatalogProvider, _CatalogBodyState>(
       selector: (_, p) => _CatalogBodyState(
@@ -511,20 +511,6 @@ class _CatalogBody extends StatelessWidget {
     if (width >= 1700) return 3;
     if (width >= 1200) return 2;
     return 1;
-  }
-
-  ChartTheme _getThemeByCate(String cate) {
-    switch (cate.toLowerCase()) {
-      case 'electricity':
-        return ChartThemes.power;
-      case 'water':
-        return ChartThemes.water;
-      case 'compressed air':
-      case 'compressor_air':
-        return ChartThemes.air;
-      default:
-        return ChartThemes.power;
-    }
   }
 }
 

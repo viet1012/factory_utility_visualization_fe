@@ -36,24 +36,17 @@ class MonthlyUtilityUsagePanel extends StatelessWidget {
   final String fac;
   final String title;
   final String nameEn;
+  final String cate;
 
   const MonthlyUtilityUsagePanel({
     super.key,
     required this.fac,
     this.title = 'Monthly Usage',
     this.nameEn = 'Total Energy Consumption',
+    this.cate = 'Electricity',
   });
 
-  ChartTheme get theme {
-    final v = nameEn.toLowerCase();
-
-    if (v.contains('water')) return ChartThemes.water;
-    if (v.contains('air')) return ChartThemes.air;
-    if (v.contains('gas')) return ChartThemes.gas;
-    if (v.contains('steam')) return ChartThemes.steam;
-
-    return ChartThemes.power;
-  }
+  ChartTheme get theme => ChartThemes.getThemeByCate(cate);
 
   String _monthName(int month) {
     const months = [
@@ -73,17 +66,6 @@ class MonthlyUtilityUsagePanel extends StatelessWidget {
     ];
 
     return months[month];
-  }
-
-  String _titleByNameEn() {
-    final v = nameEn.toLowerCase();
-
-    if (v.contains('water')) return 'Water Usage';
-    if (v.contains('air')) return 'Compressed Air';
-    if (v.contains('gas')) return 'Gas Usage';
-    if (v.contains('steam')) return 'Steam Usage';
-
-    return title;
   }
 
   @override
@@ -115,7 +97,6 @@ class MonthlyUtilityUsagePanel extends StatelessWidget {
         child: Column(
           children: [
             _MonthlyUsageHeader(
-              title: _titleByNameEn(),
               subtitle: '${_monthName(now.month)} ${now.year}',
               theme: t,
             ),
@@ -137,15 +118,10 @@ class MonthlyUtilityUsagePanel extends StatelessWidget {
 }
 
 class _MonthlyUsageHeader extends StatelessWidget {
-  final String title;
   final String subtitle;
   final ChartTheme theme;
 
-  const _MonthlyUsageHeader({
-    required this.title,
-    required this.subtitle,
-    required this.theme,
-  });
+  const _MonthlyUsageHeader({required this.subtitle, required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -185,18 +161,6 @@ class _MonthlyUsageHeader extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  title.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   maxLines: 1,

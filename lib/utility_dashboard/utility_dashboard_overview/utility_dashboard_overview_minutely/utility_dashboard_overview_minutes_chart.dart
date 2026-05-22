@@ -140,8 +140,6 @@ class _UtilityDashboardOverviewMinutesChartState
     setState(() {
       loading = false;
       error = e;
-
-      // Giữ rows cũ để chart không bị trắng khi API lỗi.
     });
   }
 
@@ -228,7 +226,6 @@ class _UtilityDashboardOverviewMinutesChartState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // _TitleBar(title: t.title, health: healthResult),
               CommonChartTitleBar(
                 title: t.title,
                 health: healthResult,
