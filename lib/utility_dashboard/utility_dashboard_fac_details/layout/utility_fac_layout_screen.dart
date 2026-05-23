@@ -160,6 +160,7 @@ class _FacDetailBodyState extends State<_FacDetailBody> {
     final rows = latestProvider.rows;
     final boxIds = _extractSortedBoxIds(rows);
     final groupedRows = _groupRowsByBox(rows);
+    debugPrint('Total box items: ${boxIds.length}');
 
     final directions = {
       ...layoutStore.groupDirectionOf(widget.facId),
@@ -502,16 +503,48 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
               maxScale: 5,
               panEnabled: !widget.editMode && !_lockViewer,
               scaleEnabled: !widget.editMode && !_lockViewer,
+              // child: SizedBox(
+              //   width: containerSize.width,
+              //   height: containerSize.height,
+              //   child: Stack(
+              //     clipBehavior: Clip.none,
+              //     children: [
+              //       Positioned.fromRect(rect: imageRect, child: widget.image),
+              //
+              //       for (final boxId in widget.boxIds)
+              //         _buildBox(boxId: boxId, imageRect: imageRect),
+              //
+              //       _buildHoverPanel(imageRect),
+              //     ],
+              //   ),
+              // ),
               child: SizedBox(
                 width: containerSize.width,
                 height: containerSize.height,
                 child: Stack(
-                  clipBehavior: Clip.none,
+                  clipBehavior: Clip.hardEdge,
                   children: [
                     Positioned.fromRect(rect: imageRect, child: widget.image),
-
-                    for (final boxId in widget.boxIds)
-                      _buildBox(boxId: boxId, imageRect: imageRect),
+                    Positioned.fromRect(
+                      rect: imageRect,
+                      child: ClipRect(
+                        child: Stack(
+                          clipBehavior: Clip.hardEdge,
+                          children: [
+                            for (final boxId in widget.boxIds)
+                              _buildBox(
+                                boxId: boxId,
+                                imageRect: Rect.fromLTWH(
+                                  0,
+                                  0,
+                                  imageRect.width,
+                                  imageRect.height,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
 
                     _buildHoverPanel(imageRect),
                   ],
@@ -564,8 +597,8 @@ class _FacOverlayMapGroupState extends State<_FacOverlayMapGroup> {
     final hasAlarm = _hasAlarm(rows);
 
     return Positioned(
-      left: imageRect.left + pos01.dx * imageRect.width,
-      top: imageRect.top + pos01.dy * imageRect.height,
+      left: pos01.dx * imageRect.width,
+      top: pos01.dy * imageRect.height,
       child: MouseRegion(
         cursor: widget.editMode
             ? SystemMouseCursors.click
@@ -1378,7 +1411,6 @@ Map<String, List<LatestRecordDto>> _groupRowsByBox(List<LatestRecordDto> rows) {
 
     grouped.putIfAbsent(boxId, () => <LatestRecordDto>[]).add(row);
   }
-
   return grouped;
 }
 
@@ -1406,10 +1438,20 @@ String _formatTime(DateTime? time) {
 
 Offset _autoPlace(int index) {
   final safeIndex = index < 0 ? 0 : index;
-  final col = safeIndex % 3;
-  final row = safeIndex ~/ 3;
 
-  return Offset(0.2 + col * 0.25, 0.2 + row * 0.2);
+  const cols = 4;
+  const startX = 0.08;
+  const startY = 0.08;
+  const gapX = 0.22;
+  const gapY = 0.12;
+
+  final col = safeIndex % cols;
+  final row = safeIndex ~/ cols;
+
+  return Offset(
+    (startX + col * gapX).clamp(0.02, 0.88),
+    (startY + row * gapY).clamp(0.02, 0.88),
+  );
 }
 
 Rect _containRect(Size containerSize, Size childSize) {
