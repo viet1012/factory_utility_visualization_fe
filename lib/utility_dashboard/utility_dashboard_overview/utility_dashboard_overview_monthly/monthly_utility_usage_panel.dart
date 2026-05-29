@@ -96,7 +96,7 @@ class MonthlyUtilityUsagePanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: Column(
           children: [
-            _MonthlyUsageHeader(
+            MonthlyUsageHeader(
               subtitle: '${_monthName(now.month)} ${now.year}',
               theme: t,
             ),
@@ -117,11 +117,15 @@ class MonthlyUtilityUsagePanel extends StatelessWidget {
   }
 }
 
-class _MonthlyUsageHeader extends StatelessWidget {
+class MonthlyUsageHeader extends StatelessWidget {
   final String subtitle;
   final ChartTheme theme;
 
-  const _MonthlyUsageHeader({required this.subtitle, required this.theme});
+  const MonthlyUsageHeader({
+    super.key,
+    required this.subtitle,
+    required this.theme,
+  });
 
   @override
   Widget build(BuildContext context) {

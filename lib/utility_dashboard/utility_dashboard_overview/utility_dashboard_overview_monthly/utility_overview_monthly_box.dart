@@ -13,6 +13,7 @@ import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_common/utility_fac_style.dart';
 import '../../utility_dashboard_fac_details/layout/utility_fac_layout_screen.dart';
+import '../../utility_dashboard_fac_details/widgets/hover_box_panel/hover_flow_painters.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
@@ -388,7 +389,7 @@ class _MonthlyShell extends StatelessWidget {
   }
 }
 
-class _MonthlyBody extends StatelessWidget {
+class _MonthlyBody extends StatefulWidget {
   final bool loading;
   final Object? error;
   final List<EnergyMonthlySummary> items;
@@ -406,8 +407,32 @@ class _MonthlyBody extends StatelessWidget {
   });
 
   @override
+  State<_MonthlyBody> createState() => _MonthlyBodyState();
+}
+
+class _MonthlyBodyState extends State<_MonthlyBody>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flowController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _flowController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _flowController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (loading && items.isEmpty) {
+    if (widget.loading && widget.items.isEmpty) {
       return const Center(
         child: SizedBox(
           width: 18,
@@ -417,16 +442,16 @@ class _MonthlyBody extends StatelessWidget {
       );
     }
 
-    if (error != null && items.isEmpty) {
+    if (widget.error != null && widget.items.isEmpty) {
       return _InlineState(
         icon: Icons.cloud_off_rounded,
         title: 'API Error',
         message: 'Tap to retry',
-        onTap: onRetry,
+        onTap: widget.onRetry,
       );
     }
 
-    if (items.isEmpty) {
+    if (widget.items.isEmpty) {
       return const _InlineState(
         icon: Icons.dataset_outlined,
         title: 'No Data',
@@ -434,7 +459,7 @@ class _MonthlyBody extends StatelessWidget {
       );
     }
 
-    final alarms = voltageStatuses
+    final alarms = widget.voltageStatuses
         .where((e) => e.isAlarm)
         .toList(growable: false);
 
@@ -442,20 +467,27 @@ class _MonthlyBody extends StatelessWidget {
       children: [
         if (alarms.isNotEmpty) ...[
           RepaintBoundary(
-            child: _AlarmBanner(alarms: alarms, facId: facId),
+            child: _AlarmBanner(alarms: alarms, facId: widget.facId),
           ),
           const SizedBox(height: 8),
         ],
+
         const _SoftDivider(),
         const SizedBox(height: 5),
+
         Expanded(
           child: ListView.separated(
             padding: EdgeInsets.zero,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: items.length,
+            itemCount: widget.items.length,
             separatorBuilder: (_, __) => const SizedBox(height: 2),
             itemBuilder: (_, index) {
-              return RepaintBoundary(child: _EnergyRow(item: items[index]));
+              return RepaintBoundary(
+                child: _EnergyRow(
+                  item: widget.items[index],
+                  animation: _flowController,
+                ),
+              );
             },
           ),
         ),
@@ -616,8 +648,9 @@ class _SoftDivider extends StatelessWidget {
 
 class _EnergyRow extends StatelessWidget {
   final EnergyMonthlySummary item;
+  final Animation<double> animation;
 
-  const _EnergyRow({required this.item});
+  const _EnergyRow({required this.item, required this.animation});
 
   @override
   Widget build(BuildContext context) {
@@ -629,7 +662,7 @@ class _EnergyRow extends StatelessWidget {
     final unit = item.unit.trim().isNotEmpty ? item.unit.trim() : theme.unit;
 
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.18),
         borderRadius: BorderRadius.circular(14),
@@ -644,16 +677,11 @@ class _EnergyRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(11),
-              border: Border.all(color: color.withOpacity(0.24)),
-            ),
-            child: Icon(icon, color: color, size: 20),
+          ScadaEnergyIcon(
+            icon: icon,
+            color: color,
+            cate: item.cate,
+            animation: animation,
           ),
 
           const SizedBox(width: 10),
@@ -672,9 +700,7 @@ class _EnergyRow extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-
                 const SizedBox(height: 4),
-
                 TweenAnimationBuilder<double>(
                   tween: Tween<double>(begin: 0, end: item.value),
                   duration: const Duration(milliseconds: 750),

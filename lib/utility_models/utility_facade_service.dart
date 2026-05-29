@@ -7,7 +7,7 @@ import 'package:factory_utility_visualization/utility_models/response/utility_ca
 import 'package:flutter/foundation.dart';
 
 import '../utility_dashboard/utility_dashboard_fac_details/layout/overlay_layout_store.dart';
-import '../utility_dashboard/utility_dashboard_fac_details/layout/utility_fac_layout_screen.dart';
+import '../utility_dashboard/utility_dashboard_fac_details/models/group_frame_types.dart';
 
 class UtilityFacadeService {
   final Dio dio;

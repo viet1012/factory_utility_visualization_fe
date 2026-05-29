@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utility_dashboard_fac_details/models/group_frame_types.dart';
+
 class ChartTheme {
   final String title;
   final String unit;
@@ -11,6 +13,7 @@ class ChartTheme {
   final Color usdLine;
   final Color usdFillTop;
   final Color usdFillBottom;
+  final GroupFrameEffect effect;
 
   const ChartTheme({
     required this.title,
@@ -22,6 +25,7 @@ class ChartTheme {
     required this.usdLine,
     required this.usdFillTop,
     required this.usdFillBottom,
+    required this.effect,
   });
 }
 
@@ -102,9 +106,6 @@ class ChartThemes {
       case 'air':
         return air;
 
-      case 'steam':
-        return steam;
-
       default:
         return power;
     }
@@ -125,6 +126,7 @@ class ChartThemes {
     usdLine: Color(0xFF10B981),
     usdFillTop: Color(0x4D10B981),
     usdFillBottom: Color(0x0010B981),
+    effect: GroupFrameEffect.electric,
   );
 
   // 💧 WATER
@@ -138,6 +140,7 @@ class ChartThemes {
     usdLine: Color(0xFF10B981),
     usdFillTop: Color(0x4D10B981),
     usdFillBottom: Color(0x0010B981),
+    effect: GroupFrameEffect.water,
   );
 
   // 🌬 AIR
@@ -151,31 +154,26 @@ class ChartThemes {
     usdLine: Color(0xFF10B981),
     usdFillTop: Color(0x4D10B981),
     usdFillBottom: Color(0x0010B981),
+    effect: GroupFrameEffect.air,
   );
+}
 
-  // 🔥 STEAM
-  static const ChartTheme steam = ChartTheme(
-    title: 'STEAM',
-    unit: 'kg/h',
-    line: Color(0xFFF87171),
-    fillTop: Color(0x4DF87171),
-    fillBottom: Color(0x00F87171),
-    accent: Color(0xFFFCA5A5),
-    usdLine: Color(0xFF10B981),
-    usdFillTop: Color(0x4D10B981),
-    usdFillBottom: Color(0x0010B981),
-  );
+class ChartThemeResolver {
+  static Color iconColor(String? cate) {
+    final theme = ChartThemes.getThemeByCate(cate);
 
-  // 🌡 TEMPERATURE
-  static const ChartTheme temperature = ChartTheme(
-    title: 'TEMPERATURE',
-    unit: '°C',
-    line: Color(0xFFFB923C),
-    fillTop: Color(0x4DFB923C),
-    fillBottom: Color(0x00FB923C),
-    accent: Color(0xFFFED7AA),
-    usdLine: Color(0xFF10B981),
-    usdFillTop: Color(0x4D10B981),
-    usdFillBottom: Color(0x0010B981),
-  );
+    return ChartThemes.cateIconColor(cate, theme);
+  }
+
+  static IconData icon(String? cate) {
+    return ChartThemes.cateIcon(cate);
+  }
+
+  static GroupFrameEffect effect(String? cate) {
+    return ChartThemes.getThemeByCate(cate).effect;
+  }
+
+  static ChartTheme theme(String? cate) {
+    return ChartThemes.getThemeByCate(cate);
+  }
 }
