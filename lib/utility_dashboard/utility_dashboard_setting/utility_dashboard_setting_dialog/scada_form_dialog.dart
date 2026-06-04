@@ -37,7 +37,9 @@ class _ScadaFormDialogState extends State<ScadaFormDialog> {
     _scadaIdCtrl = TextEditingController(text: item?.scadaId ?? '');
     _plcIpCtrl = TextEditingController(text: item?.plcIp ?? '');
     _plcPortCtrl = TextEditingController(text: item?.plcPort?.toString() ?? '');
-    _pcNameCtrl = TextEditingController(text: item?.pcName ?? '');
+    _pcNameCtrl = TextEditingController(
+      text: _isEdit ? (item?.pcName ?? '') : 'DESKTOP-CTS5EUF',
+    );
     _wlanCtrl = TextEditingController(text: item?.wlan ?? '');
 
     final fac = item?.fac?.trim();

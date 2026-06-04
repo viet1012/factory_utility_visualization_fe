@@ -482,6 +482,7 @@ class _MonitoringMascotState extends State<MonitoringMascot>
                               facing: widget.facing,
                               drawBadge: false,
                             ),
+                            willChange: true,
                           ),
                         ),
                       ),
@@ -737,10 +738,19 @@ class _RobotPainter extends CustomPainter {
       Rect.fromLTWH(bodyX, bodyY, bodyW, bodyH),
       const Radius.circular(8),
     );
+    // Cyber Glow
+    canvas.drawRRect(
+      bodyRect.inflate(12),
+      Paint()
+        ..color = accentColor.withOpacity(0.22)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
+    );
+
     canvas.drawRRect(
       bodyRect.inflate(4),
       Paint()..color = accentColor.withOpacity(0.08),
     );
+
     canvas.drawRRect(bodyRect, Paint()..color = _bodyBg);
     canvas.drawRRect(
       bodyRect,
@@ -763,10 +773,19 @@ class _RobotPainter extends CustomPainter {
       Rect.fromLTWH(headX, headY, headW, headH),
       const Radius.circular(22),
     );
+
+    canvas.drawRRect(
+      headRRect.inflate(10),
+      Paint()
+        ..color = accentColor.withOpacity(0.18)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+    );
+
     canvas.drawRRect(
       headRRect.inflate(4),
       Paint()..color = accentColor.withOpacity(0.08),
     );
+
     canvas.drawRRect(headRRect, Paint()..color = _headBg);
     canvas.drawRRect(
       headRRect,
@@ -808,6 +827,23 @@ class _RobotPainter extends CustomPainter {
         const Radius.circular(3),
       ),
       Paint()..color = accentColor.withOpacity(0.65),
+    );
+
+    // ===== VISOR SCAN =====
+
+    final scanProgress =
+        ((DateTime.now().millisecondsSinceEpoch % 1800) / 1800);
+
+    final scanX = visorX + (visorW - 6) * scanProgress;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(scanX, visorY, 6, visorH),
+        const Radius.circular(3),
+      ),
+      Paint()
+        ..color = Colors.white.withOpacity(0.75)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
     );
 
     final eyeY = headY + headH * 0.57;
@@ -861,6 +897,7 @@ class _RobotPainter extends CustomPainter {
     canvas.translate(cx, headY - 14 + hairOffset * 0.6);
     canvas.scale(antennaScale, antennaScale);
     _glowCircle(canvas, Offset.zero, 4, accentColor);
+
     canvas.restore();
 
     _drawHairFringe(

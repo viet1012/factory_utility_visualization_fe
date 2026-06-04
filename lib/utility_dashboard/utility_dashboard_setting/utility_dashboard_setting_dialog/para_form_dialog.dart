@@ -9,12 +9,16 @@ class ParaFormDialog extends StatefulWidget {
   final UtilityPara? initialValue;
   final bool isEdit;
   final List<String> boxDeviceIdOptions;
+  final List<String> nameEnOptions;
+  final List<String> cateOptions;
 
   const ParaFormDialog({
     super.key,
     this.initialValue,
     this.isEdit = false,
     required this.boxDeviceIdOptions,
+    this.nameEnOptions = const [],
+    this.cateOptions = const [],
   });
 
   @override
@@ -109,6 +113,130 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
     final text = value.trim();
     if (text.isEmpty) return null;
     return int.tryParse(text);
+  }
+
+  Widget _buildBoxDeviceIdPickerField() {
+    final hasValue =
+        _selectedBoxDeviceId != null && _selectedBoxDeviceId!.trim().isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Box Device ID',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () {
+            setState(() {
+              _boxDeviceIdTouched = true;
+            });
+            _openBoxDeviceIdPicker();
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _boxDeviceIdInvalid
+                    ? Colors.red.withOpacity(0.8)
+                    : Colors.white.withOpacity(0.10),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    hasValue ? _selectedBoxDeviceId! : 'Select Box Device ID',
+                    style: TextStyle(
+                      color: hasValue
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.45),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_drop_down_rounded,
+                  color: Colors.white.withOpacity(0.8),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_boxDeviceIdInvalid)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 4),
+            child: Text(
+              'Box Device ID is required',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildNameEnPickerField() {
+    final hasValue = _nameEnCtrl.text.trim().isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Name EN',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: _openNameEnPicker,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.10)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    hasValue
+                        ? _nameEnCtrl.text.trim()
+                        : 'Select or type Name EN',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: hasValue
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.45),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_drop_down_rounded,
+                  color: Colors.white.withOpacity(0.8),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _openBoxDeviceIdPicker() async {
@@ -255,73 +383,206 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
     }
   }
 
-  Widget _buildBoxDeviceIdPickerField() {
-    final hasValue =
-        _selectedBoxDeviceId != null && _selectedBoxDeviceId!.trim().isNotEmpty;
+  Future<void> _openNameEnPicker() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF11151C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final searchCtrl = TextEditingController(text: _nameEnCtrl.text.trim());
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Box Device ID',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
-        ),
-        const SizedBox(height: 8),
-        InkWell(
-          onTap: () {
-            setState(() {
-              _boxDeviceIdTouched = true;
-            });
-            _openBoxDeviceIdPicker();
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _boxDeviceIdInvalid
-                    ? Colors.red.withOpacity(0.8)
-                    : Colors.white.withOpacity(0.10),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    hasValue ? _selectedBoxDeviceId! : 'Select Box Device ID',
-                    style: TextStyle(
-                      color: hasValue
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.45),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+        final options =
+            widget.nameEnOptions
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toSet()
+                .toList()
+              ..sort();
+
+        List<String> filtered = List<String>.from(options);
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            void onSearchChanged(String value) {
+              final keyword = value.trim().toLowerCase();
+
+              setSheetState(() {
+                filtered = options.where((e) {
+                  return e.toLowerCase().contains(keyword);
+                }).toList();
+              });
+            }
+
+            final typedValue = searchCtrl.text.trim();
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: SizedBox(
+                  height: 520,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Select Name EN',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      TextField(
+                        controller: searchCtrl,
+                        onChanged: onSearchChanged,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Search or type Name EN...',
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(0.45),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Colors.white.withOpacity(0.7),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.06),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.white.withOpacity(0.08),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.white.withOpacity(0.08),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.white.withOpacity(0.18),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      if (typedValue.isNotEmpty)
+                        InkWell(
+                          onTap: () => Navigator.of(context).pop(typedValue),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.greenAccent.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.greenAccent.withOpacity(0.28),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.edit_rounded,
+                                  color: Colors.greenAccent,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Use "$typedValue"',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.greenAccent,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                      if (typedValue.isNotEmpty) const SizedBox(height: 12),
+
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No Name EN found',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.6),
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) => Divider(
+                                  height: 1,
+                                  color: Colors.white.withOpacity(0.06),
+                                ),
+                                itemBuilder: (context, index) {
+                                  final item = filtered[index];
+                                  final selected =
+                                      item == _nameEnCtrl.text.trim();
+
+                                  return ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    title: Text(
+                                      item,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    trailing: selected
+                                        ? const Icon(
+                                            Icons.check_circle,
+                                            color: Colors.greenAccent,
+                                          )
+                                        : null,
+                                    onTap: () {
+                                      Navigator.of(context).pop(item);
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                   ),
                 ),
-                Icon(
-                  Icons.arrow_drop_down_rounded,
-                  color: Colors.white.withOpacity(0.8),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (_boxDeviceIdInvalid)
-          Padding(
-            padding: const EdgeInsets.only(top: 6, left: 4),
-            child: Text(
-              'Box Device ID is required',
-              style: TextStyle(color: Colors.red, fontSize: 12),
-            ),
-          ),
-      ],
+              ),
+            );
+          },
+        );
+      },
     );
+
+    if (result != null) {
+      setState(() {
+        _nameEnCtrl.text = result;
+      });
+    }
   }
 
   void _submit() {
@@ -387,7 +648,12 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
         title: _isEdit ? 'Edit Utility Para' : 'Create Utility Para',
         submitText: _isEdit ? 'Update' : 'Create',
         onSubmit: _submit,
-        customFields: [_buildBoxDeviceIdPickerField()],
+        customFields: [
+          _buildBoxDeviceIdPickerField(),
+          const SizedBox(height: 10),
+
+          _buildNameEnPickerField(),
+        ],
         fields: [
           FormFieldConfig(
             label: 'PLC Address',
@@ -411,8 +677,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
             // validatorText: 'Cate ID is required',
             controller: _cateIdCtrl,
           ),
-          FormFieldConfig(label: 'Name VI', controller: _nameViCtrl),
-          FormFieldConfig(label: 'Name EN', controller: _nameEnCtrl),
+          // FormFieldConfig(label: 'Name VI', controller: _nameViCtrl),
           FormFieldConfig.dropdown(
             label: 'Important',
             validatorText: 'Important is required',

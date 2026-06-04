@@ -97,6 +97,23 @@ class _UtilityParaTreeScreenState extends State<UtilityParaTreeScreen> {
     return values;
   }
 
+  List<String> _getNameEnOptionsFromDb() {
+    final values = <String>{};
+
+    for (final fac in _items) {
+      for (final box in fac.boxes) {
+        for (final device in box.devices) {
+          for (final para in device.paras) {
+            final name = para.nameEn.trim();
+            if (name.isNotEmpty) values.add(name);
+          }
+        }
+      }
+    }
+
+    return values.toList()..sort();
+  }
+
   Future<void> _openCreateDialog() async {
     try {
       final boxDeviceIdOptions = await _getBoxDeviceIdOptions();
@@ -114,9 +131,9 @@ class _UtilityParaTreeScreenState extends State<UtilityParaTreeScreen> {
           initialValue: null,
           isEdit: false,
           boxDeviceIdOptions: boxDeviceIdOptions,
+          nameEnOptions: _getNameEnOptionsFromDb(),
         ),
       );
-
       if (result == null) return;
 
       setState(() {
@@ -707,6 +724,7 @@ class _ParaDeviceNode extends StatelessWidget {
           maxAlert: para.maxAlert,
         ),
         boxDeviceIdOptions: boxDeviceIdOptions,
+        nameEnOptions: state._getNameEnOptionsFromDb(),
       ),
     );
 
