@@ -485,7 +485,7 @@ class _CatalogBody extends StatelessWidget {
 
                 return RepaintBoundary(
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     child: UtilityMinuteChartPanel(
                       key: ValueKey(
                         '${selectedFac}_${selectedCate}_${selectedScada}_${chart.boxDeviceId}_${chart.plcAddress}',
@@ -858,7 +858,7 @@ class _GlassTabRow extends StatelessWidget {
           color: selected
               ? theme.line.withOpacity(0.14)
               : Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(6),
           border: Border.all(
             color: selected
                 ? theme.line.withOpacity(0.55)

@@ -9,6 +9,7 @@ import '../utility_dashboard_common/chart_theme.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
 import '../utility_dashboard_fac_details/widgets/hover_box_panel/hover_flow_painters.dart';
 import '../utility_dashboard_overview/utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../utility_dashboard_overview/utility_dashboard_overview_widgets/scada_panel_frame.dart';
 import '../utility_dashboard_widgets/center_message.dart';
 
 class _ChartPoint {
@@ -214,7 +215,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
           !identical(prev.rows, next.rows) ||
           prev.error != next.error ||
           prev.hasFetchedOnce != next.hasFetchedOnce,
-      builder: (context, vm, _) => RepaintBoundary(child: _buildPanel(vm)),
+      builder: (context, vm, _) => RepaintBoundary(
+        child: ScadaPanelFrame(color: _theme.accent, child: _buildPanel(vm)),
+      ),
     );
   }
 
@@ -417,9 +420,8 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 13.5,
+                      fontSize: 18,
                       fontWeight: FontWeight.w900,
-                      height: 1.0,
                     ),
                   ),
                 ),

@@ -6,13 +6,13 @@ class UtilityFacStyle {
   static Color colorFromFac(String? facName) {
     switch ((facName ?? '').trim()) {
       case 'Fac_A':
-        return const Color(0xFF4FC3F7);
+        return const Color(0xFF22D3EE);
       case 'Fac_B':
-        return const Color(0xFF42A5F5);
+        return const Color(0xFF38BDF8);
       case 'Fac_C':
-        return const Color(0xFF4FC3F7);
+        return const Color(0xFF2DD4BF);
       default:
-        return const Color(0xFF4FC3F7);
+        return const Color(0xFF22D3EE);
     }
   }
 

@@ -50,6 +50,19 @@ class ChartThemes {
     return raw;
   }
 
+  static Color colorFromFac(String? facName) {
+    switch ((facName ?? '').trim()) {
+      case 'Fac_A':
+        return const Color(0xFF4FC3F7);
+      case 'Fac_B':
+        return const Color(0xFF42A5F5);
+      case 'Fac_C':
+        return const Color(0xFF4FC3F7);
+      default:
+        return const Color(0xFF4FC3F7);
+    }
+  }
+
   static IconData cateIcon(String? cate) {
     switch (cateKey(cate)) {
       case 'water':

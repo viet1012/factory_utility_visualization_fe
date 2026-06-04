@@ -15,6 +15,7 @@ import '../../utility_dashboard_common/utility_fac_style.dart';
 import '../../utility_dashboard_fac_details/layout/utility_fac_layout_screen.dart';
 import '../../utility_dashboard_fac_details/widgets/hover_box_panel/hover_flow_painters.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import '../utility_dashboard_overview_widgets/scada_panel_frame.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
 class EnergyMonthlySummary {
@@ -355,25 +356,29 @@ class _MonthlyShell extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: facColor.withOpacity(0.45), width: 1),
+
+        border: Border.all(color: facColor.withOpacity(0.25), width: 1.2),
+
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(0.07),
-            Colors.white.withOpacity(0.025),
+            const Color(0xFF103A63).withOpacity(0.70),
+            const Color(0xFF0A2745).withOpacity(0.58),
+            const Color(0xFF05111E).withOpacity(0.38),
           ],
+          stops: const [0.0, 0.55, 1.0],
         ),
+
         boxShadow: [
           BoxShadow(
-            color: facColor.withOpacity(0.14),
-            blurRadius: 18,
+            color: facColor.withOpacity(0.12),
+            blurRadius: 16,
             spreadRadius: 1,
-            offset: const Offset(0, 6),
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.26),
-            blurRadius: 18,
+            color: Colors.black.withOpacity(0.30),
+            blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
@@ -480,12 +485,16 @@ class _MonthlyBodyState extends State<_MonthlyBody>
             padding: EdgeInsets.zero,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: widget.items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 2),
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (_, index) {
+              final item = widget.items[index];
+              final theme = ChartThemes.getThemeByCate(item.cate);
+              final color = ChartThemes.cateIconColor(item.cate, theme);
+
               return RepaintBoundary(
-                child: _EnergyRow(
-                  item: widget.items[index],
-                  animation: _flowController,
+                child: ScadaPanelFrame(
+                  color: color,
+                  child: _EnergyRow(item: item, animation: _flowController),
                 ),
               );
             },
@@ -661,20 +670,8 @@ class _EnergyRow extends StatelessWidget {
     final title = item.name.trim().isNotEmpty ? item.name.trim() : theme.title;
     final unit = item.unit.trim().isNotEmpty ? item.unit.trim() : theme.unit;
 
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.20)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
       child: Row(
         children: [
           ScadaEnergyIcon(
@@ -695,9 +692,9 @@ class _EnergyRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.70),
+                    color: Colors.white.withOpacity(0.72),
                     fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -727,3 +724,85 @@ class _EnergyRow extends StatelessWidget {
     );
   }
 }
+
+// class _EnergyRow extends StatelessWidget {
+//   final EnergyMonthlySummary item;
+//   final Animation<double> animation;
+//
+//   const _EnergyRow({required this.item, required this.animation});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     final theme = ChartThemes.getThemeByCate(item.cate);
+//     final icon = ChartThemes.cateIcon(item.cate);
+//     final color = ChartThemes.cateIconColor(item.cate, theme);
+//
+//     final title = item.name.trim().isNotEmpty ? item.name.trim() : theme.title;
+//     final unit = item.unit.trim().isNotEmpty ? item.unit.trim() : theme.unit;
+//
+//     return Container(
+//       padding: const EdgeInsets.all(6),
+//       decoration: BoxDecoration(
+//         color: Colors.black.withOpacity(0.18),
+//         borderRadius: BorderRadius.circular(14),
+//         border: Border.all(color: color.withOpacity(0.20)),
+//         boxShadow: [
+//           BoxShadow(
+//             color: color.withOpacity(0.08),
+//             blurRadius: 14,
+//             offset: const Offset(0, 6),
+//           ),
+//         ],
+//       ),
+//       child: Row(
+//         children: [
+//           ScadaEnergyIcon(
+//             icon: icon,
+//             color: color,
+//             cate: item.cate,
+//             animation: animation,
+//           ),
+//
+//           const SizedBox(width: 10),
+//
+//           Expanded(
+//             child: Column(
+//               crossAxisAlignment: CrossAxisAlignment.start,
+//               children: [
+//                 Text(
+//                   title,
+//                   maxLines: 1,
+//                   overflow: TextOverflow.ellipsis,
+//                   style: TextStyle(
+//                     color: Colors.white.withOpacity(0.70),
+//                     fontSize: 13,
+//                     fontWeight: FontWeight.w700,
+//                   ),
+//                 ),
+//                 const SizedBox(height: 4),
+//                 TweenAnimationBuilder<double>(
+//                   tween: Tween<double>(begin: 0, end: item.value),
+//                   duration: const Duration(milliseconds: 750),
+//                   curve: Curves.easeOutCubic,
+//                   builder: (_, value, __) {
+//                     return Text(
+//                       '${_format(value)} $unit',
+//                       maxLines: 1,
+//                       overflow: TextOverflow.ellipsis,
+//                       style: TextStyle(
+//                         color: color,
+//                         fontSize: 16,
+//                         fontWeight: FontWeight.w900,
+//                         letterSpacing: -0.25,
+//                       ),
+//                     );
+//                   },
+//                 ),
+//               ],
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
