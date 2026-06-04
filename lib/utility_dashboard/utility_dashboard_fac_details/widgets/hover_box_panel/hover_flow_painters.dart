@@ -232,70 +232,143 @@ class ScadaEnergyIcon extends StatelessWidget {
     required this.animation,
   });
 
-  bool get _isAir {
-    final c = cate.toLowerCase();
-    return c.contains('air') || c.contains('compressor');
-  }
-
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: animation,
       builder: (_, __) {
         final progress = animation.value;
-        final pulse = 1.0 + math.sin(progress * math.pi * 2) * 0.055;
 
         return SizedBox(
-          width: 42,
-          height: 42,
+          width: 44,
+          height: 44,
           child: Stack(
             alignment: Alignment.center,
             children: [
+              // Strong SCADA glow
               Container(
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: color.withOpacity(0.36),
-                      blurRadius: 18,
-                      spreadRadius: 1,
+                      color: color.withOpacity(0.42),
+                      blurRadius: 20,
+                      spreadRadius: 1.5,
+                    ),
+                    BoxShadow(
+                      color: color.withOpacity(0.20),
+                      blurRadius: 36,
+                      spreadRadius: 3,
                     ),
                   ],
                 ),
               ),
 
+              // Main chip
               Container(
-                width: 32,
-                height: 32,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: BorderRadius.circular(12),
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white.withOpacity(0.18),
-                      color.withOpacity(0.18),
-                      Colors.black.withOpacity(0.10),
+                      Colors.white.withOpacity(0.24),
+                      color.withOpacity(0.28),
+                      Colors.black.withOpacity(0.18),
                     ],
                   ),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.20),
-                    width: 1,
+                    color: color.withOpacity(0.55),
+                    width: 1.15,
                   ),
                 ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Positioned.fill(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(11),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned.fill(
                         child: CustomPaint(painter: _getFlowPainter(progress)),
                       ),
-                    ),
-                    Icon(icon, color: color, size: 22),
-                  ],
+
+                      // moving scan line
+                      Positioned(
+                        top: 36 * progress,
+                        left: 5,
+                        right: 5,
+                        child: Container(
+                          height: 1.2,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.45),
+                            boxShadow: [
+                              BoxShadow(
+                                color: color.withOpacity(0.55),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // subtle top shine
+                      Positioned(
+                        top: 5,
+                        left: 6,
+                        right: 12,
+                        child: Container(
+                          height: 7,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withOpacity(0.28),
+                                Colors.white.withOpacity(0.02),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // icon fixed: no zoom, no heartbeat
+                      Icon(
+                        icon,
+                        color: Colors.white.withOpacity(0.92),
+                        size: 21,
+                        shadows: [
+                          Shadow(color: color.withOpacity(0.95), blurRadius: 9),
+                          Shadow(
+                            color: color.withOpacity(0.55),
+                            blurRadius: 18,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // small status dot
+              Positioned(
+                right: 4,
+                top: 5,
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color,
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.9),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

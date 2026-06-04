@@ -7,6 +7,7 @@ import '../../utility_models/response/minute_point.dart';
 import '../../utility_state/minute_series_provider.dart';
 import '../utility_dashboard_common/chart_theme.dart';
 import '../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
+import '../utility_dashboard_fac_details/widgets/hover_box_panel/hover_flow_painters.dart';
 import '../utility_dashboard_overview/utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../utility_dashboard_widgets/center_message.dart';
 
@@ -93,13 +94,15 @@ class UtilityMinuteChartPanel extends StatefulWidget {
 }
 
 class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
-    with AutomaticKeepAliveClientMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late String _requestKey;
 
   // Provider đang poll mỗi 30s.
   // 30s * 3 + 20s buffer = 110s.
   // Nếu quá 110s chưa có điểm mới thì xem là stale.
   static const Duration _staleThreshold = Duration(seconds: 110);
+
+  late final AnimationController _flowController;
 
   @override
   bool get wantKeepAlive => true;
@@ -127,6 +130,16 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     super.initState();
     _refreshRequestKey();
     _scheduleRegisterAndFetch();
+    _flowController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _flowController.dispose();
+    super.dispose();
   }
 
   @override
@@ -372,37 +385,69 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     final latestTime = DateFormat('HH:mm:ss').format(latestPoint.ts.toLocal());
 
     return Container(
-      constraints: const BoxConstraints(minHeight: 34),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.white.withOpacity(0.06)),
       ),
       child: Row(
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: _theme.line.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(6),
+          SizedBox(
+            width: 34,
+            height: 34,
+            child: ScadaEnergyIcon(
+              icon: _cateIcon,
+              color: _cateIconColor(_theme),
+              cate: widget.cate ?? '',
+              animation: _flowController,
             ),
-            child: Icon(_cateIcon, size: 20, color: _cateIconColor(_theme)),
           ),
+
           const SizedBox(width: 8),
+
           Expanded(
-            child: Text(
-              '$latestValue • $latestTime',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                height: 1.0,
-              ),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    latestValue,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Container(
+                  width: 1,
+                  height: 16,
+                  color: Colors.white.withOpacity(0.12),
+                ),
+
+                const SizedBox(width: 10),
+
+                Text(
+                  latestTime,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.62),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    height: 1.0,
+                  ),
+                ),
+              ],
             ),
           ),
+
           if (status.shouldShow) ...[
             const SizedBox(width: 8),
             _buildStatusChip(status),
