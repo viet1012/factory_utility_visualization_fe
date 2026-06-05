@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../utility_state/chart_catalog_provider.dart';
 import '../utility_dashboard_common/chart_theme.dart';
 import '../utility_dashboard_overview/utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../utility_dashboard_overview/utility_dashboard_overview_widgets/scada_tab_button.dart';
 import 'utility_minute_chart_panel.dart';
 
 class UtilityAllFactoriesChartsScreen extends StatefulWidget {
@@ -847,49 +848,63 @@ class _GlassTabRow extends StatelessWidget {
     required bool selected,
     required VoidCallback onTap,
   }) {
-    return InkWell(
+    return ScadaTabButton(
+      label: label,
+      selected: selected,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected
-              ? theme.line.withOpacity(0.14)
-              : Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: selected
-                ? theme.line.withOpacity(0.55)
-                : Colors.white.withOpacity(0.10),
-          ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: theme.line.withOpacity(0.22),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.18),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? theme.line : Colors.white.withOpacity(0.78),
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-      ),
+      color: theme.line,
+      minWidth: label.length <= 4 ? 66 : 92,
     );
   }
+
+  // Widget _buildChip({
+  //   required String label,
+  //   required bool selected,
+  //   required VoidCallback onTap,
+  // }) {
+  //   return InkWell(
+  //     onTap: onTap,
+  //     borderRadius: BorderRadius.circular(12),
+  //     child: AnimatedContainer(
+  //       duration: const Duration(milliseconds: 180),
+  //       curve: Curves.easeOut,
+  //       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+  //       decoration: BoxDecoration(
+  //         color: selected
+  //             ? theme.line.withOpacity(0.14)
+  //             : Colors.white.withOpacity(0.04),
+  //         borderRadius: BorderRadius.circular(6),
+  //         border: Border.all(
+  //           color: selected
+  //               ? theme.line.withOpacity(0.55)
+  //               : Colors.white.withOpacity(0.10),
+  //         ),
+  //         boxShadow: selected
+  //             ? [
+  //                 BoxShadow(
+  //                   color: theme.line.withOpacity(0.22),
+  //                   blurRadius: 14,
+  //                   offset: const Offset(0, 4),
+  //                 ),
+  //               ]
+  //             : [
+  //                 BoxShadow(
+  //                   color: Colors.black.withOpacity(0.18),
+  //                   blurRadius: 8,
+  //                   offset: const Offset(0, 2),
+  //                 ),
+  //               ],
+  //       ),
+  //       child: Text(
+  //         label,
+  //         style: TextStyle(
+  //           color: selected ? theme.line : Colors.white.withOpacity(0.78),
+  //           fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {

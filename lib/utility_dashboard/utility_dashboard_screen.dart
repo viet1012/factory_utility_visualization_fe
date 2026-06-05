@@ -201,7 +201,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                     index: _tabIndex,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(8),
                         child: UtilityDashboardOverview(
                           mainImageUrl: mainImageUrl,
                         ),

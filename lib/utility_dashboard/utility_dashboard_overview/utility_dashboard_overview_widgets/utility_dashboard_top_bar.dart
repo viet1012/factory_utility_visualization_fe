@@ -1,3 +1,4 @@
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/scada_tab_button.dart';
 import 'package:flutter/material.dart';
 
 class UtilityDashboardTopBar extends StatelessWidget {
@@ -256,75 +257,31 @@ class _FacToggleBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: UtilityTopBarStyle.glassBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF050B18).withOpacity(0.92),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: UtilityTopBarStyle.selectedColor.withOpacity(0.20),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: UtilityTopBarStyle.selectedColor.withOpacity(0.10),
+            blurRadius: 14,
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           for (int i = 0; i < items.length; i++) ...[
-            _FacPill(
-              item: items[i],
+            ScadaTabButton(
+              label: items[i].label,
               selected: selected == items[i].value,
               onTap: () => onChanged(items[i].value),
             ),
             if (i < items.length - 1) const SizedBox(width: 6),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _FacPill extends StatelessWidget {
-  final FacilityTabItem item;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _FacPill({
-    required this.item,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final selColor = UtilityTopBarStyle.selectedColor;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? selColor.withOpacity(0.18) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected
-                ? selColor.withOpacity(0.55)
-                : Colors.white.withOpacity(0.08),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (selected) ...[
-              Icon(Icons.check_rounded, size: 16, color: selColor),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              item.label,
-              style: TextStyle(
-                color: selected
-                    ? selColor.withOpacity(0.95)
-                    : Colors.white.withOpacity(0.78),
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

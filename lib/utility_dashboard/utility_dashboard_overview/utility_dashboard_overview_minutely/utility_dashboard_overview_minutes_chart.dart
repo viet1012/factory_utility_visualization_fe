@@ -14,6 +14,7 @@ import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../utility_dashboard_overview_widgets/common_chart_title_bar.dart';
+import '../utility_dashboard_overview_widgets/scada_chart_panel.dart';
 
 class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
   final String facId;
@@ -209,27 +210,29 @@ class _UtilityDashboardOverviewMinutesChartState
         builder: (context, child) {
           return Transform.scale(scale: fx.scale.value, child: child);
         },
-        child: Container(
+        child: ScadaChartPanel(
           width: widget.width,
           height: widget.height ?? 220,
-          decoration: BoxDecoration(
-            color: const Color(0xFF0B1324),
-            border: Border.all(color: Colors.white.withOpacity(0.10)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.35),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
+          color: widget.theme.line,
+          // decoration: BoxDecoration(
+          //   color: const Color(0xFF0B1324),
+          //   border: Border.all(color: Colors.white.withOpacity(0.10)),
+          //   boxShadow: [
+          //     BoxShadow(
+          //       color: Colors.black.withOpacity(0.35),
+          //       blurRadius: 16,
+          //       offset: const Offset(0, 8),
+          //     ),
+          //   ],
+          // ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               CommonChartTitleBar(
                 title: t.title,
                 health: healthResult,
-
+                backgroundColor: Colors.transparent,
+                borderColor: widget.theme.line.withOpacity(0.24),
                 lastVal: last == null
                     ? '--'
                     : '${last.value?.toStringAsFixed(1) ?? '--'} ${t.unit}',
@@ -241,6 +244,7 @@ class _UtilityDashboardOverviewMinutesChartState
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+
                   child: _body(),
                 ),
               ),
