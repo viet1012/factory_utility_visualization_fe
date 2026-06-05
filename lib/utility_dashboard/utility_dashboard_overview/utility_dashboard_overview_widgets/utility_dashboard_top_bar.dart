@@ -306,61 +306,70 @@ class _MonthPickerPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
+    return ScadaMonthButton(
+      month: month,
+      color: UtilityTopBarStyle.selectedColor.withOpacity(.7),
       onTap: () => _pick(context),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: UtilityTopBarStyle.glassBox(
-          borderRadius: BorderRadius.circular(12),
-          borderColor: Colors.white.withOpacity(0.12),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.calendar_month_outlined,
-              size: 18,
-              color: Colors.white.withOpacity(0.78),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              'Month:',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.72),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: UtilityTopBarStyle.glassBox(
-                borderRadius: BorderRadius.circular(10),
-                color: Colors.white.withOpacity(0.08),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    UtilityMonthLabel.format(month),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.92),
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.expand_more,
-                    size: 18,
-                    color: Colors.white.withOpacity(0.75),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
+
+  // @override
+  // Widget build(BuildContext context) {
+  //   return InkWell(
+  //     borderRadius: BorderRadius.circular(12),
+  //     onTap: () => _pick(context),
+  //     child: Container(
+  //       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+  //       decoration: UtilityTopBarStyle.glassBox(
+  //         borderRadius: BorderRadius.circular(12),
+  //         borderColor: Colors.white.withOpacity(0.12),
+  //       ),
+  //       child: Row(
+  //         children: [
+  //           Icon(
+  //             Icons.calendar_month_outlined,
+  //             size: 18,
+  //             color: Colors.white.withOpacity(0.78),
+  //           ),
+  //           const SizedBox(width: 10),
+  //           Text(
+  //             'Month:',
+  //             style: TextStyle(
+  //               color: Colors.white.withOpacity(0.72),
+  //               fontWeight: FontWeight.w700,
+  //             ),
+  //           ),
+  //           const SizedBox(width: 10),
+  //           Container(
+  //             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+  //             decoration: UtilityTopBarStyle.glassBox(
+  //               borderRadius: BorderRadius.circular(10),
+  //               color: Colors.white.withOpacity(0.08),
+  //             ),
+  //             child: Row(
+  //               children: [
+  //                 Text(
+  //                   UtilityMonthLabel.format(month),
+  //                   style: TextStyle(
+  //                     color: Colors.white.withOpacity(0.92),
+  //                     fontWeight: FontWeight.w900,
+  //                     letterSpacing: 0.2,
+  //                   ),
+  //                 ),
+  //                 const SizedBox(width: 6),
+  //                 Icon(
+  //                   Icons.expand_more,
+  //                   size: 18,
+  //                   color: Colors.white.withOpacity(0.75),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 }
 
 class _MonthPickerDialog extends StatefulWidget {

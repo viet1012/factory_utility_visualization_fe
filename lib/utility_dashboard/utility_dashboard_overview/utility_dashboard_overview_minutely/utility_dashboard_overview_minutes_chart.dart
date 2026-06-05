@@ -232,7 +232,7 @@ class _UtilityDashboardOverviewMinutesChartState
                 title: t.title,
                 health: healthResult,
                 backgroundColor: Colors.transparent,
-                borderColor: widget.theme.line.withOpacity(0.24),
+                borderColor: widget.theme.line.withOpacity(0.44),
                 lastVal: last == null
                     ? '--'
                     : '${last.value?.toStringAsFixed(1) ?? '--'} ${t.unit}',

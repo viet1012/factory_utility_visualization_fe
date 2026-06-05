@@ -15,6 +15,7 @@ import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../utility_dashboard_overview_widgets/common_chart_title_bar.dart';
 import '../utility_dashboard_overview_widgets/health_indicator.dart';
+import '../utility_dashboard_overview_widgets/scada_chart_panel.dart';
 
 class _DailyDto {
   final DateTime date;
@@ -368,7 +369,8 @@ class _UtilityDashboardOverviewDailyChartState
           child: _Shell(
             width: widget.width,
             height: widget.height ?? 320,
-            facilityColor: facilityColor,
+            facilityColor: widget.theme.line,
+
             child: _body(healthResult),
           ),
         ),
@@ -411,7 +413,8 @@ class _UtilityDashboardOverviewDailyChartState
           health: health,
           lastVal: _lastVal,
           lastTs: _lastTs,
-          borderColor: widget.theme.fillTop.withOpacity(0.35),
+          backgroundColor: Colors.transparent,
+          borderColor: widget.theme.line.withOpacity(0.44),
         ),
         const SizedBox(height: 6),
         Expanded(
@@ -455,38 +458,61 @@ class _Shell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return ScadaChartPanel(
       width: width,
       height: height,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF2E1A47).withOpacity(0.25),
-            const Color(0xFF1A2A6C).withOpacity(0.18),
-          ],
-        ),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
-        boxShadow: [
-          BoxShadow(
-            color: facilityColor.withOpacity(0.22),
-            blurRadius: 18,
-            spreadRadius: 2,
-            offset: const Offset(0, 8),
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.35),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(borderRadius: BorderRadius.circular(20), child: child),
+      color: facilityColor,
+      child: Padding(padding: const EdgeInsets.all(8), child: child),
     );
   }
 }
+// class _Shell extends StatelessWidget {
+//   final double width;
+//   final double height;
+//   final Color facilityColor;
+//   final Widget child;
+//
+//   const _Shell({
+//     required this.width,
+//     required this.height,
+//     required this.facilityColor,
+//     required this.child,
+//   });
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return ScadaChartPanel(
+//       width: width,
+//       height: height,
+//       decoration: BoxDecoration(
+//         borderRadius: BorderRadius.circular(20),
+//         gradient: LinearGradient(
+//           begin: Alignment.topLeft,
+//           end: Alignment.bottomRight,
+//           colors: [
+//             const Color(0xFF2E1A47).withOpacity(0.25),
+//             const Color(0xFF1A2A6C).withOpacity(0.18),
+//           ],
+//         ),
+//         border: Border.all(color: Colors.white.withOpacity(0.12)),
+//         boxShadow: [
+//           BoxShadow(
+//             color: facilityColor.withOpacity(0.22),
+//             blurRadius: 18,
+//             spreadRadius: 2,
+//             offset: const Offset(0, 8),
+//           ),
+//           BoxShadow(
+//             color: Colors.black.withOpacity(0.35),
+//             blurRadius: 14,
+//             offset: const Offset(0, 4),
+//           ),
+//         ],
+//       ),
+//       child: ClipRRect(borderRadius: BorderRadius.circular(20), child: child),
+//     );
+//   }
+// }
 
 class _TitleBar extends StatelessWidget {
   final ChartTheme theme;

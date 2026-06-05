@@ -155,13 +155,28 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
       ],
       child: Scaffold(
         body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF0A0E27), Color(0xFF1A1A2E), Color(0xFF16213E)],
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF03111F), // navy rất đậm
+                const Color(0xFF051A2E), // dark blue
+                const Color(0xFF020814), // gần đen// Đen xanh sâu
+              ],
             ),
+
+            border: Border.all(color: const Color(0xFF00CFFF).withOpacity(.35)),
+
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00CFFF).withOpacity(.10),
+                blurRadius: 18,
+                spreadRadius: 1,
+              ),
+            ],
           ),
+
           child: SafeArea(
             child: Row(
               children: [

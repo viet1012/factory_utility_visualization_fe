@@ -9,6 +9,7 @@ import '../../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../../utility_dashboard_overview_widgets/health_indicator.dart';
+import '../../utility_dashboard_overview_widgets/scada_panel_frame.dart';
 
 class _HourlyCompareDto {
   final int scaleHour;
@@ -406,20 +407,22 @@ class _UtilityDashboardOverviewHourlyCompareState
           values: const [],
         );
 
-    return Container(
-      height: 340,
-      decoration: BoxDecoration(
-        color: const Color(0xFF0B1324).withOpacity(0.92),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+    return ScadaPanelFrame(
+      // height: 340,
+      // decoration: BoxDecoration(
+      //   color: const Color(0xFF0B1324).withOpacity(0.92),
+      //   borderRadius: BorderRadius.circular(16),
+      //   border: Border.all(color: Colors.white.withOpacity(0.10)),
+      //   boxShadow: [
+      //     BoxShadow(
+      //       color: Colors.black.withOpacity(0.25),
+      //       blurRadius: 18,
+      //       offset: const Offset(0, 10),
+      //     ),
+      //   ],
+      // ),
+      color: widget.theme.line,
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -521,18 +524,14 @@ class _SummaryBar extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      // padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Row(
         children: [
           Expanded(
             child: Text(
               'T ${s.sumToday.toStringAsFixed(0)} / '
               'P ${s.sumYday.toStringAsFixed(0)} ${theme.unit}',
-              style: TextStyle(
-                color: energyColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(color: energyColor, fontWeight: FontWeight.w600),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -541,11 +540,7 @@ class _SummaryBar extends StatelessWidget {
             child: Text(
               '\$${s.sumTodayUsd.toStringAsFixed(2)} / '
               '\$${s.sumYdayUsd.toStringAsFixed(2)}',
-              style: TextStyle(
-                color: usdColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(color: usdColor, fontWeight: FontWeight.w600),
               textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
             ),

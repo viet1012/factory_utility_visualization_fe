@@ -92,31 +92,21 @@ class _ScadaChartPanelPainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF062244).withOpacity(0.85), // Xanh đậm hơn
-            const Color(0xFF041830).withOpacity(0.90), // Mid tông
-            const Color(0xFF010810).withOpacity(0.96), // Đen xanh sâu
+            const Color(0xFF03111F), // navy rất đậm
+            const Color(0xFF051A2E), // dark blue
+            const Color(0xFF020814), // gần đen// Đen xanh sâu
           ],
           stops: const [0.0, 0.45, 1.0],
         ).createShader(Offset.zero & size),
     );
 
-    // // ✅ 2. OUTER GLOW — rộng hơn, sáng hơn
-    // canvas.drawPath(
-    //   path,
-    //   Paint()
-    //     ..color = color.withOpacity(0.35)
-    //     ..style = PaintingStyle.stroke
-    //     ..strokeWidth = 14
-    //     ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
-    // );
-
     // ✅ 3. MAIN BORDER — dày hơn, rõ hơn
     canvas.drawPath(
       path,
       Paint()
-        ..color = color.withOpacity(0.65)
+        ..color = color.withOpacity(0.88)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6,
+        ..strokeWidth = 1.4,
     );
 
     // ✅ 4. INNER BORDER — sáng hơn
@@ -135,9 +125,9 @@ class _ScadaChartPanelPainter extends CustomPainter {
     canvas.drawPath(
       innerPath,
       Paint()
-        ..color = color.withOpacity(0.25)
+        ..color = color.withOpacity(0.55)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.9,
+        ..strokeWidth = 1,
     );
 
     // ✅ 5. TOP STRIP — đậm hơn

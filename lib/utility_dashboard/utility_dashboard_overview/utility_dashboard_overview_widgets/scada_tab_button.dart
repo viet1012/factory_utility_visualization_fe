@@ -1,3 +1,4 @@
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
 import 'package:flutter/material.dart';
 
 class ScadaTabButton extends StatelessWidget {
@@ -52,6 +53,54 @@ class ScadaTabButton extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ScadaMonthButton extends StatelessWidget {
+  final DateTime month;
+  final VoidCallback onTap;
+  final Color color;
+
+  const ScadaMonthButton({
+    super.key,
+    required this.month,
+    required this.onTap,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: CustomPaint(
+        painter: _ScadaTabPainter(color: color, selected: true),
+        child: Container(
+          height: 36,
+          constraints: const BoxConstraints(minWidth: 140),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.calendar_month, size: 16, color: color),
+
+              const SizedBox(width: 8),
+
+              Text(
+                UtilityMonthLabel.format(month),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+
+              const SizedBox(width: 4),
+
+              Icon(Icons.expand_more, size: 16, color: Colors.white70),
+            ],
           ),
         ),
       ),
