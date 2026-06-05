@@ -100,21 +100,21 @@ class _ScadaChartPanelPainter extends CustomPainter {
         ).createShader(Offset.zero & size),
     );
 
-    // ✅ 2. OUTER GLOW — rộng hơn, sáng hơn
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color.withOpacity(0.35)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 14
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
-    );
+    // // ✅ 2. OUTER GLOW — rộng hơn, sáng hơn
+    // canvas.drawPath(
+    //   path,
+    //   Paint()
+    //     ..color = color.withOpacity(0.35)
+    //     ..style = PaintingStyle.stroke
+    //     ..strokeWidth = 14
+    //     ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+    // );
 
     // ✅ 3. MAIN BORDER — dày hơn, rõ hơn
     canvas.drawPath(
       path,
       Paint()
-        ..color = color.withOpacity(0.75)
+        ..color = color.withOpacity(0.65)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.6,
     );
@@ -135,7 +135,7 @@ class _ScadaChartPanelPainter extends CustomPainter {
     canvas.drawPath(
       innerPath,
       Paint()
-        ..color = color.withOpacity(0.35)
+        ..color = color.withOpacity(0.25)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.9,
     );
