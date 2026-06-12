@@ -464,7 +464,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
   late Animation<double> _blinkAnimation;
 
   final ValueNotifier<Map<String, VoltageStatus>> _activeVoltageAlarms =
-      ValueNotifier({});
+  ValueNotifier({});
 
   @override
   void initState() {
@@ -572,9 +572,10 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                 selectedFac: selectedFac,
                 selectedMonth: selectedMonth,
                 onFacChanged: (v) => setState(() => selectedFac = v),
-                onMonthChanged: (m) => setState(
-                  () => selectedMonth = DateTime(m.year, m.month, 1),
-                ),
+                onMonthChanged: (m) =>
+                    setState(
+                          () => selectedMonth = DateTime(m.year, m.month, 1),
+                    ),
                 hasAlarm: hasAlarm,
                 blinkAnimation: _blinkAnimation, // 🔥 thêm luôn animation
               ),
@@ -596,11 +597,13 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
 
                       child: Column(
                         children: [
+
                           /// ===== TOP =====
                           Expanded(
                             flex: 2,
                             child: Row(
                               children: [
+
                                 /// LEFT CHART
                                 Column(
                                   children: [
@@ -608,26 +611,26 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
 
                                     Expanded(
                                       child:
-                                          UtilityDashboardOverviewMinutesChart(
-                                            facId: selectedFac,
-                                            theme: ChartThemes.power,
-                                          ),
+                                      UtilityDashboardOverviewMinutesChart(
+                                        facId: selectedFac,
+                                        theme: ChartThemes.power,
+                                      ),
                                     ),
                                     Expanded(
                                       child:
-                                          UtilityDashboardOverviewMinutesChart(
-                                            facId: selectedFac,
-                                            theme: ChartThemes.water,
-                                            nameEng: 'test',
-                                          ),
+                                      UtilityDashboardOverviewMinutesChart(
+                                        facId: selectedFac,
+                                        theme: ChartThemes.water,
+                                        nameEng: 'test',
+                                      ),
                                     ),
                                     Expanded(
                                       child:
-                                          UtilityDashboardOverviewMinutesChart(
-                                            facId: selectedFac,
-                                            theme: ChartThemes.air,
-                                            nameEng: 'test',
-                                          ),
+                                      UtilityDashboardOverviewMinutesChart(
+                                        facId: selectedFac,
+                                        theme: ChartThemes.air,
+                                        nameEng: 'test',
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -663,7 +666,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                           alarmCount: alarms.length,
                                           size: 180,
                                           targetAlignment:
-                                              facPositions[targetFacId] ??
+                                          facPositions[targetFacId] ??
                                               const Alignment(-0.60, 0.80),
                                           idleAlignment: facPositions['idle']!,
                                         ),
@@ -682,7 +685,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                               'Fac_B',
                                             ),
                                             onVoltageAlarmChanged:
-                                                _handleVoltageAlarmChanged,
+                                            _handleVoltageAlarmChanged,
                                           ),
                                         ),
 
@@ -700,7 +703,24 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                               'Fac_A',
                                             ),
                                             onVoltageAlarmChanged:
-                                                _handleVoltageAlarmChanged,
+                                            _handleVoltageAlarmChanged,
+                                          ),
+                                        ),
+
+                                        Align(
+                                          alignment: const FractionalOffset(
+                                            0.05,
+                                            0.02,
+                                          ),
+                                          child: UtilityOverviewMonthlyBox(
+                                            facId: 'Fac_C',
+                                            month: monthKey,
+                                            headerTitle: 'Fac C',
+                                            isHighlighted: shouldHighlight(
+                                              'Fac_C',
+                                            ),
+                                            onVoltageAlarmChanged:
+                                            _handleVoltageAlarmChanged,
                                           ),
                                         ),
                                       ],
@@ -715,31 +735,31 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                       UtilityDashboardOverviewHourlyHeader(
                                         title: '[HOURLY COMPARE]',
                                         subtitle:
-                                            'Today: $nowStr  •  Prev: $yStr',
+                                        'Today: $nowStr  •  Prev: $yStr',
                                       ),
 
                                       Expanded(
                                         child:
-                                            UtilityDashboardOverviewHourlyCompare(
-                                              facId: selectedFac,
-                                              theme: ChartThemes.power,
-                                            ),
+                                        UtilityDashboardOverviewHourlyCompare(
+                                          facId: selectedFac,
+                                          theme: ChartThemes.power,
+                                        ),
                                       ),
                                       Expanded(
                                         child:
-                                            UtilityDashboardOverviewHourlyCompare(
-                                              facId: selectedFac,
-                                              theme: ChartThemes.water,
-                                              nameEng: 'test',
-                                            ),
+                                        UtilityDashboardOverviewHourlyCompare(
+                                          facId: selectedFac,
+                                          theme: ChartThemes.water,
+                                          nameEng: 'test',
+                                        ),
                                       ),
                                       Expanded(
                                         child:
-                                            UtilityDashboardOverviewHourlyCompare(
-                                              facId: selectedFac,
-                                              theme: ChartThemes.air,
-                                              nameEng: 'test',
-                                            ),
+                                        UtilityDashboardOverviewHourlyCompare(
+                                          facId: selectedFac,
+                                          theme: ChartThemes.air,
+                                          nameEng: 'test',
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -759,29 +779,29 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                     children: [
                                       Expanded(
                                         child:
-                                            UtilityDashboardOverviewDailyChart(
-                                              facId: selectedFac,
-                                              month: monthKey,
-                                              theme: ChartThemes.power,
-                                            ),
+                                        UtilityDashboardOverviewDailyChart(
+                                          facId: selectedFac,
+                                          month: monthKey,
+                                          theme: ChartThemes.power,
+                                        ),
                                       ),
                                       Expanded(
                                         child:
-                                            UtilityDashboardOverviewDailyChart(
-                                              facId: selectedFac,
-                                              month: monthKey,
-                                              theme: ChartThemes.water,
-                                              nameEng: 'test',
-                                            ),
+                                        UtilityDashboardOverviewDailyChart(
+                                          facId: selectedFac,
+                                          month: monthKey,
+                                          theme: ChartThemes.water,
+                                          nameEng: 'test',
+                                        ),
                                       ),
                                       Expanded(
                                         child:
-                                            UtilityDashboardOverviewDailyChart(
-                                              facId: selectedFac,
-                                              month: monthKey,
-                                              theme: ChartThemes.air,
-                                              nameEng: 'test',
-                                            ),
+                                        UtilityDashboardOverviewDailyChart(
+                                          facId: selectedFac,
+                                          month: monthKey,
+                                          theme: ChartThemes.air,
+                                          nameEng: 'test',
+                                        ),
                                       ),
                                     ],
                                   ),
