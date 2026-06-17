@@ -9,8 +9,6 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../utility_alarm/alarm_api.dart';
-import '../utility_alarm/alarm_provider.dart';
 import '../utility_alarm/utility_alarm_center_screen.dart';
 import '../utility_api/dio_client.dart';
 import '../utility_api/utility_api.dart';
@@ -37,7 +35,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final Dio dio;
   late final UtilityApi api;
   late final UtilityFacadeService facade;
-  late final AlarmApi alarmApi;
 
   late final UtilityScadaChannelApi scadaChannelApi;
   late final UtilityScadaApi scadaApi;
@@ -47,7 +44,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final SumCompareProvider sumCompareProvider;
   late final ChartCatalogProvider chartCatalogProvider;
   late final LatestProvider latestProvider;
-  late final AlarmProvider alarmProvider;
   late final TreeLatestProvider treeLatestProvider;
 
   late final TabController _tabController;
@@ -59,8 +55,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   void initState() {
     super.initState();
 
-    const baseUrl = 'http://192.168.122.16:9093';
-    // const baseUrl = 'http://localhost:9999';
+    // const baseUrl = 'http://192.168.122.16:9093';
+    const baseUrl = 'http://localhost:9999';
     // const baseUrl = 'http://192.168.122.16:9999';
 
     DioClient.init(baseUrl: baseUrl);
@@ -68,7 +64,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     dio = DioClient.dio;
     api = UtilityApi(dio: dio);
     facade = UtilityFacadeService(dio);
-    alarmApi = AlarmApi(dio);
 
     scadaChannelApi = UtilityScadaChannelApi(baseUrl: baseUrl);
     scadaApi = UtilityScadaApi(baseUrl: baseUrl);
@@ -88,14 +83,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     chartCatalogProvider = ChartCatalogProvider(api);
     latestProvider = LatestProvider(api: api);
 
-    alarmProvider = AlarmProvider(
-      api: alarmApi,
-      interval: const Duration(seconds: 15),
-    )..startPolling();
-
     treeLatestProvider = TreeLatestProvider(facade);
 
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _tabController.addListener(_handleTabChanged);
   }
 
@@ -117,7 +107,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     sumCompareProvider.dispose();
     chartCatalogProvider.dispose();
     latestProvider.dispose();
-    alarmProvider.dispose();
     treeLatestProvider.dispose();
 
     scadaChannelApi.dispose();
@@ -136,7 +125,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         ),
         Provider<UtilityApi>.value(value: api),
         Provider<UtilityFacadeService>.value(value: facade),
-        Provider<AlarmApi>.value(value: alarmApi),
 
         Provider<UtilityScadaChannelApi>.value(value: scadaChannelApi),
         Provider<UtilityScadaApi>.value(value: scadaApi),
@@ -148,7 +136,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
           value: chartCatalogProvider,
         ),
         ChangeNotifierProvider<LatestProvider>.value(value: latestProvider),
-        ChangeNotifierProvider<AlarmProvider>.value(value: alarmProvider),
         ChangeNotifierProvider<TreeLatestProvider>.value(
           value: treeLatestProvider,
         ),
@@ -193,6 +180,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                       icon: Icons.map_outlined,
                       text: 'MAP',
                     ),
+                    // IndustrialSideTabItem(
+                    //   icon: Icons.grid_view_outlined,
+                    //   text: 'OVERVIEW',
+                    // ),
                     IndustrialSideTabItem(
                       icon: Icons.show_chart,
                       text: 'CHARTS',
@@ -221,6 +212,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                           mainImageUrl: mainImageUrl,
                         ),
                       ),
+                      // UtilityOverviewCommandScreen(),
                       const RepaintBoundary(
                         child: UtilityAllFactoriesChartsScreen(),
                       ),
@@ -230,7 +222,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                       ),
                       const Padding(
                         padding: EdgeInsets.all(16),
-                        child: UtilityAlarmCenterScreen(),
+                        child: SignalHealthMatrixScreen(),
                       ),
                       Padding(
                         padding: const EdgeInsets.all(16),

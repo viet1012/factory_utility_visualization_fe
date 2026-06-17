@@ -316,7 +316,7 @@ class _UtilityAllFactoriesChartsScreenState
         padding: const EdgeInsets.all(8),
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0A0E27), Color(0xFF1A1A2E), Color(0xFF16213E)],
+            colors: [Color(0xFF0A0E27), Color(0xFF020B16)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),

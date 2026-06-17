@@ -214,17 +214,6 @@ class _UtilityDashboardOverviewMinutesChartState
           width: widget.width,
           height: widget.height ?? 220,
           color: widget.theme.line,
-          // decoration: BoxDecoration(
-          //   color: const Color(0xFF0B1324),
-          //   border: Border.all(color: Colors.white.withOpacity(0.10)),
-          //   boxShadow: [
-          //     BoxShadow(
-          //       color: Colors.black.withOpacity(0.35),
-          //       blurRadius: 16,
-          //       offset: const Offset(0, 8),
-          //     ),
-          //   ],
-          // ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
