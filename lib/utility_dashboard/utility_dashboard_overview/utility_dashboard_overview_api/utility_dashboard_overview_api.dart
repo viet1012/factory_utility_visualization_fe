@@ -19,7 +19,6 @@ class UtilityDashboardOverviewApi {
       '/api/utility/energy-minute',
       queryParameters: {'facId': facId, 'minutes': minutes, 'nameEn': nameEn},
     );
-    print('viett: ${res.realUri}');
     final List data = res.data;
 
     return data.map((e) => MinutePointDto.fromJson(e)).toList();
@@ -144,5 +143,16 @@ class UtilityDashboardOverviewApi {
     return data
         .map((e) => MonthlyUtilityUsage.fromJson(Map<String, dynamic>.from(e)))
         .toList();
+  }
+
+  /// SIGNAL HEALTH MATRIX
+  Future<List<Map<String, dynamic>>> getSignalHealthMatrix() async {
+    final res = await dio.get('/api/utility/signal-health-matrix');
+
+    final data = res.data;
+
+    if (data is! List) return const [];
+
+    return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 }

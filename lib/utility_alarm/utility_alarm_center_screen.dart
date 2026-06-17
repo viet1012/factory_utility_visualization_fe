@@ -683,11 +683,12 @@
 //   }
 // }
 import 'dart:async';
-import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 
+import '../utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/chart_state_widgets.dart';
 
 const kBg = Color(0xff0f172a);
@@ -721,14 +722,12 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
   bool loading = true;
   bool refreshing = false;
   bool _isFetching = false;
-  String? error;
+  Object? error;
+
   Timer? _refreshTimer;
 
-  List<dynamic> data = [];
+  List<Map<String, dynamic>> data = [];
   Map<String, dynamic>? selected;
-
-  static const String apiUrl =
-      'http://localhost:9999/api/utility/signal-health-matrix';
 
   @override
   void initState() {
@@ -765,23 +764,23 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
       });
     }
 
-    if (silent && mounted) {
+    if (silent) {
       setState(() => refreshing = true);
     }
 
     final oldBoxDeviceId = selected?['boxDeviceId'];
 
     try {
-      final res = await http.get(Uri.parse(apiUrl)).timeout(_requestTimeout);
+      final api = context.read<UtilityDashboardOverviewApi>();
 
-      if (res.statusCode != 200) {
-        throw Exception('API Error: ${res.statusCode}');
-      }
+      final newData = await api.getSignalHealthMatrix().timeout(
+        _requestTimeout,
+      );
 
-      final decoded = jsonDecode(res.body);
-      final newData = decoded is List ? decoded : [];
-
-      final newSelected = _findSelectedDevice(newData, oldBoxDeviceId);
+      final newSelected = _findSelectedDevice(
+        newData,
+        oldBoxDeviceId?.toString(),
+      );
 
       if (!mounted) return;
 
@@ -792,41 +791,50 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
         refreshing = false;
         error = null;
       });
+    } on TimeoutException catch (e) {
+      _handleLoadError(e, '[TIMEOUT]');
+    } on DioException catch (e) {
+      _handleLoadError(e, '[DIO] ${e.type}');
     } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        loading = false;
-        refreshing = false;
-
-        if (data.isEmpty) {
-          error = e.toString();
-        }
-      });
+      _handleLoadError(e, '[ERROR]');
     } finally {
       _isFetching = false;
     }
   }
 
+  void _handleLoadError(Object e, String tag) {
+    debugPrint('$tag $e');
+
+    if (!mounted) return;
+
+    setState(() {
+      loading = false;
+      refreshing = false;
+
+      if (data.isEmpty) {
+        error = e;
+      }
+    });
+  }
+
   Map<String, dynamic>? _findSelectedDevice(
-    List<dynamic> newData,
+    List<Map<String, dynamic>> newData,
     String? oldBoxDeviceId,
   ) {
     if (newData.isEmpty) return null;
 
     if (oldBoxDeviceId != null) {
-      for (final item in newData) {
-        final row = item as Map<String, dynamic>;
+      for (final row in newData) {
         if ('${row['boxDeviceId']}' == oldBoxDeviceId) {
           return row;
         }
       }
     }
 
-    return newData.first as Map<String, dynamic>;
+    return newData.first;
   }
 
-  List<dynamic> get filteredData {
+  List<Map<String, dynamic>> get filteredData {
     return data.where((e) {
       final facOk = facFilter == 'ALL' || e['fac'] == facFilter;
       final cateOk = cateFilter == 'ALL' || e['cate'] == cateFilter;
@@ -887,7 +895,6 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
   }
 
   Widget _body() {
-    // Loading lần đầu
     if (loading && data.isEmpty) {
       return const Center(
         child: SizedBox(
@@ -898,12 +905,10 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
       );
     }
 
-    // API lỗi và chưa có dữ liệu
     if (error != null && data.isEmpty) {
       return ChartApiErrorState(color: Colors.redAccent, onRetry: _load);
     }
 
-    // Không có dữ liệu
     if (data.isEmpty) {
       return const EmptyChartState(
         title: 'No Signal Health Data',
@@ -911,7 +916,6 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
       );
     }
 
-    // Có dữ liệu -> render dashboard
     return Padding(
       padding: const EdgeInsets.all(6),
       child: Column(
@@ -920,18 +924,14 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
             lastUpdated: refreshing ? 'Refreshing...' : lastUpdated,
             onRefresh: () => _load(silent: true),
           ),
-
           const SizedBox(height: 16),
-
           _KpiRow(
             totalFac: totalFac,
             totalBoxDevice: totalBoxDevice,
             totalRegister: totalRegister,
             totalNgRegister: totalNgRegister,
           ),
-
           const SizedBox(height: 16),
-
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -952,9 +952,7 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
                         onScadaChanged: (v) => setState(() => scadaFilter = v!),
                         onSearchChanged: (v) => setState(() => keyword = v),
                       ),
-
                       const SizedBox(height: 12),
-
                       Expanded(
                         child: _MatrixTable(
                           data: filteredData,
@@ -967,9 +965,7 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(width: 16),
-
                 Expanded(
                   flex: 4,
                   child: selected == null
