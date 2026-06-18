@@ -1,687 +1,3 @@
-// import 'dart:convert';
-//
-// import 'package:flutter/material.dart';
-// import 'package:http/http.dart' as http;
-//
-// class AbnormalJumpScreen extends StatefulWidget {
-//   const AbnormalJumpScreen({super.key});
-//
-//   @override
-//   State<AbnormalJumpScreen> createState() => _AbnormalJumpScreenState();
-// }
-//
-// class _AbnormalJumpScreenState extends State<AbnormalJumpScreen> {
-//   bool loading = true;
-//   String? error;
-//   List<dynamic> data = [];
-//
-//   static const String apiUrl =
-//       'http://localhost:9999/api/utility/abnormal-signals';
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     fetchData();
-//   }
-//
-//   Future<void> fetchData() async {
-//     setState(() {
-//       loading = true;
-//       error = null;
-//     });
-//
-//     try {
-//       final res = await http.get(Uri.parse(apiUrl));
-//
-//       if (res.statusCode == 200) {
-//         final decoded = jsonDecode(res.body);
-//         data = decoded is List ? decoded : [];
-//       } else {
-//         error = 'API Error: ${res.statusCode}';
-//       }
-//     } catch (e) {
-//       error = e.toString();
-//     }
-//
-//     setState(() => loading = false);
-//   }
-//
-//   int get totalSignals {
-//     int total = 0;
-//
-//     for (final fac in data) {
-//       for (final cate in fac['categories'] ?? []) {
-//         for (final scada in cate['scadas'] ?? []) {
-//           for (final device in scada['devices'] ?? []) {
-//             total += ((device['signals'] as List?)?.length ?? 0);
-//           }
-//         }
-//       }
-//     }
-//
-//     return total;
-//   }
-//
-//   int get totalDevices {
-//     int total = 0;
-//
-//     for (final fac in data) {
-//       for (final cate in fac['categories'] ?? []) {
-//         for (final scada in cate['scadas'] ?? []) {
-//           total += ((scada['devices'] as List?)?.length ?? 0);
-//         }
-//       }
-//     }
-//
-//     return total;
-//   }
-//
-//   String get lastUpdated {
-//     String latest = '-';
-//
-//     for (final fac in data) {
-//       for (final cate in fac['categories'] ?? []) {
-//         for (final scada in cate['scadas'] ?? []) {
-//           for (final device in scada['devices'] ?? []) {
-//             for (final signal in device['signals'] ?? []) {
-//               final time = signal['recordedAt']?.toString() ?? '';
-//               if (latest == '-' || time.compareTo(latest) > 0) {
-//                 latest = time;
-//               }
-//             }
-//           }
-//         }
-//       }
-//     }
-//
-//     return latest;
-//   }
-//
-//   List<Map<String, dynamic>> flattenSignals(List data) {
-//     final List<Map<String, dynamic>> result = [];
-//
-//     for (final fac in data) {
-//       for (final cate in fac['categories'] ?? []) {
-//         for (final scada in cate['scadas'] ?? []) {
-//           for (final device in scada['devices'] ?? []) {
-//             for (final signal in device['signals'] ?? []) {
-//               result.add({
-//                 'fac': fac['fac'],
-//                 'category': cate['cate'],
-//                 'scadaId': scada['scadaId'],
-//                 'boxDeviceId': device['boxDeviceId'],
-//                 ...signal,
-//               });
-//             }
-//           }
-//         }
-//       }
-//     }
-//
-//     return result;
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: const Color(0xfff8fafc),
-//       body: loading
-//           ? const Center(child: CircularProgressIndicator())
-//           : error != null
-//           ? Center(child: Text(error!))
-//           : SingleChildScrollView(
-//               padding: const EdgeInsets.all(20),
-//               child: Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   // _Header(lastUpdated: lastUpdated, onRefresh: fetchData),
-//                   // const SizedBox(height: 16),
-//                   _SummaryCard(
-//                     facilityCount: data.length,
-//                     deviceCount: totalDevices,
-//                     signalCount: totalSignals,
-//                   ),
-//                   const SizedBox(height: 16),
-//                   _GroupedErrorPanel(data: data),
-//                 ],
-//               ),
-//             ),
-//     );
-//   }
-// }
-//
-// class _SummaryCard extends StatelessWidget {
-//   final int facilityCount;
-//   final int deviceCount;
-//   final int signalCount;
-//
-//   const _SummaryCard({
-//     required this.facilityCount,
-//     required this.deviceCount,
-//     required this.signalCount,
-//   });
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Row(
-//       children: [
-//         Expanded(
-//           child: _BigMetricCard(
-//             title: 'FAC lỗi',
-//             value: '$facilityCount',
-//             icon: Icons.factory,
-//             color: const Color(0xff2563eb),
-//           ),
-//         ),
-//         const SizedBox(width: 14),
-//         Expanded(
-//           child: _BigMetricCard(
-//             title: 'BoxDevice lỗi',
-//             value: '$deviceCount',
-//             icon: Icons.memory,
-//             color: const Color(0xfff97316),
-//           ),
-//         ),
-//         const SizedBox(width: 14),
-//         Expanded(
-//           child: _BigMetricCard(
-//             title: 'Thanh ghi lỗi',
-//             value: '$signalCount',
-//             icon: Icons.warning_amber_rounded,
-//             color: const Color(0xffdc2626),
-//             danger: true,
-//           ),
-//         ),
-//       ],
-//     );
-//   }
-// }
-//
-// class _BigMetricCard extends StatelessWidget {
-//   final String title;
-//   final String value;
-//   final IconData icon;
-//   final Color color;
-//   final bool danger;
-//
-//   const _BigMetricCard({
-//     required this.title,
-//     required this.value,
-//     required this.icon,
-//     required this.color,
-//     this.danger = false,
-//   });
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       height: 92,
-//       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-//       decoration: BoxDecoration(
-//         color: danger ? const Color(0xfffff1f2) : Colors.white,
-//         borderRadius: BorderRadius.circular(20),
-//         border: Border.all(
-//           color: danger ? const Color(0xfffecaca) : const Color(0xffe2e8f0),
-//         ),
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black.withOpacity(.04),
-//             blurRadius: 18,
-//             offset: const Offset(0, 8),
-//           ),
-//         ],
-//       ),
-//       child: Row(
-//         children: [
-//           Container(
-//             width: 54,
-//             height: 54,
-//             decoration: BoxDecoration(
-//               color: color.withOpacity(.12),
-//               borderRadius: BorderRadius.circular(16),
-//             ),
-//             child: Icon(icon, color: color, size: 30),
-//           ),
-//           const SizedBox(width: 18),
-//           Column(
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             mainAxisAlignment: MainAxisAlignment.center,
-//             children: [
-//               Text(
-//                 value,
-//                 style: TextStyle(
-//                   fontSize: 32,
-//                   height: 1,
-//                   fontWeight: FontWeight.w900,
-//                   color: color,
-//                 ),
-//               ),
-//               const SizedBox(height: 10),
-//               Text(
-//                 title,
-//                 style: const TextStyle(
-//                   color: Color(0xff64748b),
-//                   fontWeight: FontWeight.w700,
-//                 ),
-//               ),
-//             ],
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-//
-// class _GroupedErrorPanel extends StatelessWidget {
-//   final List<dynamic> data;
-//
-//   const _GroupedErrorPanel({required this.data});
-//
-//   int _countScadas(Map<String, dynamic> fac) {
-//     int total = 0;
-//     for (final cate in fac['categories'] ?? []) {
-//       total += ((cate['scadas'] as List?)?.length ?? 0);
-//     }
-//     return total;
-//   }
-//
-//   int _countSignalsInFac(Map<String, dynamic> fac) {
-//     int total = 0;
-//     for (final cate in fac['categories'] ?? []) {
-//       for (final scada in cate['scadas'] ?? []) {
-//         for (final device in scada['devices'] ?? []) {
-//           total += ((device['signals'] as List?)?.length ?? 0);
-//         }
-//       }
-//     }
-//     return total;
-//   }
-//
-//   int _countDevicesInScada(Map<String, dynamic> scada) {
-//     return ((scada['devices'] as List?)?.length ?? 0);
-//   }
-//
-//   int _countSignalsInScada(Map<String, dynamic> scada) {
-//     int total = 0;
-//     for (final device in scada['devices'] ?? []) {
-//       total += ((device['signals'] as List?)?.length ?? 0);
-//     }
-//     return total;
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Column(
-//       crossAxisAlignment: CrossAxisAlignment.start,
-//       children: [
-//         const Text(
-//           'Danh sách lỗi theo Facility',
-//           style: TextStyle(
-//             fontSize: 22,
-//             fontWeight: FontWeight.w900,
-//             color: Color(0xff0f172a),
-//           ),
-//         ),
-//         const SizedBox(height: 6),
-//
-//         ...data.map<Widget>((fac) {
-//           final categories = fac['categories'] as List? ?? [];
-//
-//           return Container(
-//             margin: const EdgeInsets.only(bottom: 18),
-//             decoration: BoxDecoration(
-//               color: Colors.white,
-//               borderRadius: BorderRadius.circular(22),
-//               border: Border.all(color: const Color(0xffe2e8f0)),
-//               boxShadow: [
-//                 BoxShadow(
-//                   color: Colors.black.withOpacity(.04),
-//                   blurRadius: 18,
-//                   offset: const Offset(0, 8),
-//                 ),
-//               ],
-//             ),
-//             child: ExpansionTile(
-//               initiallyExpanded: true,
-//               tilePadding: const EdgeInsets.symmetric(
-//                 horizontal: 24,
-//                 vertical: 12,
-//               ),
-//               childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-//               leading: Container(
-//                 width: 52,
-//                 height: 52,
-//                 decoration: BoxDecoration(
-//                   color: const Color(0xffdbeafe),
-//                   borderRadius: BorderRadius.circular(16),
-//                 ),
-//                 child: const Icon(Icons.factory, color: Color(0xff2563eb)),
-//               ),
-//               title: Text(
-//                 'FAC ${fac['fac']}',
-//                 style: const TextStyle(
-//                   fontSize: 24,
-//                   fontWeight: FontWeight.w900,
-//                 ),
-//               ),
-//               subtitle: Padding(
-//                 padding: const EdgeInsets.only(top: 6),
-//                 child: Text(
-//                   '${_countScadas(fac)} SCADA lỗi • ${_countSignalsInFac(fac)} thanh ghi lỗi',
-//                   style: const TextStyle(
-//                     color: Color(0xff64748b),
-//                     fontWeight: FontWeight.w600,
-//                   ),
-//                 ),
-//               ),
-//               children: [
-//                 for (final cate in categories)
-//                   for (final scada in cate['scadas'] ?? [])
-//                     _ScadaErrorCard(
-//                       category: cate['cate'],
-//                       scada: scada,
-//                       deviceCount: _countDevicesInScada(scada),
-//                       signalCount: _countSignalsInScada(scada),
-//                     ),
-//               ],
-//             ),
-//           );
-//         }),
-//       ],
-//     );
-//   }
-// }
-//
-// class _ScadaErrorCard extends StatelessWidget {
-//   final String category;
-//   final Map<String, dynamic> scada;
-//   final int deviceCount;
-//   final int signalCount;
-//
-//   const _ScadaErrorCard({
-//     required this.category,
-//     required this.scada,
-//     required this.deviceCount,
-//     required this.signalCount,
-//   });
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final devices = scada['devices'] as List? ?? [];
-//
-//     return Container(
-//       margin: const EdgeInsets.only(bottom: 14),
-//       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-//       decoration: BoxDecoration(
-//         color: const Color(0xfff8fafc),
-//         borderRadius: BorderRadius.circular(18),
-//         border: Border.all(color: const Color(0xffe2e8f0)),
-//       ),
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           Row(
-//             children: [
-//               const Icon(Icons.dns, color: Color(0xff16a34a)),
-//               const SizedBox(width: 10),
-//               Expanded(
-//                 child: Text(
-//                   'SCADA ${scada['scadaId']}',
-//                   style: const TextStyle(
-//                     fontSize: 20,
-//                     fontWeight: FontWeight.w900,
-//                   ),
-//                 ),
-//               ),
-//               _CountPill('$deviceCount BoxDevice'),
-//               const SizedBox(width: 8),
-//               _CountPill('$signalCount thanh ghi lỗi', danger: true),
-//             ],
-//           ),
-//           const SizedBox(height: 6),
-//           Text(
-//             'Category: $category',
-//             style: const TextStyle(
-//               color: Color(0xff64748b),
-//               fontWeight: FontWeight.w600,
-//             ),
-//           ),
-//           const SizedBox(height: 16),
-//           ...devices.map<Widget>((device) => _DeviceErrorCard(device: device)),
-//         ],
-//       ),
-//     );
-//   }
-// }
-//
-// class _DeviceErrorCard extends StatelessWidget {
-//   final Map<String, dynamic> device;
-//
-//   const _DeviceErrorCard({required this.device});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final signals = device['signals'] as List? ?? [];
-//
-//     return Container(
-//       margin: const EdgeInsets.only(bottom: 12),
-//       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: BorderRadius.circular(16),
-//         border: Border.all(color: const Color(0xffe5e7eb)),
-//       ),
-//       child: Column(
-//         children: [
-//           Row(
-//             children: [
-//               const Icon(Icons.memory, color: Color(0xfff97316)),
-//               const SizedBox(width: 10),
-//               Expanded(
-//                 child: Text(
-//                   '${device['boxDeviceId']}',
-//                   style: const TextStyle(
-//                     fontSize: 17,
-//                     fontWeight: FontWeight.w900,
-//                   ),
-//                 ),
-//               ),
-//               _CountPill('${signals.length} thanh ghi lỗi', danger: true),
-//             ],
-//           ),
-//           const SizedBox(height: 6),
-//           ...signals.map<Widget>((signal) => _SignalErrorItem(signal: signal)),
-//         ],
-//       ),
-//     );
-//   }
-// }
-//
-// class _SignalErrorItem extends StatelessWidget {
-//   final Map<String, dynamic> signal;
-//
-//   const _SignalErrorItem({required this.signal});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       margin: const EdgeInsets.only(bottom: 6),
-//       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-//       decoration: BoxDecoration(
-//         color: const Color(0xffFFF8F8),
-//         borderRadius: BorderRadius.circular(10),
-//         border: Border.all(color: const Color(0xffFECACA)),
-//       ),
-//       child: Column(
-//         children: [
-//           Row(
-//             children: [
-//               const Icon(
-//                 Icons.warning_amber_rounded,
-//                 color: Colors.red,
-//                 size: 20,
-//               ),
-//               const SizedBox(width: 6),
-//
-//               Expanded(
-//                 child: Text(
-//                   signal["signalName"],
-//                   style: const TextStyle(
-//                     fontSize: 17,
-//                     fontWeight: FontWeight.bold,
-//                   ),
-//                 ),
-//               ),
-//
-//               _StatusBadge(signal["status"]),
-//             ],
-//           ),
-//
-//           const SizedBox(height: 10),
-//
-//           Row(
-//             children: [
-//               Expanded(
-//                 child: _MetricValue(
-//                   title: "PREV",
-//                   value: "${signal["prevValue"]}",
-//                   color: Colors.grey.shade700,
-//                 ),
-//               ),
-//
-//               Expanded(
-//                 child: _MetricValue(
-//                   title: "CURRENT",
-//                   value: "${signal["currentValue"]}",
-//                   color: Colors.red,
-//                 ),
-//               ),
-//
-//               Expanded(
-//                 child: _MetricValue(
-//                   title: "JUMP",
-//                   value: "${signal["jumpSize"]}",
-//                   color: Colors.orange,
-//                 ),
-//               ),
-//             ],
-//           ),
-//
-//           const SizedBox(height: 8),
-//
-//           Row(
-//             children: [
-//               Text(
-//                 "PLC ${signal["plcAddress"]}",
-//                 style: const TextStyle(
-//                   fontWeight: FontWeight.w600,
-//                   color: Colors.blueGrey,
-//                 ),
-//               ),
-//
-//               const Spacer(),
-//
-//               Text(
-//                 signal["recordedAt"],
-//                 style: const TextStyle(fontSize: 12, color: Colors.grey),
-//               ),
-//             ],
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-//
-// class _MetricValue extends StatelessWidget {
-//   final String title;
-//   final String value;
-//   final Color color;
-//
-//   const _MetricValue({
-//     required this.title,
-//     required this.value,
-//     required this.color,
-//   });
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Column(
-//       children: [
-//         Text(
-//           title,
-//           style: const TextStyle(
-//             fontSize: 11,
-//             color: Colors.grey,
-//             letterSpacing: 0.5,
-//           ),
-//         ),
-//
-//         const SizedBox(height: 2),
-//
-//         Text(
-//           value,
-//           maxLines: 1,
-//           overflow: TextOverflow.ellipsis,
-//           style: TextStyle(
-//             fontSize: 30,
-//             fontWeight: FontWeight.w900,
-//             color: color,
-//             height: 1,
-//           ),
-//         ),
-//       ],
-//     );
-//   }
-// }
-//
-// class _CountPill extends StatelessWidget {
-//   final String text;
-//   final bool danger;
-//
-//   const _CountPill(this.text, {this.danger = false});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-//       decoration: BoxDecoration(
-//         color: danger ? const Color(0xffffe4e6) : Colors.white,
-//         borderRadius: BorderRadius.circular(99),
-//         border: Border.all(
-//           color: danger ? const Color(0xfffca5a5) : const Color(0xffe2e8f0),
-//         ),
-//       ),
-//       child: Text(
-//         text,
-//         style: TextStyle(
-//           color: danger ? const Color(0xffdc2626) : const Color(0xff334155),
-//           fontWeight: FontWeight.w800,
-//           fontSize: 13,
-//         ),
-//       ),
-//     );
-//   }
-// }
-//
-// class _StatusBadge extends StatelessWidget {
-//   final String status;
-//
-//   const _StatusBadge(this.status);
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Chip(
-//       label: Text(status),
-//       backgroundColor: const Color(0xffffe4e6),
-//       labelStyle: const TextStyle(
-//         color: Colors.red,
-//         fontWeight: FontWeight.bold,
-//         fontSize: 12,
-//       ),
-//     );
-//   }
-// }
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -714,10 +30,11 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
   String facFilter = 'ALL';
   String cateFilter = 'ALL';
   String scadaFilter = 'ALL';
+  String boxDeviceFilter = 'ALL';
   String keyword = '';
 
   static const Duration _pollInterval = Duration(minutes: 1);
-  static const Duration _requestTimeout = Duration(seconds: 12);
+  static const Duration _requestTimeout = Duration(seconds: 90);
 
   bool loading = true;
   bool refreshing = false;
@@ -839,6 +156,8 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
       final facOk = facFilter == 'ALL' || e['fac'] == facFilter;
       final cateOk = cateFilter == 'ALL' || e['cate'] == cateFilter;
       final scadaOk = scadaFilter == 'ALL' || e['scadaId'] == scadaFilter;
+      final boxOk =
+          boxDeviceFilter == 'ALL' || e['boxDeviceId'] == boxDeviceFilter;
 
       final text = keyword.toLowerCase();
       final searchOk =
@@ -848,7 +167,7 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
           '${e['scadaId']}'.toLowerCase().contains(text) ||
           '${e['boxDeviceId']}'.toLowerCase().contains(text);
 
-      return facOk && cateOk && scadaOk && searchOk;
+      return facOk && cateOk && scadaOk && boxOk && searchOk;
     }).toList();
   }
 
@@ -865,6 +184,11 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
   List<String> get scadaOptions => [
     'ALL',
     ...data.map((e) => '${e['scadaId']}').toSet(),
+  ];
+
+  List<String> get boxDeviceOptions => [
+    'ALL',
+    ...data.map((e) => '${e['boxDeviceId']}').toSet(),
   ];
 
   int get totalFac => data.map((e) => e['fac']).toSet().length;
@@ -894,7 +218,23 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
     return latest;
   }
 
+  int get filteredTotalFac => filteredData.map((e) => e['fac']).toSet().length;
+
+  int get filteredTotalBoxDevice => filteredData.length;
+
+  int get filteredTotalRegister => filteredData.fold(
+    0,
+    (sum, e) => sum + ((e['totalRegisters'] ?? 0) as num).toInt(),
+  );
+
+  int get filteredTotalNgRegister => filteredData.fold(
+    0,
+    (sum, e) => sum + ((e['ngRegisters'] ?? 0) as num).toInt(),
+  );
+
   Widget _body() {
+    final rows = filteredData;
+
     if (loading && data.isEmpty) {
       return const Center(
         child: SizedBox(
@@ -926,10 +266,16 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
           ),
           const SizedBox(height: 16),
           _KpiRow(
-            totalFac: totalFac,
-            totalBoxDevice: totalBoxDevice,
-            totalRegister: totalRegister,
-            totalNgRegister: totalNgRegister,
+            totalFac: rows.map((e) => e['fac']).toSet().length,
+            totalBoxDevice: rows.length,
+            totalRegister: rows.fold(
+              0,
+              (sum, e) => sum + ((e['totalRegisters'] ?? 0) as num).toInt(),
+            ),
+            totalNgRegister: rows.fold(
+              0,
+              (sum, e) => sum + ((e['ngRegisters'] ?? 0) as num).toInt(),
+            ),
           ),
           const SizedBox(height: 16),
           Expanded(
@@ -944,18 +290,22 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
                         facOptions: facOptions,
                         cateOptions: cateOptions,
                         scadaOptions: scadaOptions,
+                        boxDeviceOptions: boxDeviceOptions,
                         facValue: facFilter,
                         cateValue: cateFilter,
                         scadaValue: scadaFilter,
+                        boxDeviceValue: boxDeviceFilter,
                         onFacChanged: (v) => setState(() => facFilter = v!),
                         onCateChanged: (v) => setState(() => cateFilter = v!),
                         onScadaChanged: (v) => setState(() => scadaFilter = v!),
+                        onBoxDeviceChanged: (v) =>
+                            setState(() => boxDeviceFilter = v!),
                         onSearchChanged: (v) => setState(() => keyword = v),
                       ),
                       const SizedBox(height: 12),
                       Expanded(
                         child: _MatrixTable(
-                          data: filteredData,
+                          data: rows,
                           selected: selected,
                           onSelect: (item) {
                             setState(() => selected = item);
@@ -1181,26 +531,32 @@ class _FilterRow extends StatelessWidget {
   final List<String> facOptions;
   final List<String> cateOptions;
   final List<String> scadaOptions;
+  final List<String> boxDeviceOptions;
 
   final String facValue;
   final String cateValue;
   final String scadaValue;
+  final String boxDeviceValue;
 
   final ValueChanged<String?> onFacChanged;
   final ValueChanged<String?> onCateChanged;
   final ValueChanged<String?> onScadaChanged;
+  final ValueChanged<String?> onBoxDeviceChanged;
   final ValueChanged<String> onSearchChanged;
 
   const _FilterRow({
     required this.facOptions,
     required this.cateOptions,
     required this.scadaOptions,
+    required this.boxDeviceOptions,
     required this.facValue,
     required this.cateValue,
     required this.scadaValue,
+    required this.boxDeviceValue,
     required this.onFacChanged,
     required this.onCateChanged,
     required this.onScadaChanged,
+    required this.onBoxDeviceChanged,
     required this.onSearchChanged,
   });
 
@@ -1224,6 +580,13 @@ class _FilterRow extends StatelessWidget {
           value: scadaValue,
           items: scadaOptions,
           onChanged: onScadaChanged,
+        ),
+        const SizedBox(width: 12),
+        _FilterDropdown(
+          value: boxDeviceValue,
+          items: boxDeviceOptions,
+          onChanged: onBoxDeviceChanged,
+          width: 260,
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -1261,17 +624,19 @@ class _FilterDropdown extends StatelessWidget {
   final String value;
   final List<String> items;
   final ValueChanged<String?> onChanged;
+  final double width;
 
   const _FilterDropdown({
     required this.value,
     required this.items,
     required this.onChanged,
+    this.width = 180,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 205,
+      width: width,
       height: 46,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -1283,25 +648,19 @@ class _FilterDropdown extends StatelessWidget {
         child: DropdownButton<String>(
           isExpanded: true,
           value: value,
-
-          // 👇 Màu nền menu xổ xuống
           dropdownColor: kCard,
-
-          // 👇 Màu chữ của item đang chọn
           style: const TextStyle(
             color: kText,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
-
-          // 👇 Màu icon mũi tên
           iconEnabledColor: kText,
-
           items: items.map((e) {
             return DropdownMenuItem<String>(
               value: e,
               child: Text(
                 e,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: kText,
                   fontSize: 14,
@@ -1310,7 +669,6 @@ class _FilterDropdown extends StatelessWidget {
               ),
             );
           }).toList(),
-
           onChanged: onChanged,
         ),
       ),

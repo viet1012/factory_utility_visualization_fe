@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 class DioClient {
   DioClient._();
@@ -9,8 +10,17 @@ class DioClient {
     dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 20),
+
+        // Tang timeout
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 90),
+
+        // Ch? dùng cho request có body (POST/PUT),
+        // không c?n thi?t cho GET trên Flutter Web.
+        // sendTimeout: const Duration(seconds: 30),
+        contentType: Headers.jsonContentType,
+        responseType: ResponseType.json,
+
         headers: {
           'Content-Type': 'application/json',
           if (headers != null) ...headers,
@@ -20,19 +30,27 @@ class DioClient {
 
     dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (o, h) {
-          // debugPrint('➡️ [REQ] ${o.method} ${o.baseUrl}${o.path}');
-          // debugPrint('   query: ${o.queryParameters}');
-          return h.next(o);
+        onRequest: (options, handler) {
+          debugPrint(
+            '[REQ] ${options.method} ${options.baseUrl}${options.path}',
+          );
+          debugPrint('Query: ${options.queryParameters}');
+          handler.next(options);
         },
-        onResponse: (r, h) {
-          // debugPrint('✅ [RES] ${r.statusCode} ${r.realUri}');
-          return h.next(r);
+        onResponse: (response, handler) {
+          debugPrint(
+            '[RES] ${response.statusCode} ${response.requestOptions.path}',
+          );
+          handler.next(response);
         },
-        onError: (e, h) {
-          // debugPrint('❌ [ERR] ${e.requestOptions.path} ${e.message}');
-          // debugPrint('   response: ${e.response?.data}');
-          return h.next(e);
+        onError: (e, handler) {
+          debugPrint(
+            '[ERR] ${e.requestOptions.method} ${e.requestOptions.path}',
+          );
+          debugPrint('Type: ${e.type}');
+          debugPrint('Message: ${e.message}');
+          debugPrint('Response: ${e.response?.data}');
+          handler.next(e);
         },
       ),
     );

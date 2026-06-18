@@ -153,6 +153,9 @@ class UtilityDashboardOverviewApi {
 
     if (data is! List) return const [];
 
-    return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    return data
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
   }
 }
