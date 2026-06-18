@@ -390,17 +390,6 @@ class _Header extends StatelessWidget {
             side: BorderSide(color: kBlue.withOpacity(.45)),
           ),
         ),
-        const SizedBox(width: 10),
-        ElevatedButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.download),
-          label: const Text('Export Excel'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kBlue,
-            foregroundColor: kBg,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          ),
-        ),
       ],
     );
   }
