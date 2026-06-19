@@ -1043,14 +1043,29 @@ class _SignalMetricCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  '${signal['signalName']}',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: kText,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${signal['signalName']}',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: kText,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+
+                    if ((signal['unit'] ?? '').toString().isNotEmpty)
+                      Text(
+                        'Unit: ${signal['unit']}',
+                        style: const TextStyle(
+                          color: kSubText,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
                 ),
               ),
               _StatusBadge(status),
@@ -1077,7 +1092,9 @@ class _SignalMetricCard extends StatelessWidget {
               Expanded(
                 child: _ValueBox(
                   label: 'PREV',
-                  value: '${signal['prevValue']}',
+                  value:
+                      '${signal['prevValue'] ?? '-'} '
+                      '${signal['unit'] ?? ''}',
                   color: kText,
                 ),
               ),
@@ -1085,7 +1102,9 @@ class _SignalMetricCard extends StatelessWidget {
               Expanded(
                 child: _ValueBox(
                   label: 'CURRENT',
-                  value: '${signal['currentValue']}',
+                  value:
+                      '${signal['currentValue'] ?? '-'} '
+                      '${signal['unit'] ?? ''}',
                   color: isOk ? kGreen : kRed,
                   highlight: true,
                 ),
