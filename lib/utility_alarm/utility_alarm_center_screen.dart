@@ -154,12 +154,16 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
   List<Map<String, dynamic>> get filteredData {
     return data.where((e) {
       final facOk = facFilter == 'ALL' || e['fac'] == facFilter;
+
       final cateOk = cateFilter == 'ALL' || e['cate'] == cateFilter;
+
       final scadaOk = scadaFilter == 'ALL' || e['scadaId'] == scadaFilter;
+
       final boxOk =
           boxDeviceFilter == 'ALL' || e['boxDeviceId'] == boxDeviceFilter;
 
       final text = keyword.toLowerCase();
+
       final searchOk =
           text.isEmpty ||
           '${e['fac']}'.toLowerCase().contains(text) ||
@@ -522,10 +526,10 @@ class _FilterRow extends StatelessWidget {
   final List<String> scadaOptions;
   final List<String> boxDeviceOptions;
 
-  final String facValue;
-  final String cateValue;
-  final String scadaValue;
-  final String boxDeviceValue;
+  final String? facValue;
+  final String? cateValue;
+  final String? scadaValue;
+  final String? boxDeviceValue;
 
   final ValueChanged<String?> onFacChanged;
   final ValueChanged<String?> onCateChanged;
@@ -554,28 +558,38 @@ class _FilterRow extends StatelessWidget {
     return Row(
       children: [
         _FilterDropdown(
+          hint: 'Facility',
           value: facValue,
           items: facOptions,
           onChanged: onFacChanged,
         ),
+
         const SizedBox(width: 12),
+
         _FilterDropdown(
+          hint: 'Category',
           value: cateValue,
           items: cateOptions,
           onChanged: onCateChanged,
         ),
+
         const SizedBox(width: 12),
+
         _FilterDropdown(
+          hint: 'SCADA',
           value: scadaValue,
           items: scadaOptions,
           onChanged: onScadaChanged,
         ),
+
         const SizedBox(width: 12),
+
         _FilterDropdown(
+          hint: 'Device',
           value: boxDeviceValue,
           items: boxDeviceOptions,
-          onChanged: onBoxDeviceChanged,
           width: 260,
+          onChanged: onBoxDeviceChanged,
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -610,13 +624,16 @@ class _FilterRow extends StatelessWidget {
 }
 
 class _FilterDropdown extends StatelessWidget {
-  final String value;
+  final String? value;
+  final String hint;
   final List<String> items;
   final ValueChanged<String?> onChanged;
   final double width;
 
   const _FilterDropdown({
+    super.key,
     required this.value,
+    required this.hint,
     required this.items,
     required this.onChanged,
     this.width = 180,
@@ -636,19 +653,30 @@ class _FilterDropdown extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           isExpanded: true,
-          value: value,
-          dropdownColor: kCard,
-          style: const TextStyle(
-            color: kText,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+
+          // ALL => hiện hint
+          value: value == 'ALL' ? null : value,
+
+          hint: Text(
+            hint,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: kSubText,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
+
+          dropdownColor: kCard,
           iconEnabledColor: kText,
+
           items: items.map((e) {
             return DropdownMenuItem<String>(
               value: e,
               child: Text(
-                e,
+                e == 'ALL'
+                    ? 'All ${hint.replaceAll(RegExp(r'[^\w\s]'), '').trim()}'
+                    : e,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: kText,
@@ -658,14 +686,19 @@ class _FilterDropdown extends StatelessWidget {
               ),
             );
           }).toList(),
-          onChanged: onChanged,
+
+          onChanged: (v) {
+            if (v != null) {
+              onChanged(v);
+            }
+          },
         ),
       ),
     );
   }
 }
 
-class _MatrixTable extends StatelessWidget {
+class _MatrixTable extends StatefulWidget {
   final List<dynamic> data;
   final Map<String, dynamic>? selected;
   final ValueChanged<Map<String, dynamic>> onSelect;
@@ -675,6 +708,13 @@ class _MatrixTable extends StatelessWidget {
     required this.selected,
     required this.onSelect,
   });
+
+  @override
+  State<_MatrixTable> createState() => _MatrixTableState();
+}
+
+class _MatrixTableState extends State<_MatrixTable> {
+  final ScrollController _controller = ScrollController();
 
   @override
   Widget build(BuildContext context) {
@@ -704,94 +744,116 @@ class _MatrixTable extends StatelessWidget {
           ),
 
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(10),
-              itemCount: data.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final row = data[index] as Map<String, dynamic>;
-                final isSelected = identical(row, selected);
-                final isNg = row['status'] == 'NG';
+            child: ScrollbarTheme(
+              data: ScrollbarThemeData(
+                thumbColor: WidgetStatePropertyAll(Color(0xff00E5FF)),
+                trackColor: WidgetStatePropertyAll(Color(0xff1e293b)),
+                trackBorderColor: WidgetStatePropertyAll(Color(0xff38bdf8)),
+                radius: Radius.circular(10),
+              ),
+              child: Scrollbar(
+                controller: _controller,
+                thumbVisibility: true,
+                trackVisibility: true,
+                interactive: true,
+                radius: const Radius.circular(12),
+                thickness: 10,
 
-                return InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => onSelect(row),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? kBlue.withOpacity(.14)
-                          : isNg
-                          ? kOrange.withOpacity(.10)
-                          : kCard,
-                      border: Border.all(
-                        color: isSelected
-                            ? kBlue
-                            : isNg
-                            ? kOrange.withOpacity(.45)
-                            : kBorder,
-                        width: isSelected ? 1.6 : 1,
-                      ),
+                child: ListView.separated(
+                  controller: _controller,
+                  padding: const EdgeInsets.all(10),
+                  itemCount: widget.data.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final row = widget.data[index] as Map<String, dynamic>;
+                    final isSelected = identical(row, widget.selected);
+                    final isNg = row['status'] == 'NG';
+
+                    return InkWell(
                       borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        _BodyCell('${row['fac']}', flex: 1, bold: true),
-                        _BodyCell(
-                          '${row['cate']}',
-                          flex: 1,
-                          child: _CategoryBadge('${row['cate']}'),
+                      onTap: () => widget.onSelect(row),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
                         ),
-                        _BodyCell(
-                          '${row['scadaId']}',
-                          flex: 1,
-                          child: _SoftBadge('${row['scadaId']}'),
-                        ),
-                        _BodyCell('${row['boxDeviceId']}', flex: 3, bold: true),
-                        _BodyCell(
-                          '${row['totalRegisters']}',
-                          flex: 1,
-                          center: true,
-                          child: _RegisterNumber(
-                            '${row['totalRegisters']}',
-                            color: kText,
-                          ),
-                        ),
-                        _BodyCell(
-                          '${row['ngRegisters']}',
-                          flex: 1,
-                          center: true,
-                          child: _RegisterNumber(
-                            '${row['ngRegisters']}',
-                            color: isNg
-                                ? const Color(0xffdc2626)
-                                : const Color(0xff16a34a),
-                          ),
-                        ),
-                        _BodyCell(
-                          '${row['status']}',
-                          flex: 1,
-                          center: true,
-                          child: _StatusBadge('${row['status']}'),
-                        ),
-                        SizedBox(
-                          width: 44,
-                          child: Icon(
-                            Icons.chevron_right,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? kBlue.withOpacity(.14)
+                              : isNg
+                              ? kOrange.withOpacity(.10)
+                              : kCard,
+                          border: Border.all(
                             color: isSelected
-                                ? const Color(0xff2563eb)
-                                : const Color(0xff94a3b8),
+                                ? kBlue
+                                : isNg
+                                ? kOrange.withOpacity(.45)
+                                : kBorder,
+                            width: isSelected ? 1.6 : 1,
                           ),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                        child: Row(
+                          children: [
+                            _BodyCell('${row['fac']}', flex: 1, bold: true),
+                            _BodyCell(
+                              '${row['cate']}',
+                              flex: 1,
+                              child: _CategoryBadge('${row['cate']}'),
+                            ),
+                            _BodyCell(
+                              '${row['scadaId']}',
+                              flex: 1,
+                              child: _SoftBadge('${row['scadaId']}'),
+                            ),
+                            _BodyCell(
+                              '${row['boxDeviceId']}',
+                              flex: 3,
+                              bold: true,
+                            ),
+                            _BodyCell(
+                              '${row['totalRegisters']}',
+                              flex: 1,
+                              center: true,
+                              child: _RegisterNumber(
+                                '${row['totalRegisters']}',
+                                color: kText,
+                              ),
+                            ),
+                            _BodyCell(
+                              '${row['ngRegisters']}',
+                              flex: 1,
+                              center: true,
+                              child: _RegisterNumber(
+                                '${row['ngRegisters']}',
+                                color: isNg
+                                    ? const Color(0xffdc2626)
+                                    : const Color(0xff16a34a),
+                              ),
+                            ),
+                            _BodyCell(
+                              '${row['status']}',
+                              flex: 1,
+                              center: true,
+                              child: _StatusBadge('${row['status']}'),
+                            ),
+                            SizedBox(
+                              width: 44,
+                              child: Icon(
+                                Icons.chevron_right,
+                                color: isSelected
+                                    ? const Color(0xff2563eb)
+                                    : const Color(0xff94a3b8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
           ),
 
@@ -804,7 +866,7 @@ class _MatrixTable extends StatelessWidget {
             child: Row(
               children: [
                 Text(
-                  'Hiển thị ${data.length} bản ghi',
+                  'Hiển thị ${widget.data.length} bản ghi',
                   style: const TextStyle(
                     color: Color(0xff64748b),
                     fontWeight: FontWeight.w600,
@@ -958,18 +1020,31 @@ class _SoftBadge extends StatelessWidget {
   }
 }
 
-class _DetailPanel extends StatelessWidget {
+class _DetailPanel extends StatefulWidget {
   final Map<String, dynamic> device;
 
   const _DetailPanel({required this.device});
 
   @override
+  State<_DetailPanel> createState() => _DetailPanelState();
+}
+
+class _DetailPanelState extends State<_DetailPanel> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final signals = device['signals'] as List? ?? [];
+    final signals = widget.device['signals'] as List? ?? [];
 
     return Container(
       height: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(4),
       decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -996,12 +1071,29 @@ class _DetailPanel extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Expanded(
-            child: ListView.separated(
-              itemCount: signals.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                return _SignalMetricCard(signal: signals[index]);
-              },
+            child: ScrollbarTheme(
+              data: ScrollbarThemeData(
+                thumbColor: WidgetStatePropertyAll(Color(0xff00E5FF)),
+                trackColor: WidgetStatePropertyAll(Color(0xff1e293b)),
+                trackBorderColor: WidgetStatePropertyAll(Color(0xff38bdf8)),
+                thickness: const WidgetStatePropertyAll(4),
+                radius: Radius.circular(3),
+              ),
+              child: Scrollbar(
+                controller: _controller,
+                trackVisibility: true,
+                thumbVisibility: true,
+                interactive: true,
+                radius: const Radius.circular(12),
+                child: ListView.separated(
+                  controller: _controller,
+                  itemCount: signals.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    return _SignalMetricCard(signal: signals[index]);
+                  },
+                ),
+              ),
             ),
           ),
         ],

@@ -524,7 +524,6 @@ class _SummaryBar extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
-      // padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Row(
         children: [
           Expanded(

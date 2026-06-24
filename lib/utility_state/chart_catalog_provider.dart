@@ -6,9 +6,15 @@ import '../utility_models/f2_utility_scada_channel.dart';
 class SignalChartConfig {
   final String boxDeviceId;
   final String plcAddress;
+
   final String? cateId;
   final List<String>? cateIds;
+
   final String? groupLabel;
+
+  final String? nameEn;
+  final String? nameVi;
+  final String? unit;
 
   const SignalChartConfig({
     required this.boxDeviceId,
@@ -16,6 +22,9 @@ class SignalChartConfig {
     this.cateId,
     this.cateIds,
     this.groupLabel,
+    this.nameEn,
+    this.nameVi,
+    this.unit,
   });
 }
 
@@ -43,10 +52,6 @@ class ChartCatalogProvider extends ChangeNotifier {
   String? get selectedScadaId => _selectedScadaId;
 
   String? get selectedBoxId => _selectedBoxId;
-
-  Future<void> loadFacs() async {
-    // TODO if needed
-  }
 
   Future<void> loadScadas({required String facId, required String cate}) async {
     loading = true;
@@ -316,8 +321,14 @@ class ChartCatalogProvider extends ChangeNotifier {
           return SignalChartConfig(
             boxDeviceId: boxDeviceId,
             plcAddress: addr,
+
             cateId: cateId.isEmpty ? null : cateId,
             cateIds: cateId.isEmpty ? null : [cateId],
+
+            nameEn: p.nameEn,
+            nameVi: p.nameVi,
+            unit: p.unit,
+
             groupLabel: addGroupLabel ? boxDeviceId : null,
           );
         })
