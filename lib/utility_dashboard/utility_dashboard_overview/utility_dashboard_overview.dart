@@ -1,7 +1,7 @@
 // import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_widgets/utility_facility_info_box_tree.dart';
 // import 'package:flutter/material.dart';
 //
-// import '../../widgets/overview/factory_map_with_rain.dart';
+// import '../../weather_widgets/overview/factory_map_with_rain.dart';
 // import '../ultility_dashboard_chart/utility_hourly_bar_panel.dart';
 // import '../utility_dashboard_widgets/utility_category_compare_view.dart';
 //

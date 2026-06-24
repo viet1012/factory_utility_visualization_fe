@@ -417,7 +417,7 @@ class _CatalogBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ChartThemes.getThemeByCate(selectedCate);
+    final theme = ChartThemes.byCate(selectedCate);
 
     return Selector<ChartCatalogProvider, _CatalogBodyState>(
       selector: (_, p) => _CatalogBodyState(

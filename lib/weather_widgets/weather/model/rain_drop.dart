@@ -1,8 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:factory_utility_visualization/widgets/weather/model/rain_splash.dart';
-
-import '../../rain_effect_image.dart';
+import 'package:factory_utility_visualization/weather_widgets/weather/model/rain_splash.dart';
 
 class RainDrop {
   double x;
@@ -20,17 +18,6 @@ class RainDrop {
     required this.opacity,
     this.windOffset = 0,
   });
-
-  // void update(double intensityMultiplier) {
-  //   y += speed * intensityMultiplier;
-  //   // x += (windOffset / 100); // Wind effect
-  //
-  //   // Reset when drop goes off screen
-  //   if (y > 1.0) {
-  //     y = -0.1;
-  //     x = math.Random().nextDouble();
-  //   }
-  // }
 
   void update(double intensityMultiplier, List<RainSplash> splashes) {
     y += speed * intensityMultiplier;

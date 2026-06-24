@@ -1,5 +1,5 @@
 // import 'dart:math' as math;
-// import 'package:factory_utility_visualization/widgets/weather/model/rain_drop.dart';
+// import 'package:factory_utility_visualization/weather_widgets/weather/model/rain_drop.dart';
 // import 'package:flutter/material.dart';
 //
 // class RainEffectImage extends StatefulWidget {

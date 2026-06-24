@@ -118,13 +118,11 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
 
   String get _plcAddressOrEmpty => widget.plcAddress ?? '';
 
-  IconData get _cateIcon => ChartThemes.cateIcon(widget.cate);
+  ChartTheme get _theme => ChartThemes.byCate(widget.cate);
 
-  Color _cateIconColor(ChartTheme theme) {
-    return ChartThemes.cateIconColor(widget.cate, theme);
-  }
+  IconData get _cateIcon => _theme.icon;
 
-  ChartTheme get _theme => ChartThemes.getThemeByCate(widget.cate);
+  Color get _cateIconColor => _theme.iconColor;
 
   @override
   void initState() {
@@ -402,7 +400,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
             height: 34,
             child: ScadaEnergyIcon(
               icon: _cateIcon,
-              color: _cateIconColor(_theme),
+              color: _cateIconColor,
               cate: widget.cate ?? '',
               animation: _flowController,
             ),

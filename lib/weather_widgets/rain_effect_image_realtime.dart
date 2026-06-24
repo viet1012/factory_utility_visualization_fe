@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:factory_utility_visualization/weather_widgets/weather/api/weather_api_service.dart';
+import 'package:factory_utility_visualization/weather_widgets/weather/api_rain_painter.dart';
+import 'package:factory_utility_visualization/weather_widgets/weather/model/rain_drop.dart';
+import 'package:factory_utility_visualization/weather_widgets/weather/model/rain_splash.dart';
+import 'package:factory_utility_visualization/weather_widgets/weather/model/weather_data.dart';
 import 'package:flutter/material.dart';
-import 'package:factory_utility_visualization/widgets/weather/api_rain_painter.dart';
-import 'package:factory_utility_visualization/widgets/weather/api/weather_api_service.dart';
-import 'package:factory_utility_visualization/widgets/weather/model/rain_drop.dart';
-import 'package:factory_utility_visualization/widgets/weather/model/rain_splash.dart';
-import 'package:factory_utility_visualization/widgets/weather/model/weather_data.dart';
 
 class ApiControlledRainImage extends StatefulWidget {
   final String imageUrl;
@@ -336,6 +336,7 @@ class _WeatherInfoBadge extends StatelessWidget {
 }
 
 class MockWeatherService extends WeatherApiService {
+  @override
   Stream<WeatherData> weatherStream() async* {
     while (true) {
       yield WeatherData(

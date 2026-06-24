@@ -1,7 +1,7 @@
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_dialog/para_form_dialog.dart';
 import 'package:flutter/material.dart' hide SearchBar;
 
-import '../../utility_dashboard_common/utility_fac_style.dart';
+import '../../utility_dashboard_common/chart_theme.dart';
 import '../setting_security.dart';
 import '../utility_dashboard_setting_models/utility_para.dart';
 import '../utility_dashboard_setting_widgets/protected_edit_button.dart';
@@ -497,7 +497,7 @@ class _ParaFacGroupNode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final facColor = UtilityFacStyle.colorFromFac(group.fac);
+    final facColor = ChartThemes.colorFromFac(group.fac);
 
     final totalBoxes = group.scadas.fold<int>(
       0,
@@ -580,7 +580,7 @@ class _ParaFacNode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final facColor = UtilityFacStyle.colorFromFac(fac.fac);
+    final facColor = ChartThemes.colorFromFac(fac.fac);
     final totalDevices = fac.boxes.fold<int>(
       0,
       (sum, box) => sum + box.devices.length,
@@ -742,9 +742,9 @@ class _ParaDeviceNode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = UtilityFacStyle.colorByCate(device.cate);
-    final icon = UtilityFacStyle.iconByCate(device.cate);
-
+    final theme = ChartThemes.byCate(device.cate);
+    final accent = theme.iconColor;
+    final icon = theme.icon;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.025),

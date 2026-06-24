@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../utility_dashboard_common/utility_fac_style.dart';
+import '../../utility_dashboard_common/chart_theme.dart';
 import '../setting_security.dart';
 import '../utility_dashboard_setting_dialog/channel_form_dialog.dart';
 import '../utility_dashboard_setting_models/utility_scada_channel.dart';
@@ -535,7 +535,7 @@ class VerticalFacTree extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final facColor = UtilityFacStyle.colorFromFac(node.fac);
+    final facColor = ChartThemes.colorFromFac(node.fac);
     final totalBoxes = node.scadas.fold<int>(
       0,
       (sum, s) => sum + s.boxes.length,
@@ -756,9 +756,9 @@ class VerticalDeviceNode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = UtilityFacStyle.colorByCate(device.cate);
-    final icon = UtilityFacStyle.iconByCate(device.cate);
-
+    final theme = ChartThemes.byCate(device.cate);
+    final accent = theme.iconColor;
+    final icon = theme.icon;
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(

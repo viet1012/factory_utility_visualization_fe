@@ -46,7 +46,7 @@ class MonthlyUtilityUsagePanel extends StatelessWidget {
     this.cate = 'Electricity',
   });
 
-  ChartTheme get theme => ChartThemes.getThemeByCate(cate);
+  ChartTheme get theme => ChartThemes.byCate(cate);
 
   String _monthName(int month) {
     const months = [

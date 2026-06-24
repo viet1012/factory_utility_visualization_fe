@@ -16,7 +16,6 @@ import '../utility_models/utility_facade_service.dart';
 import '../utility_state/chart_catalog_provider.dart';
 import '../utility_state/latest_provider.dart';
 import '../utility_state/minute_series_provider.dart';
-import '../utility_state/sum_compare_provider.dart';
 import '../utility_state/tree_latest_provider.dart';
 import 'ultility_dashboard_chart/utility_minute_chart_screen.dart';
 import 'utility_dashboard_overview/utility_dashboard_overview.dart';
@@ -41,7 +40,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityParaApi paraApi;
 
   late final MinuteSeriesProvider minuteSeriesProvider;
-  late final SumCompareProvider sumCompareProvider;
   late final ChartCatalogProvider chartCatalogProvider;
   late final LatestProvider latestProvider;
   late final TreeLatestProvider treeLatestProvider;
@@ -74,11 +72,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
       window: const Duration(minutes: 60),
     )..startPolling();
 
-    sumCompareProvider = SumCompareProvider(
-      api: api,
-      interval: const Duration(seconds: 30),
-    );
-
     chartCatalogProvider = ChartCatalogProvider(api);
     latestProvider = LatestProvider(api: api);
 
@@ -103,7 +96,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     _tabController.dispose();
 
     minuteSeriesProvider.dispose();
-    sumCompareProvider.dispose();
     chartCatalogProvider.dispose();
     latestProvider.dispose();
     treeLatestProvider.dispose();

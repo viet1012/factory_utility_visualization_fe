@@ -11,7 +11,6 @@ import '../../../utility_models/utility_facade_service.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
-import '../../utility_dashboard_common/utility_fac_style.dart';
 import '../../utility_dashboard_fac_details/layout/utility_fac_layout_screen.dart';
 import '../../utility_dashboard_fac_details/widgets/hover_box_panel/hover_flow_painters.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
@@ -280,7 +279,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
   @override
   Widget build(BuildContext context) {
-    final facColor = UtilityFacStyle.colorFromFac(widget.headerTitle);
+    final facColor = ChartThemes.colorFromFac(widget.headerTitle);
 
     final healthResult =
         _cachedHealth ??
@@ -488,8 +487,8 @@ class _MonthlyBodyState extends State<_MonthlyBody>
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (_, index) {
               final item = widget.items[index];
-              final theme = ChartThemes.getThemeByCate(item.cate);
-              final color = ChartThemes.cateIconColor(item.cate, theme);
+              final theme = ChartThemes.byCate(item.cate);
+              final color = theme.iconColor;
 
               return RepaintBoundary(
                 child: ScadaPanelFrame(
@@ -663,9 +662,9 @@ class _EnergyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ChartThemes.getThemeByCate(item.cate);
-    final icon = ChartThemes.cateIcon(item.cate);
-    final color = ChartThemes.cateIconColor(item.cate, theme);
+    final theme = ChartThemes.byCate(item.cate);
+    final color = theme.iconColor;
+    final icon = theme.icon;
 
     final title = item.name.trim().isNotEmpty ? item.name.trim() : theme.title;
     final unit = item.unit.trim().isNotEmpty ? item.unit.trim() : theme.unit;

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart' hide SearchBar;
 import 'package:provider/provider.dart';
 
-import '../../utility_dashboard_common/utility_fac_style.dart';
+import '../../utility_dashboard_common/chart_theme.dart';
 import '../setting_security.dart';
 import '../utility_dashboard_setting_dialog/scada_form_dialog.dart';
 import '../utility_dashboard_setting_models/scada_view_model.dart';
@@ -124,7 +124,7 @@ class _UtilityScadaScreenState extends State<UtilityScadaScreen> {
             final entry = grouped.entries.elementAt(index);
             final fac = entry.key;
             final items = entry.value;
-            final facColor = UtilityFacStyle.colorFromFac(fac);
+            final facColor = ChartThemes.colorFromFac(fac);
 
             return _FacSection(
               fac: fac,
@@ -144,7 +144,7 @@ class _UtilityScadaScreenState extends State<UtilityScadaScreen> {
                   final item = items[itemIndex];
                   return ScadaCard(
                     item: item,
-                    accent: UtilityFacStyle.colorFromFac(item.fac),
+                    accent: ChartThemes.colorFromFac(item.fac),
                     disabled: vm.submitting,
                     onEdit: () => _openFormDialog(item: item),
                   );

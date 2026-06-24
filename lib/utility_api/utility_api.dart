@@ -5,7 +5,6 @@ import '../utility_models/f2_utility_parameter_master.dart';
 import '../utility_models/f2_utility_scada_channel.dart';
 import '../utility_models/response/latest_record.dart';
 import '../utility_models/response/minute_point.dart';
-import '../utility_models/response/sum_compare_item.dart';
 import '../utility_models/response/tree_series_response.dart';
 import 'dio_client.dart';
 
@@ -204,37 +203,5 @@ class UtilityApi {
       debugPrint('ERROR: $e');
       rethrow;
     }
-  }
-
-  // ---------- SUM COMPARE ----------
-  Future<List<SumCompareItem>> sumCompare({
-    String by = 'cate',
-    String? facId,
-    String? scadaId,
-    String? cate,
-    String? boxDeviceId,
-    List<String>? deviceIds,
-    List<String>? cateIds,
-    List<String>? nameEns,
-  }) async {
-    const path = '/api/utility/sum-compare';
-
-    final res = await _dio.get(
-      path,
-      queryParameters: _qp({
-        'by': by,
-        'facId': _clean(facId),
-        'scadaId': _clean(scadaId),
-        'cate': _clean(cate),
-        'boxDeviceId': _clean(boxDeviceId),
-        if (_cleanList(deviceIds).isNotEmpty) 'deviceIds': deviceIds,
-        if (_cleanList(cateIds).isNotEmpty) 'cateIds': cateIds,
-        if (_cleanList(nameEns).isNotEmpty) 'nameEns': nameEns,
-      }),
-    );
-
-    return _asList(res.data, path)
-        .map((e) => SumCompareItem.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
   }
 }

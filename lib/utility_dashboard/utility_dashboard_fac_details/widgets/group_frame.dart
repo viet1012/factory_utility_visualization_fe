@@ -176,7 +176,7 @@ class _GroupFrameState extends State<GroupFrame> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ChartThemes.getThemeByCate(widget.cate);
+    final theme = ChartThemes.byCate(widget.cate);
 
     final normalColor = widget.boxColor ?? theme.line;
     final selected = widget.isEditing;
