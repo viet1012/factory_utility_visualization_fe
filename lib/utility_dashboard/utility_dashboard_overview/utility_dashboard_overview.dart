@@ -296,7 +296,6 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                           UtilityDashboardOverviewMinutesChart(
                                             facId: selectedFac,
                                             theme: ChartThemes.water,
-                                            nameEng: 'test',
                                             utilityType: 'WATER',
                                           ),
                                     ),
@@ -305,8 +304,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                           UtilityDashboardOverviewMinutesChart(
                                             facId: selectedFac,
                                             theme: ChartThemes.air,
-                                            nameEng: 'test',
-                                            utilityType: '2',
+                                            utilityType: 'AIR',
                                           ),
                                     ),
                                   ],
