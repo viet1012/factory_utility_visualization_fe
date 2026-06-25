@@ -109,6 +109,7 @@
 // }
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_common/chart_theme.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_daily/utility_dashboard_overview_daily_chart.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/CoolingTankTemperaturePanel.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_compare.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_header.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutes_chart.dart';
@@ -287,6 +288,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                           UtilityDashboardOverviewMinutesChart(
                                             facId: selectedFac,
                                             theme: ChartThemes.power,
+                                            utilityType: 'ELECTRICITY',
                                           ),
                                     ),
                                     Expanded(
@@ -295,6 +297,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                             facId: selectedFac,
                                             theme: ChartThemes.water,
                                             nameEng: 'test',
+                                            utilityType: 'WATER',
                                           ),
                                     ),
                                     Expanded(
@@ -303,6 +306,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                             facId: selectedFac,
                                             theme: ChartThemes.air,
                                             nameEng: 'test',
+                                            utilityType: '2',
                                           ),
                                     ),
                                   ],
@@ -419,12 +423,11 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                             ),
                                       ),
                                       Expanded(
-                                        child:
-                                            UtilityDashboardOverviewHourlyCompare(
-                                              facId: selectedFac,
-                                              theme: ChartThemes.water,
-                                              nameEng: 'test',
-                                            ),
+                                        child: CoolingTankTemperaturePanel(
+                                          facId: selectedFac,
+                                          hours: 24,
+                                          theme: ChartThemes.water,
+                                        ),
                                       ),
                                       Expanded(
                                         child:

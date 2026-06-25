@@ -408,21 +408,7 @@ class _UtilityDashboardOverviewHourlyCompareState
         );
 
     return ScadaPanelFrame(
-      // height: 340,
-      // decoration: BoxDecoration(
-      //   color: const Color(0xFF0B1324).withOpacity(0.92),
-      //   borderRadius: BorderRadius.circular(16),
-      //   border: Border.all(color: Colors.white.withOpacity(0.10)),
-      //   boxShadow: [
-      //     BoxShadow(
-      //       color: Colors.black.withOpacity(0.25),
-      //       blurRadius: 18,
-      //       offset: const Offset(0, 10),
-      //     ),
-      //   ],
-      // ),
       color: widget.theme.line,
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../utility_models/response/minute_point.dart';
+import '../utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/CoolingTankTemperaturePanel.dart';
 import '../utility_dashboard_overview_monthly/monthly_utility_usage_panel.dart';
 import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
 
@@ -13,11 +14,16 @@ class UtilityDashboardOverviewApi {
   Future<List<MinutePointDto>> getEnergyMinute({
     required String facId,
     required int minutes,
+    String? utilityType,
     String? nameEn,
   }) async {
     final res = await dio.get(
       '/api/utility/energy-minute',
-      queryParameters: {'facId': facId, 'minutes': minutes, 'nameEn': nameEn},
+      queryParameters: {
+        'facId': facId,
+        'minutes': minutes,
+        'type': utilityType,
+      },
     );
     final List data = res.data;
 
@@ -25,13 +31,30 @@ class UtilityDashboardOverviewApi {
   }
 
   /// ENERGY HOURLY
+
+  Future<List<HourlyTempCompareDto>> getCoolingTankHourly({
+    required String facId,
+    int hours = 24,
+  }) async {
+    final res = await dio.get(
+      '/api/utility/cooling-tank/hourly',
+      queryParameters: {'facId': facId, 'hours': hours},
+    );
+    print('URL     : ${res.requestOptions.uri}');
+    final data = res.data as List;
+
+    return data
+        .map((e) => HourlyTempCompareDto.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
   Future<List<Map<String, dynamic>>> getEnergyHourly({
     required String facId,
     required int hours,
     String? nameEn,
   }) async {
     final res = await dio.get(
-      '/api/utility/energy-hourly',
+      '/api/utility/energy/hourly',
       queryParameters: {'facId': facId, 'hours': hours, 'nameEn': nameEn},
     );
     print("url: ${res.realUri}");

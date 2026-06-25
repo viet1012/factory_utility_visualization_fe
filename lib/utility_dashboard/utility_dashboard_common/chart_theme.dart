@@ -101,7 +101,7 @@ class ChartThemes {
 
   static const ChartTheme water = ChartTheme(
     title: 'WATER',
-    unit: 'm³',
+    unit: '°C',
     line: Color(0xFF0369A1),
     fillTop: Color(0x4D0369A1),
     fillBottom: Color(0x000369A1),
