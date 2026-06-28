@@ -1,4 +1,3 @@
-import 'package:factory_utility_visualization/utility_dashboard/ultility_dashboard_chart/signal_widget_resolver.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -485,10 +484,6 @@ class _CatalogBody extends StatelessWidget {
               itemBuilder: (context, index) {
                 final chart = vm.charts[index];
 
-                debugPrint(
-                  '${chart.nameEn} => '
-                  '${SignalWidgetResolver.resolve(chart.nameEn)}',
-                );
                 return RepaintBoundary(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),

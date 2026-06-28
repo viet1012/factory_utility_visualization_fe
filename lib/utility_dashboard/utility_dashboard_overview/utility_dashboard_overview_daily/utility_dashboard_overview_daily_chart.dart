@@ -255,8 +255,6 @@ class _UtilityDashboardOverviewDailyChartState
     setState(() {
       loading = false;
       error = e;
-
-      // Giữ rows cũ để chart không bị trắng khi API lỗi.
     });
   }
 
@@ -407,8 +405,8 @@ class _UtilityDashboardOverviewDailyChartState
         CommonChartTitleBar(
           title: widget.theme.title,
           health: health,
-          lastVal: _lastVal,
-          lastTs: _lastTs,
+          value: _lastVal,
+          valueTs: _lastTs,
           backgroundColor: Colors.transparent,
           borderColor: widget.theme.line.withOpacity(0.44),
         ),

@@ -7,8 +7,9 @@ class CommonChartTitleBar extends StatelessWidget {
   final String title;
   final DataHealthResult health;
 
-  final String? lastVal;
-  final String? lastTs;
+  final String? valueLabel;
+  final String? value;
+  final String? valueTs;
 
   final Color? borderColor;
   final Color? backgroundColor;
@@ -17,20 +18,23 @@ class CommonChartTitleBar extends StatelessWidget {
     super.key,
     required this.title,
     required this.health,
-    this.lastVal,
-    this.lastTs,
+    this.valueLabel,
+    this.value,
+    this.valueTs,
     this.borderColor,
     this.backgroundColor,
   });
 
-  bool get _hasLast =>
-      lastVal != null &&
-      lastVal!.trim().isNotEmpty &&
-      lastTs != null &&
-      lastTs!.trim().isNotEmpty;
+  bool get _hasValue =>
+      value != null &&
+      value!.trim().isNotEmpty &&
+      valueTs != null &&
+      valueTs!.trim().isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
+    final label = valueLabel ?? 'Last';
+
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       decoration: BoxDecoration(
@@ -43,9 +47,6 @@ class CommonChartTitleBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          ////////////////////////////////////////////////////////////
-          /// TITLE
-          ////////////////////////////////////////////////////////////
           Expanded(
             child: Text(
               title,
@@ -59,10 +60,6 @@ class CommonChartTitleBar extends StatelessWidget {
               ),
             ),
           ),
-
-          ////////////////////////////////////////////////////////////
-          /// RIGHT SIDE
-          ////////////////////////////////////////////////////////////
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -72,12 +69,10 @@ class CommonChartTitleBar extends StatelessWidget {
                 showLabel: false,
                 enableTooltip: true,
               ),
-
-              if (_hasLast) ...[
+              if (_hasValue) ...[
                 const SizedBox(width: 12),
-
                 Text(
-                  'Last: $lastVal • $lastTs',
+                  '$label: $value • $valueTs',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.right,

@@ -223,8 +223,8 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     final rows = vm.rows;
 
     final shouldHide = rows.any((e) {
-      final name = (e.nameEn ?? '').trim().toLowerCase();
-      return name.contains('slave multifunction meter');
+      final nameEn = (e.nameEn ?? '').trim().toLowerCase();
+      return nameEn.contains('slave multifunction meter');
     });
 
     if (shouldHide) return const SizedBox.shrink();
@@ -233,7 +233,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     final hasError = error != null;
     final isLoading = _canFetch && !vm.hasFetchedOnce && !hasError;
 
-    final signalDisplayName = rows.isNotEmpty
+    final signalDisplaynameEn = rows.isNotEmpty
         ? (rows.last.nameEn ?? rows.last.cateId)
         : null;
 
@@ -251,7 +251,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
             UtilityInfoBoxWidgets.header(
               facilityColor: _theme.fillTop,
               facTitle: widget.facId,
-              boxDeviceId: signalDisplayName,
+              boxDeviceId: signalDisplaynameEn,
               plcAddress: widget.plcAddress,
               unit: unit,
               isLoading: isLoading,
