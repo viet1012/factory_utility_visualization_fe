@@ -411,7 +411,14 @@ class _UtilityDashboardOverviewMinutesChartState
             color: Colors.white.withOpacity(.55),
             fontSize: 13,
           ),
-          title: AxisTitle(text: t.unit),
+          title: AxisTitle(
+            text: t.unit,
+            textStyle: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
         series: [
           SplineSeries<_ChartPoint, DateTime>(
@@ -567,7 +574,14 @@ class _UtilityDashboardOverviewMinutesChartState
           color: Colors.white.withOpacity(.55),
           fontSize: 11,
         ),
-        title: AxisTitle(text: t.unit),
+        title: AxisTitle(
+          text: t.unit,
+          textStyle: TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
       series: [
         ...grouped.entries.toList().asMap().entries.map((item) {
@@ -575,7 +589,10 @@ class _UtilityDashboardOverviewMinutesChartState
           final entry = item.value;
           final color = _seriesColor(index);
           final points = entry.value;
-
+          for (final r in rows) {
+            debugPrint('nameEn=${r.nameEn}, value=${r.value}, ts=${r.ts}');
+          }
+          print("_shortTanknameEn ${_shortTanknameEn(entry.key)}");
           return LineSeries<_ChartPoint, DateTime>(
             name: _shortTanknameEn(entry.key),
             dataSource: points,
