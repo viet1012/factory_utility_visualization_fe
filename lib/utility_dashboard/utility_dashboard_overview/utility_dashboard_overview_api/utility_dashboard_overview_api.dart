@@ -30,7 +30,7 @@ class UtilityDashboardOverviewApi {
     return data.map((e) => MinutePointDto.fromJson(e)).toList();
   }
 
-  /// ENERGY HOURLY
+  ///  HOURLY
 
   Future<List<HourlyTempCompareDto>> getCoolingTankHourly({
     required String facId,
@@ -38,7 +38,7 @@ class UtilityDashboardOverviewApi {
     String type = 'WATER',
   }) async {
     final res = await dio.get(
-      '/api/utility/cooling-tank-hourly',
+      '/api/utility/hourly-sensor-compare',
       queryParameters: {'facId': facId, 'hours': hours, 'type': type},
     );
 

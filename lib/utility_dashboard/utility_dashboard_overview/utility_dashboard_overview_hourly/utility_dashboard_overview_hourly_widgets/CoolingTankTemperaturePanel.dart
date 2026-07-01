@@ -216,15 +216,6 @@ class _TemperatureTrendCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              //Text(
-              //   theme.title,
-              //   style: TextStyle(
-              //     color: theme.accent,
-              //     fontSize: 13,
-              //     fontWeight: FontWeight.w900,
-              //   ),
-              // ),
-              //
               Icon(theme.icon, color: theme.line, size: 18),
 
               // const SizedBox(width: 14),
