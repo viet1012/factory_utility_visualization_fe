@@ -166,8 +166,13 @@ class _SummaryData {
     double sumYdayUsd = 0;
 
     for (final r in rows) {
+      final hasToday = r.today != null || r.todayUsd != null;
+
+      if (!hasToday) continue;
+
       sumToday += r.today ?? 0;
       sumYday += r.yesterday ?? 0;
+
       sumTodayUsd += r.todayUsd ?? 0;
       sumYdayUsd += r.yesterdayUsd ?? 0;
     }
@@ -509,28 +514,64 @@ class _SummaryBar extends StatelessWidget {
     final usdColor = s.trendUpUsd ? const Color(0xFFFF6B6B) : theme.usdLine;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+      margin: const EdgeInsets.all(8),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              'T ${s.sumToday.toStringAsFixed(0)} / '
-              'P ${s.sumYday.toStringAsFixed(0)} ${theme.unit}',
-              style: TextStyle(color: energyColor, fontWeight: FontWeight.w600),
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'T ${s.sumToday.toStringAsFixed(0)} / ',
+                    style: TextStyle(
+                      color: const Color(0xFF5CFF7A).withOpacity(0.9),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  TextSpan(
+                    text: 'Y ${s.sumYday.toStringAsFixed(0)} ${theme.unit}',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.60),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
+
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              '\$${s.sumTodayUsd.toStringAsFixed(2)} / '
-              '\$${s.sumYdayUsd.toStringAsFixed(2)}',
-              style: TextStyle(color: usdColor, fontWeight: FontWeight.w600),
-              textAlign: TextAlign.right,
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '\$${s.sumTodayUsd.toStringAsFixed(2)} / ',
+                    style: TextStyle(
+                      color: const Color(0xFF5CFF7A).withOpacity(0.9),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  TextSpan(
+                    text: '\$${s.sumYdayUsd.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.60),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 6),
+
           HealthIndicator(
             result: health,
             size: 8,
@@ -686,20 +727,21 @@ class _HourlyChart extends StatelessWidget {
       ],
       series: <CartesianSeries<_LinePoint, num>>[
         AreaSeries<_LinePoint, num>(
-          name: 'Previous',
+          name: 'Yesterday',
           dataSource: chartData.yesterdayPts,
           xValueMapper: (p, _) => p.hour,
           yValueMapper: (p, _) => p.y,
           yAxisName: 'leftAxis',
+          borderColor: const Color(0xFF9CA3AF),
+          borderWidth: 2,
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              theme.fillTop.withOpacity(0.45),
-              theme.fillBottom.withOpacity(0.05),
+              const Color(0xFF9CA3AF).withOpacity(.20),
+              const Color(0xFF9CA3AF).withOpacity(.02),
             ],
           ),
-          dashArray: const <double>[6, 3],
           emptyPointSettings: const EmptyPointSettings(
             mode: EmptyPointMode.gap,
           ),
@@ -725,7 +767,7 @@ class _HourlyChart extends StatelessWidget {
           ),
         ),
         AreaSeries<_LinePoint, num>(
-          name: 'Previous USD',
+          name: 'Yesterday USD',
           dataSource: chartData.yesterdayUsdPts,
           xValueMapper: (p, _) => p.hour,
           yValueMapper: (p, _) => p.y,

@@ -36,9 +36,6 @@ class UtilityDashboardOverviewHourlyHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Icon(icon, color: Colors.white, size: 18),
-          // const SizedBox(width: 10),
-
           // ✅ 1 Text duy nhất -> không bị chia 50/50
           Expanded(
             child: Text.rich(

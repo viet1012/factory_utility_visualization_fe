@@ -425,15 +425,16 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                           facId: selectedFac,
                                           hours: 24,
                                           theme: ChartThemes.water,
+                                          utilityType: 'WATER',
                                         ),
                                       ),
                                       Expanded(
-                                        child:
-                                            UtilityDashboardOverviewHourlyCompare(
-                                              facId: selectedFac,
-                                              theme: ChartThemes.air,
-                                              nameEng: 'test',
-                                            ),
+                                        child: CoolingTankTemperaturePanel(
+                                          facId: selectedFac,
+                                          hours: 24,
+                                          theme: ChartThemes.air,
+                                          utilityType: 'AIR',
+                                        ),
                                       ),
                                     ],
                                   ),

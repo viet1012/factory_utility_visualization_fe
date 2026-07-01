@@ -198,20 +198,14 @@ class _UtilityDashboardOverviewMinutesChartState
   Widget build(BuildContext context) {
     final t = widget.theme;
 
+    final validRows = rows.where((e) => e.value != null).toList();
+
     MinutePointDto? headerPoint;
 
-    if (rows.isNotEmpty) {
-      final valid = rows.where((e) => e.value != null).toList();
+    final valid = rows.where((e) => e.value != null).toList();
 
-      if (valid.isNotEmpty) {
-        if (widget.utilityType.toUpperCase() == 'WATER') {
-          // Water -> lấy giá trị lớn nhất
-          headerPoint = valid.reduce((a, b) => a.value! >= b.value! ? a : b);
-        } else {
-          // Electricity / Air -> lấy giá trị cuối
-          headerPoint = valid.last;
-        }
-      }
+    if (valid.isNotEmpty) {
+      headerPoint = valid.reduce((a, b) => a.value! >= b.value! ? a : b);
     }
 
     final healthResult =
@@ -242,11 +236,7 @@ class _UtilityDashboardOverviewMinutesChartState
                 health: healthResult,
                 backgroundColor: Colors.transparent,
                 borderColor: widget.theme.line.withOpacity(.44),
-
-                valueLabel: widget.utilityType.toUpperCase() == 'WATER'
-                    ? 'Max'
-                    : 'Last',
-
+                valueLabel: 'Max',
                 value: headerPoint == null
                     ? '--'
                     : '${headerPoint.value!.toStringAsFixed(1)} ${t.unit}',
@@ -367,7 +357,7 @@ class _UtilityDashboardOverviewMinutesChartState
       minY = minDataY - pad;
       maxY = maxDataY + pad;
     }
-
+    final lastPoint = data.last;
     return RepaintBoundary(
       child: SfCartesianChart(
         margin: EdgeInsets.zero,
@@ -384,7 +374,7 @@ class _UtilityDashboardOverviewMinutesChartState
         ),
         primaryXAxis: DateTimeAxis(
           minimum: minX,
-          maximum: maxX,
+          maximum: maxX.add(const Duration(minutes: 2)),
           intervalType: DateTimeIntervalType.minutes,
           dateFormat: DateFormat('HH:mm'),
           majorGridLines: MajorGridLines(
@@ -448,6 +438,35 @@ class _UtilityDashboardOverviewMinutesChartState
               height: 4,
               borderWidth: 1,
               borderColor: widget.theme.line.withOpacity(0.9),
+            ),
+          ),
+          ScatterSeries<_ChartPoint, DateTime>(
+            isVisibleInLegend: false,
+            dataSource: [lastPoint],
+
+            xValueMapper: (p, _) => p.ts,
+            yValueMapper: (p, _) => p.y,
+
+            color: t.line,
+
+            markerSettings: MarkerSettings(
+              isVisible: true,
+              width: 4,
+              height: 4,
+              borderWidth: 2,
+              borderColor: Colors.white,
+            ),
+
+            dataLabelMapper: (p, _) => p.y.toStringAsFixed(1),
+
+            dataLabelSettings: const DataLabelSettings(
+              isVisible: true,
+              labelAlignment: ChartDataLabelAlignment.outer,
+              textStyle: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -549,7 +568,7 @@ class _UtilityDashboardOverviewMinutesChartState
 
       primaryXAxis: DateTimeAxis(
         minimum: data.first.ts,
-        maximum: data.last.ts.add(const Duration(minutes: 5)),
+        maximum: data.last.ts.add(const Duration(minutes: 2)),
         intervalType: DateTimeIntervalType.minutes,
         dateFormat: DateFormat('HH:mm'),
         majorGridLines: MajorGridLines(
@@ -617,12 +636,25 @@ class _UtilityDashboardOverviewMinutesChartState
             xValueMapper: (p, _) => p.ts,
             yValueMapper: (p, _) => p.y,
             color: color,
+
             markerSettings: MarkerSettings(
               isVisible: true,
-              width: 8,
-              height: 8,
+              width: 4,
+              height: 4,
               borderWidth: 2,
               borderColor: Colors.white.withOpacity(.9),
+            ),
+
+            dataLabelMapper: (p, _) => p.y.toStringAsFixed(1),
+
+            dataLabelSettings: const DataLabelSettings(
+              isVisible: true,
+              labelAlignment: ChartDataLabelAlignment.outer,
+              textStyle: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           );
         }),

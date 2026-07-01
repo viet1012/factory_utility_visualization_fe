@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
@@ -11,24 +9,15 @@ import '../../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../../utility_dashboard_overview_widgets/scada_panel_frame.dart';
 
-const TextStyle _labelStyle = TextStyle(
-  color: Colors.white,
-  fontSize: 12,
-  fontWeight: FontWeight.w800,
-  letterSpacing: .5,
-);
-
 class HourlyTempCompareDto {
-  final DateTime hourTime;
-  final double? currentTemp;
-  final double? previousTemp;
-  final double? diffTemp;
+  final int scaleHour;
+  final double? today;
+  final double? yesterday;
 
-  HourlyTempCompareDto({
-    required this.hourTime,
-    this.currentTemp,
-    this.previousTemp,
-    this.diffTemp,
+  const HourlyTempCompareDto({
+    required this.scaleHour,
+    this.today,
+    this.yesterday,
   });
 
   factory HourlyTempCompareDto.fromJson(Map<String, dynamic> json) {
@@ -39,11 +28,17 @@ class HourlyTempCompareDto {
     }
 
     return HourlyTempCompareDto(
-      hourTime: DateTime.parse(json['hourTime'].toString()),
-      currentTemp: toD(json['currentTemp']),
-      previousTemp: toD(json['previousTemp']),
-      diffTemp: toD(json['diffTemp']),
+      scaleHour: json['scaleHour'] is int
+          ? json['scaleHour']
+          : int.tryParse(json['scaleHour'].toString()) ?? 0,
+      yesterday: toD(json['yesterday']),
+      today: toD(json['today']),
     );
+  }
+
+  double? get diff {
+    if (today == null || yesterday == null) return null;
+    return today! - yesterday!;
   }
 }
 
@@ -51,12 +46,14 @@ class CoolingTankTemperaturePanel extends StatefulWidget {
   final String facId;
   final int hours;
   final ChartTheme theme;
+  final String utilityType; // WATER / AIR
 
   const CoolingTankTemperaturePanel({
     super.key,
     required this.facId,
     this.hours = 24,
     required this.theme,
+    this.utilityType = 'WATER',
   });
 
   @override
@@ -79,16 +76,16 @@ class _CoolingTankTemperaturePanelState
   void initState() {
     super.initState();
     _load();
-    _timer = Timer.periodic(_pollInterval, (_) {
-      _load(silent: true);
-    });
+    _timer = Timer.periodic(_pollInterval, (_) => _load(silent: true));
   }
 
   @override
   void didUpdateWidget(covariant CoolingTankTemperaturePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.facId != widget.facId || oldWidget.hours != widget.hours) {
+    if (oldWidget.facId != widget.facId ||
+        oldWidget.hours != widget.hours ||
+        oldWidget.utilityType != widget.utilityType) {
       setState(() {
         rows = [];
         loading = true;
@@ -121,20 +118,20 @@ class _CoolingTankTemperaturePanelState
       final api = context.read<UtilityDashboardOverviewApi>();
 
       final data = await api
-          .getCoolingTankHourly(facId: widget.facId, hours: widget.hours)
+          .getCoolingTankHourly(
+            facId: widget.facId,
+            hours: widget.hours,
+            type: widget.utilityType,
+          )
           .timeout(_requestTimeout);
 
       if (!mounted) return;
 
       setState(() {
-        rows = data..sort((a, b) => a.hourTime.compareTo(b.hourTime));
+        rows = data..sort((a, b) => a.scaleHour.compareTo(b.scaleHour));
         loading = false;
         error = null;
       });
-    } on DioException catch (e) {
-      _handleError(e);
-    } on TimeoutException catch (e) {
-      _handleError(e);
     } catch (e) {
       _handleError(e);
     } finally {
@@ -158,42 +155,46 @@ class _CoolingTankTemperaturePanelState
     }
 
     if (error != null && rows.isEmpty) {
-      return const _StateBox(
+      return _StateBox(
+        theme: widget.theme,
         title: 'Load Failed',
-        message: 'Unable to load cooling tank temperature.',
+        message: 'Unable to load ${widget.theme.title.toLowerCase()} data.',
       );
     }
 
     if (rows.isEmpty) {
-      return const _StateBox(
-        title: 'No Temperature Data',
-        message: 'No cooling tank temperature data found.',
+      return _StateBox(
+        theme: widget.theme,
+        title: 'No Data',
+        message: 'No ${widget.theme.title.toLowerCase()} data found.',
       );
     }
 
     final latest = rows.lastWhere(
-      (e) => e.currentTemp != null,
+      (e) => e.today != null,
       orElse: () => rows.last,
     );
 
     return ScadaPanelFrame(
       color: widget.theme.line,
-
       child: _TemperatureTrendCard(
+        theme: widget.theme,
         rows: rows,
-        current: latest.currentTemp,
-        diff: latest.diffTemp,
+        current: latest.today,
+        diff: latest.diff,
       ),
     );
   }
 }
 
 class _TemperatureTrendCard extends StatelessWidget {
+  final ChartTheme theme;
   final List<HourlyTempCompareDto> rows;
   final double? current;
   final double? diff;
 
   const _TemperatureTrendCard({
+    required this.theme,
     required this.rows,
     required this.current,
     required this.diff,
@@ -201,65 +202,70 @@ class _TemperatureTrendCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final d = diff ?? 0;
-
-    final values = rows
-        .where((e) => e.currentTemp != null)
-        .map((e) => e.currentTemp!)
+    final todayValues = rows
+        .where((e) => e.today != null)
+        .map((e) => e.today!)
         .toList();
 
-    final minVal = values.isEmpty ? null : values.reduce(min);
-    final maxVal = values.isEmpty ? null : values.reduce(max);
-    final avgVal = values.isEmpty
-        ? null
-        : values.reduce((a, b) => a + b) / values.length;
+    final minVal = todayValues.isEmpty ? null : todayValues.reduce(min);
+    final maxVal = todayValues.isEmpty ? null : todayValues.reduce(max);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      padding: const EdgeInsets.all(6),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('COOLING TANK TEMPERATURE', style: _labelStyle),
-
-          const SizedBox(height: 4),
-
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              //Text(
+              //   theme.title,
+              //   style: TextStyle(
+              //     color: theme.accent,
+              //     fontSize: 13,
+              //     fontWeight: FontWeight.w900,
+              //   ),
+              // ),
+              //
+              Icon(theme.icon, color: theme.line, size: 18),
+
+              // const SizedBox(width: 14),
               Text(
-                current == null ? '--' : '${current!.toStringAsFixed(1)}°C',
-                style: const TextStyle(
-                  color: Color(0xFF22D3EE),
-                  fontSize: 28,
+                current == null ? '--' : current!.toStringAsFixed(1),
+                style: TextStyle(
+                  color: theme.line,
+                  fontSize: 22,
                   fontWeight: FontWeight.w900,
                   height: 1,
                 ),
               ),
 
-              const SizedBox(width: 10),
+              const SizedBox(width: 4),
 
-              _InlineStat('Min', minVal, const Color(0xFF38BDF8)),
-              const SizedBox(width: 6),
-              _InlineStat('Avg', avgVal, const Color(0xFF22C55E)),
-              const SizedBox(width: 6),
-              _InlineStat('Max', maxVal, const Color(0xFFF97316)),
+              Text(
+                theme.unit,
+                style: TextStyle(
+                  color: theme.line.withOpacity(.8),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+
+              const SizedBox(width: 18),
+
+              _CompactStat('Min', minVal),
+
+              const SizedBox(width: 12),
+
+              _CompactStat('Max', maxVal),
 
               const Spacer(),
 
-              Text(
-                '${d >= 0 ? '+' : '-'}${d.abs().toStringAsFixed(1)}°C',
-                style: TextStyle(
-                  color: d >= 0 ? Colors.redAccent : Colors.greenAccent,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
+              _MiniDiffCard(diff: diff),
             ],
           ),
-
           const SizedBox(height: 4),
-
-          Expanded(child: _TempLineChart(rows: rows)),
+          Expanded(
+            child: _TempLineChart(theme: theme, rows: rows),
+          ),
         ],
       ),
     );
@@ -267,18 +273,29 @@ class _TemperatureTrendCard extends StatelessWidget {
 }
 
 class _TempLineChart extends StatelessWidget {
+  final ChartTheme theme;
   final List<HourlyTempCompareDto> rows;
 
-  const _TempLineChart({required this.rows});
+  const _TempLineChart({required this.theme, required this.rows});
 
   @override
   Widget build(BuildContext context) {
-    final points = rows
-        .where((e) => e.currentTemp != null)
-        .map((e) => _TempPoint(e.hourTime, e.currentTemp!))
+    final todayPoints = rows
+        .where((e) => e.today != null)
+        .map((e) => _TempPoint(e.scaleHour, e.today!))
         .toList();
 
-    if (points.length < 2) {
+    final yesterdayPoints = rows
+        .where((e) => e.yesterday != null)
+        .map((e) => _TempPoint(e.scaleHour, e.yesterday!))
+        .toList();
+
+    final allValues = [
+      ...todayPoints.map((e) => e.value),
+      ...yesterdayPoints.map((e) => e.value),
+    ];
+
+    if (allValues.length < 2) {
       return Center(
         child: Text(
           'Not enough points',
@@ -287,30 +304,53 @@ class _TempLineChart extends StatelessWidget {
       );
     }
 
-    final ys = points.map((e) => e.value).toList();
-    final minY = max(0, ys.reduce(min) - 2).toDouble();
-    final maxY = ys.reduce(max) + 2;
+    final minValue = allValues.reduce(min);
+    final maxValue = allValues.reduce(max);
+    final range = maxValue - minValue;
+    final pad = max(range * .18, 0.5);
+
+    final minY = minValue - pad;
+    final maxY = maxValue + pad;
 
     return SfCartesianChart(
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 0,
-      primaryXAxis: DateTimeAxis(
-        dateFormat: DateFormat('HH:mm'),
+      legend: Legend(
+        isVisible: true,
+        position: LegendPosition.top,
+        alignment: ChartAlignment.center,
+        textStyle: TextStyle(
+          color: Colors.white.withOpacity(.75),
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      primaryXAxis: NumericAxis(
+        minimum: 0,
+        maximum: 23,
+        interval: 2,
+        decimalPlaces: 0,
+        axisLabelFormatter: (args) {
+          return ChartAxisLabel(
+            args.value.toInt().toString(),
+            TextStyle(
+              color: Colors.white.withOpacity(.70),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          );
+        },
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(.04),
         ),
         axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
-        labelStyle: TextStyle(
-          color: Colors.white.withOpacity(.50),
-          fontSize: 10,
-        ),
       ),
       primaryYAxis: NumericAxis(
         minimum: minY,
         maximum: maxY,
-        interval: 1,
-        labelFormat: '{value}°',
+        interval: (maxY - minY) / 5,
+        labelFormat: '{value}${theme.unit}',
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(.04),
@@ -321,26 +361,56 @@ class _TempLineChart extends StatelessWidget {
           fontSize: 10,
         ),
       ),
-      tooltipBehavior: TooltipBehavior(enable: true),
+      tooltipBehavior: TooltipBehavior(
+        enable: true,
+        decimalPlaces: 1,
+        format: 'Hour point.x : point.y${theme.unit}',
+      ),
       series: [
-        SplineAreaSeries<_TempPoint, DateTime>(
-          dataSource: points,
-          xValueMapper: (p, _) => p.time,
+        AreaSeries<_TempPoint, int>(
+          name: 'Yesterday',
+          dataSource: yesterdayPoints,
+          xValueMapper: (p, _) => p.hour,
           yValueMapper: (p, _) => p.value,
+          borderColor: const Color(0xFF9CA3AF),
           borderWidth: 2,
-          borderColor: const Color(0xFF22D3EE),
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF22D3EE).withOpacity(.38),
-              const Color(0xFF22D3EE).withOpacity(.02),
+              const Color(0xFF9CA3AF).withOpacity(.20),
+              const Color(0xFF9CA3AF).withOpacity(.02),
             ],
+          ),
+          emptyPointSettings: const EmptyPointSettings(
+            mode: EmptyPointMode.gap,
+          ),
+          markerSettings: const MarkerSettings(isVisible: false),
+        ),
+        LineSeries<_TempPoint, int>(
+          name: 'Today',
+          dataSource: todayPoints,
+          xValueMapper: (p, _) => p.hour,
+          yValueMapper: (p, _) => p.value,
+          dataLabelMapper: (p, _) => p.value.toStringAsFixed(1),
+          color: theme.line,
+          width: 2.4,
+          emptyPointSettings: const EmptyPointSettings(
+            mode: EmptyPointMode.gap,
           ),
           markerSettings: const MarkerSettings(
             isVisible: true,
-            width: 3,
-            height: 3,
+            width: 4,
+            height: 4,
+          ),
+          dataLabelSettings: const DataLabelSettings(
+            isVisible: true,
+            labelAlignment: ChartDataLabelAlignment.top,
+            textStyle: TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ],
@@ -348,10 +418,18 @@ class _TempLineChart extends StatelessWidget {
   }
 }
 
+class _TempPoint {
+  final int hour;
+  final double value;
+
+  const _TempPoint(this.hour, this.value);
+}
+
 class _Panel extends StatelessWidget {
+  final ChartTheme theme;
   final Widget child;
 
-  const _Panel({required this.child});
+  const _Panel({required this.theme, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -359,14 +437,7 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF061C2E).withOpacity(.92),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF0891B2).withOpacity(.55)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0891B2).withOpacity(.16),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        border: Border.all(color: theme.line.withOpacity(.55)),
       ),
       padding: const EdgeInsets.all(12),
       child: child,
@@ -375,47 +446,100 @@ class _Panel extends StatelessWidget {
 }
 
 class _StateBox extends StatelessWidget {
+  final ChartTheme theme;
   final String title;
   final String message;
 
-  const _StateBox({required this.title, required this.message});
+  const _StateBox({
+    required this.theme,
+    required this.title,
+    required this.message,
+  });
 
   @override
   Widget build(BuildContext context) {
     return _Panel(
+      theme: theme,
       child: Center(
         child: Text(
           '$title\n$message',
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFF22D3EE),
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(color: theme.line, fontWeight: FontWeight.w800),
         ),
       ),
     );
   }
 }
 
-class _TempPoint {
-  final DateTime time;
-  final double value;
-
-  _TempPoint(this.time, this.value);
-}
-
-class _InlineStat extends StatelessWidget {
+class _CompactStat extends StatelessWidget {
   final String label;
   final double? value;
-  final Color color;
 
-  const _InlineStat(this.label, this.value, this.color);
+  const _CompactStat(this.label, this.value);
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      '$label ${value == null ? '--' : value!.toStringAsFixed(1)}°',
-      style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
+    return Row(
+      children: [
+        Text(
+          '$label ',
+          style: TextStyle(
+            color: Colors.white.withOpacity(.55),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          value == null ? '--' : value!.toStringAsFixed(1),
+          style: const TextStyle(
+            color: Color(0xFF38BDF8),
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniDiffCard extends StatelessWidget {
+  final double? diff;
+
+  const _MiniDiffCard({required this.diff});
+
+  @override
+  Widget build(BuildContext context) {
+    final d = diff ?? 0;
+    final isDown = d < 0;
+
+    return Container(
+      width: 70,
+      height: 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFF061827).withOpacity(.85),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(.14)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            diff == null
+                ? '--'
+                : '${d >= 0 ? '+' : '-'}${d.abs().toStringAsFixed(1)}',
+            style: TextStyle(
+              color: isDown ? const Color(0xFF4ADE80) : Colors.redAccent,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          Text(
+            'vs Yday',
+            style: TextStyle(color: Colors.white.withOpacity(.6), fontSize: 10),
+          ),
+        ],
+      ),
     );
   }
 }

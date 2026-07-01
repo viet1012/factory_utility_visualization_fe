@@ -34,13 +34,14 @@ class UtilityDashboardOverviewApi {
 
   Future<List<HourlyTempCompareDto>> getCoolingTankHourly({
     required String facId,
-    int hours = 24,
+    required int hours,
+    String type = 'WATER',
   }) async {
     final res = await dio.get(
-      '/api/utility/cooling-tank/hourly',
-      queryParameters: {'facId': facId, 'hours': hours},
+      '/api/utility/cooling-tank-hourly',
+      queryParameters: {'facId': facId, 'hours': hours, 'type': type},
     );
-    print('URL     : ${res.requestOptions.uri}');
+
     final data = res.data as List;
 
     return data

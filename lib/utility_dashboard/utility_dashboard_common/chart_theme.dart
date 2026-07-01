@@ -102,7 +102,7 @@ class ChartThemes {
   static const ChartTheme water = ChartTheme(
     title: 'WATER',
     unit: '°C',
-    line: Color(0xFF0369A1),
+    line: Color(0xFF38BDF8),
     fillTop: Color(0x4D0369A1),
     fillBottom: Color(0x000369A1),
     accent: Color(0xFF0EA5E9),
@@ -116,7 +116,7 @@ class ChartThemes {
 
   static const ChartTheme air = ChartTheme(
     title: 'COMPRESSED AIR',
-    unit: 'Nm³',
+    unit: 'kg/cm²',
     line: Color(0xFFA78BFA),
     fillTop: Color(0x4DA78BFA),
     fillBottom: Color(0x00A78BFA),
