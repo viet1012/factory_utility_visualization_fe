@@ -586,7 +586,7 @@ class _SummaryBar extends StatelessWidget {
     final isError = s == 'N/A';
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+      // margin: const EdgeInsets.fromLTRB(10, 8, 10, 0),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: isError
@@ -601,12 +601,12 @@ class _SummaryBar extends StatelessWidget {
       ),
       child: Text(
         s,
-        maxLines: 1,
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: isError ? Colors.redAccent : Colors.white.withOpacity(0.75),
           fontWeight: FontWeight.w800,
-          fontSize: 13,
+          fontSize: 20,
         ),
       ),
     );

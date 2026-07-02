@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
@@ -310,18 +311,17 @@ class _TemperatureTrendCard extends StatelessWidget {
 
               const SizedBox(width: 18),
 
-              _CompactStat('Min', minVal),
+              _CompactStat('Min', minVal, theme: theme),
 
               const SizedBox(width: 12),
 
-              _CompactStat('Max', maxVal),
+              _CompactStat('Max', maxVal, theme: theme),
 
               const Spacer(),
 
               Row(
                 children: [
-                  _MiniDiffCard(diff: diff),
-
+                  // _MiniDiffCard(diff: diff, theme: theme),
                   const SizedBox(width: 8),
 
                   HealthIndicator(
@@ -422,6 +422,7 @@ class _TempLineChart extends StatelessWidget {
         minimum: minY,
         maximum: maxY,
         interval: (maxY - minY) / 5,
+        numberFormat: NumberFormat('0.0'),
         labelFormat: '{value}${theme.unit}',
         majorGridLines: MajorGridLines(
           width: 1,
@@ -546,8 +547,9 @@ class _StateBox extends StatelessWidget {
 class _CompactStat extends StatelessWidget {
   final String label;
   final double? value;
+  final ChartTheme theme;
 
-  const _CompactStat(this.label, this.value);
+  const _CompactStat(this.label, this.value, {required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -563,9 +565,9 @@ class _CompactStat extends StatelessWidget {
         ),
         Text(
           value == null ? '--' : value!.toStringAsFixed(1),
-          style: const TextStyle(
-            color: Color(0xFF38BDF8),
-            fontSize: 18,
+          style: TextStyle(
+            color: theme.line,
+            fontSize: 22,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -576,8 +578,9 @@ class _CompactStat extends StatelessWidget {
 
 class _MiniDiffCard extends StatelessWidget {
   final double? diff;
+  final ChartTheme theme;
 
-  const _MiniDiffCard({required this.diff});
+  const _MiniDiffCard({required this.diff, required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -601,8 +604,9 @@ class _MiniDiffCard extends StatelessWidget {
                 ? '--'
                 : '${d >= 0 ? '+' : '-'}${d.abs().toStringAsFixed(1)}',
             style: TextStyle(
-              color: isDown ? const Color(0xFF4ADE80) : Colors.redAccent,
-              fontSize: 15,
+              // color: isDown ? const Color(0xFF4ADE80) : Colors.redAccent,
+              color: theme.line,
+              fontSize: 13,
               fontWeight: FontWeight.w900,
             ),
           ),

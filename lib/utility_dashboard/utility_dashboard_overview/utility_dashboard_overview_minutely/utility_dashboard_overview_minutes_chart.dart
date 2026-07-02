@@ -391,7 +391,8 @@ class _UtilityDashboardOverviewMinutesChartState
           minimum: minY,
           maximum: maxY,
           interval: _niceStep((maxY - minY) / 5),
-          numberFormat: NumberFormat('0.##'),
+          numberFormat: NumberFormat('0.0'),
+
           majorGridLines: MajorGridLines(
             width: 1,
             color: Colors.white.withOpacity(.06),
