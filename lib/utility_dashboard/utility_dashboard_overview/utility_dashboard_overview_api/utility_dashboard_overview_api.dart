@@ -69,10 +69,16 @@ class UtilityDashboardOverviewApi {
     required String facId,
     required String month,
     String? nameEn,
+    required String type,
   }) async {
     final res = await dio.get(
       '/api/utility/energy-daily',
-      queryParameters: {'facId': facId, 'month': month, 'nameEn': nameEn},
+      queryParameters: {
+        'facId': facId,
+        'month': month,
+        'nameEn': nameEn,
+        'type': type,
+      },
     );
 
     final List data = res.data;

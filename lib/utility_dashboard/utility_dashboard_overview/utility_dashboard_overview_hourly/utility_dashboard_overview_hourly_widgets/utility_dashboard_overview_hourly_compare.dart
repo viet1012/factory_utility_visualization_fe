@@ -425,10 +425,9 @@ class _UtilityDashboardOverviewHourlyCompareState
             theme: widget.theme,
             health: healthResult,
           ),
-          const SizedBox(height: 6),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
               child: _body(),
             ),
           ),

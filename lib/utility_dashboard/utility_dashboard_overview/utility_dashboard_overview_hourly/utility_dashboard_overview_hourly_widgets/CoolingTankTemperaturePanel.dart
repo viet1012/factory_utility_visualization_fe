@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../../utility_dashboard_common/chart_theme.dart';
+import '../../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import '../../utility_dashboard_overview_widgets/health_indicator.dart';
 import '../../utility_dashboard_overview_widgets/scada_panel_frame.dart';
 
 class HourlyTempCompareDto {
@@ -70,6 +72,9 @@ class _CoolingTankTemperaturePanelState
   bool loading = true;
   Object? error;
   Timer? _timer;
+
+  DataHealthResult? _cachedHealth;
+
   bool _loadingNow = false;
 
   @override
@@ -90,6 +95,7 @@ class _CoolingTankTemperaturePanelState
         rows = [];
         loading = true;
         error = null;
+        _cachedHealth = null;
       });
 
       _load();
@@ -111,6 +117,7 @@ class _CoolingTankTemperaturePanelState
       setState(() {
         loading = true;
         error = null;
+        _cachedHealth = null;
       });
     }
 
@@ -127,10 +134,25 @@ class _CoolingTankTemperaturePanelState
 
       if (!mounted) return;
 
+      final heath = DataHealthAnalyzer.analyze(
+        key: 'UtilityHourly_${widget.facId}_${widget.utilityType}',
+        loading: false,
+        error: null,
+        values: data
+            .expand(
+              (e) => [
+                if (e.today != null) e.today!,
+                if (e.yesterday != null) e.yesterday!,
+              ],
+            )
+            .toList(),
+      );
+
       setState(() {
         rows = data..sort((a, b) => a.scaleHour.compareTo(b.scaleHour));
         loading = false;
         error = null;
+        _cachedHealth = heath;
       });
     } catch (e) {
       _handleError(e);
@@ -142,16 +164,37 @@ class _CoolingTankTemperaturePanelState
   void _handleError(Object e) {
     if (!mounted) return;
 
+    _cachedHealth = DataHealthAnalyzer.analyze(
+      key: 'UtilityHourly_${widget.facId}_${widget.utilityType}',
+      loading: false,
+      error: true,
+      values: rows
+          .expand(
+            (e) => [
+              if (e.today != null) e.today!,
+              if (e.yesterday != null) e.yesterday!,
+            ],
+          )
+          .toList(),
+    );
+
     setState(() {
       loading = false;
       error = e;
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildContent({
+    required DataHealthResult health,
+    required HourlyTempCompareDto? latest,
+  }) {
     if (loading && rows.isEmpty) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+      return Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: widget.theme.line,
+        ),
+      );
     }
 
     if (error != null && rows.isEmpty) {
@@ -170,19 +213,33 @@ class _CoolingTankTemperaturePanelState
       );
     }
 
-    final latest = rows.lastWhere(
-      (e) => e.today != null,
-      orElse: () => rows.last,
+    return _TemperatureTrendCard(
+      theme: widget.theme,
+      rows: rows,
+      current: latest?.today,
+      diff: latest?.diff,
+      health: health,
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final healthResult =
+        _cachedHealth ??
+        DataHealthAnalyzer.analyze(
+          key: 'UtilityHourly_${widget.facId}_${widget.utilityType}',
+          loading: loading,
+          error: error,
+          values: const [],
+        );
+
+    final latest = rows.isEmpty
+        ? null
+        : rows.lastWhere((e) => e.today != null, orElse: () => rows.last);
 
     return ScadaPanelFrame(
       color: widget.theme.line,
-      child: _TemperatureTrendCard(
-        theme: widget.theme,
-        rows: rows,
-        current: latest.today,
-        diff: latest.diff,
-      ),
+      child: _buildContent(health: healthResult, latest: latest),
     );
   }
 }
@@ -192,12 +249,15 @@ class _TemperatureTrendCard extends StatelessWidget {
   final List<HourlyTempCompareDto> rows;
   final double? current;
   final double? diff;
+  final DataHealthResult health;
 
   const _TemperatureTrendCard({
+    super.key,
     required this.theme,
     required this.rows,
     required this.current,
     required this.diff,
+    required this.health,
   });
 
   @override
@@ -217,7 +277,15 @@ class _TemperatureTrendCard extends StatelessWidget {
           Row(
             children: [
               Icon(theme.icon, color: theme.line, size: 18),
-
+              Text(
+                "AVG: ",
+                style: TextStyle(
+                  color: theme.line,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
+              ),
               // const SizedBox(width: 14),
               Text(
                 current == null ? '--' : current!.toStringAsFixed(1),
@@ -235,7 +303,7 @@ class _TemperatureTrendCard extends StatelessWidget {
                 theme.unit,
                 style: TextStyle(
                   color: theme.line.withOpacity(.8),
-                  fontSize: 13,
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -250,7 +318,20 @@ class _TemperatureTrendCard extends StatelessWidget {
 
               const Spacer(),
 
-              _MiniDiffCard(diff: diff),
+              Row(
+                children: [
+                  _MiniDiffCard(diff: diff),
+
+                  const SizedBox(width: 8),
+
+                  HealthIndicator(
+                    result: health,
+                    size: 8,
+                    showLabel: false,
+                    enableTooltip: true,
+                  ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 4),

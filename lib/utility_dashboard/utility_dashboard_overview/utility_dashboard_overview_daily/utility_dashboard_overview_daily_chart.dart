@@ -112,6 +112,7 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
   final String facId;
   final String month;
   final String nameEng;
+  final String type;
   final ChartTheme theme;
 
   const UtilityDashboardOverviewDailyChart({
@@ -120,6 +121,7 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
     required this.month,
     required this.theme,
     this.nameEng = 'Total Energy Consumption',
+    this.type = 'ENERGY',
     this.width = 520,
     this.height,
   });
@@ -209,6 +211,7 @@ class _UtilityDashboardOverviewDailyChartState
             facId: widget.facId,
             month: widget.month,
             nameEn: widget.nameEng,
+            type: widget.type,
           )
           .timeout(_requestTimeout);
 
@@ -312,7 +315,8 @@ class _UtilityDashboardOverviewDailyChartState
     final changed =
         oldWidget.facId != widget.facId ||
         oldWidget.month != widget.month ||
-        oldWidget.nameEng != widget.nameEng;
+        oldWidget.nameEng != widget.nameEng ||
+        oldWidget.type != widget.type;
 
     if (!changed) return;
 

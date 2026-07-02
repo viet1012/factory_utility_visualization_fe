@@ -466,7 +466,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                               facId: selectedFac,
                                               month: monthKey,
                                               theme: ChartThemes.water,
-                                              nameEng: 'test',
+                                              type: 'WATER',
                                             ),
                                       ),
                                       Expanded(
@@ -475,7 +475,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                               facId: selectedFac,
                                               month: monthKey,
                                               theme: ChartThemes.air,
-                                              nameEng: 'test',
+                                              type: 'AIR',
                                             ),
                                       ),
                                     ],
