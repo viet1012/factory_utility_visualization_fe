@@ -475,19 +475,24 @@ class _UtilityDashboardOverviewMinutesChartState
     );
   }
 
-  Color _seriesColor(int index) {
-    const colors = [
-      Color(0xFF38BDF8), // cyan
-      Color(0xFFF97316), // orange
-      Color(0xFF22C55E), // green
-      Color(0xFFA855F7), // purple
-      Color(0xFFF43F5E), // rose
-      Color(0xFFEAB308), // yellow
-      Color(0xFF14B8A6), // teal
-      Color(0xFF818CF8), // indigo
-    ];
+  Color _seriesColorByRank({required int rank, required int total}) {
+    final base = HSLColor.fromColor(widget.theme.line);
 
-    return colors[index % colors.length];
+    if (total <= 1) {
+      return base.withLightness(0.48).toColor();
+    }
+
+    // rank = 0 là line cao nhất -> đậm nhất
+    const darkest = 0.34;
+    const lightest = 0.72;
+
+    final ratio = rank / (total - 1);
+    final lightness = darkest + ((lightest - darkest) * ratio);
+
+    return base
+        .withLightness(lightness.clamp(0.25, 0.80))
+        .withSaturation((base.saturation * 0.95).clamp(0.55, 1.0))
+        .toColor();
   }
 
   String _shortTanknameEn(String nameEn) {
@@ -530,6 +535,7 @@ class _UtilityDashboardOverviewMinutesChartState
     final grouped = _groupWaterPoints();
     final data = grouped.values.expand((e) => e).toList();
     final showLegend = grouped.length > 1;
+
     if (data.length < 2) {
       return const Center(
         child: Text(
@@ -539,18 +545,31 @@ class _UtilityDashboardOverviewMinutesChartState
       );
     }
 
-    final ys = data.map((e) => e.y).toList()..sort();
+    final rankedEntries = grouped.entries.toList()
+      ..sort((a, b) {
+        final avgA =
+            a.value.map((e) => e.y).reduce((x, y) => x + y) / a.value.length;
 
+        final avgB =
+            b.value.map((e) => e.y).reduce((x, y) => x + y) / b.value.length;
+
+        return avgB.compareTo(avgA);
+      });
+
+    final rankByName = <String, int>{};
+    for (var i = 0; i < rankedEntries.length; i++) {
+      rankByName[rankedEntries[i].key] = i;
+    }
+
+    final ys = data.map((e) => e.y).toList()..sort();
     final minValue = ys.first;
     final maxValue = ys.last;
-
     final range = maxValue - minValue;
 
-    // khoảng đệm 10%
     final padding = max(range * 0.1, 0.2);
-
     final minY = minValue - padding;
     final maxY = maxValue + padding;
+
     return SfCartesianChart(
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 1,
@@ -566,7 +585,6 @@ class _UtilityDashboardOverviewMinutesChartState
         ),
       ),
       tooltipBehavior: TooltipBehavior(enable: true, header: ''),
-
       primaryXAxis: DateTimeAxis(
         minimum: data.first.ts,
         maximum: data.last.ts.add(const Duration(minutes: 2)),
@@ -596,7 +614,7 @@ class _UtilityDashboardOverviewMinutesChartState
         ),
         title: AxisTitle(
           text: t.unit,
-          textStyle: TextStyle(
+          textStyle: const TextStyle(
             color: Colors.white70,
             fontSize: 12,
             fontWeight: FontWeight.w700,
@@ -604,31 +622,29 @@ class _UtilityDashboardOverviewMinutesChartState
         ),
       ),
       series: [
-        ...grouped.entries.toList().asMap().entries.map((item) {
-          final index = item.key;
-          final entry = item.value;
-          final color = _seriesColor(index);
+        ...grouped.entries.map((entry) {
+          final rank = rankByName[entry.key] ?? 0;
+
+          final color = _seriesColorByRank(rank: rank, total: grouped.length);
+
           final points = entry.value;
-          for (final r in rows) {
-            debugPrint('nameEn=${r.nameEn}, value=${r.value}, ts=${r.ts}');
-          }
-          print("_shortTanknameEn ${_shortTanknameEn(entry.key)}");
+
           return LineSeries<_ChartPoint, DateTime>(
             name: _shortTanknameEn(entry.key),
             dataSource: points,
             xValueMapper: (p, _) => p.ts,
             yValueMapper: (p, _) => p.y,
-            width: 2,
+            width: rank == 0 ? 3.0 : 2.0,
             color: color,
-
             markerSettings: const MarkerSettings(isVisible: false),
           );
         }),
 
-        ...grouped.entries.toList().asMap().entries.map((item) {
-          final index = item.key;
-          final entry = item.value;
-          final color = _seriesColor(index);
+        ...grouped.entries.map((entry) {
+          final rank = rankByName[entry.key] ?? 0;
+
+          final color = _seriesColorByRank(rank: rank, total: grouped.length);
+
           final lastPoint = entry.value.last;
 
           return ScatterSeries<_ChartPoint, DateTime>(
@@ -637,22 +653,19 @@ class _UtilityDashboardOverviewMinutesChartState
             xValueMapper: (p, _) => p.ts,
             yValueMapper: (p, _) => p.y,
             color: color,
-
             markerSettings: MarkerSettings(
               isVisible: true,
-              width: 4,
-              height: 4,
+              width: rank == 0 ? 6 : 4,
+              height: rank == 0 ? 6 : 4,
               borderWidth: 2,
               borderColor: Colors.white.withOpacity(.9),
             ),
-
             dataLabelMapper: (p, _) => p.y.toStringAsFixed(1),
-
-            dataLabelSettings: const DataLabelSettings(
+            dataLabelSettings: DataLabelSettings(
               isVisible: true,
               labelAlignment: ChartDataLabelAlignment.outer,
               textStyle: TextStyle(
-                color: Colors.white,
+                color: color,
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
               ),
