@@ -21,36 +21,82 @@ class EnergyMonthlySummary {
   final String cate;
   final String name;
   final String month;
-  final double value;
+
+  final double? value;
+  final double? avgValue;
+
+  final double? vndCost;
+  final double? usdCost;
+
+  final double? prevValue;
+  final double? prevAvgValue;
+  final double? prevVndCost;
+  final double? prevUsdCost;
+
+  final double? deltaValue;
+  final double? deltaPercent;
+
   final String unit;
-  final DateTime? timestamp;
+  final DateTime? pickAt;
 
   const EnergyMonthlySummary({
     required this.cate,
     required this.name,
     required this.month,
     required this.value,
+    required this.avgValue,
+    required this.vndCost,
+    required this.usdCost,
+    required this.prevValue,
+    required this.prevAvgValue,
+    required this.prevVndCost,
+    required this.prevUsdCost,
+    required this.deltaValue,
+    required this.deltaPercent,
     required this.unit,
-    required this.timestamp,
+    required this.pickAt,
   });
 
   factory EnergyMonthlySummary.fromJson(Map<String, dynamic> json) {
+    double? toDouble(dynamic v) => (v as num?)?.toDouble();
+
     return EnergyMonthlySummary(
       cate: (json['cate'] ?? '').toString(),
       name: (json['name'] ?? '').toString(),
       month: (json['month'] ?? '').toString(),
-      value: (json['value'] as num?)?.toDouble() ?? 0,
+
+      value: toDouble(json['value']),
+      avgValue: toDouble(json['avgValue']),
+
+      vndCost: toDouble(json['vndCost']),
+      usdCost: toDouble(json['usdCost']),
+
+      prevValue: toDouble(json['prevValue']),
+      prevAvgValue: toDouble(json['prevAvgValue']),
+      prevVndCost: toDouble(json['prevVndCost']),
+      prevUsdCost: toDouble(json['prevUsdCost']),
+
+      deltaValue: toDouble(json['deltaValue']),
+      deltaPercent: toDouble(json['deltaPercent']),
+
       unit: (json['unit'] ?? '').toString(),
-      timestamp: DateTime.tryParse(
-        (json['timestamp'] ?? '').toString(),
+      pickAt: DateTime.tryParse(
+        (json['pickAt'] ?? json['timestamp'] ?? '').toString(),
       )?.toLocal(),
     );
   }
+
+  double get displayValue => value ?? avgValue ?? 0;
+
+  double? get previousDisplayValue => prevValue ?? prevAvgValue;
 }
 
-final NumberFormat _numFmt = NumberFormat('#,##0');
+final NumberFormat _numFmt = NumberFormat('#,##0.#');
+final NumberFormat _moneyFmt = NumberFormat('#,##0.00');
 
 String _format(double v) => _numFmt.format(v);
+
+String _formatMoney(double v) => _moneyFmt.format(v);
 
 class UtilityOverviewMonthlyBox extends StatefulWidget {
   final double width;
@@ -67,8 +113,8 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
     required this.facId,
     required this.month,
     required this.headerTitle,
-    this.width = 210,
-    this.height = 220,
+    this.width = 280,
+    this.height = 280,
     this.isHighlighted = true,
     this.onVoltageAlarmChanged,
   });
@@ -225,7 +271,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       final hasAlarmNow = alarmVoltages.isNotEmpty;
 
       final healthValues = <double>[
-        ...parsedItems.map((e) => e.value).where((v) => v != 0),
+        ...parsedItems.map((e) => e.displayValue).where((v) => v != 0),
         ...parsedVoltages
             .expand((e) => [e.minVol, e.maxVol])
             .where((v) => v != 0),
@@ -660,17 +706,61 @@ class _EnergyRow extends StatelessWidget {
 
   const _EnergyRow({required this.item, required this.animation});
 
+  String _titleByCate(ChartTheme theme) {
+    final cate = item.cate.toUpperCase();
+
+    if (cate.contains('ELECTRIC')) return 'Total Energy';
+    if (cate.contains('WATER')) return 'Water (Avg)';
+    if (cate.contains('AIR')) return 'Air (Avg)';
+
+    return item.name.trim().isNotEmpty ? item.name.trim() : theme.title;
+  }
+
+  String _prevText(EnergyMonthlySummary item, String unit) {
+    final prev = item.previousDisplayValue;
+    if (prev == null) return '--';
+
+    return '${_format(prev)} $unit';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ChartThemes.byCate(item.cate);
     final color = theme.iconColor;
     final icon = theme.icon;
 
-    final title = item.name.trim().isNotEmpty ? item.name.trim() : theme.title;
+    final title = _titleByCate(theme);
     final unit = item.unit.trim().isNotEmpty ? item.unit.trim() : theme.unit;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+    final value = item.displayValue;
+    final delta = item.deltaPercent;
+
+    final isUp = delta != null && delta > 0;
+    final isDown = delta != null && delta < 0;
+
+    final isElectricity = item.cate.toUpperCase().contains('ELECTRIC');
+
+    // Điện tăng là xấu, giảm là tốt.
+    // Water/Air chỉ hiển thị tăng/giảm theo dữ liệu, có thể dùng màu theo chart.
+    final deltaColor = delta == null
+        ? Colors.white54
+        : isElectricity
+        ? (isDown ? Colors.greenAccent : Colors.redAccent)
+        : (isUp ? Colors.redAccent : Colors.greenAccent);
+
+    final deltaIcon = isUp
+        ? Icons.arrow_upward_rounded
+        : isDown
+        ? Icons.arrow_downward_rounded
+        : Icons.remove_rounded;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.20),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.30), width: 1),
+      ),
       child: Row(
         children: [
           ScadaEnergyIcon(
@@ -686,35 +776,104 @@ class _EnergyRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.72),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0, end: item.value),
-                  duration: const Duration(milliseconds: 750),
-                  curve: Curves.easeOutCubic,
-                  builder: (_, value, __) {
-                    return Text(
-                      '${_format(value)} $unit',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.25,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.82),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    );
-                  },
+                    ),
+                    Text(
+                      'vs Last Month',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.55),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
+
+                const SizedBox(height: 3),
+
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween<double>(begin: 0, end: value),
+                        duration: const Duration(milliseconds: 750),
+                        curve: Curves.easeOutCubic,
+                        builder: (_, v, __) {
+                          return Text(
+                            '${_format(v)} $unit',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.35,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (delta != null)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(deltaIcon, color: deltaColor, size: 14),
+                              Text(
+                                '${delta.abs().toStringAsFixed(1)}%',
+                                style: TextStyle(
+                                  color: deltaColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                        const SizedBox(height: 1),
+
+                        Text(
+                          'Prev: ${_prevText(item, unit)}',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.48),
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                if (item.usdCost != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '\$${_formatMoney(item.usdCost!)} (USD)',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.76),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

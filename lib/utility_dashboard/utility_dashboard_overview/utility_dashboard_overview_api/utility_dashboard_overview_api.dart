@@ -103,24 +103,39 @@ class UtilityDashboardOverviewApi {
     required String month,
   }) async {
     final res = await dio.get(
-      '/api/utility/energy-monthly-summary',
-      queryParameters: {
-        'facId': facId,
-        'month': month,
-        'names': ['Total Energy Consumption'],
-      },
+      '/api/utility/monthly-summary',
+      queryParameters: {'facId': facId, 'month': month},
     );
+
     print('res: ${res.realUri}');
 
     final List data = res.data as List;
 
+    double? toDouble(dynamic v) => (v as num?)?.toDouble();
+
     return data.map<Map<String, dynamic>>((e) {
       return {
         'name': _normalizeName(e['name'] ?? ''),
-        'value': (e['value'] as num?)?.toDouble() ?? 0,
         'cate': e['cate'] ?? '',
+        'month': e['month'] ?? month,
         'unit': e['unit'] ?? '',
-        'timestamp': e['timestamp'],
+
+        'value': toDouble(e['value']),
+        'avgValue': toDouble(e['avgValue']),
+
+        'vndCost': toDouble(e['vndCost']),
+        'usdCost': toDouble(e['usdCost']),
+
+        'prevValue': toDouble(e['prevValue']),
+        'prevAvgValue': toDouble(e['prevAvgValue']),
+        'prevVndCost': toDouble(e['prevVndCost']),
+        'prevUsdCost': toDouble(e['prevUsdCost']),
+
+        'deltaValue': toDouble(e['deltaValue']),
+        'deltaPercent': toDouble(e['deltaPercent']),
+
+        'pickAt': e['pickAt'],
+        'timestamp': e['pickAt'] ?? e['timestamp'],
       };
     }).toList();
   }
