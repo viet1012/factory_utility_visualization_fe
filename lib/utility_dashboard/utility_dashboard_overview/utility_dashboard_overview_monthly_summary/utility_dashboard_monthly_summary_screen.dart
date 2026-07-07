@@ -171,11 +171,10 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
         .firstOrNull;
 
     return Container(
-      padding: const EdgeInsets.all(4),
+      // padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: const Color(0xff020817),
-        borderRadius: BorderRadius.circular(24),
-        // border: Border.all(color: const Color(0xff06b6d4), width: 1.2),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         children: [
@@ -216,9 +215,6 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
               ],
             ),
           ),
-
-          // const SizedBox(height: 8),
-          // const _Footer(),
         ],
       ),
     );
@@ -375,7 +371,7 @@ class _ElectricCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 5),
+          const SizedBox(height: 10),
 
           Expanded(
             child: Align(
@@ -461,7 +457,7 @@ class _UtilityMinMaxCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 5),
+          const SizedBox(height: 10),
 
           Expanded(
             child: Align(
@@ -507,51 +503,48 @@ class _SummaryCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          SizedBox(
-            height: 34,
-            child: Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color.withOpacity(.16),
-                    border: Border.all(color: color.withOpacity(.8)),
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 17),
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withOpacity(.16),
+                  border: Border.all(color: color.withOpacity(.8)),
                 ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w900,
-                        ),
+                child: Icon(icon, color: Colors.white, size: 17),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
                       ),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(.68),
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    ),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(.68),
+                        // fontSize: 14,
+                        fontWeight: FontWeight.w700,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           Expanded(child: child),
@@ -583,10 +576,10 @@ class _MainValue extends StatelessWidget {
             fit: BoxFit.scaleDown,
             child: Text(
               value,
-              maxLines: 1,
+              maxLines: 2,
               style: TextStyle(
                 color: color,
-                fontSize: 22,
+                fontSize: 26,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -651,7 +644,7 @@ class _InfoLine extends StatelessWidget {
               textAlign: TextAlign.right,
               style: TextStyle(
                 color: color,
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -706,11 +699,11 @@ class _InfoTile extends StatelessWidget {
           const SizedBox(height: 1),
           Text(
             value,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: color,
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -753,7 +746,7 @@ class _SmallMetric extends StatelessWidget {
             label,
             style: TextStyle(
               color: Colors.white70,
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
           ),

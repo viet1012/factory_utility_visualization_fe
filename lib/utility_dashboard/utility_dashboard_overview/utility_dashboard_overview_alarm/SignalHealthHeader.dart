@@ -171,7 +171,7 @@ class SignalHealthKpiCard extends StatelessWidget {
         );
       },
       child: Container(
-        height: 118,
+        // height: 118,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),

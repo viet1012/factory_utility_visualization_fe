@@ -275,48 +275,18 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                             child: Row(
                               children: [
                                 /// LEFT CHART
-                                // Expanded(
-                                //   child: Column(
-                                //     children: [
-                                //       _title('[MINUTELY]'),
-                                //
-                                //       Expanded(
-                                //         child:
-                                //             UtilityDashboardOverviewMinutesChart(
-                                //               facId: selectedFac,
-                                //               theme: ChartThemes.power,
-                                //               utilityType: 'ELECTRICITY',
-                                //             ),
-                                //       ),
-                                //       Expanded(
-                                //         child:
-                                //             UtilityDashboardOverviewMinutesChart(
-                                //               facId: selectedFac,
-                                //               theme: ChartThemes.water,
-                                //               utilityType: 'WATER',
-                                //             ),
-                                //       ),
-                                //       Expanded(
-                                //         child:
-                                //             UtilityDashboardOverviewMinutesChart(
-                                //               facId: selectedFac,
-                                //               theme: ChartThemes.air,
-                                //               utilityType: 'AIR',
-                                //             ),
-                                //       ),
-                                //     ],
-                                //   ),
-                                // ),
                                 Expanded(
                                   child: Column(
                                     children: [
-                                      Expanded(
+                                      SizedBox(
+                                        height: 270,
                                         child: MonthlySummaryScreen(
-                                          facId: 'KVH',
+                                          facId: selectedFac,
                                           month: monthKey,
                                         ),
                                       ),
-                                      Expanded(child: SignalHealthKpiScreen()),
+
+                                      Flexible(child: SignalHealthKpiScreen()),
                                     ],
                                   ),
                                 ),

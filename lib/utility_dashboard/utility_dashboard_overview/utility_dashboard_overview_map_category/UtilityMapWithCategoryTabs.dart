@@ -134,7 +134,7 @@ class _UtilityMapWithCategoryTabsState
       month: widget.monthKey,
       headerTitle: title,
       filterCate: selected.filterCate,
-      height: 145,
+      height: 140,
       isHighlighted: widget.shouldHighlight(facId),
       onVoltageAlarmChanged: widget.onVoltageAlarmChanged,
     );

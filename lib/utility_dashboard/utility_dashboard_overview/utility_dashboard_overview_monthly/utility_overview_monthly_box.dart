@@ -866,8 +866,8 @@ class _EnergyRow extends StatelessWidget {
     final cate = item.cate.toUpperCase();
 
     if (cate.contains('ELECTRIC')) return 'Total Energy';
-    if (cate.contains('WATER')) return 'Water Avg';
-    if (cate.contains('AIR')) return 'Air Avg';
+    if (cate.contains('WATER')) return 'Water';
+    if (cate.contains('AIR')) return 'Air';
 
     return item.name.trim().isNotEmpty ? item.name.trim() : theme.title;
   }
@@ -957,8 +957,7 @@ class _EnergyRow extends StatelessWidget {
       children: [
         _MetricIcon(icon: icon, color: color, animation: animation),
 
-        const SizedBox(width: 8),
-
+        const SizedBox(width: 4),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1007,7 +1006,7 @@ class _EnergyRow extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: deltaColor.withOpacity(.12),
+                        color: deltaColor.withOpacity(.1),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(color: deltaColor.withOpacity(.45)),
                       ),
@@ -1020,7 +1019,7 @@ class _EnergyRow extends StatelessWidget {
                             '${delta.abs().toStringAsFixed(1)}%',
                             style: TextStyle(
                               color: deltaColor,
-                              fontSize: 10.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1054,7 +1053,6 @@ class _EnergyRow extends StatelessWidget {
                     },
                   ),
                   SizedBox(width: 8),
-
                   Expanded(
                     child: _MiniMetric(
                       value: _prevText(unit),
@@ -1302,8 +1300,8 @@ class _MetricIcon extends StatelessWidget {
         final glow = 0.25 + (animation.value * 0.25);
 
         return Container(
-          width: 40,
-          height: 40,
+          width: 30,
+          height: 30,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             gradient: LinearGradient(
@@ -1352,7 +1350,7 @@ class _MiniMetric extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 24,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      // padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(.14),
         borderRadius: BorderRadius.circular(8),
