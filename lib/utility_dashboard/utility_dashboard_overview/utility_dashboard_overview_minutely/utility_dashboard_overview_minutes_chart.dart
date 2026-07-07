@@ -19,7 +19,6 @@ import '../utility_dashboard_overview_widgets/scada_chart_panel.dart';
 class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
   final String facId;
   final int minutes;
-  final double width;
   final double? height;
   final String? nameEn;
   final ChartTheme theme;
@@ -30,7 +29,6 @@ class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
     required this.facId,
     required this.theme,
     this.minutes = 60,
-    this.width = 520,
     this.height,
     this.nameEn,
     required this.utilityType,
@@ -225,7 +223,6 @@ class _UtilityDashboardOverviewMinutesChartState
           return Transform.scale(scale: fx.scale.value, child: child);
         },
         child: ScadaChartPanel(
-          width: widget.width,
           height: widget.height ?? 220,
           color: widget.theme.line,
           child: Column(
@@ -404,10 +401,11 @@ class _UtilityDashboardOverviewMinutesChartState
           ),
           title: AxisTitle(
             text: t.unit,
+            alignment: ChartAlignment.center,
             textStyle: TextStyle(
-              color: Colors.white70,
+              color: Colors.white.withOpacity(0.8),
+              fontWeight: FontWeight.w600,
               fontSize: 12,
-              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -614,10 +612,11 @@ class _UtilityDashboardOverviewMinutesChartState
         ),
         title: AxisTitle(
           text: t.unit,
-          textStyle: const TextStyle(
-            color: Colors.white70,
+          alignment: ChartAlignment.center,
+          textStyle: TextStyle(
+            color: Colors.white.withOpacity(0.8),
+            fontWeight: FontWeight.w600,
             fontSize: 12,
-            fontWeight: FontWeight.w700,
           ),
         ),
       ),

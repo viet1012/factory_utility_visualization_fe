@@ -111,7 +111,11 @@ class UtilityDashboardOverviewApi {
 
     final List data = res.data as List;
 
-    double? toDouble(dynamic v) => (v as num?)?.toDouble();
+    double? toDouble(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString());
+    }
 
     return data.map<Map<String, dynamic>>((e) {
       return {
@@ -119,6 +123,11 @@ class UtilityDashboardOverviewApi {
         'cate': e['cate'] ?? '',
         'month': e['month'] ?? month,
         'unit': e['unit'] ?? '',
+
+        'minValue': toDouble(e['minValue']),
+        'maxValue': toDouble(e['maxValue']),
+        'prevMinValue': toDouble(e['prevMinValue']),
+        'prevMaxValue': toDouble(e['prevMaxValue']),
 
         'value': toDouble(e['value']),
         'avgValue': toDouble(e['avgValue']),

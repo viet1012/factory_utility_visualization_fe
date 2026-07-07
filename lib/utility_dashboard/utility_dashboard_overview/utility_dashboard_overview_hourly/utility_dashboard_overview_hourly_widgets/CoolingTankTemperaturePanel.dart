@@ -271,11 +271,11 @@ class _TemperatureTrendCard extends StatelessWidget {
     final minVal = todayValues.isEmpty ? null : todayValues.reduce(min);
     final maxVal = todayValues.isEmpty ? null : todayValues.reduce(max);
 
-    return Padding(
-      padding: const EdgeInsets.all(6),
-      child: Column(
-        children: [
-          Row(
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Row(
             children: [
               Icon(theme.icon, color: theme.line, size: 18),
               Text(
@@ -334,12 +334,12 @@ class _TemperatureTrendCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: _TempLineChart(theme: theme, rows: rows),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 4),
+        Expanded(
+          child: _TempLineChart(theme: theme, rows: rows),
+        ),
+      ],
     );
   }
 }
@@ -423,10 +423,19 @@ class _TempLineChart extends StatelessWidget {
         maximum: maxY,
         interval: (maxY - minY) / 5,
         numberFormat: NumberFormat('0.0'),
-        labelFormat: '{value}${theme.unit}',
+        labelFormat: '{value}',
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(.04),
+        ),
+        title: AxisTitle(
+          text: theme.unit,
+          alignment: ChartAlignment.center,
+          textStyle: TextStyle(
+            color: Colors.white.withOpacity(0.8),
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
         ),
         axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
         labelStyle: TextStyle(
@@ -572,50 +581,6 @@ class _CompactStat extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _MiniDiffCard extends StatelessWidget {
-  final double? diff;
-  final ChartTheme theme;
-
-  const _MiniDiffCard({required this.diff, required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    final d = diff ?? 0;
-    final isDown = d < 0;
-
-    return Container(
-      width: 70,
-      height: 42,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: const Color(0xFF061827).withOpacity(.85),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(.14)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            diff == null
-                ? '--'
-                : '${d >= 0 ? '+' : '-'}${d.abs().toStringAsFixed(1)}',
-            style: TextStyle(
-              // color: isDown ? const Color(0xFF4ADE80) : Colors.redAccent,
-              color: theme.line,
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          Text(
-            'vs Yday',
-            style: TextStyle(color: Colors.white.withOpacity(.6), fontSize: 10),
-          ),
-        ],
-      ),
     );
   }
 }

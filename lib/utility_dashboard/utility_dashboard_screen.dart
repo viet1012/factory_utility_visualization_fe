@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/utility_catalog_tabs_screen.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/SignalHealthMatrixController.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/utility_alarm_center_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/industrial_side_tab_bar.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_screens/utility_setting_screen.dart';
@@ -9,7 +11,6 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../utility_alarm/utility_alarm_center_screen.dart';
 import '../utility_api/dio_client.dart';
 import '../utility_api/utility_api.dart';
 import '../utility_models/utility_facade_service.dart';
@@ -46,6 +47,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
   late final TabController _tabController;
 
+  late final SignalHealthMatrixController signalHealthController;
+
   bool _sideExpanded = true;
   int _tabIndex = 0;
 
@@ -79,6 +82,11 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     _tabController = TabController(length: 6, vsync: this);
     _tabController.addListener(_handleTabChanged);
+
+    final overviewApi = UtilityDashboardOverviewApi(dio);
+
+    signalHealthController = SignalHealthMatrixController(overviewApi)
+      ..startPolling();
   }
 
   void _handleTabChanged() {
@@ -103,6 +111,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     scadaChannelApi.dispose();
     scadaApi.dispose();
 
+    signalHealthController.dispose();
     super.dispose();
   }
 
@@ -129,6 +138,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         ChangeNotifierProvider<LatestProvider>.value(value: latestProvider),
         ChangeNotifierProvider<TreeLatestProvider>.value(
           value: treeLatestProvider,
+        ),
+
+        ChangeNotifierProvider<SignalHealthMatrixController>.value(
+          value: signalHealthController,
         ),
       ],
       child: Scaffold(

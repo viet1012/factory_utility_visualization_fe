@@ -12,9 +12,8 @@ import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_fac_details/layout/utility_fac_layout_screen.dart';
-import '../../utility_dashboard_fac_details/widgets/hover_box_panel/hover_flow_painters.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
-import '../utility_dashboard_overview_widgets/scada_panel_frame.dart';
+import '../utility_dashboard_overview_widgets/utility_glow_card.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
 class EnergyMonthlySummary {
@@ -22,20 +21,21 @@ class EnergyMonthlySummary {
   final String name;
   final String month;
 
+  final double? minValue;
+  final double? maxValue;
+  final double? prevMinValue;
+  final double? prevMaxValue;
+
   final double? value;
   final double? avgValue;
-
   final double? vndCost;
   final double? usdCost;
-
   final double? prevValue;
   final double? prevAvgValue;
   final double? prevVndCost;
   final double? prevUsdCost;
-
   final double? deltaValue;
   final double? deltaPercent;
-
   final String unit;
   final DateTime? pickAt;
 
@@ -43,6 +43,10 @@ class EnergyMonthlySummary {
     required this.cate,
     required this.name,
     required this.month,
+    required this.minValue,
+    required this.maxValue,
+    required this.prevMinValue,
+    required this.prevMaxValue,
     required this.value,
     required this.avgValue,
     required this.vndCost,
@@ -65,34 +69,37 @@ class EnergyMonthlySummary {
       name: (json['name'] ?? '').toString(),
       month: (json['month'] ?? '').toString(),
 
+      minValue: toDouble(json['minValue']),
+      maxValue: toDouble(json['maxValue']),
+      prevMinValue: toDouble(json['prevMinValue']),
+      prevMaxValue: toDouble(json['prevMaxValue']),
+
       value: toDouble(json['value']),
       avgValue: toDouble(json['avgValue']),
-
       vndCost: toDouble(json['vndCost']),
       usdCost: toDouble(json['usdCost']),
-
       prevValue: toDouble(json['prevValue']),
       prevAvgValue: toDouble(json['prevAvgValue']),
       prevVndCost: toDouble(json['prevVndCost']),
       prevUsdCost: toDouble(json['prevUsdCost']),
-
       deltaValue: toDouble(json['deltaValue']),
       deltaPercent: toDouble(json['deltaPercent']),
-
       unit: (json['unit'] ?? '').toString(),
-      pickAt: DateTime.tryParse(
-        (json['pickAt'] ?? json['timestamp'] ?? '').toString(),
-      )?.toLocal(),
+      pickAt: DateTime.tryParse((json['pickAt'] ?? '').toString())?.toLocal(),
     );
   }
 
   double get displayValue => value ?? avgValue ?? 0;
 
   double? get previousDisplayValue => prevValue ?? prevAvgValue;
+
+  double? get currentCost => usdCost ?? vndCost;
+
+  double? get previousCost => prevUsdCost ?? prevVndCost;
 }
 
-final NumberFormat _numFmt = NumberFormat('#,##0.#');
-final NumberFormat _moneyFmt = NumberFormat('#,##0.00');
+final NumberFormat _numFmt = NumberFormat('#,##0');
+final NumberFormat _moneyFmt = NumberFormat('#,##0');
 
 String _format(double v) => _numFmt.format(v);
 
@@ -107,16 +114,18 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
   final bool isHighlighted;
   final void Function(String facId, VoltageStatus? status)?
   onVoltageAlarmChanged;
+  final String? filterCate;
 
   const UtilityOverviewMonthlyBox({
     super.key,
     required this.facId,
     required this.month,
     required this.headerTitle,
-    this.width = 280,
+    this.width = 300,
     this.height = 280,
     this.isHighlighted = true,
     this.onVoltageAlarmChanged,
+    this.filterCate,
   });
 
   @override
@@ -323,6 +332,35 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     );
   }
 
+  List<EnergyMonthlySummary> _filteredItems() {
+    final filter = widget.filterCate?.trim().toUpperCase();
+
+    if (filter == null || filter.isEmpty) {
+      return _items;
+    }
+
+    return _items
+        .where((e) {
+          final cate = e.cate.toUpperCase();
+
+          if (filter == 'ELECTRICITY') {
+            return cate.contains('ELECTRIC');
+          }
+
+          if (filter == 'WATER') {
+            return cate.contains('WATER');
+          }
+
+          if (filter == 'AIR') {
+            return cate.contains('AIR');
+          }
+
+          return cate.contains(filter);
+        })
+        .take(1)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final facColor = ChartThemes.colorFromFac(widget.headerTitle);
@@ -365,7 +403,8 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
                     child: _MonthlyBody(
                       loading: _loading,
                       error: _error,
-                      items: _items,
+                      // items: _items,
+                      items: _filteredItems(),
                       voltageStatuses: _voltageStatuses,
                       facId: widget.facId,
                       onRetry: _load,
@@ -396,43 +435,136 @@ class _MonthlyShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final radius = BorderRadius.circular(16);
+
+    return SizedBox(
       width: width,
       height: height,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-
-        border: Border.all(color: facColor.withOpacity(0.25), width: 1.2),
-
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF103A63).withOpacity(0.70),
-            const Color(0xFF0A2745).withOpacity(0.58),
-            const Color(0xFF05111E).withOpacity(0.38),
-          ],
-          stops: const [0.0, 0.55, 1.0],
-        ),
-
-        boxShadow: [
-          BoxShadow(
-            color: facColor.withOpacity(0.12),
-            blurRadius: 16,
-            spreadRadius: 1,
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.30),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 1.4, sigmaY: 1.4),
-          child: child,
+        borderRadius: radius,
+        child: Stack(
+          children: [
+            /// Glass Blur
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+              child: const SizedBox.expand(),
+            ),
+
+            /// Glass Background
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(.16),
+                    const Color(0xff67CFFF).withOpacity(.08),
+                    const Color(0xff0B1C2F).withOpacity(.18),
+                  ],
+                ),
+              ),
+            ),
+
+            /// Top highlight
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: Container(
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      facColor.withOpacity(.18),
+                      facColor.withOpacity(.05),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            /// Outer Border
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                border: Border.all(
+                  color: Colors.white.withOpacity(.22),
+                  width: 1.2,
+                ),
+              ),
+            ),
+
+            /// Cyan glow border
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                boxShadow: [
+                  BoxShadow(
+                    color: facColor.withOpacity(.18),
+                    blurRadius: 18,
+                    spreadRadius: -6,
+                  ),
+                ],
+              ),
+            ),
+
+            /// Inner border
+            Padding(
+              padding: const EdgeInsets.all(4),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(.08)),
+                ),
+              ),
+            ),
+
+            /// Top glass reflection
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(height: 1, color: Colors.white.withOpacity(.45)),
+            ),
+
+            /// Bottom glow
+            Positioned(
+              bottom: 0,
+              left: 24,
+              right: 24,
+              child: Container(
+                height: 2,
+                decoration: BoxDecoration(
+                  color: facColor.withOpacity(.35),
+                  boxShadow: [
+                    BoxShadow(color: facColor.withOpacity(.45), blurRadius: 8),
+                  ],
+                ),
+              ),
+            ),
+
+            /// Corner light
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(.9),
+                  boxShadow: [
+                    BoxShadow(color: facColor.withOpacity(.7), blurRadius: 8),
+                  ],
+                ),
+              ),
+            ),
+
+            /// Content
+            Padding(padding: const EdgeInsets.all(1), child: child),
+          ],
         ),
       ),
     );
@@ -525,25 +657,49 @@ class _MonthlyBodyState extends State<_MonthlyBody>
         const _SoftDivider(),
         const SizedBox(height: 5),
 
+        // Expanded(
+        //   child: ListView.separated(
+        //     padding: EdgeInsets.zero,
+        //     physics: const NeverScrollableScrollPhysics(),
+        //     itemCount: widget.items.length,
+        //     separatorBuilder: (_, __) => const SizedBox(height: 8),
+        //     itemBuilder: (_, index) {
+        //       final item = widget.items[index];
+        //       final theme = ChartThemes.byCate(item.cate);
+        //       final color = theme.iconColor;
+        //
+        //       return RepaintBoundary(
+        //         child: ScadaPanelFrame(
+        //           color: color,
+        //           child: _EnergyRow(item: item, animation: _flowController),
+        //         ),
+        //       );
+        //     },
+        //   ),
+        // ),
         Expanded(
-          child: ListView.separated(
-            padding: EdgeInsets.zero,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: widget.items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (_, index) {
-              final item = widget.items[index];
-              final theme = ChartThemes.byCate(item.cate);
-              final color = theme.iconColor;
+          child: widget.items.length == 1
+              ? Center(
+                  child: RepaintBoundary(
+                    child: _EnergyRow(
+                      item: widget.items.first,
+                      animation: _flowController,
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: EdgeInsets.zero,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: widget.items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (_, index) {
+                    final item = widget.items[index];
+                    final theme = ChartThemes.byCate(item.cate);
+                    final color = theme.iconColor;
 
-              return RepaintBoundary(
-                child: ScadaPanelFrame(
-                  color: color,
-                  child: _EnergyRow(item: item, animation: _flowController),
+                    return _EnergyRow(item: item, animation: _flowController);
+                  },
                 ),
-              );
-            },
-          ),
         ),
       ],
     );
@@ -710,17 +866,58 @@ class _EnergyRow extends StatelessWidget {
     final cate = item.cate.toUpperCase();
 
     if (cate.contains('ELECTRIC')) return 'Total Energy';
-    if (cate.contains('WATER')) return 'Water (Avg)';
-    if (cate.contains('AIR')) return 'Air (Avg)';
+    if (cate.contains('WATER')) return 'Water Avg';
+    if (cate.contains('AIR')) return 'Air Avg';
 
     return item.name.trim().isNotEmpty ? item.name.trim() : theme.title;
   }
 
-  String _prevText(EnergyMonthlySummary item, String unit) {
+  String _prevText(String unit) {
     final prev = item.previousDisplayValue;
     if (prev == null) return '--';
-
     return '${_format(prev)} $unit';
+  }
+
+  String _valueTypeLabel() {
+    final cate = item.cate.toUpperCase();
+
+    if (cate.contains('ELECTRIC')) {
+      final raw = item.month;
+
+      if (raw.length == 6) {
+        final year = raw.substring(0, 4);
+        final month = int.parse(raw.substring(4, 6));
+
+        const months = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
+
+        return '${months[month - 1]} $year MTD';
+      }
+
+      return 'Monthly';
+    }
+
+    if (cate.contains('WATER')) {
+      return 'Monthly Avg';
+    }
+
+    if (cate.contains('AIR')) {
+      return 'Monthly Avg';
+    }
+
+    return '';
   }
 
   @override
@@ -738,10 +935,12 @@ class _EnergyRow extends StatelessWidget {
     final isUp = delta != null && delta > 0;
     final isDown = delta != null && delta < 0;
 
-    final isElectricity = item.cate.toUpperCase().contains('ELECTRIC');
+    final cate = item.cate.toUpperCase();
 
-    // Điện tăng là xấu, giảm là tốt.
-    // Water/Air chỉ hiển thị tăng/giảm theo dữ liệu, có thể dùng màu theo chart.
+    final isElectricity = cate.contains('ELECTRIC');
+    final isWater = cate.contains('WATER');
+    final isAir = cate.contains('AIR');
+
     final deltaColor = delta == null
         ? Colors.white54
         : isElectricity
@@ -754,127 +953,425 @@ class _EnergyRow extends StatelessWidget {
         ? Icons.arrow_downward_rounded
         : Icons.remove_rounded;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.20),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.30), width: 1),
-      ),
-      child: Row(
-        children: [
-          ScadaEnergyIcon(
-            icon: icon,
-            color: color,
-            cate: item.cate,
-            animation: animation,
-          ),
+    final content = Row(
+      children: [
+        _MetricIcon(icon: icon, color: color, animation: animation),
 
-          const SizedBox(width: 10),
+        const SizedBox(width: 8),
 
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              /// title + delta
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(.88),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .2,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(.14),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: color.withOpacity(.35)),
+                    ),
+                    child: Text(
+                      _valueTypeLabel(),
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+
+                  if (delta != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 3,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: deltaColor.withOpacity(.12),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: deltaColor.withOpacity(.45)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(deltaIcon, color: deltaColor, size: 12),
+                          const SizedBox(width: 2),
+                          Text(
+                            '${delta.abs().toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              color: deltaColor,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 6),
+
+              /// main value
+              Row(
+                children: [
+                  TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: value),
+                    duration: const Duration(milliseconds: 750),
+                    curve: Curves.easeOutCubic,
+                    builder: (_, v, __) {
+                      return Text(
+                        '${_format(v)} $unit',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.82),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
+                          color: color,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.45,
                         ),
-                      ),
-                    ),
-                    Text(
-                      'vs Last Month',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.55),
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
+                      );
+                    },
+                  ),
+                  SizedBox(width: 8),
 
-                const SizedBox(height: 3),
-
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween<double>(begin: 0, end: value),
-                        duration: const Duration(milliseconds: 750),
-                        curve: Curves.easeOutCubic,
-                        builder: (_, v, __) {
-                          return Text(
-                            '${_format(v)} $unit',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: color,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.35,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        if (delta != null)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(deltaIcon, color: deltaColor, size: 14),
-                              Text(
-                                '${delta.abs().toStringAsFixed(1)}%',
-                                style: TextStyle(
-                                  color: deltaColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                        const SizedBox(height: 1),
-
-                        Text(
-                          'Prev: ${_prevText(item, unit)}',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.48),
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-
-                if (item.usdCost != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    '\$${_formatMoney(item.usdCost!)} (USD)',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.76),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: _MiniMetric(
+                      value: _prevText(unit),
+                      color: Colors.white70,
+                      icon: Icons.history_rounded,
                     ),
                   ),
                 ],
+              ),
+
+              const Spacer(),
+              // const SizedBox(height: 6),
+
+              /// sub info
+              if (isElectricity)
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MiniMetric(
+                        value: '\$${_formatMoney(item.currentCost!)}',
+                        color: Colors.orangeAccent,
+                        icon: Icons.monetization_on_outlined,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _MiniMetric(
+                        value: '\$${_formatMoney(item.previousCost!)}',
+                        color: Colors.white70,
+                        icon: Icons.history_rounded,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ],
+    );
+    if (isElectricity) {
+      return UtilityGlowCard.electricity(color: color, child: content);
+    } else if (isWater) {
+      return UtilityGlowCard.water(color: color, child: content);
+    } else if (isAir) {
+      return UtilityGlowCard.air(color: color, child: content);
+    }
+
+    // fallback: loại không xác định, vẫn dùng bản electricity làm mặc định
+    return UtilityGlowCard.electricity(color: color, child: content);
+    // return Container(
+    //   padding: const EdgeInsets.all(4),
+    //   decoration: BoxDecoration(
+    //     borderRadius: BorderRadius.circular(14),
+    //     gradient: LinearGradient(
+    //       begin: Alignment.topLeft,
+    //       end: Alignment.bottomRight,
+    //       colors: [
+    //         Colors.black.withOpacity(.5),
+    //         color.withOpacity(.1),
+    //         Colors.black.withOpacity(.5),
+    //       ],
+    //     ),
+    //     border: Border.all(color: color.withOpacity(.35), width: 1),
+    //     boxShadow: [
+    //       BoxShadow(
+    //         color: color.withOpacity(.14),
+    //         blurRadius: 14,
+    //         spreadRadius: -4,
+    //       ),
+    //     ],
+    //   ),
+    //   child: Row(
+    //     children: [
+    //       _MetricIcon(icon: icon, color: color, animation: animation),
+    //
+    //       const SizedBox(width: 8),
+    //
+    //       Expanded(
+    //         child: Column(
+    //           crossAxisAlignment: CrossAxisAlignment.start,
+    //           children: [
+    //             /// title + delta
+    //             Row(
+    //               children: [
+    //                 Expanded(
+    //                   child: Text(
+    //                     title,
+    //                     maxLines: 1,
+    //                     overflow: TextOverflow.ellipsis,
+    //                     style: TextStyle(
+    //                       color: Colors.white.withOpacity(.88),
+    //                       fontSize: 14,
+    //                       fontWeight: FontWeight.w900,
+    //                       letterSpacing: .2,
+    //                     ),
+    //                   ),
+    //                 ),
+    //                 Container(
+    //                   padding: const EdgeInsets.symmetric(
+    //                     horizontal: 7,
+    //                     vertical: 2,
+    //                   ),
+    //                   decoration: BoxDecoration(
+    //                     color: color.withOpacity(.14),
+    //                     borderRadius: BorderRadius.circular(999),
+    //                     border: Border.all(color: color.withOpacity(.35)),
+    //                   ),
+    //                   child: Text(
+    //                     _valueTypeLabel(),
+    //                     style: TextStyle(
+    //                       color: color,
+    //                       fontSize: 11,
+    //                       fontWeight: FontWeight.bold,
+    //                     ),
+    //                   ),
+    //                 ),
+    //                 const SizedBox(width: 3),
+    //
+    //                 if (delta != null)
+    //                   Container(
+    //                     padding: const EdgeInsets.symmetric(
+    //                       horizontal: 3,
+    //                       vertical: 3,
+    //                     ),
+    //                     decoration: BoxDecoration(
+    //                       color: deltaColor.withOpacity(.12),
+    //                       borderRadius: BorderRadius.circular(999),
+    //                       border: Border.all(
+    //                         color: deltaColor.withOpacity(.45),
+    //                       ),
+    //                     ),
+    //                     child: Row(
+    //                       mainAxisSize: MainAxisSize.min,
+    //                       children: [
+    //                         Icon(deltaIcon, color: deltaColor, size: 12),
+    //                         const SizedBox(width: 2),
+    //                         Text(
+    //                           '${delta.abs().toStringAsFixed(1)}%',
+    //                           style: TextStyle(
+    //                             color: deltaColor,
+    //                             fontSize: 10.5,
+    //                             fontWeight: FontWeight.bold,
+    //                           ),
+    //                         ),
+    //                       ],
+    //                     ),
+    //                   ),
+    //               ],
+    //             ),
+    //
+    //             const SizedBox(height: 6),
+    //
+    //             /// main value
+    //             Row(
+    //               children: [
+    //                 TweenAnimationBuilder<double>(
+    //                   tween: Tween<double>(begin: 0, end: value),
+    //                   duration: const Duration(milliseconds: 750),
+    //                   curve: Curves.easeOutCubic,
+    //                   builder: (_, v, __) {
+    //                     return Text(
+    //                       '${_format(v)} $unit',
+    //                       maxLines: 1,
+    //                       overflow: TextOverflow.ellipsis,
+    //                       style: TextStyle(
+    //                         color: color,
+    //                         fontSize: 20,
+    //                         fontWeight: FontWeight.bold,
+    //                         letterSpacing: -0.45,
+    //                         shadows: [
+    //                           Shadow(
+    //                             color: color.withOpacity(.45),
+    //                             blurRadius: 8,
+    //                           ),
+    //                         ],
+    //                       ),
+    //                     );
+    //                   },
+    //                 ),
+    //                 SizedBox(width: 8),
+    //
+    //                 Expanded(
+    //                   child: _MiniMetric(
+    //                     value: _prevText(unit),
+    //                     color: Colors.white70,
+    //                     icon: Icons.history_rounded,
+    //                   ),
+    //                 ),
+    //               ],
+    //             ),
+    //
+    //             const Spacer(),
+    //             // const SizedBox(height: 6),
+    //
+    //             /// sub info
+    //             if (isElectricity)
+    //               Row(
+    //                 children: [
+    //                   Expanded(
+    //                     child: _MiniMetric(
+    //                       value: '\$${_formatMoney(item.currentCost!)}',
+    //                       color: Colors.orangeAccent,
+    //                       icon: Icons.payments_rounded,
+    //                     ),
+    //                   ),
+    //                   const SizedBox(width: 6),
+    //                   Expanded(
+    //                     child: _MiniMetric(
+    //                       value: '\$${_formatMoney(item.previousCost!)}',
+    //                       color: Colors.orangeAccent,
+    //                       icon: Icons.history_rounded,
+    //                     ),
+    //                   ),
+    //                 ],
+    //               )
+    //             else
+    //               const SizedBox(height: 24),
+    //           ],
+    //         ),
+    //       ),
+    //     ],
+    //   ),
+    // );
+  }
+}
+
+class _MetricIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final Animation<double> animation;
+
+  const _MetricIcon({
+    required this.icon,
+    required this.color,
+    required this.animation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (_, __) {
+        final glow = 0.25 + (animation.value * 0.25);
+
+        return Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                color.withOpacity(.30),
+                color.withOpacity(.08),
+                Colors.black.withOpacity(.10),
               ],
+            ),
+            border: Border.all(color: color.withOpacity(.55)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(glow),
+                blurRadius: 14,
+                spreadRadius: -2,
+              ),
+            ],
+          ),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 20,
+            shadows: [Shadow(color: color.withOpacity(.7), blurRadius: 10)],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MiniMetric extends StatelessWidget {
+  final String value;
+  final Color color;
+  final IconData icon;
+
+  const _MiniMetric({
+    super.key,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(.14),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(.08)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color.withOpacity(.9)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],

@@ -586,7 +586,6 @@ class _SummaryBar extends StatelessWidget {
     final isError = s == 'N/A';
 
     return Container(
-      // margin: const EdgeInsets.fromLTRB(10, 8, 10, 0),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: isError

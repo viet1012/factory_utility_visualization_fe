@@ -108,19 +108,15 @@
 //   }
 // }
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_common/chart_theme.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/SignalHealthHeader.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_daily/utility_dashboard_overview_daily_chart.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/CoolingTankTemperaturePanel.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_compare.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_header.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutely/utility_dashboard_overview_minutes_chart.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_map_category/UtilityMapWithCategoryTabs.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutes_hourly/utility_realtime_tab_panel.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/monitoring_mascot.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly_summary/utility_dashboard_monthly_summary_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
-import 'utility_dashboard_overview_widgets/factory_map_with_rain.dart';
 
 class UtilityDashboardOverview extends StatefulWidget {
   final String mainImageUrl;
@@ -279,164 +275,200 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                             child: Row(
                               children: [
                                 /// LEFT CHART
-                                Column(
-                                  children: [
-                                    _title('[MINUTELY]'),
-
-                                    Expanded(
-                                      child:
-                                          UtilityDashboardOverviewMinutesChart(
-                                            facId: selectedFac,
-                                            theme: ChartThemes.power,
-                                            utilityType: 'ELECTRICITY',
-                                          ),
-                                    ),
-                                    Expanded(
-                                      child:
-                                          UtilityDashboardOverviewMinutesChart(
-                                            facId: selectedFac,
-                                            theme: ChartThemes.water,
-                                            utilityType: 'WATER',
-                                          ),
-                                    ),
-                                    Expanded(
-                                      child:
-                                          UtilityDashboardOverviewMinutesChart(
-                                            facId: selectedFac,
-                                            theme: ChartThemes.air,
-                                            utilityType: 'AIR',
-                                          ),
-                                    ),
-                                  ],
+                                // Expanded(
+                                //   child: Column(
+                                //     children: [
+                                //       _title('[MINUTELY]'),
+                                //
+                                //       Expanded(
+                                //         child:
+                                //             UtilityDashboardOverviewMinutesChart(
+                                //               facId: selectedFac,
+                                //               theme: ChartThemes.power,
+                                //               utilityType: 'ELECTRICITY',
+                                //             ),
+                                //       ),
+                                //       Expanded(
+                                //         child:
+                                //             UtilityDashboardOverviewMinutesChart(
+                                //               facId: selectedFac,
+                                //               theme: ChartThemes.water,
+                                //               utilityType: 'WATER',
+                                //             ),
+                                //       ),
+                                //       Expanded(
+                                //         child:
+                                //             UtilityDashboardOverviewMinutesChart(
+                                //               facId: selectedFac,
+                                //               theme: ChartThemes.air,
+                                //               utilityType: 'AIR',
+                                //             ),
+                                //       ),
+                                //     ],
+                                //   ),
+                                // ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      Expanded(
+                                        child: MonthlySummaryScreen(
+                                          facId: 'KVH',
+                                          month: monthKey,
+                                        ),
+                                      ),
+                                      Expanded(child: SignalHealthKpiScreen()),
+                                    ],
+                                  ),
                                 ),
 
                                 /// MAP
                                 Expanded(
                                   flex: 2,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: Stack(
-                                      fit: StackFit.expand,
-                                      children: [
-                                        FactoryMapWithRain(
-                                          mainImageUrl: widget.mainImageUrl,
-                                        ),
-
-                                        /// overlay
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: [
-                                                Colors.black.withOpacity(0.1),
-                                                Colors.transparent,
-                                                Colors.black.withOpacity(0.15),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-
-                                        MovingMascot(
-                                          alarmCount: alarms.length,
-                                          size: 180,
-                                          targetAlignment:
-                                              facPositions[targetFacId] ??
-                                              const Alignment(-0.60, 0.80),
-                                          idleAlignment: facPositions['idle']!,
-                                        ),
-
-                                        /// FAC B
-                                        Align(
-                                          alignment: const FractionalOffset(
-                                            0.99,
-                                            0.9,
-                                          ),
-                                          child: UtilityOverviewMonthlyBox(
-                                            facId: 'Fac_B',
-                                            month: monthKey,
-                                            headerTitle: 'Fac B',
-                                            isHighlighted: shouldHighlight(
-                                              'Fac_B',
-                                            ),
-                                            onVoltageAlarmChanged:
-                                                _handleVoltageAlarmChanged,
-                                          ),
-                                        ),
-
-                                        /// FAC A
-                                        Align(
-                                          alignment: const FractionalOffset(
-                                            0.99,
-                                            0.02,
-                                          ),
-                                          child: UtilityOverviewMonthlyBox(
-                                            facId: 'Fac_A',
-                                            month: monthKey,
-                                            headerTitle: 'Fac A',
-                                            isHighlighted: shouldHighlight(
-                                              'Fac_A',
-                                            ),
-                                            onVoltageAlarmChanged:
-                                                _handleVoltageAlarmChanged,
-                                          ),
-                                        ),
-
-                                        Align(
-                                          alignment: const FractionalOffset(
-                                            0.05,
-                                            0.02,
-                                          ),
-                                          child: UtilityOverviewMonthlyBox(
-                                            facId: 'Fac_C',
-                                            month: monthKey,
-                                            headerTitle: 'Fac C',
-                                            isHighlighted: shouldHighlight(
-                                              'Fac_C',
-                                            ),
-                                            onVoltageAlarmChanged:
-                                                _handleVoltageAlarmChanged,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                  child: UtilityMapWithCategoryTabs(
+                                    mainImageUrl: widget.mainImageUrl,
+                                    monthKey: monthKey,
+                                    alarms: alarms,
+                                    targetFacId: targetFacId,
+                                    facPositions: facPositions,
+                                    shouldHighlight: shouldHighlight,
+                                    onVoltageAlarmChanged:
+                                        _handleVoltageAlarmChanged,
                                   ),
                                 ),
 
-                                /// RIGHT PANEL
-                                Expanded(
-                                  child: Column(
-                                    children: [
-                                      UtilityDashboardOverviewHourlyHeader(
-                                        title: '[HOURLY COMPARE]',
-                                        subtitle:
-                                            'Today: $nowStr  •  Prev: $yStr',
-                                      ),
+                                // Expanded(
+                                //   flex: 2,
+                                //   child: ClipRRect(
+                                //     borderRadius: BorderRadius.circular(16),
+                                //     child: Stack(
+                                //       fit: StackFit.expand,
+                                //       children: [
+                                //         FactoryMapWithRain(
+                                //           mainImageUrl: widget.mainImageUrl,
+                                //         ),
+                                //
+                                //         /// overlay
+                                //         Container(
+                                //           decoration: BoxDecoration(
+                                //             gradient: LinearGradient(
+                                //               begin: Alignment.topCenter,
+                                //               end: Alignment.bottomCenter,
+                                //               colors: [
+                                //                 Colors.black.withOpacity(0.1),
+                                //                 Colors.transparent,
+                                //                 Colors.black.withOpacity(0.15),
+                                //               ],
+                                //             ),
+                                //           ),
+                                //         ),
+                                //
+                                //         MovingMascot(
+                                //           alarmCount: alarms.length,
+                                //           size: 180,
+                                //           targetAlignment:
+                                //               facPositions[targetFacId] ??
+                                //               const Alignment(-0.60, 0.80),
+                                //           idleAlignment: facPositions['idle']!,
+                                //         ),
+                                //
+                                //         /// FAC B
+                                //         Align(
+                                //           alignment: const FractionalOffset(
+                                //             0.99,
+                                //             0.9,
+                                //           ),
+                                //           child: UtilityOverviewMonthlyBox(
+                                //             facId: 'Fac_B',
+                                //             month: monthKey,
+                                //             headerTitle: 'Fac B',
+                                //             isHighlighted: shouldHighlight(
+                                //               'Fac_B',
+                                //             ),
+                                //             onVoltageAlarmChanged:
+                                //                 _handleVoltageAlarmChanged,
+                                //           ),
+                                //         ),
+                                //
+                                //         /// FAC A
+                                //         Align(
+                                //           alignment: const FractionalOffset(
+                                //             0.99,
+                                //             0.02,
+                                //           ),
+                                //           child: UtilityOverviewMonthlyBox(
+                                //             facId: 'Fac_A',
+                                //             month: monthKey,
+                                //             headerTitle: 'Fac A',
+                                //             isHighlighted: shouldHighlight(
+                                //               'Fac_A',
+                                //             ),
+                                //             onVoltageAlarmChanged:
+                                //                 _handleVoltageAlarmChanged,
+                                //           ),
+                                //         ),
+                                //
+                                //         Align(
+                                //           alignment: const FractionalOffset(
+                                //             0.05,
+                                //             0.02,
+                                //           ),
+                                //           child: UtilityOverviewMonthlyBox(
+                                //             facId: 'Fac_C',
+                                //             month: monthKey,
+                                //             headerTitle: 'Fac C',
+                                //             isHighlighted: shouldHighlight(
+                                //               'Fac_C',
+                                //             ),
+                                //             onVoltageAlarmChanged:
+                                //                 _handleVoltageAlarmChanged,
+                                //           ),
+                                //         ),
+                                //       ],
+                                //     ),
+                                //   ),
+                                // ),
 
-                                      Expanded(
-                                        child:
-                                            UtilityDashboardOverviewHourlyCompare(
-                                              facId: selectedFac,
-                                              theme: ChartThemes.power,
-                                            ),
-                                      ),
-                                      Expanded(
-                                        child: CoolingTankTemperaturePanel(
-                                          facId: selectedFac,
-                                          hours: 24,
-                                          theme: ChartThemes.water,
-                                          utilityType: 'WATER',
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: CoolingTankTemperaturePanel(
-                                          facId: selectedFac,
-                                          hours: 24,
-                                          theme: ChartThemes.air,
-                                          utilityType: 'AIR',
-                                        ),
-                                      ),
-                                    ],
+                                /// RIGHT PANEL
+                                // Expanded(
+                                //   child: Column(
+                                //     children: [
+                                //       UtilityDashboardOverviewHourlyHeader(
+                                //         title: '[HOURLY COMPARE]',
+                                //         subtitle:
+                                //             'Today: $nowStr  •  Prev: $yStr',
+                                //       ),
+                                //
+                                //       Expanded(
+                                //         child:
+                                //             UtilityDashboardOverviewHourlyCompare(
+                                //               facId: selectedFac,
+                                //               theme: ChartThemes.power,
+                                //             ),
+                                //       ),
+                                //       Expanded(
+                                //         child: CoolingTankTemperaturePanel(
+                                //           facId: selectedFac,
+                                //           hours: 24,
+                                //           theme: ChartThemes.water,
+                                //           utilityType: 'WATER',
+                                //         ),
+                                //       ),
+                                //       Expanded(
+                                //         child: CoolingTankTemperaturePanel(
+                                //           facId: selectedFac,
+                                //           hours: 24,
+                                //           theme: ChartThemes.air,
+                                //           utilityType: 'AIR',
+                                //         ),
+                                //       ),
+                                //     ],
+                                //   ),
+                                // ),
+                                Expanded(
+                                  child: UtilityRealtimeTabPanel(
+                                    selectedFac: selectedFac,
+                                    nowStr: nowStr,
+                                    yStr: yStr,
                                   ),
                                 ),
                               ],

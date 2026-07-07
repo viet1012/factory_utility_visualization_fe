@@ -4,8 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
-import '../utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 
 const kBg = Color(0xff0f172a);
 const kCard = Color(0xff111827);

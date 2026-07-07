@@ -5,32 +5,42 @@ import 'package:flutter/material.dart';
 class ScadaChartPanel extends StatelessWidget {
   final Widget child;
   final Color color;
-  final double width;
-  final double height;
+  final double? width;
+  final double? height;
 
   const ScadaChartPanel({
     super.key,
     required this.child,
     required this.color,
-    required this.width,
-    required this.height,
+    this.width,
+    this.height,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      height: height,
-      child: CustomPaint(
-        painter: _ScadaChartPanelPainter(color),
-        child: ClipPath(
-          clipper: _ScadaChartPanelClipper(),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
-            child: Container(padding: const EdgeInsets.all(1), child: child),
+    return LayoutBuilder(
+      builder: (_, constraints) {
+        final w = width ?? constraints.maxWidth;
+        final h = height ?? constraints.maxHeight;
+
+        return SizedBox(
+          width: w.isFinite ? w : double.infinity,
+          height: h.isFinite ? h : double.infinity,
+          child: CustomPaint(
+            painter: _ScadaChartPanelPainter(color),
+            child: ClipPath(
+              clipper: _ScadaChartPanelClipper(),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
+                child: Container(
+                  padding: const EdgeInsets.all(1),
+                  child: child,
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
