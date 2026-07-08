@@ -15,38 +15,43 @@ class SignalHealthKpiScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.watch<SignalHealthMatrixController>();
+    return Selector<SignalHealthMatrixController, ({bool loading, List data})>(
+      selector: (_, c) => (loading: c.loading, data: c.data),
+      builder: (context, state, _) {
+        if (state.loading && state.data.isEmpty) {
+          return const Center(
+            child: CircularProgressIndicator(color: kBlue, strokeWidth: 2.5),
+          );
+        }
 
-    if (c.loading && c.data.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: kBlue, strokeWidth: 2.5),
-      );
-    }
+        final rows = state.data;
 
-    final rows = c.data;
+        final totalFac = rows.map((e) => e['fac']).toSet().length;
+        final totalBoxDevice = rows.length;
 
-    final totalFac = rows.map((e) => e['fac']).toSet().length;
-    final totalBoxDevice = rows.length;
+        final totalRegister = rows.fold<int>(
+          0,
+          (sum, e) => sum + _toInt(e['totalRegisters']),
+        );
 
-    final totalRegister = rows.fold<int>(
-      0,
-      (sum, e) => sum + _toInt(e['totalRegisters']),
-    );
+        final totalNgRegister = rows.fold<int>(
+          0,
+          (sum, e) => sum + _toInt(e['ngRegisters']),
+        );
 
-    final totalNgRegister = rows.fold<int>(
-      0,
-      (sum, e) => sum + _toInt(e['ngRegisters']),
-    );
-
-    return Container(
-      color: kBg,
-      padding: const EdgeInsets.all(12),
-      child: SignalHealthKpiRow(
-        totalFac: totalFac,
-        totalBoxDevice: totalBoxDevice,
-        totalRegister: totalRegister,
-        totalNgRegister: totalNgRegister,
-      ),
+        return Container(
+          color: kBg,
+          padding: const EdgeInsets.all(12),
+          child: RepaintBoundary(
+            child: SignalHealthKpiRow(
+              totalFac: totalFac,
+              totalBoxDevice: totalBoxDevice,
+              totalRegister: totalRegister,
+              totalNgRegister: totalNgRegister,
+            ),
+          ),
+        );
+      },
     );
   }
 

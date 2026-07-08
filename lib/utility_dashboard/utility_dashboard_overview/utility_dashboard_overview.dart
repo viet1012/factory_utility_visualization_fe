@@ -449,7 +449,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                           Expanded(
                             child: Column(
                               children: [
-                                _title('[DAILY]'),
+                                _title('DAILY'),
 
                                 Expanded(
                                   child: Row(
@@ -500,16 +500,25 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
   }
 
   Widget _title(String text) {
-    return Container(
-      padding: const EdgeInsets.all(1),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: const Color(0xFF5CFF7A).withOpacity(0.9),
-          fontSize: 13,
-          fontWeight: FontWeight.w900,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.calendar_month_rounded,
+          size: 15,
+          color: Color(0xff5cff7a),
         ),
-      ),
+        const SizedBox(width: 8),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Color(0xff5cff7a),
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -198,101 +198,436 @@ class _UtilityPatternPainter extends CustomPainter {
   }
 
   void _drawWater(Canvas canvas, Size size, Paint paint, Paint glowPaint) {
-    final startX = size.width * .55;
+    final startX = size.width * .54;
+    final endX = size.width + 12;
+    final patternWidth = endX - startX;
 
-    for (int i = 0; i < 4; i++) {
-      final baseY = size.height * (.36 + i * .13);
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
 
-      final path = Path()..moveTo(startX, baseY);
+    // =========================
+    // LARGE WATER DROP
+    // =========================
+    final dropCenter = Offset(size.width * .79, size.height * .32);
 
-      path.cubicTo(
-        startX + 28,
-        baseY - 22,
-        startX + 54,
-        baseY + 22,
-        startX + 84,
-        baseY,
+    final dropWidth = size.width * .10;
+    final dropHeight = size.height * .22;
+
+    final dropPath = Path()
+      ..moveTo(dropCenter.dx, dropCenter.dy - dropHeight * .55)
+      ..cubicTo(
+        dropCenter.dx - dropWidth * .12,
+        dropCenter.dy - dropHeight * .28,
+        dropCenter.dx - dropWidth * .48,
+        dropCenter.dy + dropHeight * .02,
+        dropCenter.dx - dropWidth * .48,
+        dropCenter.dy + dropHeight * .20,
+      )
+      ..cubicTo(
+        dropCenter.dx - dropWidth * .48,
+        dropCenter.dy + dropHeight * .48,
+        dropCenter.dx - dropWidth * .22,
+        dropCenter.dy + dropHeight * .62,
+        dropCenter.dx,
+        dropCenter.dy + dropHeight * .62,
+      )
+      ..cubicTo(
+        dropCenter.dx + dropWidth * .22,
+        dropCenter.dy + dropHeight * .62,
+        dropCenter.dx + dropWidth * .48,
+        dropCenter.dy + dropHeight * .48,
+        dropCenter.dx + dropWidth * .48,
+        dropCenter.dy + dropHeight * .20,
+      )
+      ..cubicTo(
+        dropCenter.dx + dropWidth * .48,
+        dropCenter.dy + dropHeight * .02,
+        dropCenter.dx + dropWidth * .12,
+        dropCenter.dy - dropHeight * .28,
+        dropCenter.dx,
+        dropCenter.dy - dropHeight * .55,
+      )
+      ..close();
+
+    final dropGlowPaint = Paint()
+      ..color = color.withOpacity(.075)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
+
+    final dropPaint = Paint()
+      ..color = color.withOpacity(.25)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    canvas.drawPath(dropPath, dropGlowPaint);
+    canvas.drawPath(dropPath, dropPaint);
+
+    // Highlight inside water drop.
+    final highlight = Path()
+      ..moveTo(
+        dropCenter.dx - dropWidth * .18,
+        dropCenter.dy + dropHeight * .06,
+      )
+      ..cubicTo(
+        dropCenter.dx - dropWidth * .28,
+        dropCenter.dy + dropHeight * .18,
+        dropCenter.dx - dropWidth * .20,
+        dropCenter.dy + dropHeight * .32,
+        dropCenter.dx - dropWidth * .06,
+        dropCenter.dy + dropHeight * .37,
       );
 
-      path.cubicTo(
-        startX + 110,
-        baseY - 20,
-        startX + 138,
-        baseY + 18,
-        startX + 170,
-        baseY - 2,
-      );
+    final highlightPaint = Paint()
+      ..color = color.withOpacity(.17)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
 
-      canvas.drawPath(path, i == 1 ? glowPaint : paint);
-      canvas.drawPath(path, paint);
+    canvas.drawPath(highlight, highlightPaint);
+
+    // =========================
+    // LAYERED WATER WAVES
+    // =========================
+    final waveConfigs = [
+      (
+        y: size.height * .58,
+        amplitude: size.height * .045,
+        opacity: .15,
+        strokeWidth: .85,
+        phase: 0.0,
+      ),
+      (
+        y: size.height * .68,
+        amplitude: size.height * .055,
+        opacity: .27,
+        strokeWidth: 1.15,
+        phase: .65,
+      ),
+      (
+        y: size.height * .79,
+        amplitude: size.height * .038,
+        opacity: .18,
+        strokeWidth: .9,
+        phase: 1.3,
+      ),
+    ];
+
+    for (int waveIndex = 0; waveIndex < waveConfigs.length; waveIndex++) {
+      final config = waveConfigs[waveIndex];
+
+      final wavePath = Path();
+      const segments = 44;
+
+      for (int i = 0; i <= segments; i++) {
+        final progress = i / segments;
+        final x = startX + patternWidth * progress;
+
+        final fade = sin(progress * pi);
+        final y =
+            config.y +
+            sin(progress * pi * 3.4 + config.phase) *
+                config.amplitude *
+                (.55 + fade * .45);
+
+        if (i == 0) {
+          wavePath.moveTo(x, y);
+        } else {
+          wavePath.lineTo(x, y);
+        }
+      }
+
+      if (waveIndex == 1) {
+        final waveGlow = Paint()
+          ..color = color.withOpacity(.055)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+
+        canvas.drawPath(wavePath, waveGlow);
+      }
+
+      final wavePaint = Paint()
+        ..color = color.withOpacity(config.opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = config.strokeWidth
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawPath(wavePath, wavePaint);
     }
 
+    // =========================
+    // BUBBLES
+    // =========================
+    final bubbles = [
+      (offset: Offset(size.width * .61, size.height * .28), radius: 3.2),
+      (offset: Offset(size.width * .67, size.height * .20), radius: 5.0),
+      (offset: Offset(size.width * .90, size.height * .26), radius: 3.8),
+      (offset: Offset(size.width * .94, size.height * .43), radius: 6.0),
+      (offset: Offset(size.width * .57, size.height * .46), radius: 2.5),
+    ];
+
     final bubblePaint = Paint()
-      ..color = color.withOpacity(.20)
+      ..color = color.withOpacity(.18)
       ..style = PaintingStyle.stroke
       ..strokeWidth = .9;
 
-    final bubbles = [
-      Offset(startX + 18, size.height * .23),
-      Offset(startX + 62, size.height * .18),
-      Offset(startX + 118, size.height * .27),
-      Offset(startX + 145, size.height * .16),
-    ];
+    final bubbleDotPaint = Paint()
+      ..color = color.withOpacity(.24)
+      ..style = PaintingStyle.fill;
 
     for (int i = 0; i < bubbles.length; i++) {
-      canvas.drawCircle(bubbles[i], 4.0 + i, bubblePaint);
-    }
-  }
+      final bubble = bubbles[i];
 
-  void _drawAir(Canvas canvas, Size size, Paint paint, Paint glowPaint) {
-    final startX = size.width * .54;
+      canvas.drawCircle(bubble.offset, bubble.radius, bubblePaint);
 
-    for (int i = 0; i < 4; i++) {
-      final y = size.height * (.30 + i * .14);
-
-      final path = Path()..moveTo(startX, y);
-
-      path.cubicTo(startX + 36, y - 24, startX + 70, y + 24, startX + 108, y);
-
-      path.cubicTo(
-        startX + 136,
-        y - 18,
-        startX + 158,
-        y + 16,
-        startX + 184,
-        y - 4,
-      );
-
-      canvas.drawPath(path, i == 1 ? glowPaint : paint);
-      canvas.drawPath(path, paint);
-    }
-
-    final center = Offset(size.width * .79, size.height * .42);
-    final swirl = Path();
-
-    for (int i = 0; i <= 54; i++) {
-      final t = i / 54;
-      final angle = t * 2.4 * pi;
-      final r = 5 + t * 24;
-
-      final x = center.dx + cos(angle) * r;
-      final y = center.dy + sin(angle) * r * .62;
-
-      if (i == 0) {
-        swirl.moveTo(x, y);
-      } else {
-        swirl.lineTo(x, y);
+      if (i.isEven) {
+        canvas.drawCircle(
+          bubble.offset.translate(-bubble.radius * .25, -bubble.radius * .25),
+          .8,
+          bubbleDotPaint,
+        );
       }
     }
 
-    final swirlPaint = Paint()
-      ..color = color.withOpacity(.28)
-      ..strokeWidth = 1
+    canvas.restore();
+  }
+
+  void _drawAir(Canvas canvas, Size size, Paint paint, Paint glowPaint) {
+    final startX = size.width * .53;
+    final endX = size.width + 18;
+    final patternWidth = endX - startX;
+
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
+    // =========================
+    // PRESSURE / AIR SWIRL
+    // =========================
+    final swirlCenter = Offset(size.width * .82, size.height * .43);
+
+    final swirlGlowPaint = Paint()
+      ..color = color.withOpacity(.055)
       ..style = PaintingStyle.stroke
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
+    final swirlPaint = Paint()
+      ..color = color.withOpacity(.27)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.05
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawPath(swirl, glowPaint);
-    canvas.drawPath(swirl, swirlPaint);
+    final swirlPath = Path();
+
+    const swirlPoints = 76;
+
+    for (int i = 0; i <= swirlPoints; i++) {
+      final progress = i / swirlPoints;
+      final angle = progress * pi * 3.8;
+      final radius = 2.5 + progress * size.height * .15;
+
+      final x = swirlCenter.dx + cos(angle) * radius;
+      final y = swirlCenter.dy + sin(angle) * radius * .56;
+
+      if (i == 0) {
+        swirlPath.moveTo(x, y);
+      } else {
+        swirlPath.lineTo(x, y);
+      }
+    }
+
+    canvas.drawPath(swirlPath, swirlGlowPaint);
+    canvas.drawPath(swirlPath, swirlPaint);
+
+    // Center pressure dot.
+    final centerGlowPaint = Paint()
+      ..color = color.withOpacity(.10)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+
+    final centerPaint = Paint()
+      ..color = color.withOpacity(.40)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(swirlCenter, 5.5, centerGlowPaint);
+    canvas.drawCircle(swirlCenter, 1.8, centerPaint);
+
+    // =========================
+    // AIR FLOW STREAMS
+    // =========================
+    final streams = [
+      (
+        y: size.height * .28,
+        amplitude: size.height * .037,
+        opacity: .15,
+        strokeWidth: .85,
+        phase: .15,
+        length: .77,
+      ),
+      (
+        y: size.height * .52,
+        amplitude: size.height * .050,
+        opacity: .28,
+        strokeWidth: 1.15,
+        phase: .80,
+        length: 1.00,
+      ),
+      (
+        y: size.height * .69,
+        amplitude: size.height * .032,
+        opacity: .20,
+        strokeWidth: .95,
+        phase: 1.45,
+        length: .90,
+      ),
+      (
+        y: size.height * .80,
+        amplitude: size.height * .022,
+        opacity: .12,
+        strokeWidth: .75,
+        phase: 2.10,
+        length: .68,
+      ),
+    ];
+
+    for (int streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+      final stream = streams[streamIndex];
+      final streamPath = Path();
+
+      const segments = 48;
+
+      for (int i = 0; i <= segments; i++) {
+        final progress = i / segments;
+        final x = startX + patternWidth * stream.length * progress;
+
+        final envelope = sin(progress * pi);
+        final y =
+            stream.y +
+            sin(progress * pi * 2.3 + stream.phase) *
+                stream.amplitude *
+                envelope;
+
+        if (i == 0) {
+          streamPath.moveTo(x, y);
+        } else {
+          streamPath.lineTo(x, y);
+        }
+      }
+
+      if (streamIndex == 1) {
+        final streamGlow = Paint()
+          ..color = color.withOpacity(.05)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+
+        canvas.drawPath(streamPath, streamGlow);
+      }
+
+      final streamPaint = Paint()
+        ..color = color.withOpacity(stream.opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stream.strokeWidth
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawPath(streamPath, streamPaint);
+
+      // Small airflow head.
+      if (streamIndex < 3) {
+        final arrowProgress = stream.length;
+        final arrowX = startX + patternWidth * arrowProgress;
+        final arrowY = stream.y;
+
+        final arrowPaint = Paint()
+          ..color = color.withOpacity(stream.opacity)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = stream.strokeWidth
+          ..strokeCap = StrokeCap.round;
+
+        final arrowPath = Path()
+          ..moveTo(arrowX - 7, arrowY - 3)
+          ..lineTo(arrowX, arrowY)
+          ..lineTo(arrowX - 7, arrowY + 3);
+
+        canvas.drawPath(arrowPath, arrowPaint);
+      }
+    }
+
+    // =========================
+    // COMPRESSED AIR PARTICLES
+    // =========================
+    final particles = [
+      (
+        offset: Offset(size.width * .59, size.height * .20),
+        radius: 1.5,
+        opacity: .25,
+      ),
+      (
+        offset: Offset(size.width * .66, size.height * .37),
+        radius: 2.2,
+        opacity: .18,
+      ),
+      (
+        offset: Offset(size.width * .72, size.height * .22),
+        radius: 1.3,
+        opacity: .28,
+      ),
+      (
+        offset: Offset(size.width * .91, size.height * .30),
+        radius: 1.8,
+        opacity: .22,
+      ),
+      (
+        offset: Offset(size.width * .95, size.height * .57),
+        radius: 2.4,
+        opacity: .16,
+      ),
+      (
+        offset: Offset(size.width * .67, size.height * .76),
+        radius: 1.4,
+        opacity: .20,
+      ),
+    ];
+
+    for (final particle in particles) {
+      final particlePaint = Paint()
+        ..color = color.withOpacity(particle.opacity)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(particle.offset, particle.radius, particlePaint);
+    }
+
+    // Small pressure rings.
+    final ringPaint = Paint()
+      ..color = color.withOpacity(.12)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .75;
+
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(size.width * .92, size.height * .72),
+        width: 22,
+        height: 10,
+      ),
+      ringPaint,
+    );
+
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(size.width * .92, size.height * .72),
+        width: 34,
+        height: 16,
+      ),
+      ringPaint,
+    );
+
+    canvas.restore();
   }
 
   @override

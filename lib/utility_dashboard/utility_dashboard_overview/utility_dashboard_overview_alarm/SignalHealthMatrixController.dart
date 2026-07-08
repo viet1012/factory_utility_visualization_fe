@@ -9,8 +9,8 @@ class SignalHealthMatrixController extends ChangeNotifier {
 
   SignalHealthMatrixController(this.api);
 
-  static const Duration requestTimeout = Duration(seconds: 90);
-  static const Duration refreshInterval = Duration(minutes: 1);
+  static const Duration requestTimeout = Duration(seconds: 50);
+  static const Duration refreshInterval = Duration(minutes: 5);
 
   Timer? _timer;
 
@@ -18,6 +18,8 @@ class SignalHealthMatrixController extends ChangeNotifier {
   bool refreshing = false;
   bool fetching = false;
   Object? error;
+
+  int _requestId = 0;
 
   List<Map<String, dynamic>> data = [];
   Map<String, dynamic>? selected;
@@ -32,39 +34,58 @@ class SignalHealthMatrixController extends ChangeNotifier {
     });
   }
 
+  Future<List<Map<String, dynamic>>> _fetchMatrix() {
+    return api.getSignalHealthMatrix().timeout(requestTimeout);
+  }
+
   Future<void> load({bool silent = false}) async {
     if (fetching) return;
 
     fetching = true;
+    final requestId = ++_requestId;
 
-    if (!silent && data.isEmpty) {
+    final hasOldData = data.isNotEmpty;
+    final oldBoxDeviceId = selected?['boxDeviceId']?.toString();
+
+    if (!silent && !hasOldData) {
       loading = true;
       error = null;
       notifyListeners();
     }
 
-    if (silent) {
+    if (silent && hasOldData) {
       refreshing = true;
-      notifyListeners();
     }
 
-    final oldBoxDeviceId = selected?['boxDeviceId']?.toString();
-
     try {
-      final newData = await api.getSignalHealthMatrix().timeout(requestTimeout);
+      final newData = await _fetchMatrix();
+
+      if (requestId != _requestId) return;
 
       data = newData;
       selected = _findSelectedDevice(newData, oldBoxDeviceId);
       loading = false;
       refreshing = false;
       error = null;
+
+      notifyListeners();
     } catch (e) {
+      if (requestId != _requestId) return;
+
       loading = false;
       refreshing = false;
-      if (data.isEmpty) error = e;
+
+      if (data.isEmpty) {
+        error = e;
+        notifyListeners();
+      } else {
+        error = null;
+        notifyListeners();
+      }
     } finally {
-      fetching = false;
-      notifyListeners();
+      if (requestId == _requestId) {
+        fetching = false;
+      }
     }
   }
 
@@ -123,6 +144,7 @@ class SignalHealthMatrixController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _requestId++;
     _timer?.cancel();
     super.dispose();
   }

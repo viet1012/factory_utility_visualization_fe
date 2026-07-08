@@ -14,7 +14,7 @@ extension UtilityMapCateExt on UtilityMapCate {
   String get label {
     switch (this) {
       case UtilityMapCate.electricity:
-        return 'ELECTRICAL';
+        return 'ELECTRICITY';
       case UtilityMapCate.water:
         return 'WATER';
       case UtilityMapCate.air:

@@ -52,7 +52,12 @@ class _UtilityDashboardOverviewMinutesChartState
   bool loading = true;
   DataHealthResult? _cachedHealth;
 
-  bool _loadingNow = false;
+  // `_activeRequestId != null` nghĩa là có 1 request đang bay.
+  // requestId tăng dần mỗi lần gọi, dùng để chỉ áp response mới nhất vào UI —
+  // đồng bộ pattern với MonthlySummaryScreen.
+  int? _activeRequestId;
+  int _requestSeq = 0;
+
   Timer? _pollTimer;
 
   @override
@@ -60,7 +65,7 @@ class _UtilityDashboardOverviewMinutesChartState
     super.initState();
     fx = UtilityInfoBoxFx(this)..init();
 
-    _load();
+    unawaited(_load());
     _startPolling();
   }
 
@@ -68,16 +73,45 @@ class _UtilityDashboardOverviewMinutesChartState
     _pollTimer?.cancel();
 
     _pollTimer = Timer.periodic(_pollInterval, (_) {
-      if (!_loadingNow && mounted) {
-        _load(silent: true);
-      }
+      if (!mounted || _activeRequestId != null) return;
+      unawaited(_load(silent: true));
     });
   }
 
-  Future<void> _load({bool silent = false}) async {
-    if (_loadingNow || !mounted) return;
+  /// Gọi API thuần, không đụng setState/mounted — dễ test độc lập.
+  Future<List<MinutePointDto>> _fetchMinuteData({
+    required String facId,
+    required int minutes,
+    required String? nameEn,
+    required String utilityType,
+  }) async {
+    final api = context.read<UtilityDashboardOverviewApi>();
 
-    _loadingNow = true;
+    return api
+        .getEnergyMinute(
+          facId: facId,
+          minutes: minutes,
+          nameEn: nameEn,
+          utilityType: utilityType,
+        )
+        .timeout(_requestTimeout);
+  }
+
+  Future<void> _load({bool silent = false, bool force = false}) async {
+    if (!mounted) return;
+
+    // Có request khác đang chạy và không force -> bỏ qua (không "nuốt" mất
+    // yêu cầu vĩnh viễn: caller có force=true, ví dụ didUpdateWidget, vẫn
+    // luôn tạo được request mới, không phụ thuộc request cũ đã xong hay chưa).
+    if (_activeRequestId != null && !force) return;
+
+    final requestId = ++_requestSeq;
+    _activeRequestId = requestId;
+
+    final requestFacId = widget.facId;
+    final requestMinutes = widget.minutes;
+    final requestNameEn = widget.nameEn;
+    final requestUtilityType = widget.utilityType;
 
     if (!silent && rows.isEmpty) {
       setState(() {
@@ -87,18 +121,18 @@ class _UtilityDashboardOverviewMinutesChartState
     }
 
     try {
-      final api = context.read<UtilityDashboardOverviewApi>();
-
-      final data = await api
-          .getEnergyMinute(
-            facId: widget.facId,
-            minutes: widget.minutes,
-            nameEn: widget.nameEn,
-            utilityType: widget.utilityType,
-          )
-          .timeout(_requestTimeout);
+      final data = await _fetchMinuteData(
+        facId: requestFacId,
+        minutes: requestMinutes,
+        nameEn: requestNameEn,
+        utilityType: requestUtilityType,
+      );
 
       if (!mounted) return;
+
+      // Chỉ request mới nhất mới được phép áp vào UI — chặn trường hợp
+      // response cũ (facId/minutes/nameEn trước đó) về trễ hơn response mới.
+      if (_activeRequestId != requestId) return;
 
       final valid = data.where((e) => e.value != null).toList();
 
@@ -117,20 +151,22 @@ class _UtilityDashboardOverviewMinutesChartState
         });
       }
     } on TimeoutException catch (e) {
-      _handleLoadError(e, '[TIMEOUT]');
+      _handleLoadError(e, '[TIMEOUT]', requestId);
     } on DioException catch (e) {
-      _handleLoadError(e, '[DIO] ${e.type}');
+      _handleLoadError(e, '[DIO] ${e.type}', requestId);
     } catch (e) {
-      _handleLoadError(e, '[ERROR]');
+      _handleLoadError(e, '[ERROR]', requestId);
     } finally {
-      _loadingNow = false;
+      if (_activeRequestId == requestId) {
+        _activeRequestId = null;
+      }
     }
   }
 
-  void _handleLoadError(Object e, String tag) {
+  void _handleLoadError(Object e, String tag, int requestId) {
     debugPrint('$tag $e');
 
-    if (!mounted) return;
+    if (!mounted || _activeRequestId != requestId) return;
 
     _cachedHealth = DataHealthAnalyzer.analyze(
       key: 'Minutes_${widget.facId}_${widget.theme.title}',
@@ -181,7 +217,9 @@ class _UtilityDashboardOverviewMinutesChartState
       _cachedHealth = null;
     });
 
-    _load();
+    // force: true — luôn tạo request mới cho tham số mới, kể cả khi 1 poll
+    // cũ đang bay. Nhờ _requestId, response cũ (nếu về sau) sẽ tự bị bỏ qua.
+    unawaited(_load(force: true));
     _startPolling();
   }
 
@@ -195,8 +233,6 @@ class _UtilityDashboardOverviewMinutesChartState
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
-
-    final validRows = rows.where((e) => e.value != null).toList();
 
     MinutePointDto? headerPoint;
 
@@ -237,12 +273,10 @@ class _UtilityDashboardOverviewMinutesChartState
                 value: headerPoint == null
                     ? '--'
                     : '${headerPoint.value!.toStringAsFixed(1)} ${t.unit}',
-
                 valueTs: headerPoint == null
                     ? '--'
                     : DateFormat('HH:mm:ss').format(headerPoint.ts.toLocal()),
               ),
-
               Expanded(child: _body()),
             ],
           ),
@@ -263,7 +297,10 @@ class _UtilityDashboardOverviewMinutesChartState
     }
 
     if (error != null && rows.isEmpty) {
-      return ChartApiErrorState(color: widget.theme.line, onRetry: _load);
+      return ChartApiErrorState(
+        color: widget.theme.line,
+        onRetry: () => _load(force: true),
+      );
     }
 
     if (rows.isEmpty) {
@@ -306,7 +343,6 @@ class _UtilityDashboardOverviewMinutesChartState
 
     final data = rows
         .where((e) => e.value != null)
-        // .map((e) => _ChartPoint(e.ts.toLocal(), e.value!))
         .map(
           (e) => _ChartPoint(
             e.ts.toLocal(),
@@ -389,7 +425,6 @@ class _UtilityDashboardOverviewMinutesChartState
           maximum: maxY,
           interval: _niceStep((maxY - minY) / 5),
           numberFormat: NumberFormat('0.0'),
-
           majorGridLines: MajorGridLines(
             width: 1,
             color: Colors.white.withOpacity(.06),
@@ -442,12 +477,9 @@ class _UtilityDashboardOverviewMinutesChartState
           ScatterSeries<_ChartPoint, DateTime>(
             isVisibleInLegend: false,
             dataSource: [lastPoint],
-
             xValueMapper: (p, _) => p.ts,
             yValueMapper: (p, _) => p.y,
-
             color: t.line,
-
             markerSettings: MarkerSettings(
               isVisible: true,
               width: 4,
@@ -455,9 +487,7 @@ class _UtilityDashboardOverviewMinutesChartState
               borderWidth: 2,
               borderColor: Colors.white,
             ),
-
             dataLabelMapper: (p, _) => p.y.toStringAsFixed(1),
-
             dataLabelSettings: const DataLabelSettings(
               isVisible: true,
               labelAlignment: ChartDataLabelAlignment.outer,
@@ -623,9 +653,7 @@ class _UtilityDashboardOverviewMinutesChartState
       series: [
         ...grouped.entries.map((entry) {
           final rank = rankByName[entry.key] ?? 0;
-
           final color = _seriesColorByRank(rank: rank, total: grouped.length);
-
           final points = entry.value;
 
           return LineSeries<_ChartPoint, DateTime>(
@@ -638,12 +666,9 @@ class _UtilityDashboardOverviewMinutesChartState
             markerSettings: const MarkerSettings(isVisible: false),
           );
         }),
-
         ...grouped.entries.map((entry) {
           final rank = rankByName[entry.key] ?? 0;
-
           final color = _seriesColorByRank(rank: rank, total: grouped.length);
-
           final lastPoint = entry.value.last;
 
           return ScatterSeries<_ChartPoint, DateTime>(

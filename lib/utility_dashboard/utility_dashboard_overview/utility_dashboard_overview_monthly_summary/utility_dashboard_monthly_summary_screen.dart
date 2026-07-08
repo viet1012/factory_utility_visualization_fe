@@ -23,7 +23,7 @@ class MonthlySummaryScreen extends StatefulWidget {
 
 class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
   static const Duration _refreshInterval = Duration(hours: 6);
-  static const Duration _requestTimeout = Duration(seconds: 15);
+  static const Duration _requestTimeout = Duration(seconds: 30);
 
   Timer? _refreshTimer;
 
@@ -240,9 +240,8 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                   if (electricity != null)
                     Expanded(child: _ElectricCard(item: electricity)),
 
-                  if (electricity != null && (water != null || air != null))
-                    const SizedBox(width: 6),
-
+                  // if (electricity != null && (water != null || air != null))
+                  //   const SizedBox(width: 6),
                   if (water != null)
                     Expanded(
                       child: _UtilityMinMaxCard(
@@ -254,8 +253,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                       ),
                     ),
 
-                  if (water != null && air != null) const SizedBox(width: 6),
-
+                  // if (water != null && air != null) const SizedBox(width: 4),
                   if (air != null)
                     Expanded(
                       child: _UtilityMinMaxCard(
@@ -489,7 +487,7 @@ class _UtilityMinMaxCard extends StatelessWidget {
                   color: color,
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 2),
               Expanded(
                 child: _SmallMetric(
                   icon: Icons.waves_rounded,
@@ -499,7 +497,7 @@ class _UtilityMinMaxCard extends StatelessWidget {
                   color: color,
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 2),
               Expanded(
                 child: _SmallMetric(
                   icon: Icons.arrow_upward_rounded,
@@ -758,7 +756,7 @@ class _InfoTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: color,
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -787,7 +785,7 @@ class _SmallMetric extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       // height: 46,
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+      // padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(.16),
         borderRadius: BorderRadius.circular(8),
@@ -811,7 +809,7 @@ class _SmallMetric extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: color,
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.w900,
             ),
           ),

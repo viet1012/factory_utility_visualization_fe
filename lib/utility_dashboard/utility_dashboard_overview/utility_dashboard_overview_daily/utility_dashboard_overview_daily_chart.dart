@@ -114,6 +114,7 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
   final String nameEng;
   final String type;
   final ChartTheme theme;
+  final bool showHeader;
 
   const UtilityDashboardOverviewDailyChart({
     super.key,
@@ -124,6 +125,7 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
     this.type = 'ENERGY',
     this.width = 520,
     this.height,
+    this.showHeader = true,
   });
 
   @override
@@ -406,14 +408,18 @@ class _UtilityDashboardOverviewDailyChartState
       crossAxisAlignment: CrossAxisAlignment.stretch,
 
       children: [
-        CommonChartTitleBar(
-          title: widget.theme.title,
-          health: health,
-          value: _lastVal,
-          valueTs: _lastTs,
-          backgroundColor: Colors.transparent,
-          borderColor: widget.theme.line.withOpacity(0.44),
-        ),
+        if (widget.showHeader) ...[
+          CommonChartTitleBar(
+            title: widget.theme.title,
+            health: health,
+            value: _lastVal,
+            valueTs: _lastTs,
+            backgroundColor: Colors.transparent,
+            borderColor: widget.theme.line.withOpacity(0.44),
+          ),
+          const SizedBox(height: 6),
+        ],
+
         const SizedBox(height: 6),
         Expanded(
           child: rows.isEmpty || _cachedChartData == null
