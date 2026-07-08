@@ -523,14 +523,6 @@ class _UtilityDashboardOverviewMinutesChartState
         .toColor();
   }
 
-  String _shortTanknameEn(String nameEn) {
-    return nameEn
-        .replaceAll('_PT100', '')
-        .replaceAll('Cooling tank ', 'Tank ')
-        .replaceAll('temperature data', '')
-        .trim();
-  }
-
   Map<String, List<_ChartPoint>> _groupWaterPoints() {
     final data = rows
         .where((e) => e.value != null)
@@ -560,11 +552,49 @@ class _UtilityDashboardOverviewMinutesChartState
 
   Widget _waterCleanChart() {
     final t = widget.theme;
-    final grouped = _groupWaterPoints();
-    final data = grouped.values.expand((e) => e).toList();
-    final showLegend = grouped.length > 1;
+    final rawGrouped = _groupWaterPoints();
 
-    if (data.length < 2) {
+    // Chuẩn hóa tên series và loại bỏ group rỗng.
+    // Fac_A và "Fac_A " sẽ được gom chung.
+    final grouped = <String, List<_ChartPoint>>{};
+
+    for (final entry in rawGrouped.entries) {
+      final seriesName = entry.key.trim();
+
+      if (seriesName.isEmpty || entry.value.isEmpty) {
+        continue;
+      }
+
+      grouped.putIfAbsent(seriesName, () => <_ChartPoint>[]);
+      grouped[seriesName]!.addAll(entry.value);
+    }
+
+    // Sắp xếp điểm theo thời gian và loại trùng timestamp.
+    for (final entry in grouped.entries) {
+      final pointsByTime = <DateTime, _ChartPoint>{};
+
+      for (final point in entry.value) {
+        // Nếu cùng timestamp bị trùng, giữ bản ghi cuối.
+        pointsByTime[point.ts] = point;
+      }
+
+      entry.value
+        ..clear()
+        ..addAll(pointsByTime.values)
+        ..sort((a, b) => a.ts.compareTo(b.ts));
+    }
+
+    grouped.removeWhere((_, points) => points.isEmpty);
+
+    final data = grouped.values.expand((points) => points).toList()
+      ..sort((a, b) => a.ts.compareTo(b.ts));
+
+    debugPrint(
+      'WATER GROUP COUNT = ${grouped.length}, '
+      'NAMES = ${grouped.keys.toList()}',
+    );
+
+    if (data.length < 2 || grouped.isEmpty) {
       return const Center(
         child: Text(
           'Not enough points',
@@ -573,35 +603,54 @@ class _UtilityDashboardOverviewMinutesChartState
       );
     }
 
+    final showLegend = grouped.length > 1;
+
+    // Xếp hạng series theo giá trị trung bình.
     final rankedEntries = grouped.entries.toList()
       ..sort((a, b) {
         final avgA =
-            a.value.map((e) => e.y).reduce((x, y) => x + y) / a.value.length;
+            a.value.fold<double>(0, (sum, point) => sum + point.y) /
+            a.value.length;
 
         final avgB =
-            b.value.map((e) => e.y).reduce((x, y) => x + y) / b.value.length;
+            b.value.fold<double>(0, (sum, point) => sum + point.y) /
+            b.value.length;
 
         return avgB.compareTo(avgA);
       });
 
     final rankByName = <String, int>{};
+
     for (var i = 0; i < rankedEntries.length; i++) {
       rankByName[rankedEntries[i].key] = i;
     }
 
-    final ys = data.map((e) => e.y).toList()..sort();
+    // Tìm thời gian nhỏ nhất/lớn nhất trên toàn bộ dữ liệu.
+    final minTs = data
+        .map((point) => point.ts)
+        .reduce((a, b) => a.isBefore(b) ? a : b);
+
+    final maxTs = data
+        .map((point) => point.ts)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+
+    final ys = data.map((point) => point.y).toList()..sort();
+
     final minValue = ys.first;
     final maxValue = ys.last;
     final range = maxValue - minValue;
 
-    final padding = max(range * 0.1, 0.2);
+    final padding = max(range * 0.10, 0.2);
     final minY = minValue - padding;
     final maxY = maxValue + padding;
+    final yInterval = max((maxY - minY) / 4, 0.1);
 
     return SfCartesianChart(
+      key: ValueKey('water_${grouped.keys.join('|')}_${data.length}'),
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withOpacity(.08),
+
       legend: Legend(
         isVisible: showLegend,
         position: LegendPosition.top,
@@ -612,10 +661,16 @@ class _UtilityDashboardOverviewMinutesChartState
           fontWeight: FontWeight.w700,
         ),
       ),
-      tooltipBehavior: TooltipBehavior(enable: true, header: ''),
+
+      tooltipBehavior: TooltipBehavior(
+        enable: true,
+        header: '',
+        format: 'point.x\nseries.name: point.y',
+      ),
+
       primaryXAxis: DateTimeAxis(
-        minimum: data.first.ts,
-        maximum: data.last.ts.add(const Duration(minutes: 2)),
+        minimum: minTs,
+        maximum: maxTs.add(const Duration(minutes: 2)),
         intervalType: DateTimeIntervalType.minutes,
         dateFormat: DateFormat('HH:mm'),
         majorGridLines: MajorGridLines(
@@ -627,10 +682,11 @@ class _UtilityDashboardOverviewMinutesChartState
           fontSize: 11,
         ),
       ),
+
       primaryYAxis: NumericAxis(
         minimum: minY,
         maximum: maxY,
-        interval: (maxY - minY) / 4,
+        interval: yInterval,
         numberFormat: NumberFormat('0.0'),
         majorGridLines: MajorGridLines(
           width: 1,
@@ -644,59 +700,54 @@ class _UtilityDashboardOverviewMinutesChartState
           text: t.unit,
           alignment: ChartAlignment.center,
           textStyle: TextStyle(
-            color: Colors.white.withOpacity(0.8),
+            color: Colors.white.withOpacity(.8),
             fontWeight: FontWeight.w600,
             fontSize: 12,
           ),
         ),
       ),
-      series: [
-        ...grouped.entries.map((entry) {
-          final rank = rankByName[entry.key] ?? 0;
-          final color = _seriesColorByRank(rank: rank, total: grouped.length);
-          final points = entry.value;
 
-          return LineSeries<_ChartPoint, DateTime>(
-            name: _shortTanknameEn(entry.key),
-            dataSource: points,
-            xValueMapper: (p, _) => p.ts,
-            yValueMapper: (p, _) => p.y,
-            width: rank == 0 ? 3.0 : 2.0,
-            color: color,
-            markerSettings: const MarkerSettings(isVisible: false),
-          );
-        }),
-        ...grouped.entries.map((entry) {
-          final rank = rankByName[entry.key] ?? 0;
-          final color = _seriesColorByRank(rank: rank, total: grouped.length);
-          final lastPoint = entry.value.last;
+      // Chỉ tạo đúng 1 LineSeries cho mỗi FAC.
+      series: grouped.entries.map((entry) {
+        final seriesName = entry.key;
+        final points = entry.value;
+        final rank = rankByName[seriesName] ?? 0;
 
-          return ScatterSeries<_ChartPoint, DateTime>(
-            isVisibleInLegend: false,
-            dataSource: [lastPoint],
-            xValueMapper: (p, _) => p.ts,
-            yValueMapper: (p, _) => p.y,
-            color: color,
-            markerSettings: MarkerSettings(
-              isVisible: true,
-              width: rank == 0 ? 6 : 4,
-              height: rank == 0 ? 6 : 4,
-              borderWidth: 2,
-              borderColor: Colors.white.withOpacity(.9),
+        final color = _seriesColorByRank(rank: rank, total: grouped.length);
+
+        return LineSeries<_ChartPoint, DateTime>(
+          name: seriesName,
+          dataSource: points,
+          xValueMapper: (point, _) => point.ts,
+          yValueMapper: (point, _) => point.y,
+
+          width: rank == 0 ? 3.0 : 2.0,
+          color: color,
+
+          markerSettings: const MarkerSettings(isVisible: false),
+
+          // Chỉ hiển thị label tại điểm cuối.
+          dataLabelMapper: (point, index) {
+            final isLastPoint = index == points.length - 1;
+
+            if (!isLastPoint) {
+              return null;
+            }
+
+            return point.y.toStringAsFixed(1);
+          },
+
+          dataLabelSettings: DataLabelSettings(
+            isVisible: true,
+            labelAlignment: ChartDataLabelAlignment.outer,
+            textStyle: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
             ),
-            dataLabelMapper: (p, _) => p.y.toStringAsFixed(1),
-            dataLabelSettings: DataLabelSettings(
-              isVisible: true,
-              labelAlignment: ChartDataLabelAlignment.outer,
-              textStyle: TextStyle(
-                color: color,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          );
-        }),
-      ],
+          ),
+        );
+      }).toList(),
     );
   }
 }
