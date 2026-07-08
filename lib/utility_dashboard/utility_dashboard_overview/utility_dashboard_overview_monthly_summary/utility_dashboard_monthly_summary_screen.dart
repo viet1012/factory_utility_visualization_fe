@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -23,15 +22,21 @@ class MonthlySummaryScreen extends StatefulWidget {
 }
 
 class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
-  static const Duration _refreshInterval = Duration(seconds: 30);
+  static const Duration _refreshInterval = Duration(hours: 6);
   static const Duration _requestTimeout = Duration(seconds: 15);
 
   Timer? _refreshTimer;
 
+  // `_loading` = đang hiển thị spinner toàn màn hình (chỉ true khi chưa có
+  // dữ liệu cũ để hiển thị). `_activeRequestId` != null nghĩa là có 1 request
+  // đang bay, dùng để: (1) biết có nên bỏ qua request trùng lặp hay không,
+  // (2) chống race-condition khi áp response về UI.
   bool _loading = true;
-  bool _loadingNow = false;
-  bool _disposed = false;
+  int? _activeRequestId;
+  int _requestSeq = 0;
+
   Object? _error;
+  DateTime? _lastUpdatedAt;
 
   List<EnergyMonthlySummary> _items = const [];
 
@@ -39,14 +44,14 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
   void initState() {
     super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _disposed) return;
-      _load();
-    });
+    // `_loading` mặc định đã là true nên không cần setState ở đây —
+    // vì vậy an toàn để gọi _load() ngay, không cần addPostFrameCallback.
+    // (Không có setState nào chạy đồng bộ trong call stack của initState.)
+    unawaited(_load());
 
     _refreshTimer = Timer.periodic(_refreshInterval, (_) {
-      if (!mounted || _disposed) return;
-      _load(silent: true);
+      if (!mounted || _activeRequestId != null) return;
+      unawaited(_load(silent: true));
     });
   }
 
@@ -54,33 +59,60 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
   void didUpdateWidget(covariant MonthlySummaryScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.facId != widget.facId || oldWidget.month != widget.month) {
-      setState(() {
-        _loading = true;
-        _error = null;
-        _items = const [];
-      });
+    final sourceChanged =
+        oldWidget.facId != widget.facId || oldWidget.month != widget.month;
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _disposed) return;
-        _load();
-      });
-    }
+    if (!sourceChanged) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+      _items = const [];
+      _lastUpdatedAt = null;
+    });
+
+    // Ở đây setState vừa chạy xong build sẽ tự trigger lại, không nằm
+    // trong call stack của build() nên không cần addPostFrameCallback.
+    unawaited(_load(force: true));
   }
 
   @override
   void dispose() {
-    _disposed = true;
     _refreshTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _load({bool silent = false}) async {
-    if (_loadingNow || _disposed || !mounted) return;
+  /// Gọi API thuần (không đụng setState/mounted) — dễ test độc lập.
+  Future<List<EnergyMonthlySummary>> _fetchMonthlySummary({
+    required String facId,
+    required String month,
+  }) async {
+    final api = context.read<UtilityDashboardOverviewApi>();
 
-    _loadingNow = true;
+    final raw = await api
+        .getEnergyMonthlySummary(facId: facId, month: month)
+        .timeout(_requestTimeout);
 
-    if (!silent && _items.isEmpty) {
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(EnergyMonthlySummary.fromJson)
+        .toList(growable: false);
+  }
+
+  Future<void> _load({bool silent = false, bool force = false}) async {
+    if (!mounted) return;
+
+    // Có request khác đang chạy và không phải force -> bỏ qua.
+    if (_activeRequestId != null && !force) return;
+
+    final requestId = ++_requestSeq;
+    _activeRequestId = requestId;
+
+    final requestFacId = widget.facId;
+    final requestMonth = widget.month;
+    final hadOldData = _items.isNotEmpty;
+
+    if (!silent && !hadOldData) {
       setState(() {
         _loading = true;
         _error = null;
@@ -88,31 +120,35 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     }
 
     try {
-      final api = context.read<UtilityDashboardOverviewApi>();
+      final nextItems = await _fetchMonthlySummary(
+        facId: requestFacId,
+        month: requestMonth,
+      );
 
-      final raw = await api
-          .getEnergyMonthlySummary(facId: widget.facId, month: widget.month)
-          .timeout(_requestTimeout);
+      if (!mounted) return;
 
-      final parsedItems = raw
-          .whereType<Map<String, dynamic>>()
-          .map(EnergyMonthlySummary.fromJson)
-          .toList(growable: false);
+      // Request nào đến sau (requestId mới nhất) mới được phép áp vào UI.
+      // Cách này đúng bất kể sau này thêm bao nhiêu tham số lọc mới.
+      if (_activeRequestId != requestId) return;
 
       setState(() {
-        _items = parsedItems;
+        _items = nextItems;
         _loading = false;
         _error = null;
+        _lastUpdatedAt = DateTime.now();
       });
     } catch (e) {
-      if (!mounted || _disposed) return;
+      if (!mounted || _activeRequestId != requestId) return;
 
       setState(() {
-        _error = e;
         _loading = false;
+        // Nếu đã có dữ liệu cũ, giữ nguyên dữ liệu thay vì show lỗi đè lên.
+        _error = _items.isNotEmpty ? null : e;
       });
     } finally {
-      _loadingNow = false;
+      if (_activeRequestId == requestId) {
+        _activeRequestId = null;
+      }
     }
   }
 
@@ -138,7 +174,21 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
       'Dec',
     ];
 
+    if (m < 1 || m > 12) return raw;
+
     return '${months[m - 1]} $year';
+  }
+
+  EnergyMonthlySummary? _firstByCate(String cateKey) {
+    final key = cateKey.toUpperCase();
+
+    for (final item in _items) {
+      if (item.cate.toUpperCase().contains(key)) {
+        return item;
+      }
+    }
+
+    return null;
   }
 
   @override
@@ -151,71 +201,76 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
 
     if (_error != null && _items.isEmpty) {
       return Center(
-        child: Text(
-          'Load monthly summary failed',
-          style: TextStyle(color: Colors.redAccent),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Load monthly summary failed',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () => _load(force: true),
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Retry'),
+            ),
+          ],
         ),
       );
     }
 
-    final electricity = _items
-        .where((e) => e.cate.toUpperCase().contains('ELECTRIC'))
-        .firstOrNull;
+    final electricity = _firstByCate('ELECTRIC');
+    final water = _firstByCate('WATER');
+    final air = _firstByCate('AIR');
 
-    final water = _items
-        .where((e) => e.cate.toUpperCase().contains('WATER'))
-        .firstOrNull;
+    return RepaintBoundary(
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xff020817),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            _Header(monthLabel: monthLabel),
+            const SizedBox(height: 8),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (electricity != null)
+                    Expanded(child: _ElectricCard(item: electricity)),
 
-    final air = _items
-        .where((e) => e.cate.toUpperCase().contains('AIR'))
-        .firstOrNull;
+                  if (electricity != null && (water != null || air != null))
+                    const SizedBox(width: 6),
 
-    return Container(
-      // padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xff020817),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          _Header(monthLabel: monthLabel),
-          const SizedBox(height: 8),
-
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (electricity != null)
-                  Expanded(child: _ElectricCard(item: electricity)),
-                if (electricity != null && (water != null || air != null))
-                  const SizedBox(width: 6),
-
-                if (water != null)
-                  Expanded(
-                    child: _UtilityMinMaxCard(
-                      item: water,
-                      title: 'WATER',
-                      subtitle: monthSubtitle(water.month, isMtd: false),
-                      color: const Color(0xff22d3ee),
-                      icon: Icons.water_drop_rounded,
+                  if (water != null)
+                    Expanded(
+                      child: _UtilityMinMaxCard(
+                        item: water,
+                        title: 'WATER',
+                        subtitle: monthSubtitle(water.month, isMtd: false),
+                        color: const Color(0xff22d3ee),
+                        icon: Icons.water_drop_rounded,
+                      ),
                     ),
-                  ),
-                if (water != null && air != null) const SizedBox(width: 6),
 
-                if (air != null)
-                  Expanded(
-                    child: _UtilityMinMaxCard(
-                      item: air,
-                      title: 'AIR',
-                      subtitle: monthSubtitle(air.month, isMtd: false),
-                      color: const Color(0xffa855f7),
-                      icon: Icons.air_rounded,
+                  if (water != null && air != null) const SizedBox(width: 6),
+
+                  if (air != null)
+                    Expanded(
+                      child: _UtilityMinMaxCard(
+                        item: air,
+                        title: 'AIR',
+                        subtitle: monthSubtitle(air.month, isMtd: false),
+                        color: const Color(0xffa855f7),
+                        icon: Icons.air_rounded,
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -312,10 +312,17 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     } catch (e) {
       if (!mounted || _disposed || !_screenActive) return;
 
-      setState(() {
-        _error = e;
-        _loading = false;
-      });
+      if (_items.isEmpty) {
+        setState(() {
+          _error = e;
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _error = null;
+          _loading = false;
+        });
+      }
     } finally {
       _loadingNow = false;
     }
@@ -955,9 +962,8 @@ class _EnergyRow extends StatelessWidget {
 
     final content = Row(
       children: [
-        _MetricIcon(icon: icon, color: color, animation: animation),
-
-        const SizedBox(width: 4),
+        // _MetricIcon(icon: icon, color: color, animation: animation),
+        const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
