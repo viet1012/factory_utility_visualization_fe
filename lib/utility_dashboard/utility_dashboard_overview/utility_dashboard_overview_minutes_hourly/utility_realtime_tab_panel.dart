@@ -27,6 +27,23 @@ class UtilityRealtimeTabPanel extends StatefulWidget {
 class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
   int selectedTab = 0;
 
+  bool _builtMinutes = true;
+  bool _builtHourly = false;
+
+  void _selectTab(int index) {
+    if (selectedTab == index) return;
+
+    setState(() {
+      selectedTab = index;
+
+      if (index == 0) {
+        _builtMinutes = true;
+      } else {
+        _builtHourly = true;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -34,9 +51,18 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         _tabHeader(),
         const SizedBox(height: 6),
         Expanded(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            child: selectedTab == 0 ? _minutesView() : _hourlyView(),
+          child: IndexedStack(
+            index: selectedTab,
+            children: [
+              TickerMode(
+                enabled: selectedTab == 0,
+                child: _builtMinutes ? _minutesView() : const SizedBox.shrink(),
+              ),
+              TickerMode(
+                enabled: selectedTab == 1,
+                child: _builtHourly ? _hourlyView() : const SizedBox.shrink(),
+              ),
+            ],
           ),
         ),
       ],
@@ -50,13 +76,13 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         ScadaTabButton(
           label: 'MINUTELY',
           selected: selectedTab == 0,
-          onTap: () => setState(() => selectedTab = 0),
+          onTap: () => _selectTab(0),
         ),
         const SizedBox(width: 8),
         ScadaTabButton(
           label: 'HOURLY',
           selected: selectedTab == 1,
-          onTap: () => setState(() => selectedTab = 1),
+          onTap: () => _selectTab(1),
         ),
       ],
     );
@@ -64,10 +90,11 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
 
   Widget _minutesView() {
     return Column(
-      key: const ValueKey('minutes'),
+      key: const PageStorageKey('minutes_view'),
       children: [
         Expanded(
           child: UtilityDashboardOverviewMinutesChart(
+            key: ValueKey('minutes_power_${widget.selectedFac}'),
             facId: widget.selectedFac,
             theme: ChartThemes.power,
             utilityType: 'ELECTRICITY',
@@ -75,6 +102,7 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         ),
         Expanded(
           child: UtilityDashboardOverviewMinutesChart(
+            key: ValueKey('minutes_water_${widget.selectedFac}'),
             facId: widget.selectedFac,
             theme: ChartThemes.water,
             utilityType: 'WATER',
@@ -82,6 +110,7 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         ),
         Expanded(
           child: UtilityDashboardOverviewMinutesChart(
+            key: ValueKey('minutes_air_${widget.selectedFac}'),
             facId: widget.selectedFac,
             theme: ChartThemes.air,
             utilityType: 'AIR',
@@ -93,7 +122,7 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
 
   Widget _hourlyView() {
     return Column(
-      key: const ValueKey('hourly'),
+      key: const PageStorageKey('hourly_view'),
       children: [
         UtilityDashboardOverviewHourlyHeader(
           title: '[HOURLY COMPARE]',
@@ -101,12 +130,14 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         ),
         Expanded(
           child: UtilityDashboardOverviewHourlyCompare(
+            key: ValueKey('hourly_power_${widget.selectedFac}'),
             facId: widget.selectedFac,
             theme: ChartThemes.power,
           ),
         ),
         Expanded(
           child: CoolingTankTemperaturePanel(
+            key: ValueKey('hourly_water_${widget.selectedFac}'),
             facId: widget.selectedFac,
             hours: 24,
             theme: ChartThemes.water,
@@ -115,6 +146,7 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         ),
         Expanded(
           child: CoolingTankTemperaturePanel(
+            key: ValueKey('hourly_air_${widget.selectedFac}'),
             facId: widget.selectedFac,
             hours: 24,
             theme: ChartThemes.air,
