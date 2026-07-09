@@ -523,28 +523,116 @@ class _UtilityDashboardOverviewMinutesChartState
         .toColor();
   }
 
+  // Map<String, List<_ChartPoint>> _groupWaterPoints() {
+  //   final data = rows
+  //       .where((e) => e.value != null)
+  //       .map(
+  //         (e) => _ChartPoint(
+  //           e.ts.toLocal(),
+  //           e.value!,
+  //           (e.nameEn == null || e.nameEn!.trim().isEmpty)
+  //               ? 'Cooling tank'
+  //               : e.nameEn!.trim(),
+  //         ),
+  //       )
+  //       .toList();
+  //
+  //   final grouped = <String, List<_ChartPoint>>{};
+  //
+  //   for (final p in data) {
+  //     grouped.putIfAbsent(p.nameEn, () => []).add(p);
+  //   }
+  //
+  //   for (final item in grouped.values) {
+  //     item.sort((a, b) => a.ts.compareTo(b.ts));
+  //   }
+  //
+  //   return grouped;
+  // }
+  bool _isKvhFac() {
+    final fac = widget.facId.trim().toUpperCase();
+
+    return fac == 'KVH' || fac.contains('KVH');
+  }
+
+  String _waterName(String? nameEn) {
+    final name = nameEn?.trim();
+
+    if (name == null || name.isEmpty) {
+      return 'Cooling tank';
+    }
+
+    return name;
+  }
+
+  DateTime _minuteKey(DateTime ts) {
+    return DateTime(ts.year, ts.month, ts.day, ts.hour, ts.minute);
+  }
+
+  String _kvhSeriesName(String rawName) {
+    // Ví dụ: "KVH - Tank 1" -> "KVH"
+    if (rawName.contains('-')) {
+      final prefix = rawName.split('-').first.trim();
+
+      if (prefix.isNotEmpty) {
+        return prefix;
+      }
+    }
+
+    // Nếu API chỉ trả "Tank 1", "Tank 2" thì vẫn gom về KVH
+    return widget.facId.trim().isEmpty ? 'KVH' : widget.facId.trim();
+  }
+
   Map<String, List<_ChartPoint>> _groupWaterPoints() {
-    final data = rows
-        .where((e) => e.value != null)
-        .map(
-          (e) => _ChartPoint(
-            e.ts.toLocal(),
-            e.value!,
-            (e.nameEn == null || e.nameEn!.trim().isEmpty)
-                ? 'Cooling tank'
-                : e.nameEn!.trim(),
-          ),
-        )
-        .toList();
+    final isKvh = _isKvhFac();
+
+    // FAC A / B / C giữ nguyên: mỗi nameEn là 1 line riêng
+    if (!isKvh) {
+      final grouped = <String, List<_ChartPoint>>{};
+
+      for (final e in rows.where((e) => e.value != null)) {
+        final rawName = _waterName(e.nameEn);
+
+        final point = _ChartPoint(e.ts.toLocal(), e.value!, rawName);
+
+        grouped.putIfAbsent(rawName, () => <_ChartPoint>[]);
+        grouped[rawName]!.add(point);
+      }
+
+      for (final item in grouped.values) {
+        item.sort((a, b) => a.ts.compareTo(b.ts));
+      }
+
+      return grouped;
+    }
+
+    // KVH: gom nhiều tank lại thành 1 series, cùng phút thì lấy trung bình
+    final bucket = <String, Map<DateTime, List<double>>>{};
+
+    for (final e in rows.where((e) => e.value != null)) {
+      final rawName = _waterName(e.nameEn);
+      final seriesName = _kvhSeriesName(rawName);
+
+      final ts = _minuteKey(e.ts.toLocal());
+
+      bucket.putIfAbsent(seriesName, () => <DateTime, List<double>>{});
+      bucket[seriesName]!.putIfAbsent(ts, () => <double>[]);
+      bucket[seriesName]![ts]!.add(e.value!);
+    }
 
     final grouped = <String, List<_ChartPoint>>{};
 
-    for (final p in data) {
-      grouped.putIfAbsent(p.nameEn, () => []).add(p);
-    }
+    for (final entry in bucket.entries) {
+      final seriesName = entry.key;
 
-    for (final item in grouped.values) {
-      item.sort((a, b) => a.ts.compareTo(b.ts));
+      final points = entry.value.entries.map((timeEntry) {
+        final values = timeEntry.value;
+        final avg = values.reduce((a, b) => a + b) / values.length;
+
+        return _ChartPoint(timeEntry.key, avg, seriesName);
+      }).toList()..sort((a, b) => a.ts.compareTo(b.ts));
+
+      grouped[seriesName] = points;
     }
 
     return grouped;

@@ -1051,7 +1051,7 @@ class _EnergyRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: color,
-                          fontSize: 20,
+                          fontSize: 24,
                           fontWeight: FontWeight.w900,
                           letterSpacing: -0.45,
                         ),
