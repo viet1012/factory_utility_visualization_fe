@@ -953,7 +953,7 @@ class _UtilityPaintBackgroundState extends State<UtilityPaintBackground>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 14),
+      duration: const Duration(seconds: 40),
     );
 
     if (widget.animated) {
@@ -1058,21 +1058,6 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
-  }
-
-  Paint _motionLine({
-    required double opacity,
-    required double width,
-    bool glow = false,
-  }) {
-    return Paint()
-      ..color = color.withOpacity(opacity)
-      ..strokeWidth = width
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      // Không dùng BlendMode.plus nữa, vì nó làm nét sáng bị gắt và thô.
-      ..maskFilter = glow ? const MaskFilter.blur(BlurStyle.normal, 3) : null;
   }
 
   @override
@@ -1222,6 +1207,63 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
   // ============================================================
   // ELECTRICITY — HIGH VOLTAGE STYLE
   // ============================================================
+  double _mainTowerHeight(Size size) {
+    return math.min(size.height * .72, 420.0);
+  }
+
+  double _mainTowerWidth(Size size) {
+    return _mainTowerHeight(size) * .42;
+  }
+
+  Offset _mainTowerBase(Size size) {
+    final height = _mainTowerHeight(size);
+    final center = Offset(size.width * .82, size.height * .50);
+
+    return Offset(center.dx, center.dy + height * .42);
+  }
+
+  Offset _mainTowerTop(Size size) {
+    final base = _mainTowerBase(size);
+    final height = _mainTowerHeight(size);
+
+    return Offset(base.dx, base.dy - height);
+  }
+
+  Path _buildMainTowerFeederPath(Size size, {required int lane}) {
+    final height = _mainTowerHeight(size);
+    final width = _mainTowerWidth(size);
+    final base = _mainTowerBase(size);
+    final top = _mainTowerTop(size);
+
+    final arm1Y = top.dy + height * .18;
+    final arm2Y = top.dy + height * .32;
+    final arm3Y = top.dy + height * .48;
+
+    late final Offset target;
+
+    if (lane == 0) {
+      target = Offset(base.dx, arm1Y);
+    } else if (lane == 1) {
+      target = Offset(base.dx - width * .58, arm2Y);
+    } else {
+      target = Offset(base.dx + width * .58, arm2Y);
+    }
+
+    final startY = target.dy + (lane == 0 ? -8 : 0);
+
+    final path = Path()
+      ..moveTo(-50, startY)
+      ..cubicTo(
+        size.width * .22,
+        startY - 18,
+        size.width * .55,
+        target.dy + 18,
+        target.dx,
+        target.dy,
+      );
+
+    return path;
+  }
 
   void _drawElectricity(Canvas canvas, Size size) {
     _drawHighVoltageWatermark(canvas, size);
@@ -1231,6 +1273,18 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
   /// Watermark cột điện lớn rất mờ ở góc phải.
   /// Nhìn như silhouette, tạo cảm giác industrial/high-voltage.
+  void _drawMainTowerFeederStatic(Canvas canvas, Size size) {
+    final line = _stroke(.065, .95);
+    final glow = _glow(.006, 3.0, 4);
+
+    for (int lane = 0; lane < 3; lane++) {
+      final path = _buildMainTowerFeederPath(size, lane: lane);
+
+      canvas.drawPath(path, glow);
+      canvas.drawPath(path, line);
+    }
+  }
+
   void _drawHighVoltageWatermark(Canvas canvas, Size size) {
     final center = Offset(size.width * .82, size.height * .50);
     final height = math.min(size.height * .72, 420.0);
@@ -1248,6 +1302,8 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       glowPaint: glow,
       opacityBoost: .85,
     );
+
+    _drawMainTowerFeederStatic(canvas, size);
 
     // Vùng sáng nhẹ sau cột.
     final halo = Paint()
@@ -1276,11 +1332,12 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
   /// Lưới cột điện cao thế nhỏ chạy ngang nền.
   /// Có dây điện võng, chuỗi sứ và cross-arm.
   void _drawHighVoltageGrid(Canvas canvas, Size size) {
-    final towerPaint = _stroke(.18, 1.22);
-    final towerGlow = _glow(.018, 4.2, 6);
+    // Static tower: luôn mờ.
+    final towerPaint = _stroke(.055, 1.05);
+    final towerGlow = _glow(.006, 3.2, 4);
 
-    final wirePaint = _stroke(.16, 1.05);
-    final wireGlow = _glow(.014, 3.6, 5);
+    final wirePaint = _stroke(.060, .95);
+    final wireGlow = _glow(.006, 3.0, 4);
 
     const stepX = 245.0;
     const stepY = 185.0;
@@ -1309,10 +1366,11 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
           width: w,
           paint: towerPaint,
           glowPaint: towerGlow,
+          detailOpacity: .050,
+          topNodeOpacity: .060,
         );
 
         tops.add(Offset(x, y - h));
-
         leftWirePoints.add(Offset(x - w * .48, y - h * .74));
         rightWirePoints.add(Offset(x + w * .48, y - h * .74));
       }
@@ -1331,10 +1389,13 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     required Offset top,
     required double height,
     required double width,
+    double opacity = .18,
   }) {
-    final detailPaint = _stroke(.18, .75);
+    final nodeOpacity = (opacity * 1.15).clamp(0.0, 1.0).toDouble();
+
+    final detailPaint = _stroke(opacity, .75);
     final nodePaint = Paint()
-      ..color = color.withOpacity(.20)
+      ..color = color.withOpacity(nodeOpacity)
       ..style = PaintingStyle.fill;
 
     // Xương sống giữa trụ.
@@ -1414,6 +1475,8 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     required Paint paint,
     required Paint glowPaint,
     double opacityBoost = 1.0,
+    double detailOpacity = .18,
+    double topNodeOpacity = .18,
   }) {
     final top = Offset(base.dx, base.dy - height);
     final bottomLeft = Offset(base.dx - width * .46, base.dy);
@@ -1495,17 +1558,19 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     _drawInsulatorString(canvas, Offset(base.dx + width * .42, arm3Y), paint);
 
     // Đỉnh cột glow nhẹ.
-    canvas.drawCircle(
-      top,
-      2.2,
-      Paint()..color = color.withOpacity(.18 * opacityBoost),
-    );
+    final topOpacity = (topNodeOpacity * opacityBoost)
+        .clamp(0.0, 1.0)
+        .toDouble();
+
+    canvas.drawCircle(top, 2.2, Paint()..color = color.withOpacity(topOpacity));
+
     _drawTowerIndustrialDetails(
       canvas,
       base: base,
       top: top,
       height: height,
       width: width,
+      opacity: detailOpacity,
     );
   }
 
@@ -1633,25 +1698,29 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
   /// Tạo cảm giác cooling tank / water utility.
   ///
   void _drawCoolingTankSystem(Canvas canvas, Size size) {
-    final tankW = math.min(size.width * .15, 128.0);
-    final tankH = math.min(size.height * .38, 245.0);
+    final tankW = math.min(size.width * .135, 118.0);
+    final tankH = math.min(size.height * .32, 210.0);
 
-    final startX = size.width * .58;
-    final baseY = size.height * .72;
+    // Đẩy cụm cooling tank lên trên.
+    final startX = size.width * .56;
+    final baseY = size.height * .3;
+
+    // Nền sàn/khung nhà máy phía sau tank.
+    _drawFactoryUtilityFrame(canvas, size, baseY);
 
     final tanks = [
       Rect.fromLTWH(startX, baseY - tankH, tankW, tankH),
       Rect.fromLTWH(
-        startX + tankW * .72,
-        baseY - tankH * .92,
+        startX + tankW * .76,
+        baseY - tankH * .94,
         tankW,
-        tankH * .92,
+        tankH * .94,
       ),
       Rect.fromLTWH(
-        startX + tankW * 1.42,
-        baseY - tankH * .82,
+        startX + tankW * 1.52,
+        baseY - tankH * .86,
         tankW,
-        tankH * .82,
+        tankH * .86,
       ),
     ];
 
@@ -1660,29 +1729,84 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     }
 
     // Header pipe nối các cooling tank.
-    final headerY = baseY - tankH * .48;
+    final headerY = baseY - tankH * .44;
     final headerPaint = _stroke(.18, 1.35);
-    final headerGlow = _glow(.020, 5, 6);
+    final headerGlow = _glow(.016, 4.5, 5.5);
 
     final header = Path()
-      ..moveTo(startX - tankW * .36, headerY)
-      ..lineTo(startX + tankW * 2.58, headerY);
+      ..moveTo(startX - tankW * .46, headerY)
+      ..lineTo(startX + tankW * 2.88, headerY);
 
     canvas.drawPath(header, headerGlow);
     canvas.drawPath(header, headerPaint);
 
-    // Áp kế nước lớn.
+    // Pipe đứng đi xuống hệ thống bơm.
+    final downPipeX = startX + tankW * 1.10;
+    final pumpY = baseY + tankH * .20;
+
+    final downPipe = Path()
+      ..moveTo(downPipeX, headerY)
+      ..lineTo(downPipeX, pumpY);
+
+    canvas.drawPath(downPipe, _glow(.012, 4.0, 5));
+    canvas.drawPath(downPipe, _stroke(.15, 1.1));
+
+    // Áp kế nước lớn ở header.
     _drawLargeWaterPressureGauge(
       canvas,
-      Offset(startX - tankW * .18, headerY - 28),
-      label: 'H2O',
+      Offset(startX - tankW * .26, headerY - 30),
+      label: 'BAR',
     );
 
-    // Pump icon.
-    _drawWaterPumpIcon(canvas, Offset(startX + tankW * .95, headerY + 42));
+    // Pump skid phía dưới, liên quan nhà máy hơn.
+    _drawWaterPumpIcon(canvas, Offset(downPipeX, pumpY + 22));
 
     // Van lớn trên header.
-    _drawWaterValve(canvas, Offset(startX + tankW * 1.92, headerY));
+    _drawWaterValve(canvas, Offset(startX + tankW * 2.18, headerY));
+
+    // Pipe outlet chạy ngang ra nhà máy.
+    final outletY = pumpY + 22;
+    final outlet = Path()
+      ..moveTo(downPipeX + 48, outletY)
+      ..lineTo(size.width + 40, outletY);
+
+    canvas.drawPath(outlet, _glow(.010, 4, 5));
+    canvas.drawPath(outlet, _stroke(.14, 1.05));
+
+    _drawPipeJoint(canvas, Offset(downPipeX + 95, outletY));
+    _drawPipeJoint(canvas, Offset(downPipeX + 185, outletY));
+  }
+
+  void _drawFactoryUtilityFrame(Canvas canvas, Size size, double baseY) {
+    final framePaint = _stroke(.060, .85);
+    final softPaint = _stroke(.040, .7);
+
+    final left = size.width * .52;
+    final right = size.width * .96;
+    final top = baseY - size.height * .36;
+    final bottom = baseY + size.height * .16;
+
+    // Khung thép phía sau cooling tank.
+    canvas.drawLine(Offset(left, top), Offset(right, top), framePaint);
+    canvas.drawLine(Offset(left, bottom), Offset(right, bottom), framePaint);
+
+    for (double x = left; x <= right; x += 42) {
+      canvas.drawLine(Offset(x, top), Offset(x, bottom), softPaint);
+
+      canvas.drawLine(Offset(x, top), Offset(x + 24, bottom), softPaint);
+    }
+
+    // Sàn kỹ thuật.
+    final floorY = baseY + 18;
+    canvas.drawLine(
+      Offset(left - 24, floorY),
+      Offset(right + 24, floorY),
+      framePaint,
+    );
+
+    for (double x = left - 20; x < right; x += 26) {
+      canvas.drawLine(Offset(x, floorY), Offset(x + 10, floorY + 8), softPaint);
+    }
   }
 
   void _drawCoolingTowerCell(Canvas canvas, Rect rect, {required int index}) {
@@ -2305,82 +2429,205 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
   }
 
   // ============================================================
-  // ANIMATED OVERLAYS - SMOOTH VERSION
-  // ============================================================
-
-  // ============================================================
   // ANIMATED OVERLAYS - REAL UTILITY MOTION STYLE
   // ============================================================
 
-  void _drawElectricMovingCurrent(Canvas canvas, Size size) {
-    // Điện cao thế không nên vẽ như hạt chạy liên tục.
-    // Nhìn đúng hơn là corona shimmer + dây điện nhấp nháy nhẹ + spark nhỏ ở sứ.
-    _drawHighVoltageWirePulse(canvas, size);
-    _drawCoronaAtInsulators(canvas, size);
-    _drawRandomVoltageFlicker(canvas, size);
-  }
-
-  void _drawWaterMovingFlow(Canvas canvas, Size size) {
-    // Nước: highlight dòng chảy chạy bên trong đúng network ống.
-    // Không vẽ ngoài ống.
-    final y1 = size.height * .24;
-    final y2 = size.height * .48;
-    final y3 = size.height * .72;
-
-    final path1 = Path()
-      ..moveTo(-40, y1)
-      ..lineTo(size.width * .24, y1)
-      ..quadraticBezierTo(size.width * .30, y1, size.width * .30, y1 + 42)
-      ..lineTo(size.width * .52, y1 + 42)
-      ..quadraticBezierTo(size.width * .58, y1 + 42, size.width * .58, y1)
-      ..lineTo(size.width + 40, y1);
-
-    final path2 = Path()
-      ..moveTo(-40, y2)
-      ..lineTo(size.width * .18, y2)
-      ..quadraticBezierTo(size.width * .24, y2, size.width * .24, y2 - 38)
-      ..lineTo(size.width * .44, y2 - 38)
-      ..quadraticBezierTo(size.width * .50, y2 - 38, size.width * .50, y2)
-      ..lineTo(size.width + 40, y2);
-
-    final path3 = Path()
-      ..moveTo(-40, y3)
-      ..lineTo(size.width * .36, y3)
-      ..quadraticBezierTo(size.width * .42, y3, size.width * .42, y3 - 34)
-      ..lineTo(size.width * .70, y3 - 34)
-      ..quadraticBezierTo(size.width * .76, y3 - 34, size.width * .76, y3)
-      ..lineTo(size.width + 40, y3);
-
-    _drawWaterFlowOnPipe(canvas, path1, phase: t);
-    _drawWaterFlowOnPipe(canvas, path2, phase: (t + .33) % 1);
-    _drawWaterFlowOnPipe(canvas, path3, phase: (t + .66) % 1);
-
-    _drawTankWaterSurfaceMotion(canvas, size);
-    _drawBubbleInsideTank(canvas, size);
-  }
-
-  void _drawAirMovingFlow(Canvas canvas, Size size) {
-    // Khí nén: không vẽ nước/sóng mềm.
-    // Nên là các xung áp suất ngắn, nét đứt, chạy nhanh trong ống.
-    _drawCompressedAirPressurePulses(canvas, size);
-    _drawCompressorVibration(canvas, size);
-    _drawGaugeNeedleVibration(canvas, size);
-  }
+  // ============================================================
+  // ELECTRICITY MOTION - CONTINUOUS CURRENT + TOWER ACTIVATION
+  // ============================================================
 
   // ============================================================
   // ELECTRICITY MOTION
   // ============================================================
+  double _electricProgressForRow(int row) {
+    // Không nhân speed nhỏ hơn 1 ở đây.
+    // Vì nếu speed < 1 thì progress không bao giờ chạy tới cuối path.
+    const rowDelay = .045;
 
-  void _drawHighVoltageWirePulse(Canvas canvas, Size size) {
-    final pulse = .5 + math.sin(t * math.pi * 2) * .5;
+    return (t + row * rowDelay) % 1.0;
+  }
 
-    final wirePaint = Paint()
-      ..color = color.withOpacity(.2 + .10 * pulse)
-      ..strokeWidth = 1.25
+  void _drawElectricMovingCurrent(Canvas canvas, Size size) {
+    _drawActivatedTowersByCurrent(canvas, size);
+    _drawElectricTravelingCurrent(canvas, size);
+
+    // Dòng điện đi tới tháp lớn.
+    _drawMainTowerCurrent(canvas, size);
+
+    // Tháp lớn sáng khi điện tới.
+    _drawMainTowerActivation(canvas, size);
+
+    _drawCoronaAtInsulators(canvas, size);
+    _drawRandomVoltageFlicker(canvas, size);
+  }
+
+  void _drawMainTowerActivation(Canvas canvas, Size size) {
+    final progress = _electricProgressForRow(0);
+
+    // Khi progress gần cuối dây thì tháp lớn sáng.
+    final arrive = ((progress - .72) / .22).clamp(0.0, 1.0).toDouble();
+    final leave = (1.0 - ((progress - .92) / .08).clamp(0.0, 1.0)).toDouble();
+
+    final intensity = arrive * leave;
+
+    if (intensity <= 0) return;
+
+    final height = _mainTowerHeight(size);
+    final width = _mainTowerWidth(size);
+    final base = _mainTowerBase(size);
+
+    _drawTowerElectricHalo(
+      canvas,
+      base: base,
+      height: height,
+      width: width,
+      intensity: intensity,
+    );
+
+    _drawTransmissionTower(
+      canvas,
+      base: base,
+      height: height,
+      width: width,
+      paint: _stroke(.060 + intensity * .26, 1.20 + intensity * .45),
+      glowPaint: _glow(.008 + intensity * .060, 4.0 + intensity * 4.0, 5.0),
+      detailOpacity: .050 + intensity * .24,
+      topNodeOpacity: .060 + intensity * .34,
+      opacityBoost: 1.0,
+    );
+  }
+
+  void _drawMainTowerCurrent(Canvas canvas, Size size) {
+    final progress = _electricProgressForRow(0);
+
+    final outerGlow = Paint()
+      ..color = color.withOpacity(.060)
+      ..strokeWidth = 5.2
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+      ..strokeJoin = StrokeJoin.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5);
 
+    final glow = Paint()
+      ..color = color.withOpacity(.16)
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8);
+
+    final core = Paint()
+      ..color = color.withOpacity(.68)
+      ..strokeWidth = 1.35
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    for (int lane = 0; lane < 3; lane++) {
+      final path = _buildMainTowerFeederPath(size, lane: lane);
+
+      for (final metric in path.computeMetrics()) {
+        final len = metric.length;
+        if (len <= 0) continue;
+
+        final center = progress * len;
+
+        // Dài hơn để thấy nó đi tới tận tháp lớn.
+        const trailLen = 420.0;
+
+        _drawWrappedMetricPart(
+          canvas,
+          metric,
+          center - trailLen * .72,
+          center + trailLen * .28,
+          outerGlow,
+        );
+
+        _drawWrappedMetricPart(
+          canvas,
+          metric,
+          center - trailLen * .58,
+          center + trailLen * .22,
+          glow,
+        );
+
+        _drawWrappedMetricPart(
+          canvas,
+          metric,
+          center - trailLen * .44,
+          center + trailLen * .16,
+          core,
+        );
+      }
+    }
+  }
+
+  Path _buildContinuousSaggingWirePath(List<Offset> points) {
+    final path = Path();
+
+    if (points.isEmpty) return path;
+
+    path.moveTo(points.first.dx, points.first.dy);
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final a = points[i];
+      final b = points[i + 1];
+
+      final distance = (b - a).distance;
+      final sag = math.min(18.0, distance * .08);
+
+      final mid = Offset((a.dx + b.dx) / 2, math.max(a.dy, b.dy) + sag);
+
+      path.quadraticBezierTo(mid.dx, mid.dy, b.dx, b.dy);
+    }
+
+    return path;
+  }
+
+  void _drawMetricPart(
+    Canvas canvas,
+    PathMetric metric,
+    double start,
+    double end,
+    Paint paint,
+  ) {
+    final len = metric.length;
+    if (len <= 0) return;
+
+    final s = start.clamp(0.0, len).toDouble();
+    final e = end.clamp(0.0, len).toDouble();
+
+    if (e <= s) return;
+
+    canvas.drawPath(metric.extractPath(s, e), paint);
+  }
+
+  void _drawWrappedMetricPart(
+    Canvas canvas,
+    PathMetric metric,
+    double start,
+    double end,
+    Paint paint,
+  ) {
+    final len = metric.length;
+    if (len <= 0) return;
+
+    if (start < 0) {
+      _drawMetricPart(canvas, metric, len + start, len, paint);
+      _drawMetricPart(canvas, metric, 0, end, paint);
+      return;
+    }
+
+    if (end > len) {
+      _drawMetricPart(canvas, metric, start, len, paint);
+      _drawMetricPart(canvas, metric, 0, end - len, paint);
+      return;
+    }
+
+    _drawMetricPart(canvas, metric, start, end, paint);
+  }
+
+  void _drawElectricTravelingCurrent(Canvas canvas, Size size) {
     const stepX = 245.0;
     const stepY = 185.0;
 
@@ -2405,48 +2652,159 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
         rightWire.add(Offset(x + w * .48, y - h * .74));
       }
 
-      _drawPulseSaggingWire(canvas, topWire, wirePaint, rowOffset: row * .08);
-      _drawPulseSaggingWire(canvas, leftWire, wirePaint, rowOffset: row * .11);
-      _drawPulseSaggingWire(canvas, rightWire, wirePaint, rowOffset: row * .14);
+      _drawCurrentOnContinuousWire(canvas, topWire, row: row, strong: true);
+
+      _drawCurrentOnContinuousWire(canvas, leftWire, row: row, strong: false);
+
+      _drawCurrentOnContinuousWire(canvas, rightWire, row: row, strong: false);
     }
   }
 
-  void _drawPulseSaggingWire(
+  void _drawCurrentOnContinuousWire(
     Canvas canvas,
-    List<Offset> points,
-    Paint paint, {
-    required double rowOffset,
+    List<Offset> points, {
+    required int row,
+    bool strong = false,
   }) {
     if (points.length < 2) return;
 
-    for (int i = 0; i < points.length - 1; i++) {
-      final a = points[i];
-      final b = points[i + 1];
+    final path = _buildContinuousSaggingWirePath(points);
+    final progress = _electricProgressForRow(row);
 
-      final distance = (b - a).distance;
-      final sag = math.min(18.0, distance * .08);
+    final outerGlow = Paint()
+      ..color = color.withOpacity(strong ? .050 : .028)
+      ..strokeWidth = strong ? 4.8 : 3.4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5);
 
-      final mid = Offset((a.dx + b.dx) / 2, math.max(a.dy, b.dy) + sag);
+    final glow = Paint()
+      ..color = color.withOpacity(strong ? .145 : .085)
+      ..strokeWidth = strong ? 2.4 : 1.7
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8);
 
-      final path = Path()
-        ..moveTo(a.dx, a.dy)
-        ..quadraticBezierTo(mid.dx, mid.dy, b.dx, b.dy);
+    final core = Paint()
+      ..color = color.withOpacity(strong ? .62 : .38)
+      ..strokeWidth = strong ? 1.25 : .9
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
 
-      final flash = .5 + math.sin((t + rowOffset + i * .17) * math.pi * 2) * .5;
+    for (final metric in path.computeMetrics()) {
+      final len = metric.length;
+      if (len <= 0) continue;
 
-      if (flash > .72) {
-        final flashPaint = Paint()
-          ..color = color.withOpacity(.11 * flash)
-          ..strokeWidth = 2.2
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+      final center = progress * len;
 
-        canvas.drawPath(path, flashPaint);
-      }
+      // Muốn tia đi qua nhiều tháp hơn thì tăng 2 số này.
+      final trailLen = strong ? 360.0 : 290.0;
 
-      canvas.drawPath(path, paint);
+      _drawWrappedMetricPart(
+        canvas,
+        metric,
+        center - trailLen * .72,
+        center + trailLen * .28,
+        outerGlow,
+      );
+
+      _drawWrappedMetricPart(
+        canvas,
+        metric,
+        center - trailLen * .58,
+        center + trailLen * .22,
+        glow,
+      );
+
+      _drawWrappedMetricPart(
+        canvas,
+        metric,
+        center - trailLen * .44,
+        center + trailLen * .16,
+        core,
+      );
     }
+  }
+
+  void _drawActivatedTowersByCurrent(Canvas canvas, Size size) {
+    const stepX = 245.0;
+    const stepY = 185.0;
+
+    final rows = (size.height / stepY).ceil() + 2;
+    final cols = (size.width / stepX).ceil() + 3;
+
+    for (int row = -1; row < rows; row++) {
+      final y = row * stepY + 150;
+      final offsetX = row.isOdd ? stepX * .45 : 0.0;
+
+      final progress = _electricProgressForRow(row);
+
+      final firstX = -stepX + offsetX;
+      final lastX = (cols - 1) * stepX + offsetX;
+      final currentX = firstX + (lastX - firstX) * progress;
+
+      for (int col = -1; col < cols; col++) {
+        final x = col * stepX + offsetX;
+        final h = row.isEven ? 88.0 : 76.0;
+        final w = h * .42;
+        final base = Offset(x, y);
+
+        final distance = (x - currentX).abs();
+
+        // Vì tia đang dài, radius cũng nên rộng hơn để tháp sáng khớp với vệt điện.
+        const activeRadius = 210.0;
+
+        final raw = (1.0 - distance / activeRadius).clamp(0.0, 1.0).toDouble();
+        if (raw <= 0) continue;
+
+        final intensity = raw * raw * (3 - 2 * raw);
+
+        _drawTowerElectricHalo(
+          canvas,
+          base: base,
+          height: h,
+          width: w,
+          intensity: intensity,
+        );
+
+        _drawTransmissionTower(
+          canvas,
+          base: base,
+          height: h,
+          width: w,
+          paint: _stroke(.045 + intensity * .22, .95 + intensity * .34),
+          glowPaint: _glow(.004 + intensity * .040, 2.8 + intensity * 3.2, 3.8),
+          detailOpacity: .040 + intensity * .20,
+          topNodeOpacity: .050 + intensity * .26,
+          opacityBoost: 1.0,
+        );
+      }
+    }
+  }
+
+  void _drawTowerElectricHalo(
+    Canvas canvas, {
+    required Offset base,
+    required double height,
+    required double width,
+    required double intensity,
+  }) {
+    final center = Offset(base.dx, base.dy - height * .52);
+
+    final haloPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          color.withOpacity(.030 * intensity),
+          color.withOpacity(.010 * intensity),
+          Colors.transparent,
+        ],
+        stops: const [0, .36, 1],
+      ).createShader(Rect.fromCircle(center: center, radius: height * .42));
+
+    canvas.drawCircle(center, height * .42, haloPaint);
   }
 
   void _drawCoronaAtInsulators(Canvas canvas, Size size) {
@@ -2462,8 +2820,22 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       final h = row.isEven ? 88.0 : 76.0;
       final w = h * .42;
 
+      final progress = _electricProgressForRow(row);
+
+      final firstX = -stepX + offsetX;
+      final lastX = (cols - 1) * stepX + offsetX;
+      final currentX = firstX + (lastX - firstX) * progress;
+
       for (int col = -1; col < cols; col++) {
         final x = col * stepX + offsetX;
+
+        // Chỉ corona mạnh ở gần dòng điện, tránh nhấp nháy toàn màn hình.
+        final nearCurrent = (1.0 - (x - currentX).abs() / 220.0)
+            .clamp(0.0, 1.0)
+            .toDouble();
+
+        if (nearCurrent <= 0) continue;
+
         final topY = y - h;
 
         final arm2Y = topY + h * .32;
@@ -2480,19 +2852,21 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
           final p = points[i];
 
           final phase = (t + row * .09 + col * .07 + i * .13) % 1;
-          final strength = .5 + math.sin(phase * math.pi * 2) * .5;
+          final shimmer = .5 + math.sin(phase * math.pi * 2) * .5;
 
-          if (strength < .42) continue;
+          final strength = nearCurrent * shimmer;
+
+          if (strength < .18) continue;
 
           final coronaPaint = Paint()
-            ..color = color.withOpacity(.055 + .075 * strength)
+            ..color = color.withOpacity(.035 + .070 * strength)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = .9 + strength
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+            ..strokeWidth = .7 + strength * .9
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
 
           canvas.drawCircle(
             p + const Offset(0, 9),
-            4.5 + strength * 4,
+            3.8 + strength * 4.2,
             coronaPaint,
           );
         }
@@ -2501,21 +2875,19 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
   }
 
   void _drawRandomVoltageFlicker(Canvas canvas, Size size) {
-    // Không random thật để tránh repaint không ổn định.
-    // Dùng sin phase để tạo tia điện lúc có lúc không.
     final flickerPaint = Paint()
-      ..color = color.withOpacity(.26)
-      ..strokeWidth = 1.1
+      ..color = color.withOpacity(.14)
+      ..strokeWidth = .9
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8);
 
     for (double x = 90; x < size.width; x += 280) {
       for (double y = 76; y < size.height; y += 240) {
         final phase = (t + x * .0017 + y * .0021) % 1;
         final visible = math.sin(phase * math.pi * 2);
 
-        if (visible < .72) continue;
+        if (visible < .82) continue;
 
         final path = Path()
           ..moveTo(x, y)
@@ -2651,6 +3023,45 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     }
   }
 
+  void _drawWaterMovingFlow(Canvas canvas, Size size) {
+    // Nước: highlight dòng chảy chạy bên trong đúng network ống.
+    // Không vẽ ngoài ống.
+    final y1 = size.height * .24;
+    final y2 = size.height * .48;
+    final y3 = size.height * .72;
+
+    final path1 = Path()
+      ..moveTo(-40, y1)
+      ..lineTo(size.width * .24, y1)
+      ..quadraticBezierTo(size.width * .30, y1, size.width * .30, y1 + 42)
+      ..lineTo(size.width * .52, y1 + 42)
+      ..quadraticBezierTo(size.width * .58, y1 + 42, size.width * .58, y1)
+      ..lineTo(size.width + 40, y1);
+
+    final path2 = Path()
+      ..moveTo(-40, y2)
+      ..lineTo(size.width * .18, y2)
+      ..quadraticBezierTo(size.width * .24, y2, size.width * .24, y2 - 38)
+      ..lineTo(size.width * .44, y2 - 38)
+      ..quadraticBezierTo(size.width * .50, y2 - 38, size.width * .50, y2)
+      ..lineTo(size.width + 40, y2);
+
+    final path3 = Path()
+      ..moveTo(-40, y3)
+      ..lineTo(size.width * .36, y3)
+      ..quadraticBezierTo(size.width * .42, y3, size.width * .42, y3 - 34)
+      ..lineTo(size.width * .70, y3 - 34)
+      ..quadraticBezierTo(size.width * .76, y3 - 34, size.width * .76, y3)
+      ..lineTo(size.width + 40, y3);
+
+    _drawWaterFlowOnPipe(canvas, path1, phase: t);
+    _drawWaterFlowOnPipe(canvas, path2, phase: (t + .33) % 1);
+    _drawWaterFlowOnPipe(canvas, path3, phase: (t + .66) % 1);
+
+    _drawTankWaterSurfaceMotion(canvas, size);
+    _drawBubbleInsideTank(canvas, size);
+  }
+
   // ============================================================
   // COMPRESSED AIR MOTION
   // ============================================================
@@ -2759,6 +3170,14 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
         canvas.drawLine(center, end, needlePaint);
       }
     }
+  }
+
+  void _drawAirMovingFlow(Canvas canvas, Size size) {
+    // Khí nén: không vẽ nước/sóng mềm.
+    // Nên là các xung áp suất ngắn, nét đứt, chạy nhanh trong ống.
+    _drawCompressedAirPressurePulses(canvas, size);
+    _drawCompressorVibration(canvas, size);
+    _drawGaugeNeedleVibration(canvas, size);
   }
 
   @override
