@@ -662,7 +662,6 @@ class _MonthlyBodyState extends State<_MonthlyBody>
         ],
 
         const _SoftDivider(),
-        const SizedBox(height: 5),
 
         // Expanded(
         //   child: ListView.separated(
