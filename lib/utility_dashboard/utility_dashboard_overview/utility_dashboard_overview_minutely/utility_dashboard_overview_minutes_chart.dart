@@ -60,6 +60,10 @@ class _UtilityDashboardOverviewMinutesChartState
 
   Timer? _pollTimer;
 
+  bool _disposed = false;
+
+  bool get _alive => mounted && !_disposed;
+
   @override
   void initState() {
     super.initState();
@@ -166,7 +170,7 @@ class _UtilityDashboardOverviewMinutesChartState
   void _handleLoadError(Object e, String tag, int requestId) {
     debugPrint('$tag $e');
 
-    if (!mounted || _activeRequestId != requestId) return;
+    if (!_alive || _activeRequestId != requestId) return;
 
     _cachedHealth = DataHealthAnalyzer.analyze(
       key: 'Minutes_${widget.facId}_${widget.theme.title}',
@@ -174,6 +178,8 @@ class _UtilityDashboardOverviewMinutesChartState
       error: true,
       values: rows.where((e) => e.value != null).map((e) => e.value!).toList(),
     );
+
+    if (!_alive || _activeRequestId != requestId) return;
 
     setState(() {
       loading = false;
@@ -204,7 +210,8 @@ class _UtilityDashboardOverviewMinutesChartState
     final changed =
         oldWidget.facId != widget.facId ||
         oldWidget.minutes != widget.minutes ||
-        oldWidget.nameEn != widget.nameEn;
+        oldWidget.nameEn != widget.nameEn ||
+        oldWidget.utilityType != widget.utilityType;
 
     if (!changed) return;
 
@@ -225,7 +232,15 @@ class _UtilityDashboardOverviewMinutesChartState
 
   @override
   void dispose() {
+    _disposed = true;
+
     _pollTimer?.cancel();
+    _pollTimer = null;
+
+    // Vô hiệu hóa request cũ nếu nó trả về sau khi widget dispose.
+    _requestSeq++;
+    _activeRequestId = null;
+
     fx.dispose();
     super.dispose();
   }
@@ -393,6 +408,10 @@ class _UtilityDashboardOverviewMinutesChartState
     final lastPoint = data.last;
     return RepaintBoundary(
       child: SfCartesianChart(
+        key: ValueKey(
+          'main_${widget.facId}_${widget.utilityType}_${widget.nameEn ?? ''}',
+        ),
+        enableAxisAnimation: false,
         margin: EdgeInsets.zero,
         plotAreaBorderWidth: 1,
         plotAreaBorderColor: Colors.white.withOpacity(0.10),
@@ -734,7 +753,10 @@ class _UtilityDashboardOverviewMinutesChartState
     final yInterval = max((maxY - minY) / 4, 0.1);
 
     return SfCartesianChart(
-      key: ValueKey('water_${grouped.keys.join('|')}_${data.length}'),
+      key: ValueKey(
+        'water_${widget.facId}_${widget.utilityType}_${widget.nameEn ?? ''}',
+      ),
+      enableAxisAnimation: false,
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withOpacity(.08),
