@@ -7,15 +7,35 @@ import 'package:flutter/services.dart';
 class MovingMascot extends StatefulWidget {
   final int alarmCount;
   final double size;
+
+  /// Vị trí khi có cảnh báo.
   final Alignment targetAlignment;
+
+  /// Vị trí đứng chờ khi không có cảnh báo.
   final Alignment idleAlignment;
+
+  /// Độ cong của đường di chuyển.
+  final double arcHeight;
+
+  /// Thời gian di chuyển tối thiểu.
+  final Duration minMoveDuration;
+
+  /// Thời gian di chuyển tối đa.
+  final Duration maxMoveDuration;
+
+  /// Asset logo đặt trên mascot.
+  final String logoAsset;
 
   const MovingMascot({
     super.key,
     required this.alarmCount,
-    required this.size,
     required this.targetAlignment,
+    this.size = 180,
     this.idleAlignment = const Alignment(-0.60, 0.80),
+    this.arcHeight = 0.07,
+    this.minMoveDuration = const Duration(milliseconds: 750),
+    this.maxMoveDuration = const Duration(milliseconds: 1900),
+    this.logoAsset = 'assets/images/logo_misumi.png',
   });
 
   @override
@@ -24,118 +44,273 @@ class MovingMascot extends StatefulWidget {
 
 class _MovingMascotState extends State<MovingMascot>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _moveCtrl;
+  static const double _distanceEpsilon = 0.001;
 
-  Alignment _current = const Alignment(-0.60, 0.80);
-  Alignment _from = const Alignment(-0.60, 0.80);
-  Alignment _to = const Alignment(-0.60, 0.80);
+  late final AnimationController _moveController;
+
+  Alignment _startAlignment = Alignment.center;
+  Alignment _endAlignment = Alignment.center;
+
+  /// Hướng nhìn gần nhất.
+  double _lastFacing = 1;
+
   ui.Image? _misumiLogo;
+
+  bool get _hasAlarm => widget.alarmCount > 0;
+
+  Alignment get _desiredAlignment {
+    return _hasAlarm ? widget.targetAlignment : widget.idleAlignment;
+  }
 
   @override
   void initState() {
     super.initState();
-    _loadLogo();
-    _moveCtrl = AnimationController(
+
+    _startAlignment = widget.idleAlignment;
+    _endAlignment = widget.idleAlignment;
+
+    _moveController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1100),
+      duration: widget.minMoveDuration,
     );
 
-    _current = widget.alarmCount > 0
-        ? widget.targetAlignment
-        : widget.idleAlignment;
-    _from = _current;
-    _to = _current;
+    _moveController.addStatusListener(_handleMoveStatus);
+
+    _loadLogo();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _moveTo(_desiredAlignment);
+    });
   }
 
   @override
   void didUpdateWidget(covariant MovingMascot oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final nextTarget = widget.alarmCount > 0
-        ? widget.targetAlignment
-        : widget.idleAlignment;
+    final alarmChanged = oldWidget.alarmCount != widget.alarmCount;
 
-    final shouldMove =
-        oldWidget.targetAlignment != widget.targetAlignment ||
-        oldWidget.idleAlignment != widget.idleAlignment ||
-        oldWidget.alarmCount != widget.alarmCount;
+    final targetChanged = oldWidget.targetAlignment != widget.targetAlignment;
 
-    if (!shouldMove) return;
+    final idleChanged = oldWidget.idleAlignment != widget.idleAlignment;
 
-    _from = _current;
-    _to = nextTarget;
+    if (alarmChanged || targetChanged || idleChanged) {
+      _moveTo(_desiredAlignment);
+    }
+  }
 
-    final dx = _to.x - _from.x;
-    final dy = _to.y - _from.y;
+  void _handleMoveStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+
+    // Chốt chính xác vị trí cuối.
+    _startAlignment = _endAlignment;
+    _moveController.value = 0;
+  }
+
+  Future<void> _loadLogo() async {
+    try {
+      final image = await loadUiImage(widget.logoAsset);
+
+      if (!mounted) {
+        image.dispose();
+        return;
+      }
+
+      setState(() {
+        _misumiLogo?.dispose();
+        _misumiLogo = image;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('MovingMascot load logo failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  void _moveTo(Alignment destination) {
+    // Lấy đúng vị trí mascot tại thời điểm hiện tại.
+    // Nhờ vậy đổi target giữa lúc đang chạy cũng không bị nhảy.
+    final currentPosition = _currentAlignment;
+
+    final distance = _distanceBetween(currentPosition, destination);
+
+    if (distance <= _distanceEpsilon) {
+      _moveController.stop();
+
+      _startAlignment = destination;
+      _endAlignment = destination;
+      _moveController.value = 0;
+
+      if (mounted) {
+        setState(() {});
+      }
+
+      return;
+    }
+
+    final dx = destination.x - currentPosition.x;
+
+    if (dx.abs() > _distanceEpsilon) {
+      _lastFacing = dx >= 0 ? 1 : -1;
+    }
+
+    _startAlignment = currentPosition;
+    _endAlignment = destination;
+
+    _moveController
+      ..stop()
+      ..duration = _calculateMoveDuration(distance)
+      ..forward(from: 0);
+  }
+
+  Duration _calculateMoveDuration(double distance) {
+    final minMs = widget.minMoveDuration.inMilliseconds;
+    final maxMs = widget.maxMoveDuration.inMilliseconds;
+
+    // Alignment toàn màn hình thường có khoảng cách 0 → 2.8.
+    final normalizedDistance = (distance / 2.8).clamp(0.0, 1.0);
+
+    final milliseconds = minMs + ((maxMs - minMs) * normalizedDistance).round();
+
+    return Duration(milliseconds: milliseconds);
+  }
+
+  double _distanceBetween(Alignment from, Alignment to) {
+    final dx = to.x - from.x;
+    final dy = to.y - from.y;
+
+    return math.sqrt(dx * dx + dy * dy);
+  }
+
+  Alignment get _currentAlignment {
+    if (!_moveController.isAnimating && _moveController.value == 0) {
+      return _startAlignment;
+    }
+
+    return _calculateAlignment(_moveController.value);
+  }
+
+  Alignment _calculateAlignment(double controllerValue) {
+    final progress = Curves.easeInOutCubic.transform(
+      controllerValue.clamp(0.0, 1.0),
+    );
+
+    final inverse = 1.0 - progress;
+
+    final middleAlignment = Alignment(
+      (_startAlignment.x + _endAlignment.x) / 2,
+      ((_startAlignment.y + _endAlignment.y) / 2) - widget.arcHeight,
+    );
+
+    // Quadratic Bézier:
+    //
+    // P(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
+    return Alignment(
+      inverse * inverse * _startAlignment.x +
+          2 * inverse * progress * middleAlignment.x +
+          progress * progress * _endAlignment.x,
+      inverse * inverse * _startAlignment.y +
+          2 * inverse * progress * middleAlignment.y +
+          progress * progress * _endAlignment.y,
+    );
+  }
+
+  _MascotMoveFrame _calculateMoveFrame() {
+    final rawProgress = _moveController.value.clamp(0.0, 1.0);
+
+    final easedProgress = Curves.easeInOutCubic.transform(rawProgress);
+
+    final alignment = _calculateAlignment(rawProgress);
+
+    final dx = _endAlignment.x - _startAlignment.x;
+    final dy = _endAlignment.y - _startAlignment.y;
+
     final distance = math.sqrt(dx * dx + dy * dy);
 
-    final ms = (650 + distance * 950).clamp(800, 1900).toInt();
-    _moveCtrl.duration = Duration(milliseconds: ms);
-    _moveCtrl.forward(from: 0);
+    final isWalking =
+        _moveController.isAnimating && distance > _distanceEpsilon;
+
+    final facing = dx.abs() > _distanceEpsilon
+        ? (dx >= 0 ? 1.0 : -1.0)
+        : _lastFacing;
+
+    final walkStrength = isWalking ? (distance * 1.75).clamp(0.25, 1.0) : 0.0;
+
+    // Nghiêng mạnh nhất ở giữa đường, về 0 ở đầu và cuối.
+    final movementEnvelope = math.sin(easedProgress * math.pi);
+
+    final lean = isWalking
+        ? dx.clamp(-1.0, 1.0) * 0.09 * movementEnvelope
+        : 0.0;
+
+    // Đi xa thì có nhiều bước hơn.
+    final stepCount = (distance * 6.5).clamp(2.0, 10.0);
+
+    final walkPhase = rawProgress * math.pi * stepCount;
+
+    return _MascotMoveFrame(
+      alignment: alignment,
+      facing: facing,
+      lean: lean,
+      walkStrength: walkStrength,
+      isWalking: isWalking,
+      walkPhase: walkPhase,
+    );
   }
 
   @override
   void dispose() {
-    _moveCtrl.dispose();
-    super.dispose();
-  }
+    _moveController.removeStatusListener(_handleMoveStatus);
 
-  Future<void> _loadLogo() async {
-    final img = await loadUiImage('assets/images/logo_misumi.png');
-    if (mounted) {
-      setState(() {
-        _misumiLogo = img;
-      });
-    }
+    _moveController.dispose();
+    _misumiLogo?.dispose();
+
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _moveCtrl,
-      builder: (_, __) {
-        final t = Curves.easeInOutCubic.transform(_moveCtrl.value);
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _moveController,
+        builder: (context, child) {
+          final frame = _calculateMoveFrame();
 
-        final mid = Alignment(
-          (_from.x + _to.x) / 2,
-          ((_from.y + _to.y) / 2) - 0.06,
-        );
-        final a = Alignment.lerp(_from, mid, t)!;
-        final b = Alignment.lerp(mid, _to, t)!;
-        final alignment = Alignment.lerp(a, b, t)!;
-        _current = alignment;
-
-        final dx = _to.x - _from.x;
-        final dy = _to.y - _from.y;
-        final distance = math.sqrt(dx * dx + dy * dy);
-
-        final isWalking = _moveCtrl.isAnimating && distance > 0.001;
-        final facing = dx >= 0 ? 1.0 : -1.0;
-        final walkStrength = isWalking ? (distance * 1.9).clamp(0.0, 1.0) : 0.0;
-
-        final leanEnvelope = math.sin(t * math.pi);
-        final lean = dx.clamp(-1.0, 1.0) * 0.10 * leanEnvelope;
-
-        // số bước phụ thuộc quãng đường
-        final stepCount = (distance * 6.0).clamp(1.4, 8.0);
-
-        return Align(
-          alignment: alignment,
-          child: MonitoringMascot(
-            alarmCount: widget.alarmCount,
-            size: widget.size,
-            facing: facing,
-            lean: lean,
-            walkStrength: walkStrength,
-            isWalking: isWalking,
-            walkPhase: _moveCtrl.value * math.pi * stepCount,
-            groundY: widget.size * 0.90,
-            misumiLogo: _misumiLogo,
-          ),
-        );
-      },
+          return Align(
+            alignment: frame.alignment,
+            child: MonitoringMascot(
+              alarmCount: widget.alarmCount,
+              size: widget.size,
+              facing: frame.facing,
+              lean: frame.lean,
+              walkStrength: frame.walkStrength,
+              isWalking: frame.isWalking,
+              walkPhase: frame.walkPhase,
+              groundY: widget.size * 0.90,
+              misumiLogo: _misumiLogo,
+            ),
+          );
+        },
+      ),
     );
   }
+}
+
+class _MascotMoveFrame {
+  final Alignment alignment;
+  final double facing;
+  final double lean;
+  final double walkStrength;
+  final bool isWalking;
+  final double walkPhase;
+
+  const _MascotMoveFrame({
+    required this.alignment,
+    required this.facing,
+    required this.lean,
+    required this.walkStrength,
+    required this.isWalking,
+    required this.walkPhase,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

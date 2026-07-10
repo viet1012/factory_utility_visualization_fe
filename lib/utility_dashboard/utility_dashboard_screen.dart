@@ -30,7 +30,8 @@ class UtilityDashboardScreen extends StatefulWidget {
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin {
-  final String mainImageUrl = 'assets/images/SPC2.png';
+  final String mainImageUrl = 'assets/images/SPC2_AM.png';
+  final String nightImageUrl = 'assets/images/SPC2_CyberBunk.jpg';
 
   late final Dio dio;
   late final UtilityApi api;
@@ -214,6 +215,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                         padding: const EdgeInsets.all(8),
                         child: UtilityDashboardOverview(
                           mainImageUrl: mainImageUrl,
+                          nightImageUrl: nightImageUrl,
                         ),
                       ),
                       // UtilityOverviewCommandScreen(),

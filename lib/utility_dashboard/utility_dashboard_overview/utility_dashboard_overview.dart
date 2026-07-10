@@ -120,8 +120,13 @@ import 'package:intl/intl.dart';
 
 class UtilityDashboardOverview extends StatefulWidget {
   final String mainImageUrl;
+  final String nightImageUrl;
 
-  const UtilityDashboardOverview({super.key, required this.mainImageUrl});
+  const UtilityDashboardOverview({
+    super.key,
+    required this.mainImageUrl,
+    required this.nightImageUrl,
+  });
 
   @override
   State<UtilityDashboardOverview> createState() =>
@@ -203,7 +208,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
     const Map<String, Alignment> facPositions = {
       'Fac_A': Alignment(0.3, -0.70),
       'Fac_B': Alignment(0.3, 0.72),
-      'idle': Alignment(-0.60, 0.9),
+      'idle': Alignment(-0.1, 0.9),
     };
 
     return ValueListenableBuilder<Map<String, VoltageStatus>>(
@@ -303,6 +308,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                     shouldHighlight: shouldHighlight,
                                     onVoltageAlarmChanged:
                                         _handleVoltageAlarmChanged,
+                                    nightImageUrl: widget.nightImageUrl,
                                   ),
                                 ),
 

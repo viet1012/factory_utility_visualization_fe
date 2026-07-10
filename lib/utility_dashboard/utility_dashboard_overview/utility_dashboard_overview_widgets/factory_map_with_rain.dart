@@ -8,8 +8,13 @@ import '../../../weather_widgets/weather/api/weather_api_service.dart';
 
 class FactoryMapWithRain extends StatelessWidget {
   final String mainImageUrl;
+  final String nightImageUrl;
 
-  const FactoryMapWithRain({super.key, required this.mainImageUrl});
+  const FactoryMapWithRain({
+    super.key,
+    required this.mainImageUrl,
+    required this.nightImageUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +37,7 @@ class FactoryMapWithRain extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           child: ApiControlledRainImage(
             imageUrl: mainImageUrl,
+            nightImageUrl: nightImageUrl,
             weatherService: weatherService,
             fit: BoxFit.cover,
           ),

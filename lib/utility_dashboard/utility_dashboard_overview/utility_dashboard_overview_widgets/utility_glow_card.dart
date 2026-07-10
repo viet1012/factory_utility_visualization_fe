@@ -1,6 +1,7 @@
+import 'dart:math' as math;
 import 'dart:math';
 
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 /// Which utility this card represents — drives the default color and the
 /// decorative background art painted behind the card's content.
@@ -46,14 +47,13 @@ class UtilityGlowCard extends StatelessWidget {
         foregroundPainter: _UtilityPatternPainter(color: color, type: type),
         child: Container(
           decoration: BoxDecoration(
-            // color: const Color(0xff030712),
+            // color: const Color(0xff030712).withOpacity(.4),
             gradient: LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: [
-                const Color(0xff151d2d),
-                const Color(0xff111827),
-                const Color(0xff0f172a),
+                const Color(0xff111827).withOpacity(.7),
+                const Color(0xff151d2d).withOpacity(.2),
               ],
             ),
             boxShadow: [
@@ -75,7 +75,7 @@ class UtilityGlowCard extends StatelessWidget {
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: color.withOpacity(.05),
+                    color: Colors.black.withOpacity(.05),
                     boxShadow: [
                       BoxShadow(
                         color: color.withOpacity(.18),
@@ -143,58 +143,368 @@ class _UtilityPatternPainter extends CustomPainter {
   }
 
   void _drawElectric(Canvas canvas, Size size, Paint paint, Paint glowPaint) {
-    final baseY = size.height * .76;
-    final startX = size.width * .58;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
 
-    final tower = Path()
-      ..moveTo(startX + 34, size.height * .22)
-      ..lineTo(startX + 8, baseY)
-      ..moveTo(startX + 34, size.height * .22)
-      ..lineTo(startX + 60, baseY)
-      ..moveTo(startX + 20, size.height * .43)
-      ..lineTo(startX + 48, size.height * .43)
-      ..moveTo(startX + 14, size.height * .58)
-      ..lineTo(startX + 54, size.height * .58)
-      ..moveTo(startX + 8, baseY)
-      ..lineTo(startX + 60, baseY);
+    // ============================================================
+    // KÍCH THƯỚC VÀ VỊ TRÍ THÁP
+    // ============================================================
 
-    canvas.drawPath(tower, glowPaint);
-    canvas.drawPath(tower, paint);
+    // Giới hạn cả theo height và width để tháp không bị quá bè
+    // hoặc bị cắt cross-arm khi card hẹp.
+    final towerHeight = math.min(size.height * .72, size.width * .58);
 
-    for (int i = 0; i < 4; i++) {
-      final x = startX + 82 + i * 18;
-      final h = 18.0 + i * 10;
+    final towerWidth = towerHeight * .42;
 
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, baseY - h, 10, h),
-        const Radius.circular(3),
-      );
+    final center = Offset(size.width * .82, size.height * .50);
 
-      canvas.drawRRect(rect, paint);
+    final base = Offset(center.dx, center.dy + towerHeight * .42);
+
+    final top = Offset(base.dx, base.dy - towerHeight);
+
+    final bottomLeft = Offset(base.dx - towerWidth * .46, base.dy);
+
+    final bottomRight = Offset(base.dx + towerWidth * .46, base.dy);
+
+    // Paint chi tiết nhẹ hơn thân chính.
+    final detailPaint = Paint()
+      ..color = color.withOpacity(.28)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .85
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final detailGlowPaint = Paint()
+      ..color = color.withOpacity(.035)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+    final wirePaint = Paint()
+      ..color = color.withOpacity(.16)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .85
+      ..strokeCap = StrokeCap.round;
+
+    final wireGlowPaint = Paint()
+      ..color = color.withOpacity(.025)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+    // ============================================================
+    // 1. HALO NHẸ PHÍA SAU THÁP
+    // ============================================================
+
+    final haloCenter = Offset(center.dx, center.dy - towerHeight * .08);
+
+    final haloPaint = Paint()
+      ..shader =
+          RadialGradient(
+            colors: [
+              color.withOpacity(.10),
+              color.withOpacity(.025),
+              Colors.transparent,
+            ],
+            stops: const [0, .45, 1],
+          ).createShader(
+            Rect.fromCircle(center: haloCenter, radius: towerHeight * .58),
+          );
+
+    canvas.drawCircle(haloCenter, towerHeight * .58, haloPaint);
+
+    // ============================================================
+    // 2. VỊ TRÍ CÁC CROSS-ARM
+    // ============================================================
+
+    final armProgresses = <double>[.18, .32, .48];
+
+    final armWidthFactors = <double>[1.18, 1.45, 1.05];
+
+    final insulatorLength = math.max(10.0, towerHeight * .055);
+
+    // ============================================================
+    // 3. DÂY ĐIỆN VÕNG PHÍA SAU THÁP
+    // ============================================================
+
+    for (int i = 0; i < armProgresses.length; i++) {
+      final armY = top.dy + towerHeight * armProgresses[i];
+      final armWidth = towerWidth * armWidthFactors[i];
+
+      final anchor = Offset(base.dx - armWidth / 2, armY + insulatorLength);
+
+      final startY = anchor.dy + (i - 1) * 9;
+
+      final cablePath = Path()
+        ..moveTo(-40, startY)
+        ..cubicTo(
+          size.width * .20,
+          startY - 14,
+          size.width * .56,
+          anchor.dy + 15,
+          anchor.dx,
+          anchor.dy,
+        );
+
+      canvas.drawPath(cablePath, wireGlowPaint);
+      canvas.drawPath(cablePath, wirePaint);
     }
 
-    final trend = Path()
-      ..moveTo(startX - 8, baseY - 18)
-      ..cubicTo(
-        startX + 24,
-        baseY - 58,
-        startX + 58,
-        baseY - 6,
-        startX + 105,
-        baseY - 70,
+    // ============================================================
+    // 4. HAI CHÂN CHÍNH CỦA THÁP
+    // ============================================================
+
+    final towerOutline = Path()
+      ..moveTo(top.dx, top.dy)
+      ..lineTo(bottomLeft.dx, bottomLeft.dy)
+      ..moveTo(top.dx, top.dy)
+      ..lineTo(bottomRight.dx, bottomRight.dy)
+      ..moveTo(bottomLeft.dx, bottomLeft.dy)
+      ..lineTo(bottomRight.dx, bottomRight.dy);
+
+    canvas.drawPath(towerOutline, glowPaint);
+    canvas.drawPath(towerOutline, paint);
+
+    // ============================================================
+    // 5. TRỤC GIỮA
+    // ============================================================
+
+    final centerSpine = Path()
+      ..moveTo(top.dx, top.dy + towerHeight * .07)
+      ..lineTo(base.dx, base.dy - towerHeight * .04);
+
+    canvas.drawPath(centerSpine, detailGlowPaint);
+    canvas.drawPath(centerSpine, detailPaint);
+
+    // ============================================================
+    // 6. GIÀN NGANG VÀ GIẰNG CHỮ X
+    // ============================================================
+
+    final levels = <double>[.10, .22, .42, .62, .82, 1.0];
+
+    Offset leftAt(double progress) {
+      return Offset(
+        base.dx - towerWidth * .46 * progress,
+        top.dy + towerHeight * progress,
+      );
+    }
+
+    Offset rightAt(double progress) {
+      return Offset(
+        base.dx + towerWidth * .46 * progress,
+        top.dy + towerHeight * progress,
+      );
+    }
+
+    final latticePath = Path();
+
+    for (int i = 0; i < levels.length; i++) {
+      final progress = levels[i];
+
+      final left = leftAt(progress);
+      final right = rightAt(progress);
+
+      // Thanh ngang.
+      latticePath
+        ..moveTo(left.dx, left.dy)
+        ..lineTo(right.dx, right.dy);
+
+      if (i < levels.length - 1) {
+        final nextProgress = levels[i + 1];
+
+        final nextLeft = leftAt(nextProgress);
+        final nextRight = rightAt(nextProgress);
+
+        // Hai thanh giằng chéo tạo chữ X.
+        latticePath
+          ..moveTo(left.dx, left.dy)
+          ..lineTo(nextRight.dx, nextRight.dy)
+          ..moveTo(right.dx, right.dy)
+          ..lineTo(nextLeft.dx, nextLeft.dy);
+      }
+    }
+
+    canvas.drawPath(latticePath, detailGlowPaint);
+    canvas.drawPath(latticePath, detailPaint);
+
+    // ============================================================
+    // 7. CROSS-ARM VÀ CHUỖI SỨ
+    // ============================================================
+
+    for (int i = 0; i < armProgresses.length; i++) {
+      final progress = armProgresses[i];
+      final armY = top.dy + towerHeight * progress;
+      final armWidth = towerWidth * armWidthFactors[i];
+
+      final halfBodyWidth = towerWidth * .46 * progress;
+
+      final leftBody = Offset(base.dx - halfBodyWidth, armY);
+
+      final rightBody = Offset(base.dx + halfBodyWidth, armY);
+
+      final leftTip = Offset(base.dx - armWidth / 2, armY);
+
+      final rightTip = Offset(base.dx + armWidth / 2, armY);
+
+      final supportDrop = math.min(14.0, towerHeight * .06);
+
+      final armPath = Path()
+        // Thanh ngang chính.
+        ..moveTo(leftTip.dx, leftTip.dy)
+        ..lineTo(rightTip.dx, rightTip.dy)
+        // Nối cross-arm vào thân tháp.
+        ..moveTo(leftBody.dx, leftBody.dy)
+        ..lineTo(leftTip.dx, leftTip.dy)
+        ..moveTo(rightBody.dx, rightBody.dy)
+        ..lineTo(rightTip.dx, rightTip.dy)
+        // Hai thanh chống xiên.
+        ..moveTo(base.dx - armWidth * .26, armY)
+        ..lineTo(base.dx, armY + supportDrop)
+        ..moveTo(base.dx + armWidth * .26, armY)
+        ..lineTo(base.dx, armY + supportDrop);
+
+      canvas.drawPath(armPath, glowPaint);
+      canvas.drawPath(armPath, paint);
+
+      _drawElectricInsulator(
+        canvas,
+        start: leftTip,
+        length: insulatorLength,
+        paint: detailPaint,
+        glowPaint: detailGlowPaint,
       );
 
-    canvas.drawPath(trend, glowPaint);
-    canvas.drawPath(trend, paint);
-
-    final dotPaint = Paint()..color = color.withOpacity(.6);
-    for (final p in [
-      Offset(startX - 8, baseY - 18),
-      Offset(startX + 38, baseY - 38),
-      Offset(startX + 105, baseY - 70),
-    ]) {
-      canvas.drawCircle(p, 3, dotPaint);
+      _drawElectricInsulator(
+        canvas,
+        start: rightTip,
+        length: insulatorLength,
+        paint: detailPaint,
+        glowPaint: detailGlowPaint,
+      );
     }
+
+    // ============================================================
+    // 8. ĐỈNH THÁP
+    // ============================================================
+
+    final mastTop = Offset(top.dx, top.dy - towerHeight * .055);
+
+    final mastPath = Path()
+      ..moveTo(top.dx, top.dy)
+      ..lineTo(mastTop.dx, mastTop.dy);
+
+    canvas.drawPath(mastPath, glowPaint);
+    canvas.drawPath(mastPath, paint);
+
+    final mastGlowPaint = Paint()
+      ..color = color.withOpacity(.12)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+
+    final mastDotPaint = Paint()
+      ..color = color.withOpacity(.58)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(mastTop, 5, mastGlowPaint);
+
+    canvas.drawCircle(mastTop, 1.6, mastDotPaint);
+
+    // ============================================================
+    // 9. NODE Ở CÁC TẦNG GIÀN
+    // ============================================================
+
+    final nodePaint = Paint()
+      ..color = color.withOpacity(.30)
+      ..style = PaintingStyle.fill;
+
+    for (final progress in levels.skip(1)) {
+      final left = leftAt(progress);
+      final right = rightAt(progress);
+      final middle = Offset(base.dx, top.dy + towerHeight * progress);
+
+      canvas.drawCircle(left, 1.2, nodePaint);
+      canvas.drawCircle(right, 1.2, nodePaint);
+      canvas.drawCircle(middle, 1.0, nodePaint);
+    }
+
+    // ============================================================
+    // 10. CHÂN MÓNG
+    // ============================================================
+
+    final footingPaint = Paint()
+      ..color = color.withOpacity(.34)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
+
+    final footingGlowPaint = Paint()
+      ..color = color.withOpacity(.035)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+    final footingPath = Path()
+      ..moveTo(bottomLeft.dx - towerWidth * .10, bottomLeft.dy + 2)
+      ..lineTo(bottomLeft.dx + towerWidth * .10, bottomLeft.dy + 2)
+      ..moveTo(bottomRight.dx - towerWidth * .10, bottomRight.dy + 2)
+      ..lineTo(bottomRight.dx + towerWidth * .10, bottomRight.dy + 2);
+
+    canvas.drawPath(footingPath, footingGlowPaint);
+    canvas.drawPath(footingPath, footingPaint);
+
+    canvas.restore();
+  }
+
+  void _drawElectricInsulator(
+    Canvas canvas, {
+    required Offset start,
+    required double length,
+    required Paint paint,
+    required Paint glowPaint,
+  }) {
+    final end = Offset(start.dx, start.dy + length);
+
+    final stringPath = Path()
+      ..moveTo(start.dx, start.dy)
+      ..lineTo(end.dx, end.dy);
+
+    canvas.drawPath(stringPath, glowPaint);
+    canvas.drawPath(stringPath, paint);
+
+    const discCount = 4;
+
+    final discPaint = Paint()
+      ..color = color.withOpacity(.34)
+      ..style = PaintingStyle.fill;
+
+    final discGlowPaint = Paint()
+      ..color = color.withOpacity(.035)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+
+    for (int i = 0; i < discCount; i++) {
+      final progress = (i + 1) / (discCount + 1);
+
+      final center = Offset(start.dx, start.dy + length * progress);
+
+      final discRect = Rect.fromCenter(center: center, width: 6.5, height: 2.2);
+
+      canvas.drawOval(discRect.inflate(1.5), discGlowPaint);
+
+      canvas.drawOval(discRect, discPaint);
+    }
+
+    canvas.drawCircle(
+      end,
+      1.4,
+      Paint()
+        ..color = color.withOpacity(.46)
+        ..style = PaintingStyle.fill,
+    );
   }
 
   void _drawWater(Canvas canvas, Size size, Paint paint, Paint glowPaint) {
@@ -256,7 +566,7 @@ class _UtilityPatternPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
 
     final dropPaint = Paint()
-      ..color = color.withOpacity(.25)
+      ..color = color.withOpacity(.45)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1
       ..strokeCap = StrokeCap.round
@@ -281,7 +591,7 @@ class _UtilityPatternPainter extends CustomPainter {
       );
 
     final highlightPaint = Paint()
-      ..color = color.withOpacity(.17)
+      ..color = color.withOpacity(.47)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
       ..strokeCap = StrokeCap.round;
@@ -295,21 +605,21 @@ class _UtilityPatternPainter extends CustomPainter {
       (
         y: size.height * .58,
         amplitude: size.height * .045,
-        opacity: .15,
+        opacity: .25,
         strokeWidth: .85,
         phase: 0.0,
       ),
       (
         y: size.height * .68,
         amplitude: size.height * .055,
-        opacity: .27,
+        opacity: .37,
         strokeWidth: 1.15,
         phase: .65,
       ),
       (
         y: size.height * .79,
         amplitude: size.height * .038,
-        opacity: .18,
+        opacity: .38,
         strokeWidth: .9,
         phase: 1.3,
       ),
@@ -371,12 +681,12 @@ class _UtilityPatternPainter extends CustomPainter {
     ];
 
     final bubblePaint = Paint()
-      ..color = color.withOpacity(.18)
+      ..color = color.withOpacity(.48)
       ..style = PaintingStyle.stroke
       ..strokeWidth = .9;
 
     final bubbleDotPaint = Paint()
-      ..color = color.withOpacity(.24)
+      ..color = color.withOpacity(.34)
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < bubbles.length; i++) {
@@ -410,16 +720,16 @@ class _UtilityPatternPainter extends CustomPainter {
     final swirlCenter = Offset(size.width * .82, size.height * .43);
 
     final swirlGlowPaint = Paint()
-      ..color = color.withOpacity(.055)
+      ..color = color.withOpacity(.12)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
+      ..strokeWidth = 8
       ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
 
     final swirlPaint = Paint()
-      ..color = color.withOpacity(.27)
+      ..color = color.withOpacity(.55)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.05
+      ..strokeWidth = 1.6
       ..strokeCap = StrokeCap.round;
 
     final swirlPath = Path();
@@ -451,7 +761,7 @@ class _UtilityPatternPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
     final centerPaint = Paint()
-      ..color = color.withOpacity(.40)
+      ..color = color.withOpacity(.9)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(swirlCenter, 5.5, centerGlowPaint);
@@ -464,32 +774,32 @@ class _UtilityPatternPainter extends CustomPainter {
       (
         y: size.height * .28,
         amplitude: size.height * .037,
-        opacity: .15,
-        strokeWidth: .85,
+        opacity: .28,
+        strokeWidth: 1.15,
         phase: .15,
         length: .77,
       ),
       (
         y: size.height * .52,
         amplitude: size.height * .050,
-        opacity: .28,
-        strokeWidth: 1.15,
+        opacity: .55,
+        strokeWidth: 1.7,
         phase: .80,
         length: 1.00,
       ),
       (
         y: size.height * .69,
         amplitude: size.height * .032,
-        opacity: .20,
-        strokeWidth: .95,
+        opacity: .40,
+        strokeWidth: 1.35,
         phase: 1.45,
         length: .90,
       ),
       (
         y: size.height * .80,
         amplitude: size.height * .022,
-        opacity: .12,
-        strokeWidth: .75,
+        opacity: .25,
+        strokeWidth: 1.0,
         phase: 2.10,
         length: .68,
       ),
@@ -521,11 +831,11 @@ class _UtilityPatternPainter extends CustomPainter {
 
       if (streamIndex == 1) {
         final streamGlow = Paint()
-          ..color = color.withOpacity(.05)
+          ..color = color.withOpacity(.14)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 5
+          ..strokeWidth = 8
           ..strokeCap = StrokeCap.round
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
 
         canvas.drawPath(streamPath, streamGlow);
       }

@@ -47,6 +47,8 @@ extension UtilityMapCateExt on UtilityMapCate {
 
 class UtilityMapWithCategoryTabs extends StatefulWidget {
   final String mainImageUrl;
+  final String nightImageUrl;
+
   final String monthKey;
   final Map<String, VoltageStatus> alarms;
   final String targetFacId;
@@ -64,6 +66,7 @@ class UtilityMapWithCategoryTabs extends StatefulWidget {
     required this.facPositions,
     required this.shouldHighlight,
     required this.onVoltageAlarmChanged,
+    required this.nightImageUrl,
   });
 
   @override
@@ -146,7 +149,10 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          FactoryMapWithRain(mainImageUrl: widget.mainImageUrl),
+          FactoryMapWithRain(
+            mainImageUrl: widget.mainImageUrl,
+            nightImageUrl: widget.nightImageUrl,
+          ),
 
           Container(
             decoration: BoxDecoration(
@@ -167,7 +173,7 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
             size: 180,
             targetAlignment:
                 widget.facPositions[widget.targetFacId] ??
-                const Alignment(-0.60, 0.80),
+                const Alignment(-0.4, 0.3),
             idleAlignment: widget.facPositions['idle']!,
           ),
 
@@ -195,16 +201,28 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
             child: Stack(
               fit: StackFit.expand,
               children: [
+                // Align(
+                //   alignment: const FractionalOffset(0.99, 0.9),
+                //   child: _facBox('Fac_B', 'Fac B'),
+                // ),
+                // Align(
+                //   alignment: const FractionalOffset(0.99, 0.02),
+                //   child: _facBox('Fac_A', 'Fac A'),
+                // ),
+                // Align(
+                //   alignment: const FractionalOffset(0.05, 0.02),
+                //   child: _facBox('Fac_C', 'Fac C'),
+                // ),
                 Align(
-                  alignment: const FractionalOffset(0.99, 0.9),
+                  alignment: const FractionalOffset(0.04, 0.1),
                   child: _facBox('Fac_B', 'Fac B'),
                 ),
                 Align(
-                  alignment: const FractionalOffset(0.99, 0.02),
+                  alignment: const FractionalOffset(0.04, 0.71),
                   child: _facBox('Fac_A', 'Fac A'),
                 ),
                 Align(
-                  alignment: const FractionalOffset(0.05, 0.02),
+                  alignment: const FractionalOffset(0.99, 0.3),
                   child: _facBox('Fac_C', 'Fac C'),
                 ),
               ],
@@ -268,7 +286,7 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
       month: widget.monthKey,
       headerTitle: title,
       filterCate: selected.filterCate,
-      height: 140,
+      height: 130,
       isHighlighted: widget.shouldHighlight(facId),
       onVoltageAlarmChanged: widget.onVoltageAlarmChanged,
     );
