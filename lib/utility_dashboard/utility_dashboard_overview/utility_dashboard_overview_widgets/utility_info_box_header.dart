@@ -91,9 +91,9 @@ class _PremiumInfoBoxHeaderState extends State<_PremiumInfoBoxHeader>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                color.withOpacity(0.88),
-                color.withOpacity(0.55),
-                color.withOpacity(0.34),
+                color.withOpacity(0.7),
+                color.withOpacity(0.4),
+                color.withOpacity(0.2),
               ],
             ),
             boxShadow: [

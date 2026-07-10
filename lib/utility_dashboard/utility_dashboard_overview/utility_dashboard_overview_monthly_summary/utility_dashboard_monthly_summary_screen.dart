@@ -418,7 +418,7 @@ class _ElectricCard extends StatelessWidget {
                   icon: Icons.history_rounded,
                   label: 'Prev',
                   value: money(item.previousCost),
-                  color: color,
+                  color: Colors.white70,
                 ),
               ),
             ],

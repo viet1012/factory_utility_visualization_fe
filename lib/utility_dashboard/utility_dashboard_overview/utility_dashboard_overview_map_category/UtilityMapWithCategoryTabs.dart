@@ -214,11 +214,11 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
                 //   child: _facBox('Fac_C', 'Fac C'),
                 // ),
                 Align(
-                  alignment: const FractionalOffset(0.04, 0.1),
+                  alignment: const FractionalOffset(0.03, 0.1),
                   child: _facBox('Fac_B', 'Fac B'),
                 ),
                 Align(
-                  alignment: const FractionalOffset(0.04, 0.71),
+                  alignment: const FractionalOffset(0.03, 0.68),
                   child: _facBox('Fac_A', 'Fac A'),
                 ),
                 Align(

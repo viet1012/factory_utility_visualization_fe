@@ -368,10 +368,26 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
         .toList();
   }
 
+  ChartTheme get _currentTheme {
+    final filterCate = widget.filterCate?.trim();
+
+    if (filterCate != null && filterCate.isNotEmpty) {
+      return ChartThemeResolver.theme(filterCate);
+    }
+
+    final displayItems = _filteredItems();
+
+    if (displayItems.isNotEmpty) {
+      return ChartThemeResolver.theme(displayItems.first.cate);
+    }
+
+    return ChartThemes.power;
+  }
+
   @override
   Widget build(BuildContext context) {
     final facColor = ChartThemes.colorFromFac(widget.headerTitle);
-
+    ;
     final healthResult =
         _cachedHealth ??
         DataHealthAnalyzer.analyze(
@@ -380,6 +396,9 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
           error: _error,
           values: const [],
         );
+
+    final currentTheme = _currentTheme;
+    final headerColor = currentTheme.iconColor;
 
     return GestureDetector(
       onTap: _openFacilityDetail,
@@ -402,7 +421,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   UtilityInfoBoxHeader.header(
-                    facilityColor: facColor,
+                    facilityColor: headerColor.withOpacity(.3),
                     facTitle: widget.headerTitle,
                     healthResult: healthResult,
                   ),
