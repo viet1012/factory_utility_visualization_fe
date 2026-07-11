@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -12,17 +14,22 @@ import '../utility_dashboard_overview/utility_dashboard_overview_widgets/chart_s
 import '../utility_dashboard_overview/utility_dashboard_overview_widgets/scada_panel_frame.dart';
 import '../utility_dashboard_widgets/center_message.dart';
 
+// ============================================================
+// INTERNAL MODELS
+// ============================================================
+
 class _ChartPoint {
   final DateTime time;
   final double value;
 
-  const _ChartPoint(this.time, this.value);
+  const _ChartPoint({required this.time, required this.value});
 }
 
 class _SeriesAnalysis {
   final bool isStale;
   final bool isFlat;
   final Duration? staleFor;
+
   final double minValue;
   final double maxValue;
   final double delta;
@@ -35,6 +42,44 @@ class _SeriesAnalysis {
     required this.maxValue,
     required this.delta,
   });
+
+  static const empty = _SeriesAnalysis(
+    isStale: false,
+    isFlat: false,
+    staleFor: null,
+    minValue: 0,
+    maxValue: 0,
+    delta: 0,
+  );
+}
+
+class _PreparedSeries {
+  final List<_ChartPoint> points;
+  final MinutePointDto? latestPoint;
+  final _SeriesAnalysis analysis;
+
+  final String? signalName;
+  final String? unit;
+
+  final bool hidden;
+
+  const _PreparedSeries({
+    required this.points,
+    required this.latestPoint,
+    required this.analysis,
+    required this.signalName,
+    required this.unit,
+    required this.hidden,
+  });
+
+  static const empty = _PreparedSeries(
+    points: [],
+    latestPoint: null,
+    analysis: _SeriesAnalysis.empty,
+    signalName: null,
+    unit: null,
+    hidden: false,
+  );
 }
 
 class _PanelVm {
@@ -67,14 +112,21 @@ class _SignalStatus {
   bool get shouldShow => type != _SignalStatusType.normal;
 }
 
+// ============================================================
+// PANEL
+// ============================================================
+
 class UtilityMinuteChartPanel extends StatefulWidget {
   final double width;
   final double? height;
+
   final String facId;
   final String? scadaId;
   final String? cate;
+
   final String? boxDeviceId;
   final String? plcAddress;
+
   final List<String>? cateIds;
 
   const UtilityMinuteChartPanel({
@@ -94,19 +146,28 @@ class UtilityMinuteChartPanel extends StatefulWidget {
       _UtilityMinuteChartPanelState();
 }
 
-class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
-    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
-  late String _requestKey;
-
-  // Provider đang poll mỗi 30s.
-  // 30s * 3 + 20s buffer = 110s.
-  // Nếu quá 110s chưa có điểm mới thì xem là stale.
+class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
+  // Provider poll mỗi 30 giây.
+  // Sau 110 giây không có dữ liệu mới thì xem là stale.
   static const Duration _staleThreshold = Duration(seconds: 110);
 
-  late final AnimationController _flowController;
+  // Ngăn nhiều panel cùng boxDeviceId gọi fetchKeyNow cùng lúc.
+  static final Set<String> _fetchingRequestKeys = <String>{};
 
-  @override
-  bool get wantKeepAlive => true;
+  static final DateFormat _latestTimeFormat = DateFormat('HH:mm:ss');
+  static final DateFormat _axisTimeFormat = DateFormat('HH:mm');
+  static final NumberFormat _axisNumberFormat = NumberFormat('0.00');
+
+  static const Animation<double> _staticFlowAnimation =
+      AlwaysStoppedAnimation<double>(0.35);
+
+  late final TooltipBehavior _tooltipBehavior;
+  late final ZoomPanBehavior _zoomPanBehavior;
+
+  late String _requestKey;
+
+  List<MinutePointDto>? _cachedRowsReference;
+  _PreparedSeries _preparedSeries = _PreparedSeries.empty;
 
   bool get _hasBoxDeviceId => (widget.boxDeviceId ?? '').trim().isNotEmpty;
 
@@ -116,40 +177,52 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
 
   bool get _canRenderSignal => _hasBoxDeviceId && _hasPlcAddress;
 
-  String get _plcAddressOrEmpty => widget.plcAddress ?? '';
+  String get _plcAddressOrEmpty => widget.plcAddress?.trim() ?? '';
 
   ChartTheme get _theme => ChartThemes.byCate(widget.cate);
-
-  IconData get _cateIcon => _theme.icon;
-
-  Color get _cateIconColor => _theme.iconColor;
 
   @override
   void initState() {
     super.initState();
+
+    _tooltipBehavior = TooltipBehavior(
+      enable: true,
+      canShowMarker: true,
+      header: '',
+      textStyle: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+
+    _zoomPanBehavior = ZoomPanBehavior(
+      enablePinching: true,
+      enablePanning: true,
+      zoomMode: ZoomMode.y,
+    );
+
     _refreshRequestKey();
     _scheduleRegisterAndFetch();
-    _flowController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _flowController.dispose();
-    super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant UtilityMinuteChartPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (!_didRequestParamsChange(oldWidget, widget)) return;
+    if (!_didRequestParamsChange(oldWidget, widget)) {
+      return;
+    }
+
+    _cachedRowsReference = null;
+    _preparedSeries = _PreparedSeries.empty;
 
     _refreshRequestKey();
     _scheduleRegisterAndFetch();
   }
+
+  // ============================================================
+  // REQUEST
+  // ============================================================
 
   bool _didRequestParamsChange(
     UtilityMinuteChartPanel oldWidget,
@@ -160,14 +233,27 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
         oldWidget.cate != newWidget.cate ||
         oldWidget.boxDeviceId != newWidget.boxDeviceId ||
         oldWidget.plcAddress != newWidget.plcAddress ||
-        oldWidget.cateIds?.join(',') != newWidget.cateIds?.join(',');
+        !_sameStringList(oldWidget.cateIds, newWidget.cateIds);
   }
 
-  void _scheduleRegisterAndFetch() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _registerAndFetch();
-    });
+  bool _sameStringList(List<String>? first, List<String>? second) {
+    if (identical(first, second)) return true;
+
+    if (first == null || second == null) {
+      return first == second;
+    }
+
+    if (first.length != second.length) {
+      return false;
+    }
+
+    for (var i = 0; i < first.length; i++) {
+      if (first[i] != second[i]) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   void _refreshRequestKey() {
@@ -182,11 +268,19 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     );
   }
 
+  void _scheduleRegisterAndFetch() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _registerAndFetch();
+    });
+  }
+
   void _registerAndFetch() {
     final provider = context.read<MinuteSeriesProvider>();
+    final requestKey = _requestKey;
 
     provider.upsertRequest(
-      key: _requestKey,
+      key: requestKey,
       facId: widget.facId,
       scadaId: widget.scadaId,
       cate: widget.cate,
@@ -194,82 +288,172 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       cateIds: widget.cateIds,
     );
 
-    if (_canFetch) {
-      provider.fetchKeyNow(_requestKey);
+    if (!_canFetch) return;
+
+    // Nhiều PLC panel của cùng một device dùng chung request key.
+    // Chỉ panel đầu tiên được gọi API.
+    if (!_fetchingRequestKeys.add(requestKey)) {
+      return;
     }
+
+    unawaited(
+      Future<void>.sync(() {
+        return provider.fetchKeyNow(requestKey);
+      }).whenComplete(() {
+        _fetchingRequestKeys.remove(requestKey);
+      }),
+    );
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
-
     return Selector<MinuteSeriesProvider, _PanelVm>(
-      selector: (_, provider) => _PanelVm(
-        rows: provider.getRowsForPlc(_requestKey, _plcAddressOrEmpty),
-        error: provider.getError(_requestKey),
-        hasFetchedOnce: provider.hasFetchedOnce(_requestKey),
-      ),
-      shouldRebuild: (prev, next) =>
-          !identical(prev.rows, next.rows) ||
-          prev.error != next.error ||
-          prev.hasFetchedOnce != next.hasFetchedOnce,
-      builder: (context, vm, _) => RepaintBoundary(
-        child: ScadaPanelFrame(color: _theme.accent, child: _buildPanel(vm)),
-      ),
+      selector: (_, provider) {
+        return _PanelVm(
+          rows: provider.getRowsForPlc(_requestKey, _plcAddressOrEmpty),
+          error: provider.getError(_requestKey),
+          hasFetchedOnce: provider.hasFetchedOnce(_requestKey),
+        );
+      },
+      shouldRebuild: (previous, next) {
+        return !identical(previous.rows, next.rows) ||
+            previous.error != next.error ||
+            previous.hasFetchedOnce != next.hasFetchedOnce;
+      },
+      builder: (context, vm, _) {
+        _prepareRowsIfNeeded(vm.rows);
+
+        return RepaintBoundary(
+          child: ScadaPanelFrame(color: _theme.accent, child: _buildPanel(vm)),
+        );
+      },
+    );
+  }
+
+  void _prepareRowsIfNeeded(List<MinutePointDto> rows) {
+    if (identical(_cachedRowsReference, rows)) {
+      return;
+    }
+
+    _cachedRowsReference = rows;
+    _preparedSeries = _prepareSeries(rows);
+  }
+
+  _PreparedSeries _prepareSeries(List<MinutePointDto> rows) {
+    if (rows.isEmpty) {
+      return _PreparedSeries.empty;
+    }
+
+    var hidden = false;
+    MinutePointDto? latestPoint;
+
+    String? signalName;
+    String? unit;
+
+    final points = <_ChartPoint>[];
+
+    double? minValue;
+    double? maxValue;
+
+    for (final row in rows) {
+      final nameEn = (row.nameEn ?? '').trim();
+
+      if (nameEn.toLowerCase().contains('slave multifunction meter')) {
+        hidden = true;
+      }
+
+      signalName = nameEn.isNotEmpty ? nameEn : row.cateId;
+
+      unit = row.unit;
+
+      final value = row.value;
+
+      if (value == null || !value.isFinite) {
+        continue;
+      }
+
+      latestPoint = row;
+
+      final localTime = row.ts.toLocal();
+
+      points.add(_ChartPoint(time: localTime, value: value));
+
+      if (minValue == null || value < minValue) {
+        minValue = value;
+      }
+
+      if (maxValue == null || value > maxValue) {
+        maxValue = value;
+      }
+    }
+
+    if (points.isEmpty || minValue == null || maxValue == null) {
+      return _PreparedSeries(
+        points: const [],
+        latestPoint: latestPoint ?? rows.last,
+        analysis: _SeriesAnalysis.empty,
+        signalName: signalName,
+        unit: unit,
+        hidden: hidden,
+      );
+    }
+
+    final analysis = _analyzePreparedSeries(
+      points: points,
+      minValue: minValue,
+      maxValue: maxValue,
+    );
+
+    return _PreparedSeries(
+      points: List<_ChartPoint>.unmodifiable(points),
+      latestPoint: latestPoint ?? rows.last,
+      analysis: analysis,
+      signalName: signalName,
+      unit: unit,
+      hidden: hidden,
     );
   }
 
   Widget _buildPanel(_PanelVm vm) {
-    final rows = vm.rows;
+    final prepared = _preparedSeries;
 
-    final shouldHide = rows.any((e) {
-      final nameEn = (e.nameEn ?? '').trim().toLowerCase();
-      return nameEn.contains('slave multifunction meter');
-    });
+    if (prepared.hidden) {
+      return const SizedBox.shrink();
+    }
 
-    if (shouldHide) return const SizedBox.shrink();
+    final hasError = vm.error != null;
 
-    final error = vm.error;
-    final hasError = error != null;
     final isLoading = _canFetch && !vm.hasFetchedOnce && !hasError;
-
-    final signalDisplaynameEn = rows.isNotEmpty
-        ? (rows.last.nameEn ?? rows.last.cateId)
-        : null;
-
-    final unit = rows.isNotEmpty ? rows.last.unit : null;
 
     return Container(
       width: widget.width,
       height: widget.height ?? 320,
       decoration: _panelDecoration(_theme),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            UtilityInfoBoxWidgets.header(
-              facilityColor: _theme.fillTop,
-              facTitle: widget.facId,
-              boxDeviceId: signalDisplaynameEn,
-              plcAddress: widget.plcAddress,
-              unit: unit,
-              isLoading: isLoading,
-              hasError: hasError,
-              err: error,
+      clipBehavior: Clip.hardEdge,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          UtilityInfoBoxWidgets.header(
+            facilityColor: _theme.fillTop,
+            facTitle: widget.facId,
+            boxDeviceId: prepared.signalName,
+            plcAddress: widget.plcAddress,
+            unit: prepared.unit,
+            isLoading: isLoading,
+            hasError: hasError,
+            err: vm.error,
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: _buildBody(vm: vm, prepared: prepared),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: _buildBody(
-                  rows: rows,
-                  error: error,
-                  hasFetchedOnce: vm.hasFetchedOnce,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -280,35 +464,27 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       gradient: LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [
-          Colors.white.withOpacity(0.06),
-          Colors.white.withOpacity(0.02),
-        ],
+        colors: [Colors.white.withOpacity(.06), Colors.white.withOpacity(.02)],
       ),
-      border: Border.all(color: theme.line.withOpacity(0.18), width: 1),
+      border: Border.all(color: theme.line.withOpacity(.18)),
+
+      // Giảm blur so với bản cũ để nhẹ GPU hơn.
       boxShadow: [
         BoxShadow(
-          color: theme.line.withOpacity(0.25),
-          blurRadius: 18,
-          spreadRadius: 1,
-          offset: const Offset(0, 6),
+          color: theme.line.withOpacity(.18),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
         ),
         BoxShadow(
-          color: Colors.black.withOpacity(0.5),
-          blurRadius: 20,
-          offset: const Offset(0, 10),
+          color: Colors.black.withOpacity(.32),
+          blurRadius: 12,
+          offset: const Offset(0, 6),
         ),
       ],
     );
   }
 
-  Widget _buildBody({
-    required List<MinutePointDto> rows,
-    required Object? error,
-    required bool hasFetchedOnce,
-  }) {
-    final hasError = error != null;
-
+  Widget _buildBody({required _PanelVm vm, required _PreparedSeries prepared}) {
     if (!_canRenderSignal) {
       return EmptyChartState(
         icon: Icons.settings_input_component_rounded,
@@ -318,11 +494,12 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       );
     }
 
-    if (!hasFetchedOnce && !hasError) {
+    final hasError = vm.error != null;
+
+    if (!vm.hasFetchedOnce && !hasError) {
       return Center(
-        child: SizedBox(
-          width: 26,
-          height: 26,
+        child: SizedBox.square(
+          dimension: 26,
           child: CircularProgressIndicator(
             strokeWidth: 2.4,
             color: _theme.line,
@@ -331,11 +508,11 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       );
     }
 
-    if (hasError && rows.isEmpty) {
+    if (hasError && vm.rows.isEmpty) {
       return ChartApiErrorState(color: _theme.line, onRetry: _registerAndFetch);
     }
 
-    if (rows.isEmpty) {
+    if (vm.rows.isEmpty) {
       return EmptyChartState(
         icon: Icons.timeline_rounded,
         title: 'No Minute Data',
@@ -344,10 +521,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       );
     }
 
-    final chartPoints = _toChartPoints(rows);
-    final latestPoint = _findLatestPoint(rows);
-
-    if (chartPoints.isEmpty) {
+    if (prepared.points.isEmpty) {
       return EmptyChartState(
         icon: Icons.show_chart_rounded,
         title: 'No Valid Points',
@@ -356,17 +530,30 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       );
     }
 
-    final analysis = _analyzeSeries(chartPoints);
+    final latestPoint = prepared.latestPoint;
+
+    if (latestPoint == null) {
+      return EmptyChartState(
+        icon: Icons.show_chart_rounded,
+        title: 'No Valid Points',
+        message: 'Latest signal point is unavailable.',
+        color: _theme.line,
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildLatestInfoBar(latestPoint, analysis),
+        _buildLatestInfoBar(latestPoint, prepared.analysis),
         const SizedBox(height: 6),
-        Expanded(child: _buildChart(chartPoints)),
+        Expanded(child: _buildChart(prepared.points, prepared.analysis)),
       ],
     );
   }
+
+  // ============================================================
+  // LATEST INFO
+  // ============================================================
 
   Widget _buildLatestInfoBar(
     MinutePointDto latestPoint,
@@ -374,40 +561,37 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
   ) {
     final status = _resolveSignalStatus(analysis);
 
-    final latestUnit = latestPoint.unit != null && latestPoint.unit!.isNotEmpty
-        ? latestPoint.unit!
-        : '';
+    final unit = latestPoint.unit?.trim() ?? '';
 
-    final latestValue = latestPoint.value != null
-        ? '${latestPoint.value!.toStringAsFixed(2)}'
-              '${latestUnit.isEmpty ? '' : ' $latestUnit'}'
-        : '--';
+    final value = latestPoint.value;
 
-    final latestTime = DateFormat('HH:mm:ss').format(latestPoint.ts.toLocal());
+    final latestValue = value == null
+        ? '--'
+        : '${value.toStringAsFixed(2)}'
+              '${unit.isEmpty ? '' : ' $unit'}';
+
+    final latestTime = _latestTimeFormat.format(latestPoint.ts.toLocal());
 
     return Container(
       height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white.withOpacity(.04),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: Colors.white.withOpacity(.06)),
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 34,
-            height: 34,
+          SizedBox.square(
+            dimension: 34,
             child: ScadaEnergyIcon(
-              icon: _cateIcon,
-              color: _cateIconColor,
+              icon: _theme.icon,
+              color: _theme.iconColor,
               cate: widget.cate ?? '',
-              animation: _flowController,
+              animation: _staticFlowAnimation,
             ),
           ),
-
           const SizedBox(width: 8),
-
           Expanded(
             child: Row(
               children: [
@@ -423,31 +607,26 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 10),
-
                 Container(
                   width: 1,
                   height: 16,
-                  color: Colors.white.withOpacity(0.12),
+                  color: Colors.white.withOpacity(.12),
                 ),
-
                 const SizedBox(width: 10),
-
                 Text(
                   latestTime,
                   maxLines: 1,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.62),
+                    color: Colors.white.withOpacity(.62),
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    height: 1.0,
+                    height: 1,
                   ),
                 ),
               ],
             ),
           ),
-
           if (status.shouldShow) ...[
             const SizedBox(width: 8),
             _buildStatusChip(status),
@@ -462,9 +641,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
       constraints: const BoxConstraints(maxWidth: 170),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: status.color.withOpacity(0.12),
+        color: status.color.withOpacity(.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: status.color.withOpacity(0.28)),
+        border: Border.all(color: status.color.withOpacity(.28)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -480,7 +659,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
                 color: status.color,
                 fontSize: 10.5,
                 fontWeight: FontWeight.w800,
-                height: 1.0,
+                height: 1,
               ),
             ),
           ),
@@ -516,54 +695,54 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     );
   }
 
-  Widget _buildChart(List<_ChartPoint> data) {
+  // ============================================================
+  // CHART
+  // ============================================================
+
+  Widget _buildChart(List<_ChartPoint> data, _SeriesAnalysis analysis) {
     if (data.length < 2) {
-      return CenterMessage(message: 'Not enough points');
+      return const CenterMessage(message: 'Not enough points');
     }
 
-    final axisBounds = _computeYAxisBounds(data);
-    final timeBounds = _computeXAxisBounds(data);
+    final yBounds = _computeYAxisBoundsFromAnalysis(analysis);
+
+    final xBounds = _computeXAxisBounds(data);
 
     return SfCartesianChart(
-      key: ValueKey(
-        '${widget.facId}_${widget.cate}_${widget.boxDeviceId}_${widget.plcAddress}_${data.length}_${data.last.time.millisecondsSinceEpoch}',
-      ),
+      // Không đặt ValueKey theo data.length hoặc timestamp.
+      // Giữ nguyên chart state, tránh dispose/recreate.
       plotAreaBorderWidth: 1,
-      plotAreaBorderColor: Colors.white.withOpacity(0.12),
-      tooltipBehavior: _buildTooltipBehavior(),
-      zoomPanBehavior: ZoomPanBehavior(
-        enablePinching: true,
-        enablePanning: true,
-        zoomMode: ZoomMode.y,
-      ),
+      plotAreaBorderColor: Colors.white.withOpacity(.12),
+      tooltipBehavior: _tooltipBehavior,
+      zoomPanBehavior: _zoomPanBehavior,
       primaryXAxis: DateTimeAxis(
-        minimum: timeBounds.minX,
-        maximum: timeBounds.maxX,
+        minimum: xBounds.minX,
+        maximum: xBounds.maxX,
         intervalType: DateTimeIntervalType.minutes,
-        interval: timeBounds.intervalMinutes.toDouble(),
-        dateFormat: DateFormat('HH:mm'),
+        interval: xBounds.intervalMinutes.toDouble(),
+        dateFormat: _axisTimeFormat,
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(0.08),
+          color: Colors.white.withOpacity(.08),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(0.15), width: 1),
+        axisLine: AxisLine(color: Colors.white.withOpacity(.15), width: 1),
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(0.75),
-          fontSize: 14,
+          color: Colors.white.withOpacity(.72),
+          fontSize: 12,
         ),
       ),
       primaryYAxis: NumericAxis(
-        minimum: axisBounds.minY,
-        maximum: axisBounds.maxY,
-        numberFormat: NumberFormat('0.00'),
+        minimum: yBounds.minY,
+        maximum: yBounds.maxY,
+        numberFormat: _axisNumberFormat,
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(0.08),
+          color: Colors.white.withOpacity(.08),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(0.15), width: 1),
+        axisLine: AxisLine(color: Colors.white.withOpacity(.15), width: 1),
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(0.75),
-          fontSize: 14,
+          color: Colors.white.withOpacity(.72),
+          fontSize: 12,
         ),
       ),
       series: <CartesianSeries<_ChartPoint, DateTime>>[
@@ -587,63 +766,40 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     );
   }
 
-  TooltipBehavior _buildTooltipBehavior() {
-    return TooltipBehavior(
-      enable: true,
-      canShowMarker: true,
-      header: '',
-      textStyle: const TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
+  // ============================================================
+  // ANALYSIS
+  // ============================================================
 
-  List<_ChartPoint> _toChartPoints(List<MinutePointDto> rows) {
-    return rows
-        .where((row) => row.value != null)
-        .map((row) => _ChartPoint(row.ts.toLocal(), row.value!))
-        .toList();
-  }
-
-  MinutePointDto _findLatestPoint(List<MinutePointDto> rows) {
-    return rows.lastWhere((row) => row.value != null, orElse: () => rows.last);
-  }
-
-  _SeriesAnalysis _analyzeSeries(List<_ChartPoint> points) {
+  _SeriesAnalysis _analyzePreparedSeries({
+    required List<_ChartPoint> points,
+    required double minValue,
+    required double maxValue,
+  }) {
     if (points.isEmpty) {
-      return const _SeriesAnalysis(
-        isStale: false,
-        isFlat: false,
-        staleFor: null,
-        minValue: 0,
-        maxValue: 0,
-        delta: 0,
-      );
+      return _SeriesAnalysis.empty;
     }
 
     final latestTime = points.last.time;
-    final staleFor = DateTime.now().difference(latestTime);
-    final isStale = staleFor > _staleThreshold;
 
-    double minValue = points.first.value;
-    double maxValue = points.first.value;
+    var staleFor = DateTime.now().difference(latestTime);
 
-    for (final point in points) {
-      if (point.value < minValue) minValue = point.value;
-      if (point.value > maxValue) maxValue = point.value;
+    // Tránh duration âm nếu clock phía server nhanh hơn client.
+    if (staleFor.isNegative) {
+      staleFor = Duration.zero;
     }
 
+    final isStale = staleFor > _staleThreshold;
     final delta = (maxValue - minValue).abs();
 
-    final avg = ((minValue.abs() + maxValue.abs()) / 2.0).clamp(
-      0.01,
-      double.infinity,
-    );
+    final averageMagnitude = (minValue.abs() + maxValue.abs()) / 2;
 
-    final eps = (avg * 0.0005).clamp(0.01, 999999.0);
+    final safeMagnitude = averageMagnitude < .01 ? .01 : averageMagnitude;
 
-    final isFlat = !isStale && points.length >= 2 && delta <= eps;
+    final calculatedEpsilon = safeMagnitude * .0005;
+
+    final epsilon = calculatedEpsilon.clamp(.01, 999999.0);
+
+    final isFlat = !isStale && points.length >= 2 && delta <= epsilon;
 
     return _SeriesAnalysis(
       isStale: isStale,
@@ -655,47 +811,63 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel>
     );
   }
 
-  String _formatDuration(Duration d) {
-    if (d.inHours > 0) {
-      return '${d.inHours}h ${d.inMinutes % 60}m';
+  String _formatDuration(Duration duration) {
+    if (duration.inHours > 0) {
+      return '${duration.inHours}h '
+          '${duration.inMinutes % 60}m';
     }
 
-    if (d.inMinutes > 0) {
-      return '${d.inMinutes}m ${d.inSeconds % 60}s';
+    if (duration.inMinutes > 0) {
+      return '${duration.inMinutes}m '
+          '${duration.inSeconds % 60}s';
     }
 
-    return '${d.inSeconds}s';
+    return '${duration.inSeconds}s';
   }
 
-  ({double minY, double maxY}) _computeYAxisBounds(List<_ChartPoint> data) {
-    final values = data.map((e) => e.value).toList()..sort();
+  ({double minY, double maxY}) _computeYAxisBoundsFromAnalysis(
+    _SeriesAnalysis analysis,
+  ) {
+    final minValue = analysis.minValue;
+    final maxValue = analysis.maxValue;
+    final range = analysis.delta;
 
-    final minValue = values.first;
-    final maxValue = values.last;
-    final range = (maxValue - minValue).abs();
-    final rangePadding = range * 0.2;
+    final rangePadding = range * .20;
 
-    final magnitude = maxValue.abs() > minValue.abs()
-        ? maxValue.abs()
-        : minValue.abs();
+    final magnitude = minValue.abs() > maxValue.abs()
+        ? minValue.abs()
+        : maxValue.abs();
 
-    final minimumPadding = magnitude * 0.01;
+    final minimumPadding = magnitude * .01;
 
-    final safePadding = rangePadding > 0
+    final padding = rangePadding > 0
         ? rangePadding
-        : (minimumPadding > 0.01 ? minimumPadding : 0.01);
+        : minimumPadding > .01
+        ? minimumPadding
+        : .01;
 
-    return (minY: minValue - safePadding, maxY: maxValue + safePadding);
+    return (minY: minValue - padding, maxY: maxValue + padding);
   }
 
   ({DateTime minX, DateTime maxX, int intervalMinutes}) _computeXAxisBounds(
     List<_ChartPoint> data,
   ) {
     final minX = data.first.time;
-    final maxX = data.last.time;
+    var maxX = data.last.time;
+
+    // Syncfusion có thể hiển thị không ổn nếu minX == maxX.
+    if (!maxX.isAfter(minX)) {
+      maxX = minX.add(const Duration(minutes: 1));
+    }
 
     final totalMinutes = maxX.difference(minX).inMinutes.abs();
-    final intervalMinutes = totalMinutes <= 30 ? 5 : 10;
+
+    final intervalMinutes = switch (totalMinutes) {
+      <= 30 => 5,
+      <= 60 => 10,
+      <= 180 => 30,
+      _ => 60,
+    };
 
     return (minX: minX, maxX: maxX, intervalMinutes: intervalMinutes);
   }

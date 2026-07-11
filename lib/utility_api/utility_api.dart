@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../utility_models/f2_utility_parameter_master.dart';
 import '../utility_models/f2_utility_scada_channel.dart';
+import '../utility_models/response/chart_catalog_response.dart';
 import '../utility_models/response/latest_record.dart';
 import '../utility_models/response/minute_point.dart';
 import '../utility_models/response/tree_series_response.dart';
@@ -68,6 +69,41 @@ class UtilityApi {
   }
 
   // ================== API ==================
+  Future<ChartCatalogResponse> getChartCatalog({
+    required String facId,
+    required String cate,
+    int importantOnly = 0,
+    String? scadaId,
+    String? boxId,
+    String? boxDeviceId,
+  }) async {
+    final query = <String, dynamic>{
+      'facId': facId,
+      'cate': cate,
+      'importantOnly': importantOnly,
+    };
+
+    if (scadaId != null && scadaId.trim().isNotEmpty) {
+      query['scadaId'] = scadaId.trim();
+    }
+
+    if (boxId != null && boxId.trim().isNotEmpty) {
+      query['boxId'] = boxId.trim();
+    }
+
+    if (boxDeviceId != null && boxDeviceId.trim().isNotEmpty) {
+      query['boxDeviceId'] = boxDeviceId.trim();
+    }
+
+    final response = await _dio.get(
+      '/api/utility/chart-catalog',
+      queryParameters: query,
+    );
+
+    return ChartCatalogResponse.fromJson(
+      Map<String, dynamic>.from(response.data),
+    );
+  }
 
   // ---------- TREE SERIES ----------
   Future<TreeSeriesResponse> getTreeSeries({

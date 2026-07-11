@@ -1,7 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../utility_api/utility_api.dart';
-import '../utility_models/f2_utility_scada_channel.dart';
+import '../utility_models/response/chart_catalog_item.dart';
 
 class SignalChartConfig {
   final String boxDeviceId;
@@ -28,312 +30,538 @@ class SignalChartConfig {
   });
 }
 
+class _CatalogCacheEntry {
+  final DateTime createdAt;
+  final List<ChartCatalogItem> items;
+
+  const _CatalogCacheEntry({required this.createdAt, required this.items});
+
+  bool isExpired(Duration ttl) {
+    return DateTime.now().difference(createdAt) > ttl;
+  }
+}
+
 class ChartCatalogProvider extends ChangeNotifier {
   final UtilityApi api;
 
   ChartCatalogProvider(this.api);
 
-  bool loading = false;
-  Object? error;
+  static const Duration _cacheTtl = Duration(minutes: 5);
 
-  List<String> facs = [];
-  List<String> cates = const ['Electricity', 'Water', 'Compressed Air'];
+  bool _disposed = false;
+  bool _loading = false;
+  Object? _error;
 
-  List<String> scadaIds = [];
-  List<String> boxIds = [];
-  List<String> boxDeviceIds = [];
-  List<SignalChartConfig> charts = [];
+  int _requestToken = 0;
 
-  List<ScadaChannelDto> _channels = [];
+  List<ChartCatalogItem> _allItems = const [];
+
+  List<String> _scadaIds = const [];
+  List<String> _boxIds = const [];
+  List<String> _boxDeviceIds = const [];
+  List<SignalChartConfig> _charts = const [];
 
   String? _selectedScadaId;
   String? _selectedBoxId;
+  String? _selectedBoxDeviceId;
+
+  final Map<String, _CatalogCacheEntry> _cache = {};
+  final Map<String, Future<List<ChartCatalogItem>>> _inFlight = {};
+
+  bool get loading => _loading;
+
+  Object? get error => _error;
+
+  List<String> get scadaIds => _scadaIds;
+
+  List<String> get boxIds => _boxIds;
+
+  List<String> get boxDeviceIds => _boxDeviceIds;
+
+  List<SignalChartConfig> get charts => _charts;
 
   String? get selectedScadaId => _selectedScadaId;
 
   String? get selectedBoxId => _selectedBoxId;
 
-  Future<void> loadScadas({required String facId, required String cate}) async {
-    loading = true;
-    error = null;
-    charts = [];
-    scadaIds = [];
-    boxIds = [];
-    boxDeviceIds = [];
-    _selectedScadaId = null;
-    _selectedBoxId = null;
-    notifyListeners();
+  String? get selectedBoxDeviceId => _selectedBoxDeviceId;
+
+  bool get hasData => _allItems.isNotEmpty;
+
+  // ============================================================
+  // LOAD
+  // ============================================================
+
+  Future<void> loadCatalog({
+    required String facId,
+    required String cate,
+    int importantOnly = 0,
+    bool forceRefresh = false,
+  }) async {
+    final normalizedFac = _normalizeRequired(facId);
+    final normalizedCate = _normalizeRequired(cate);
+    final normalizedImportant = importantOnly == 1 ? 1 : 0;
+
+    if (normalizedFac.isEmpty || normalizedCate.isEmpty) {
+      _setError(ArgumentError('facId and cate are required.'));
+      return;
+    }
+
+    final cacheKey = _buildCacheKey(
+      facId: normalizedFac,
+      cate: normalizedCate,
+      importantOnly: normalizedImportant,
+    );
+
+    final token = ++_requestToken;
+
+    final previousScada = _selectedScadaId;
+    final previousBox = _selectedBoxId;
+    final previousDevice = _selectedBoxDeviceId;
+
+    _loading = true;
+    _error = null;
+    _safeNotifyListeners();
 
     try {
-      final channels = await api.getChannels(facId: facId, cate: cate);
+      final items = await _getCatalogItems(
+        cacheKey: cacheKey,
+        facId: normalizedFac,
+        cate: normalizedCate,
+        importantOnly: normalizedImportant,
+        forceRefresh: forceRefresh,
+      );
 
-      _channels = channels;
+      if (!_isCurrentRequest(token)) return;
 
-      final set = <String>{};
+      _allItems = items;
 
-      for (final c in channels) {
-        final v = c.scadaId.trim();
-        if (v.isNotEmpty) {
-          set.add(v);
-        }
-      }
+      _restoreSelections(
+        previousScada: previousScada,
+        previousBox: previousBox,
+        previousDevice: previousDevice,
+      );
+    } catch (error, stackTrace) {
+      if (!_isCurrentRequest(token)) return;
 
-      scadaIds = set.toList()..sort();
+      _error = error;
 
-      if (scadaIds.isNotEmpty) {
-        _selectedScadaId = scadaIds.first;
-        _refreshBoxIdsForSelectedScada();
-        _refreshBoxDeviceIdsForSelectedBox();
-      }
-    } catch (e) {
-      error = e;
-      _channels = [];
-      scadaIds = [];
-      boxIds = [];
-      boxDeviceIds = [];
-      charts = [];
-      debugPrint('loadScadas error=$e');
+      debugPrint('ChartCatalogProvider.loadCatalog error: $error');
+      debugPrintStack(stackTrace: stackTrace);
     } finally {
-      loading = false;
-      notifyListeners();
+      if (_isCurrentRequest(token)) {
+        _loading = false;
+        _safeNotifyListeners();
+      }
     }
   }
 
-  void selectScadaId(String scadaId) {
-    final next = scadaId.trim();
+  Future<List<ChartCatalogItem>> _getCatalogItems({
+    required String cacheKey,
+    required String facId,
+    required String cate,
+    required int importantOnly,
+    required bool forceRefresh,
+  }) async {
+    if (!forceRefresh) {
+      final cached = _cache[cacheKey];
+
+      if (cached != null && !cached.isExpired(_cacheTtl)) {
+        return cached.items;
+      }
+    }
+
+    final existingRequest = _inFlight[cacheKey];
+
+    if (existingRequest != null) {
+      return existingRequest;
+    }
+
+    final request = _fetchCatalog(
+      facId: facId,
+      cate: cate,
+      importantOnly: importantOnly,
+    );
+
+    _inFlight[cacheKey] = request;
+
+    try {
+      final items = await request;
+
+      _cache[cacheKey] = _CatalogCacheEntry(
+        createdAt: DateTime.now(),
+        items: items,
+      );
+
+      return items;
+    } finally {
+      _inFlight.remove(cacheKey);
+    }
+  }
+
+  Future<List<ChartCatalogItem>> _fetchCatalog({
+    required String facId,
+    required String cate,
+    required int importantOnly,
+  }) async {
+    final response = await api.getChartCatalog(
+      facId: facId,
+      cate: cate,
+      importantOnly: importantOnly,
+    );
+
+    final normalized = response.items
+        .where(_isValidCatalogItem)
+        .toList(growable: false);
+    return List<ChartCatalogItem>.unmodifiable(normalized);
+  }
+
+  // ============================================================
+  // SELECTION
+  // ============================================================
+
+  void selectScadaId(String value) {
+    final next = value.trim();
+
     if (next.isEmpty) return;
+    if (!_scadaIds.contains(next)) return;
+    if (next == _selectedScadaId) return;
 
     _selectedScadaId = next;
     _selectedBoxId = null;
-    charts = [];
+    _selectedBoxDeviceId = null;
 
-    _refreshBoxIdsForSelectedScada();
+    _rebuildBoxes();
 
-    if (boxIds.isNotEmpty) {
-      _selectedBoxId = boxIds.first;
-      _refreshBoxDeviceIdsForSelectedBox();
-    } else {
-      boxDeviceIds = [];
+    if (_boxIds.isNotEmpty) {
+      _selectedBoxId = _boxIds.first;
     }
 
-    notifyListeners();
+    _rebuildDevices();
+    _rebuildCharts();
+
+    _safeNotifyListeners();
   }
 
-  Future<void> loadBoxes({
-    required String facId,
-    required String cate,
-    String? scadaId,
-  }) async {
-    if (_channels.isEmpty) {
-      await loadScadas(facId: facId, cate: cate);
-    }
+  void selectBoxId(String value) {
+    final next = value.trim();
 
-    if (scadaId != null && scadaId.trim().isNotEmpty) {
-      _selectedScadaId = scadaId.trim();
-    }
-
-    _refreshBoxIdsForSelectedScada();
-
-    if (boxIds.isNotEmpty) {
-      _selectedBoxId = boxIds.first;
-      _refreshBoxDeviceIdsForSelectedBox();
-    } else {
-      _selectedBoxId = null;
-      boxDeviceIds = [];
-    }
-
-    notifyListeners();
-  }
-
-  void selectBoxId(String boxId) {
-    final next = boxId.trim();
     if (next.isEmpty) return;
+    if (!_boxIds.contains(next)) return;
+    if (next == _selectedBoxId) return;
 
     _selectedBoxId = next;
-    _refreshBoxDeviceIdsForSelectedBox();
-    charts = [];
+    _selectedBoxDeviceId = null;
 
-    notifyListeners();
+    _rebuildDevices();
+    _rebuildCharts();
+
+    _safeNotifyListeners();
   }
 
-  void _refreshBoxIdsForSelectedScada() {
-    final scada = _selectedScadaId;
+  void selectBoxDeviceId(String? value) {
+    final next = _normalizeNullable(value);
 
-    if (scada == null || scada.isEmpty) {
-      boxIds = [];
+    if (next != null && !_boxDeviceIds.contains(next)) {
       return;
     }
 
-    final set = <String>{};
-
-    for (final c in _channels) {
-      if (c.scadaId.trim() != scada) continue;
-
-      final boxId = c.boxId.trim();
-      if (boxId.isNotEmpty) {
-        set.add(boxId);
-      }
-    }
-
-    boxIds = set.toList()..sort();
-  }
-
-  void _refreshBoxDeviceIdsForSelectedBox() {
-    final scada = _selectedScadaId;
-    final box = _selectedBoxId;
-
-    if (scada == null || scada.isEmpty || box == null || box.isEmpty) {
-      boxDeviceIds = [];
+    if (next == _selectedBoxDeviceId) {
       return;
     }
 
-    final set = <String>{};
+    _selectedBoxDeviceId = next;
+    _rebuildCharts();
 
-    for (final c in _channels) {
-      if (c.scadaId.trim() != scada) continue;
-      if (c.boxId.trim() != box) continue;
+    _safeNotifyListeners();
+  }
 
-      final dev = c.boxDeviceId.trim();
-      if (dev.isNotEmpty) {
-        set.add(dev);
+  void selectAllDevices() {
+    if (_selectedBoxDeviceId == null) return;
+
+    _selectedBoxDeviceId = null;
+    _rebuildCharts();
+
+    _safeNotifyListeners();
+  }
+
+  void _restoreSelections({
+    required String? previousScada,
+    required String? previousBox,
+    required String? previousDevice,
+  }) {
+    _rebuildScadas();
+
+    _selectedScadaId =
+        previousScada != null && _scadaIds.contains(previousScada)
+        ? previousScada
+        : _scadaIds.firstOrNull;
+
+    _rebuildBoxes();
+
+    _selectedBoxId = previousBox != null && _boxIds.contains(previousBox)
+        ? previousBox
+        : _boxIds.firstOrNull;
+
+    _rebuildDevices();
+
+    _selectedBoxDeviceId =
+        previousDevice != null && _boxDeviceIds.contains(previousDevice)
+        ? previousDevice
+        : null;
+
+    _rebuildCharts();
+  }
+
+  // ============================================================
+  // LOCAL INDEXES
+  // ============================================================
+
+  void _rebuildScadas() {
+    final values = <String>{};
+
+    for (final item in _allItems) {
+      if (item.scadaId.isNotEmpty) {
+        values.add(item.scadaId);
       }
     }
 
-    boxDeviceIds = set.toList()..sort();
+    final result = values.toList()..sort();
+
+    _scadaIds = List<String>.unmodifiable(result);
   }
 
-  Future<void> loadChartsForBox({
-    required String facId,
-    required String cate,
-    String? scadaId,
-    required String boxDeviceId,
-    int importantOnly = 0,
-  }) async {
-    loading = true;
-    error = null;
-    charts = [];
-    notifyListeners();
+  void _rebuildBoxes() {
+    final selectedScada = _selectedScadaId;
 
-    try {
-      charts = await _buildChartsForSingleBox(
-        facId: facId,
-        cate: cate,
-        boxDeviceId: boxDeviceId.trim(),
-        importantOnly: importantOnly,
-        addGroupLabel: false,
-      );
-    } catch (e) {
-      error = e;
-      debugPrint('loadChartsForBox error=$e');
-    } finally {
-      loading = false;
-      notifyListeners();
+    if (selectedScada == null) {
+      _boxIds = const [];
+      return;
     }
-  }
 
-  Future<void> loadChartsForBoxGroup({
-    required String facId,
-    required String cate,
-    String? scadaId,
-    int importantOnly = 0,
-  }) async {
-    loading = true;
-    error = null;
-    charts = [];
-    notifyListeners();
+    final values = <String>{};
 
-    try {
-      if (scadaId != null && scadaId.trim().isNotEmpty) {
-        _selectedScadaId = scadaId.trim();
-      }
+    for (final item in _allItems) {
+      if (item.scadaId != selectedScada) continue;
+      if (item.boxId.isEmpty) continue;
 
-      _refreshBoxDeviceIdsForSelectedBox();
-
-      final boxes = List<String>.from(boxDeviceIds);
-
-      if (boxes.isEmpty) {
-        charts = [];
-        return;
-      }
-
-      final results = await Future.wait(
-        boxes.map(
-          (box) => _buildChartsForSingleBox(
-            facId: facId,
-            cate: cate,
-            boxDeviceId: box,
-            importantOnly: importantOnly,
-            addGroupLabel: true,
-          ),
-        ),
-      );
-
-      final merged = <SignalChartConfig>[for (final list in results) ...list];
-
-      merged.sort((a, b) {
-        final g = (a.groupLabel ?? '').compareTo(b.groupLabel ?? '');
-        if (g != 0) return g;
-
-        return a.plcAddress.compareTo(b.plcAddress);
-      });
-
-      charts = merged;
-    } catch (e) {
-      error = e;
-      debugPrint('loadChartsForBoxGroup error=$e');
-    } finally {
-      loading = false;
-      notifyListeners();
+      values.add(item.boxId);
     }
+
+    final result = values.toList()..sort();
+
+    _boxIds = List<String>.unmodifiable(result);
   }
 
-  Future<List<SignalChartConfig>> _buildChartsForSingleBox({
-    required String facId,
-    required String cate,
-    required String boxDeviceId,
-    required int importantOnly,
-    required bool addGroupLabel,
-  }) async {
-    final ps =
-        (await api.getParams(
-          facId: facId,
-          cate: cate,
-          boxDeviceId: boxDeviceId,
-          importantOnly: importantOnly,
-        )).where((p) {
-          final name = (p.nameEn ?? '').toString().toLowerCase();
-          return !name.contains('slave');
-        }).toList();
+  void _rebuildDevices() {
+    final selectedScada = _selectedScadaId;
+    final selectedBox = _selectedBoxId;
+
+    if (selectedScada == null || selectedBox == null) {
+      _boxDeviceIds = const [];
+      return;
+    }
+
+    final values = <String>{};
+
+    for (final item in _allItems) {
+      if (item.scadaId != selectedScada) continue;
+      if (item.boxId != selectedBox) continue;
+      if (item.boxDeviceId.isEmpty) continue;
+
+      values.add(item.boxDeviceId);
+    }
+
+    final result = values.toList()..sort();
+
+    _boxDeviceIds = List<String>.unmodifiable(result);
+  }
+
+  void _rebuildCharts() {
+    final selectedScada = _selectedScadaId;
+    final selectedBox = _selectedBoxId;
+    final selectedDevice = _selectedBoxDeviceId;
+
+    if (selectedScada == null || selectedBox == null) {
+      _charts = const [];
+      return;
+    }
 
     final seen = <String>{};
+    final result = <SignalChartConfig>[];
 
-    return ps
-        .map((p) {
-          final addr = (p.plcAddress ?? '').trim();
-          final cateId = (p.cateId ?? '').trim();
+    for (final item in _allItems) {
+      if (item.scadaId != selectedScada) continue;
+      if (item.boxId != selectedBox) continue;
 
-          if (addr.isEmpty) return null;
+      if (selectedDevice != null && item.boxDeviceId != selectedDevice) {
+        continue;
+      }
 
-          final key = '$boxDeviceId|$addr';
+      final nameEn = item.nameEn?.trim();
 
-          if (!seen.add(key)) return null;
+      if (nameEn != null && nameEn.toLowerCase().contains('slave')) {
+        continue;
+      }
 
-          return SignalChartConfig(
-            boxDeviceId: boxDeviceId,
-            plcAddress: addr,
+      if (item.boxDeviceId.isEmpty || item.plcAddress.isEmpty) {
+        continue;
+      }
 
-            cateId: cateId.isEmpty ? null : cateId,
-            cateIds: cateId.isEmpty ? null : [cateId],
+      final uniqueKey = '${item.boxDeviceId}|${item.plcAddress}';
 
-            nameEn: p.nameEn,
-            nameVi: p.nameVi,
-            unit: p.unit,
+      if (!seen.add(uniqueKey)) {
+        continue;
+      }
 
-            groupLabel: addGroupLabel ? boxDeviceId : null,
-          );
-        })
-        .whereType<SignalChartConfig>()
-        .toList()
-      ..sort((a, b) => a.plcAddress.compareTo(b.plcAddress));
+      final cateId = item.cateId;
+      result.add(
+        SignalChartConfig(
+          boxDeviceId: item.boxDeviceId,
+          plcAddress: item.plcAddress,
+          cateId: cateId,
+          cateIds: cateId == null ? null : List<String>.unmodifiable([cateId]),
+          groupLabel: selectedDevice == null ? item.boxDeviceId : null,
+          nameEn: item.nameEn,
+          nameVi: item.nameVi,
+          unit: item.unit,
+        ),
+      );
+    }
+
+    result.sort((a, b) {
+      final deviceCompare = a.boxDeviceId.compareTo(b.boxDeviceId);
+
+      if (deviceCompare != 0) {
+        return deviceCompare;
+      }
+
+      return _comparePlcAddress(a.plcAddress, b.plcAddress);
+    });
+
+    _charts = List<SignalChartConfig>.unmodifiable(result);
   }
+
+  // ============================================================
+  // NORMALIZATION
+  // ============================================================
+
+  bool _isValidCatalogItem(ChartCatalogItem item) {
+    return item.scadaId.isNotEmpty &&
+        item.boxId.isNotEmpty &&
+        item.boxDeviceId.isNotEmpty &&
+        item.plcAddress.isNotEmpty;
+  }
+
+  String _normalizeRequired(String value) {
+    return value.trim();
+  }
+
+  String? _normalizeNullable(String? value) {
+    if (value == null) return null;
+
+    final normalized = value.trim();
+
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  String _buildCacheKey({
+    required String facId,
+    required String cate,
+    required int importantOnly,
+  }) {
+    return '${facId.toLowerCase()}|'
+        '${cate.toLowerCase()}|'
+        '$importantOnly';
+  }
+
+  // D100 phải đứng trước D20 nếu sort text thường.
+  int _comparePlcAddress(String first, String second) {
+    final firstMatch = RegExp(r'^([A-Za-z]+)(\d+)$').firstMatch(first);
+
+    final secondMatch = RegExp(r'^([A-Za-z]+)(\d+)$').firstMatch(second);
+
+    if (firstMatch == null || secondMatch == null) {
+      return first.compareTo(second);
+    }
+
+    final prefixCompare = firstMatch.group(1)!.compareTo(secondMatch.group(1)!);
+
+    if (prefixCompare != 0) {
+      return prefixCompare;
+    }
+
+    final firstNumber = int.tryParse(firstMatch.group(2)!) ?? 0;
+
+    final secondNumber = int.tryParse(secondMatch.group(2)!) ?? 0;
+
+    return firstNumber.compareTo(secondNumber);
+  }
+
+  // ============================================================
+  // CACHE
+  // ============================================================
+
+  void clearCache() {
+    _cache.clear();
+  }
+
+  void invalidateCache({
+    required String facId,
+    required String cate,
+    required int importantOnly,
+  }) {
+    final key = _buildCacheKey(
+      facId: facId.trim(),
+      cate: cate.trim(),
+      importantOnly: importantOnly == 1 ? 1 : 0,
+    );
+
+    _cache.remove(key);
+  }
+
+  Future<void> refresh({
+    required String facId,
+    required String cate,
+    int importantOnly = 0,
+  }) {
+    return loadCatalog(
+      facId: facId,
+      cate: cate,
+      importantOnly: importantOnly,
+      forceRefresh: true,
+    );
+  }
+
+  // ============================================================
+  // INTERNAL STATE
+  // ============================================================
+
+  bool _isCurrentRequest(int token) {
+    return !_disposed && token == _requestToken;
+  }
+
+  void _setError(Object error) {
+    _error = error;
+    _loading = false;
+    _safeNotifyListeners();
+  }
+
+  void _safeNotifyListeners() {
+    if (_disposed) return;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _requestToken++;
+    _inFlight.clear();
+
+    super.dispose();
+  }
+}
+
+extension _FirstOrNullExtension<T> on List<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
