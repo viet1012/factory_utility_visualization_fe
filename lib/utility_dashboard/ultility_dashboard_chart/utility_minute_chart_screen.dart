@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +9,8 @@ import '../utility_dashboard_overview/utility_dashboard_overview_painter/utility
 import '../utility_dashboard_overview/utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../utility_dashboard_overview/utility_dashboard_overview_widgets/scada_tab_button.dart';
 import 'utility_minute_chart_panel.dart';
+
+enum _CatalogLoadStage { idle, scadas, boxes, charts }
 
 class UtilityAllFactoriesChartsScreen extends StatefulWidget {
   const UtilityAllFactoriesChartsScreen({super.key});
@@ -18,145 +22,312 @@ class UtilityAllFactoriesChartsScreen extends StatefulWidget {
 
 class _UtilityAllFactoriesChartsScreenState
     extends State<UtilityAllFactoriesChartsScreen> {
-  static const List<String> _cateTabs = [
-    'Electricity',
-    'Water',
-    'Compressed Air',
-  ];
+  static const _cateTabs = <String>['Electricity', 'Water', 'Compressed Air'];
 
-  static const List<String> _facTabs = ['Fac_A', 'Fac_B', 'Fac_C'];
-  static const List<String> _viewTabs = ['Minutes'];
+  static const _facTabs = <String>['Fac_A', 'Fac_B', 'Fac_C'];
+
+  static const _viewTabs = <String>['Minutes'];
 
   int _selectedCateIndex = 0;
   int _selectedFacIndex = 0;
   int _selectedViewIndex = 0;
+
   int _selectedScadaIndex = 0;
   int _selectedBoxIdIndex = 0;
+
+  // -1 nghĩa là đang chọn ALL DEVICES.
   int _selectedBoxDeviceIndex = -1;
 
   bool _importantOnly = false;
   bool _filtersExpanded = true;
 
-  int _loadToken = 0;
+  // Request mới sẽ tăng token.
+  // Response cũ không còn đúng token sẽ bị bỏ qua.
+  int _requestToken = 0;
 
-  String get selectedCate => _cateTabs[_selectedCateIndex];
+  ChartCatalogProvider get _catalog {
+    return context.read<ChartCatalogProvider>();
+  }
 
-  String get selectedFac => _facTabs[_selectedFacIndex];
+  String get selectedCate {
+    return _cateTabs[_selectedCateIndex];
+  }
 
-  String get selectedView => _viewTabs[_selectedViewIndex];
+  String get selectedFac {
+    return _facTabs[_selectedFacIndex];
+  }
 
-  ChartCatalogProvider get _catalog => context.read<ChartCatalogProvider>();
+  String get selectedView {
+    return _viewTabs[_selectedViewIndex];
+  }
+
+  int get _importantValue {
+    return _importantOnly ? 1 : 0;
+  }
+
+  _CatalogLoadStage _loadStage = _CatalogLoadStage.idle;
+
+  bool get _loadingScadas {
+    return _loadStage == _CatalogLoadStage.scadas;
+  }
+
+  bool get _loadingBoxes {
+    return _loadStage == _CatalogLoadStage.boxes;
+  }
+
+  bool get _loadingCharts {
+    return _loadStage == _CatalogLoadStage.charts;
+  }
+
+  bool get _catalogBusy {
+    return _loadStage != _CatalogLoadStage.idle;
+  }
+
+  String get _loadingMessage {
+    switch (_loadStage) {
+      case _CatalogLoadStage.scadas:
+        return 'Loading SCADA channels...';
+
+      case _CatalogLoadStage.boxes:
+        return 'Loading box groups and devices...';
+
+      case _CatalogLoadStage.charts:
+        return 'Loading signal charts...';
+
+      case _CatalogLoadStage.idle:
+        return '';
+    }
+  }
+
+  void _setLoadStage(_CatalogLoadStage stage) {
+    if (!mounted || _loadStage == stage) return;
+
+    setState(() {
+      _loadStage = stage;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadCatalogForCurrentSelection();
+      if (!mounted) return;
+
+      unawaited(_reloadCatalog());
     });
   }
 
-  Future<void> _loadCatalogForCurrentSelection() async {
-    final token = ++_loadToken;
+  // ============================================================
+  // REQUEST GUARD
+  // ============================================================
 
-    await _catalog.loadScadas(facId: selectedFac, cate: selectedCate);
-
-    if (!mounted || token != _loadToken) return;
-
-    final scadas = _catalog.scadaIds;
-
-    setState(() {
-      _selectedScadaIndex = 0;
-      _selectedBoxIdIndex = 0;
-      _selectedBoxDeviceIndex = -1;
-    });
-
-    if (scadas.isEmpty) return;
-
-    final scadaId = scadas.first;
-
-    _catalog.selectScadaId(scadaId);
-
-    await _catalog.loadBoxes(
-      facId: selectedFac,
-      cate: selectedCate,
-      scadaId: scadaId,
-    );
-
-    if (!mounted || token != _loadToken) return;
-
-    final boxIds = _catalog.boxIds;
-
-    if (boxIds.isEmpty) return;
-
-    _catalog.selectBoxId(boxIds.first);
-
-    await _catalog.loadChartsForBoxGroup(
-      facId: selectedFac,
-      cate: selectedCate,
-      scadaId: scadaId,
-      importantOnly: _importantOnly ? 1 : 0,
-    );
+  int _beginRequest() {
+    return ++_requestToken;
   }
 
-  Future<void> _loadChartsForBox(String boxDeviceId, {int? token}) async {
-    final currentToken = token ?? ++_loadToken;
-    final scadaId = _safeSelectedScada(_catalog.scadaIds);
-
-    await _catalog.loadChartsForBox(
-      facId: selectedFac,
-      cate: selectedCate,
-      scadaId: scadaId,
-      boxDeviceId: boxDeviceId,
-      importantOnly: _importantOnly ? 1 : 0,
-    );
-
-    if (!mounted || currentToken != _loadToken) return;
+  bool _isRequestValid(
+    int token, {
+    required String facId,
+    required String cate,
+  }) {
+    return mounted &&
+        token == _requestToken &&
+        facId == selectedFac &&
+        cate == selectedCate;
   }
 
-  Future<void> _loadChartsForCurrentBoxGroup({int? token}) async {
-    final currentToken = token ?? ++_loadToken;
-    final scadaId = _safeSelectedScada(_catalog.scadaIds);
+  // ============================================================
+  // SAFE VALUE HELPERS
+  // ============================================================
 
-    await _catalog.loadChartsForBoxGroup(
-      facId: selectedFac,
-      cate: selectedCate,
-      scadaId: scadaId,
-      importantOnly: _importantOnly ? 1 : 0,
-    );
+  String? _valueAt(List<String> values, int index) {
+    if (values.isEmpty) return null;
+    if (index < 0 || index >= values.length) return null;
 
-    if (!mounted || currentToken != _loadToken) return;
+    return values[index];
   }
+
+  int _safeUiIndex(int index, int itemCount) {
+    if (itemCount <= 0) return 0;
+
+    return index.clamp(0, itemCount - 1);
+  }
+
+  String? _currentScada() {
+    return _valueAt(_catalog.scadaIds, _selectedScadaIndex);
+  }
+
+  String? _currentBoxDevice() {
+    if (_selectedBoxDeviceIndex < 0) return null;
+
+    return _valueAt(_catalog.boxDeviceIds, _selectedBoxDeviceIndex);
+  }
+
+  void _resetCatalogSelection() {
+    _selectedScadaIndex = 0;
+    _selectedBoxIdIndex = 0;
+    _selectedBoxDeviceIndex = -1;
+  }
+
+  // ============================================================
+  // INITIAL / ROOT LOAD
+  // ============================================================
+
+  Future<void> _reloadCatalog() async {
+    final token = _beginRequest();
+
+    final facId = selectedFac;
+    final cate = selectedCate;
+    final importantOnly = _importantValue;
+
+    final catalog = _catalog;
+
+    _setLoadStage(_CatalogLoadStage.scadas);
+
+    try {
+      await catalog.loadScadas(facId: facId, cate: cate);
+
+      if (!_isRequestValid(token, facId: facId, cate: cate)) {
+        return;
+      }
+
+      final scadas = List<String>.from(catalog.scadaIds);
+
+      if (scadas.isEmpty) {
+        return;
+      }
+
+      final scadaId = scadas.first;
+
+      catalog.selectScadaId(scadaId);
+
+      _setLoadStage(_CatalogLoadStage.boxes);
+
+      await catalog.loadBoxes(facId: facId, cate: cate, scadaId: scadaId);
+
+      if (!_isRequestValid(token, facId: facId, cate: cate)) {
+        return;
+      }
+
+      final boxIds = List<String>.from(catalog.boxIds);
+
+      if (boxIds.isEmpty) {
+        return;
+      }
+
+      catalog.selectBoxId(boxIds.first);
+
+      _setLoadStage(_CatalogLoadStage.charts);
+
+      await catalog.loadChartsForBoxGroup(
+        facId: facId,
+        cate: cate,
+        scadaId: scadaId,
+        importantOnly: importantOnly,
+      );
+    } finally {
+      if (_isRequestValid(token, facId: facId, cate: cate)) {
+        _setLoadStage(_CatalogLoadStage.idle);
+      }
+    }
+  }
+
+  // ============================================================
+  // CHART LOADERS
+  // ============================================================
+
+  Future<void> _loadCurrentBoxGroup() async {
+    final token = _beginRequest();
+
+    final facId = selectedFac;
+    final cate = selectedCate;
+    final scadaId = _currentScada();
+
+    if (scadaId == null || scadaId.trim().isEmpty) {
+      return;
+    }
+
+    _setLoadStage(_CatalogLoadStage.charts);
+
+    try {
+      await _catalog.loadChartsForBoxGroup(
+        facId: facId,
+        cate: cate,
+        scadaId: scadaId,
+        importantOnly: _importantValue,
+      );
+    } finally {
+      if (_isRequestValid(token, facId: facId, cate: cate)) {
+        _setLoadStage(_CatalogLoadStage.idle);
+      }
+    }
+  }
+
+  Future<void> _loadSelectedBoxDevice(String boxDeviceId) async {
+    final token = _beginRequest();
+
+    final facId = selectedFac;
+    final cate = selectedCate;
+    final scadaId = _currentScada();
+
+    if (scadaId == null || scadaId.trim().isEmpty) {
+      return;
+    }
+
+    _setLoadStage(_CatalogLoadStage.charts);
+
+    try {
+      await _catalog.loadChartsForBox(
+        facId: facId,
+        cate: cate,
+        scadaId: scadaId,
+        boxDeviceId: boxDeviceId,
+        importantOnly: _importantValue,
+      );
+    } finally {
+      if (_isRequestValid(token, facId: facId, cate: cate)) {
+        _setLoadStage(_CatalogLoadStage.idle);
+      }
+    }
+  }
+
+  // ============================================================
+  // FILTER CALLBACKS
+  // ============================================================
 
   Future<void> _onCateChanged(int index) async {
+    if (index < 0 || index >= _cateTabs.length) return;
     if (_selectedCateIndex == index) return;
 
     setState(() {
       _selectedCateIndex = index;
-      _selectedScadaIndex = 0;
-      _selectedBoxIdIndex = 0;
-      _selectedBoxDeviceIndex = -1;
+      _resetCatalogSelection();
     });
 
-    await _loadCatalogForCurrentSelection();
+    await _reloadCatalog();
   }
 
   Future<void> _onFacChanged(int index) async {
+    if (index < 0 || index >= _facTabs.length) return;
     if (_selectedFacIndex == index) return;
 
     setState(() {
       _selectedFacIndex = index;
-      _selectedScadaIndex = 0;
-      _selectedBoxIdIndex = 0;
-      _selectedBoxDeviceIndex = -1;
+      _resetCatalogSelection();
     });
 
-    await _loadCatalogForCurrentSelection();
+    await _reloadCatalog();
   }
 
   Future<void> _onScadaChanged(List<String> tabs, int index) async {
-    if (tabs.isEmpty || index >= tabs.length) return;
+    if (index < 0 || index >= tabs.length) return;
+    if (_selectedScadaIndex == index) return;
 
+    final token = _beginRequest();
+
+    final facId = selectedFac;
+    final cate = selectedCate;
     final scadaId = tabs[index];
 
     setState(() {
@@ -165,76 +336,93 @@ class _UtilityAllFactoriesChartsScreenState
       _selectedBoxDeviceIndex = -1;
     });
 
-    _catalog.selectScadaId(scadaId);
+    final catalog = _catalog;
 
-    await _catalog.loadBoxes(
-      facId: selectedFac,
-      cate: selectedCate,
-      scadaId: scadaId,
-    );
+    catalog.selectScadaId(scadaId);
 
-    final boxIds = _catalog.boxIds;
+    await catalog.loadBoxes(facId: facId, cate: cate, scadaId: scadaId);
 
-    if (boxIds.isNotEmpty) {
-      _catalog.selectBoxId(boxIds.first);
+    if (!_isRequestValid(token, facId: facId, cate: cate)) {
+      return;
     }
 
-    await _loadChartsForCurrentBoxGroup();
-  }
+    final boxIds = List<String>.from(catalog.boxIds);
 
-  void _onViewChanged(int index) {
-    if (_selectedViewIndex == index) return;
+    if (boxIds.isNotEmpty) {
+      catalog.selectBoxId(boxIds.first);
+    }
 
-    setState(() {
-      _selectedViewIndex = index;
-    });
+    await catalog.loadChartsForBoxGroup(
+      facId: facId,
+      cate: cate,
+      scadaId: scadaId,
+      importantOnly: _importantValue,
+    );
+
+    if (!_isRequestValid(token, facId: facId, cate: cate)) {
+      return;
+    }
   }
 
   Future<void> _onBoxIdChanged(List<String> tabs, int index) async {
-    if (tabs.isEmpty || index >= tabs.length) return;
-
-    final boxId = tabs[index];
+    if (index < 0 || index >= tabs.length) return;
+    if (_selectedBoxIdIndex == index) return;
 
     setState(() {
       _selectedBoxIdIndex = index;
       _selectedBoxDeviceIndex = -1;
     });
 
-    _catalog.selectBoxId(boxId);
+    _catalog.selectBoxId(tabs[index]);
 
-    await _loadChartsForCurrentBoxGroup();
+    await _loadCurrentBoxGroup();
   }
 
   Future<void> _onBoxDeviceChanged(List<String> tabs, int index) async {
-    if (tabs.isEmpty || index >= tabs.length) return;
-
-    final boxDevice = tabs[index];
+    if (index < 0 || index >= tabs.length) return;
+    if (_selectedBoxDeviceIndex == index) return;
 
     setState(() {
       _selectedBoxDeviceIndex = index;
     });
 
-    await _loadChartsForBox(boxDevice);
+    await _loadSelectedBoxDevice(tabs[index]);
+  }
+
+  Future<void> _selectAllDevices() async {
+    if (_selectedBoxDeviceIndex < 0) return;
+
+    setState(() {
+      _selectedBoxDeviceIndex = -1;
+    });
+
+    await _loadCurrentBoxGroup();
   }
 
   Future<void> _onImportantChanged(bool value) async {
+    if (_importantOnly == value) return;
+
     setState(() {
       _importantOnly = value;
     });
 
-    if (_selectedBoxDeviceIndex >= 0) {
-      final selectedBoxDevice = _safeSelectedBoxDevice(
-        context.read<ChartCatalogProvider>().boxDeviceIds,
-      );
+    final selectedDevice = _currentBoxDevice();
 
-      if (selectedBoxDevice != null && selectedBoxDevice.trim().isNotEmpty) {
-        await _loadChartsForBox(selectedBoxDevice);
-      }
-
+    if (selectedDevice != null && selectedDevice.trim().isNotEmpty) {
+      await _loadSelectedBoxDevice(selectedDevice);
       return;
     }
 
-    await _loadChartsForCurrentBoxGroup();
+    await _loadCurrentBoxGroup();
+  }
+
+  void _onViewChanged(int index) {
+    if (index < 0 || index >= _viewTabs.length) return;
+    if (_selectedViewIndex == index) return;
+
+    setState(() {
+      _selectedViewIndex = index;
+    });
   }
 
   void _toggleFilters() {
@@ -243,74 +431,56 @@ class _UtilityAllFactoriesChartsScreenState
     });
   }
 
-  String? _safeSelectedScada(List<String> tabs) {
-    if (tabs.isEmpty) return null;
-
-    if (_selectedScadaIndex < 0 || _selectedScadaIndex >= tabs.length) {
-      _selectedScadaIndex = 0;
-    }
-
-    return tabs[_selectedScadaIndex];
-  }
-
-  String? _safeSelectedBoxId(List<String> tabs) {
-    if (tabs.isEmpty) return null;
-
-    if (_selectedBoxIdIndex < 0 || _selectedBoxIdIndex >= tabs.length) {
-      _selectedBoxIdIndex = 0;
-    }
-
-    return tabs[_selectedBoxIdIndex];
-  }
-
-  String? _safeSelectedBoxDevice(List<String> tabs) {
-    if (tabs.isEmpty) return null;
-    if (_selectedBoxDeviceIndex < 0) return null;
-
-    if (_selectedBoxDeviceIndex >= tabs.length) {
-      _selectedBoxDeviceIndex = 0;
-    }
-
-    return tabs[_selectedBoxDeviceIndex];
-  }
-
-  ChartTheme getThemeByCate(String? cate) {
-    switch (cate?.toLowerCase()) {
-      case 'electricity':
-        return ChartThemes.power;
-      case 'water':
-        return ChartThemes.water;
-      case 'compressed air':
-      case 'compressor_air':
-        return ChartThemes.air;
-      default:
-        return ChartThemes.power;
-    }
-  }
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
+    // Tạo immutable copy để Selector phát hiện được thay đổi,
+    // kể cả khi Provider mutate list cũ.
     final scadaTabs = context.select<ChartCatalogProvider, List<String>>(
-      (p) => p.scadaIds,
+      (provider) => List<String>.unmodifiable(provider.scadaIds),
     );
 
     final boxIdTabs = context.select<ChartCatalogProvider, List<String>>(
-      (p) => p.boxIds,
+      (provider) => List<String>.unmodifiable(provider.boxIds),
     );
 
     final boxDeviceTabs = context.select<ChartCatalogProvider, List<String>>(
-      (p) => p.boxDeviceIds,
+      (provider) => List<String>.unmodifiable(provider.boxDeviceIds),
     );
 
-    final selectedScada = _safeSelectedScada(scadaTabs);
-    final selectedBoxId = _safeSelectedBoxId(boxIdTabs);
-    final selectedBoxDevice = _safeSelectedBoxDevice(boxDeviceTabs);
+    // Không mutate index trong build.
+    final scadaUiIndex = _safeUiIndex(_selectedScadaIndex, scadaTabs.length);
 
-    final selectedDisplay = _selectedBoxDeviceIndex >= 0
-        ? (selectedBoxDevice ?? '-')
-        : (selectedBoxId == null ? '-' : '$selectedBoxId (ALL DEVICES)');
+    final boxIdUiIndex = _safeUiIndex(_selectedBoxIdIndex, boxIdTabs.length);
 
-    final theme = getThemeByCate(selectedCate);
+    final boxDeviceUiIndex = _safeUiIndex(
+      _selectedBoxDeviceIndex,
+      boxDeviceTabs.length,
+    );
+
+    final selectedScada = _valueAt(scadaTabs, scadaUiIndex);
+
+    final selectedBoxId = _valueAt(boxIdTabs, boxIdUiIndex);
+
+    final selectedBoxDevice = _selectedBoxDeviceIndex < 0
+        ? null
+        : _valueAt(boxDeviceTabs, boxDeviceUiIndex);
+
+    final selectedScadaDisplay = _loadingScadas
+        ? 'Loading...'
+        : selectedScada ?? 'Not configured';
+
+    final selectedDisplay = _loadingBoxes
+        ? 'Loading...'
+        : selectedBoxDevice ??
+              (selectedBoxId == null
+                  ? 'Not configured'
+                  : '$selectedBoxId (ALL DEVICES)');
+
+    final theme = ChartThemes.byCate(selectedCate);
 
     return Scaffold(
       body: Container(
@@ -337,16 +507,18 @@ class _UtilityAllFactoriesChartsScreenState
                     filtersExpanded: _filtersExpanded,
                     selectedCate: selectedCate,
                     selectedFac: selectedFac,
-                    selectedScada: selectedScada,
+                    selectedScada: selectedScadaDisplay,
                     selectedBox: selectedDisplay,
                     viewTabs: _viewTabs,
                     selectedViewIndex: _selectedViewIndex,
                     onViewChanged: _onViewChanged,
                     importantOnly: _importantOnly,
                     onToggleFilters: _toggleFilters,
-                    onImportantChanged: _onImportantChanged,
+                    onImportantChanged: (value) {
+                      unawaited(_onImportantChanged(value));
+                    },
                     showImportantSwitch: selectedView == 'Minutes',
-                    importantEnabled: selectedBoxId != null,
+                    importantEnabled: selectedBoxId != null && !_catalogBusy,
                     theme: theme,
                   ),
                   const SizedBox(height: 8),
@@ -357,31 +529,34 @@ class _UtilityAllFactoriesChartsScreenState
                     scadaTabs: scadaTabs,
                     boxIdTabs: boxIdTabs,
                     boxDeviceTabs: boxDeviceTabs,
+
+                    loadingScadas: _loadingScadas,
+                    loadingBoxes: _loadingBoxes,
+
                     selectedCateIndex: _selectedCateIndex,
                     selectedFacIndex: _selectedFacIndex,
-                    selectedScadaIndex: scadaTabs.isEmpty
-                        ? 0
-                        : _selectedScadaIndex,
-                    selectedBoxIdIndex: boxIdTabs.isEmpty
-                        ? 0
-                        : _selectedBoxIdIndex,
-                    selectedBoxDeviceIndex:
-                        boxDeviceTabs.isEmpty || _selectedBoxDeviceIndex < 0
-                        ? 0
-                        : _selectedBoxDeviceIndex,
+                    selectedScadaIndex: scadaUiIndex,
+                    selectedBoxIdIndex: boxIdUiIndex,
+                    selectedBoxDeviceIndex: boxDeviceUiIndex,
                     selectedAllDevices: _selectedBoxDeviceIndex < 0,
-                    onCateChanged: _onCateChanged,
-                    onFacChanged: _onFacChanged,
-                    onScadaChanged: (i) => _onScadaChanged(scadaTabs, i),
-                    onBoxIdChanged: (i) => _onBoxIdChanged(boxIdTabs, i),
-                    onBoxDeviceChanged: (i) =>
-                        _onBoxDeviceChanged(boxDeviceTabs, i),
-                    onAllDevicesSelected: () async {
-                      setState(() {
-                        _selectedBoxDeviceIndex = -1;
-                      });
 
-                      await _loadChartsForCurrentBoxGroup();
+                    onCateChanged: (index) {
+                      unawaited(_onCateChanged(index));
+                    },
+                    onFacChanged: (index) {
+                      unawaited(_onFacChanged(index));
+                    },
+                    onScadaChanged: (index) {
+                      unawaited(_onScadaChanged(scadaTabs, index));
+                    },
+                    onBoxIdChanged: (index) {
+                      unawaited(_onBoxIdChanged(boxIdTabs, index));
+                    },
+                    onBoxDeviceChanged: (index) {
+                      unawaited(_onBoxDeviceChanged(boxDeviceTabs, index));
+                    },
+                    onAllDevicesSelected: () {
+                      unawaited(_selectAllDevices());
                     },
                     theme: theme,
                   ),
@@ -393,6 +568,8 @@ class _UtilityAllFactoriesChartsScreenState
                       selectedFac: selectedFac,
                       selectedScada: selectedScada,
                       importantOnly: _importantOnly,
+                      switching: _catalogBusy,
+                      loadingMessage: _loadingMessage,
                     ),
                   ),
                 ],
@@ -405,12 +582,16 @@ class _UtilityAllFactoriesChartsScreenState
   }
 }
 
-class _CatalogBodyState {
+// ============================================================
+// CATALOG BODY
+// ============================================================
+
+class _CatalogBodyVm {
   final bool loading;
   final Object? error;
-  final List charts;
+  final List<dynamic> charts;
 
-  const _CatalogBodyState({
+  const _CatalogBodyVm({
     required this.loading,
     required this.error,
     required this.charts,
@@ -418,11 +599,13 @@ class _CatalogBodyState {
 }
 
 class _CatalogBody extends StatelessWidget {
-  final String? selectedBox;
+  final String selectedBox;
   final String selectedCate;
   final String selectedFac;
   final String? selectedScada;
   final bool importantOnly;
+  final bool switching;
+  final String loadingMessage;
 
   const _CatalogBody({
     required this.selectedBox,
@@ -430,22 +613,27 @@ class _CatalogBody extends StatelessWidget {
     required this.selectedFac,
     required this.selectedScada,
     required this.importantOnly,
+    required this.switching,
+    required this.loadingMessage,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = ChartThemes.byCate(selectedCate);
 
-    return Selector<ChartCatalogProvider, _CatalogBodyState>(
-      selector: (_, p) => _CatalogBodyState(
-        loading: p.loading,
-        error: p.error,
-        charts: p.charts,
-      ),
-      shouldRebuild: (prev, next) =>
-          prev.loading != next.loading ||
-          prev.error != next.error ||
-          !identical(prev.charts, next.charts),
+    return Selector<ChartCatalogProvider, _CatalogBodyVm>(
+      selector: (_, provider) {
+        return _CatalogBodyVm(
+          loading: provider.loading,
+          error: provider.error,
+          charts: provider.charts,
+        );
+      },
+      shouldRebuild: (previous, next) {
+        return previous.loading != next.loading ||
+            previous.error != next.error ||
+            !identical(previous.charts, next.charts);
+      },
       builder: (context, vm, _) {
         if (vm.loading && vm.charts.isEmpty) {
           return Center(
@@ -460,11 +648,13 @@ class _CatalogBody extends StatelessWidget {
           return ChartApiErrorState(
             color: theme.line,
             onRetry: () {
-              context.read<ChartCatalogProvider>().loadChartsForBoxGroup(
-                facId: selectedFac,
-                cate: selectedCate,
-                scadaId: selectedScada,
-                importantOnly: importantOnly ? 1 : 0,
+              unawaited(
+                context.read<ChartCatalogProvider>().loadChartsForBoxGroup(
+                  facId: selectedFac,
+                  cate: selectedCate,
+                  scadaId: selectedScada,
+                  importantOnly: importantOnly ? 1 : 0,
+                ),
               );
             },
           );
@@ -475,8 +665,9 @@ class _CatalogBody extends StatelessWidget {
             icon: Icons.sensors_off_rounded,
             title: 'No Signals Available',
             message:
-                'No utility signals found in ${selectedBox ?? "-"} / ${selectedScada ?? "-"}',
-            color: Colors.white.withOpacity(0.58),
+                'No utility signals found in '
+                '$selectedBox / ${selectedScada ?? "-"}',
+            color: Colors.white.withOpacity(.58),
           );
         }
 
@@ -487,9 +678,9 @@ class _CatalogBody extends StatelessWidget {
             );
 
             return GridView.builder(
-              key: PageStorageKey(
-                'utility_chart_grid_${selectedFac}_${selectedCate}_${selectedScada ?? ""}',
-              ),
+              // Key cố định để không dispose toàn bộ chart
+              // mỗi khi đổi FAC/category.
+              key: const PageStorageKey('utility_chart_grid'),
               padding: const EdgeInsets.only(top: 4),
               cacheExtent: 1200,
               itemCount: vm.charts.length,
@@ -506,8 +697,12 @@ class _CatalogBody extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: UtilityMinuteChartPanel(
+                      // Không dùng FAC trong key.
+                      // Khi FAC thay đổi, chart nhận
+                      // didUpdateWidget thay vì bị dispose.
                       key: ValueKey(
-                        '${selectedFac}_${selectedCate}_${selectedScada}_${chart.boxDeviceId}_${chart.plcAddress}',
+                        '${chart.boxDeviceId}_'
+                        '${chart.plcAddress}',
                       ),
                       facId: selectedFac,
                       scadaId: selectedScada,
@@ -529,6 +724,7 @@ class _CatalogBody extends StatelessWidget {
   int _resolveGridColumnCount(double width) {
     if (width >= 1700) return 3;
     if (width >= 1200) return 2;
+
     return 1;
   }
 }
@@ -608,23 +804,32 @@ class _TopBar extends StatelessWidget {
 
 class _FiltersArea extends StatelessWidget {
   final bool expanded;
+
   final List<String> cateTabs;
   final List<String> facTabs;
   final List<String> scadaTabs;
   final List<String> boxIdTabs;
   final List<String> boxDeviceTabs;
+
+  final bool loadingScadas;
+  final bool loadingBoxes;
+
   final int selectedCateIndex;
   final int selectedFacIndex;
   final int selectedScadaIndex;
   final int selectedBoxIdIndex;
   final int selectedBoxDeviceIndex;
+
   final bool selectedAllDevices;
+
   final ValueChanged<int> onCateChanged;
   final ValueChanged<int> onFacChanged;
   final ValueChanged<int> onScadaChanged;
   final ValueChanged<int> onBoxIdChanged;
   final ValueChanged<int> onBoxDeviceChanged;
+
   final VoidCallback onAllDevicesSelected;
+
   final ChartTheme theme;
 
   const _FiltersArea({
@@ -634,6 +839,8 @@ class _FiltersArea extends StatelessWidget {
     required this.scadaTabs,
     required this.boxIdTabs,
     required this.boxDeviceTabs,
+    required this.loadingScadas,
+    required this.loadingBoxes,
     required this.selectedCateIndex,
     required this.selectedFacIndex,
     required this.selectedScadaIndex,
@@ -653,7 +860,8 @@ class _FiltersArea extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedSize(
       duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
       child: expanded
           ? Column(
               children: [
@@ -677,52 +885,254 @@ class _FiltersArea extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _GlassTabRow(
-                    labels: scadaTabs.isEmpty
-                        ? const ['(no scada)']
-                        : scadaTabs,
-                    selectedIndex: scadaTabs.isEmpty ? 0 : selectedScadaIndex,
-                    onSelect: scadaTabs.isEmpty ? (_) {} : onScadaChanged,
+                const SizedBox(height: 10),
+
+                _FilterSection(
+                  title: 'SCADA',
+                  icon: Icons.hub_rounded,
+                  child: _AsyncFilterContent(
+                    loading: loadingScadas,
+                    loadingText: 'Loading SCADA channels',
+                    empty: scadaTabs.isEmpty,
+                    emptyText: 'No SCADA channel configured for this selection',
                     theme: theme,
+                    child: _GlassTabRow(
+                      labels: scadaTabs,
+                      selectedIndex: selectedScadaIndex,
+                      onSelect: onScadaChanged,
+                      theme: theme,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _GlassTabRow(
-                    labels: boxIdTabs.isEmpty
-                        ? const ['(no boxId)']
-                        : boxIdTabs,
-                    selectedIndex: boxIdTabs.isEmpty ? 0 : selectedBoxIdIndex,
-                    onSelect: boxIdTabs.isEmpty ? (_) {} : onBoxIdChanged,
-                    theme: theme,
+
+                if (!loadingScadas && scadaTabs.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _FilterSection(
+                    title: 'BOX GROUP',
+                    icon: Icons.inventory_2_outlined,
+                    child: _AsyncFilterContent(
+                      loading: loadingBoxes,
+                      loadingText: 'Loading box groups',
+                      empty: boxIdTabs.isEmpty,
+                      emptyText: 'No box group available for this SCADA',
+                      theme: theme,
+                      child: _GlassTabRow(
+                        labels: boxIdTabs,
+                        selectedIndex: selectedBoxIdIndex,
+                        onSelect: onBoxIdChanged,
+                        theme: theme,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _GlassTabRow(
-                    labels: boxDeviceTabs.isEmpty
-                        ? const ['(no device)']
-                        : boxDeviceTabs,
-                    selectedIndex: boxDeviceTabs.isEmpty || selectedAllDevices
-                        ? -1
-                        : selectedBoxDeviceIndex,
-                    onSelect: boxDeviceTabs.isEmpty
-                        ? (_) {}
-                        : onBoxDeviceChanged,
-                    theme: theme,
-                    showAllChip: true,
-                    allChipSelected: selectedAllDevices,
-                    onAllTap: onAllDevicesSelected,
+                ],
+
+                if (!loadingScadas &&
+                    !loadingBoxes &&
+                    scadaTabs.isNotEmpty &&
+                    boxIdTabs.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _FilterSection(
+                    title: 'DEVICE',
+                    icon: Icons.memory_rounded,
+                    child: _AsyncFilterContent(
+                      loading: false,
+                      loadingText: 'Loading devices',
+                      empty: boxDeviceTabs.isEmpty,
+                      emptyText: 'No individual device available in this group',
+                      theme: theme,
+                      child: _GlassTabRow(
+                        labels: boxDeviceTabs,
+                        selectedIndex: selectedAllDevices
+                            ? -1
+                            : selectedBoxDeviceIndex,
+                        onSelect: onBoxDeviceChanged,
+                        theme: theme,
+                        showAllChip: true,
+                        allChipSelected: selectedAllDevices,
+                        onAllTap: onAllDevicesSelected,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ],
             )
           : const SizedBox.shrink(),
+    );
+  }
+}
+
+class _FilterSection extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  const _FilterSection({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 112,
+          height: 38,
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: Colors.white.withOpacity(.48)),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(.58),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .7,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+class _AsyncFilterContent extends StatelessWidget {
+  final bool loading;
+  final String loadingText;
+
+  final bool empty;
+  final String emptyText;
+
+  final ChartTheme theme;
+  final Widget child;
+
+  const _AsyncFilterContent({
+    required this.loading,
+    required this.loadingText,
+    required this.empty,
+    required this.emptyText,
+    required this.theme,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    late final Widget content;
+
+    if (loading) {
+      content = _FilterLoadingPill(
+        key: ValueKey('loading-$loadingText'),
+        text: loadingText,
+        theme: theme,
+      );
+    } else if (empty) {
+      content = _FilterEmptyHint(
+        key: ValueKey('empty-$emptyText'),
+        text: emptyText,
+      );
+    } else {
+      content = KeyedSubtree(key: const ValueKey('filter-tabs'), child: child);
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: content,
+    );
+  }
+}
+
+class _FilterLoadingPill extends StatelessWidget {
+  final String text;
+  final ChartTheme theme;
+
+  const _FilterLoadingPill({
+    super.key,
+    required this.text,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: theme.line.withOpacity(.07),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.line.withOpacity(.20)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2, color: theme.line),
+          ),
+          const SizedBox(width: 9),
+          Text(
+            text,
+            style: TextStyle(
+              color: Colors.white.withOpacity(.72),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterEmptyHint extends StatelessWidget {
+  final String text;
+
+  const _FilterEmptyHint({super.key, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.025),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withOpacity(.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            size: 15,
+            color: Colors.white.withOpacity(.38),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withOpacity(.46),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -92,9 +92,9 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
     return Column(
       key: const PageStorageKey('minutes_view'),
       children: [
+        // Container(color: Colors.orange),
         Expanded(
           child: UtilityDashboardOverviewMinutesChart(
-            key: ValueKey('minutes_power_${widget.selectedFac}'),
             facId: widget.selectedFac,
             theme: ChartThemes.power,
             utilityType: 'ELECTRICITY',
@@ -102,7 +102,6 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         ),
         Expanded(
           child: UtilityDashboardOverviewMinutesChart(
-            key: ValueKey('minutes_water_${widget.selectedFac}'),
             facId: widget.selectedFac,
             theme: ChartThemes.water,
             utilityType: 'WATER',
@@ -110,7 +109,6 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         ),
         Expanded(
           child: UtilityDashboardOverviewMinutesChart(
-            key: ValueKey('minutes_air_${widget.selectedFac}'),
             facId: widget.selectedFac,
             theme: ChartThemes.air,
             utilityType: 'AIR',
@@ -130,14 +128,12 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         ),
         Expanded(
           child: UtilityDashboardOverviewHourlyCompare(
-            key: ValueKey('hourly_power_${widget.selectedFac}'),
             facId: widget.selectedFac,
             theme: ChartThemes.power,
           ),
         ),
         Expanded(
           child: CoolingTankTemperaturePanel(
-            key: ValueKey('hourly_water_${widget.selectedFac}'),
             facId: widget.selectedFac,
             hours: 24,
             theme: ChartThemes.water,
@@ -146,7 +142,6 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         ),
         Expanded(
           child: CoolingTankTemperaturePanel(
-            key: ValueKey('hourly_air_${widget.selectedFac}'),
             facId: widget.selectedFac,
             hours: 24,
             theme: ChartThemes.air,
