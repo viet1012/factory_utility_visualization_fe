@@ -1,48 +1,30 @@
-import 'dart:async';
 import 'dart:math';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
-import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import '../utility_dashboard_overview_models/utility_daily_dashboard_response.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../utility_dashboard_overview_widgets/common_chart_title_bar.dart';
 import '../utility_dashboard_overview_widgets/scada_chart_panel.dart';
 
-class _DailyDto {
-  final DateTime date;
-  final double value;
-
-  _DailyDto(this.date, this.value);
-
-  factory _DailyDto.fromJson(Map<String, dynamic> json) {
-    final d = (json['date'] ?? '').toString();
-    final v = json['value'];
-
-    return _DailyDto(
-      DateTime.parse(d),
-      v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0.0,
-    );
-  }
-}
-
 class _BarPoint {
   final DateTime ts;
-  final double y;
+  final double value;
 
-  _BarPoint(this.ts, this.y);
+  const _BarPoint({required this.ts, required this.value});
 }
 
 class _DailyChartData {
   final List<_BarPoint> points;
+
   final DateTime minX;
   final DateTime maxX;
+
   final double maxY;
   final double yInterval;
 
@@ -54,31 +36,46 @@ class _DailyChartData {
     required this.yInterval,
   });
 
-  static _DailyChartData from(List<_DailyDto> rows, String month) {
+  factory _DailyChartData.from({
+    required List<UtilityDailyPoint> rows,
+    required String month,
+  }) {
     final points =
-        rows.map((e) => _BarPoint(e.date.toLocal(), e.value)).toList()
+        rows
+            .map(
+              (item) => _BarPoint(ts: item.date.toLocal(), value: item.value),
+            )
+            .toList()
           ..sort((a, b) => a.ts.compareTo(b.ts));
 
     final year = int.parse(month.substring(0, 4));
-    final monthNum = int.parse(month.substring(4, 6));
 
-    final firstDay = DateTime(year, monthNum, 1);
+    final monthNumber = int.parse(month.substring(4, 6));
+
+    final firstDay = DateTime(year, monthNumber, 1);
+
     final lastDay = DateTime(
       year,
-      monthNum + 1,
+      monthNumber + 1,
       1,
     ).subtract(const Duration(days: 1));
 
-    final maxDataY = points.isEmpty
-        ? 1.0
-        : points.map((e) => e.y).reduce((a, b) => a > b ? a : b);
+    double maxDataValue = 0;
 
-    final rawMaxY = maxDataY <= 0 ? 1.0 : maxDataY * 1.15;
+    for (final point in points) {
+      if (point.value > maxDataValue) {
+        maxDataValue = point.value;
+      }
+    }
+
+    final rawMaxY = maxDataValue <= 0 ? 1.0 : maxDataValue * 1.15;
+
     final interval = _niceStep(rawMaxY / 5);
+
     final maxY = _niceCeil(rawMaxY, interval);
 
     return _DailyChartData(
-      points: points,
+      points: List<_BarPoint>.unmodifiable(points),
       minX: firstDay.subtract(const Duration(hours: 12)),
       maxX: lastDay.add(const Duration(hours: 12)),
       maxY: maxY,
@@ -89,11 +86,13 @@ class _DailyChartData {
   static double _niceStep(double rawStep) {
     if (rawStep <= 0) return 1;
 
-    final exp = (log(rawStep) / ln10).floor();
-    final base = pow(10, exp).toDouble();
+    final exponent = (log(rawStep) / ln10).floor();
+
+    final base = pow(10, exponent).toDouble();
+
     final fraction = rawStep / base;
 
-    if (fraction <= 1) return 1 * base;
+    if (fraction <= 1) return base;
     if (fraction <= 2) return 2 * base;
     if (fraction <= 5) return 5 * base;
 
@@ -102,27 +101,38 @@ class _DailyChartData {
 
   static double _niceCeil(double value, double step) {
     if (step <= 0) return value;
+
     return (value / step).ceil() * step;
   }
 }
 
 class UtilityDashboardOverviewDailyChart extends StatefulWidget {
-  final double width;
-  final double? height;
+  final List<UtilityDailyPoint> rows;
+
   final String facId;
   final String month;
-  final String nameEng;
-  final String type;
+
   final ChartTheme theme;
+
+  final bool loading;
+  final Object? error;
+
+  final double width;
+  final double? height;
+
   final bool showHeader;
+
+  final VoidCallback? onRetry;
 
   const UtilityDashboardOverviewDailyChart({
     super.key,
+    required this.rows,
     required this.facId,
     required this.month,
     required this.theme,
-    this.nameEng = 'Total Energy Consumption',
-    this.type = 'ENERGY',
+    required this.loading,
+    required this.error,
+    this.onRetry,
     this.width = 520,
     this.height,
     this.showHeader = true,
@@ -136,22 +146,15 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
 class _UtilityDashboardOverviewDailyChartState
     extends State<UtilityDashboardOverviewDailyChart>
     with TickerProviderStateMixin {
-  static const Duration _pollInterval = Duration(minutes: 60);
-  static const Duration _requestTimeout = Duration(seconds: 15);
-
   late final UtilityInfoBoxFx fx;
 
-  List<_DailyDto> rows = [];
-  bool loading = true;
-  Object? error;
+  List<UtilityDailyPoint>? _cachedRowsReference;
+  _DailyChartData? _cachedChartData;
 
   DataHealthResult? _cachedHealth;
-  _DailyChartData? _cachedChartData;
-  String _lastVal = '--';
-  String _lastTs = '--';
 
-  bool _loadingNow = false;
-  Timer? _pollTimer;
+  String _lastValue = '--';
+  String _lastTimestamp = '--';
 
   bool get _hasRequired {
     final fac = widget.facId.trim();
@@ -166,193 +169,96 @@ class _UtilityDashboardOverviewDailyChartState
 
     fx = UtilityInfoBoxFx(this)..init();
 
-    _load();
-    _startPolling();
-  }
-
-  void _startPolling() {
-    _pollTimer?.cancel();
-
-    _pollTimer = Timer.periodic(_pollInterval, (_) {
-      if (!_loadingNow && mounted) {
-        _load(silent: true);
-      }
-    });
-  }
-
-  Future<void> _load({bool silent = false}) async {
-    if (_loadingNow || !mounted) return;
-
-    if (!_hasRequired) {
-      setState(() {
-        loading = false;
-        error = 'Missing/invalid facId or month(yyyyMM)';
-        rows = [];
-        _cachedHealth = null;
-        _cachedChartData = null;
-        _lastVal = '--';
-        _lastTs = '--';
-      });
-      return;
-    }
-
-    _loadingNow = true;
-
-    if (!silent && rows.isEmpty) {
-      setState(() {
-        loading = true;
-        error = null;
-      });
-    }
-
-    try {
-      final api = context.read<UtilityDashboardOverviewApi>();
-
-      final res = await api
-          .getEnergyDaily(
-            facId: widget.facId,
-            month: widget.month,
-            nameEn: widget.nameEng,
-            type: widget.type,
-          )
-          .timeout(_requestTimeout);
-
-      final list =
-          res
-              .map((e) => _DailyDto.fromJson(Map<String, dynamic>.from(e)))
-              .toList()
-            ..sort((a, b) => a.date.compareTo(b.date));
-
-      if (!mounted) return;
-
-      if (_dataChanged(list) || loading || error != null) {
-        _recomputeCache(list);
-
-        setState(() {
-          rows = list;
-          loading = false;
-          error = null;
-        });
-      }
-    } on TimeoutException catch (e) {
-      _handleLoadError(e, '[TIMEOUT]');
-    } on DioException catch (e) {
-      _handleLoadError(e, '[DIO] ${e.type}');
-    } catch (e) {
-      _handleLoadError(e, '[ERROR]');
-    } finally {
-      _loadingNow = false;
-    }
-  }
-
-  void _handleLoadError(Object e, String tag) {
-    debugPrint('$tag $e');
-
-    if (!mounted) return;
-
-    _cachedHealth = DataHealthAnalyzer.analyze(
-      key: 'Daily_${widget.facId}_${widget.theme.title}',
-      loading: false,
-      error: true,
-      values: rows.map((e) => e.value).toList(),
-    );
-
-    setState(() {
-      loading = false;
-      error = e;
-    });
-  }
-
-  bool _dataChanged(List<_DailyDto> next) {
-    if (next.length != rows.length) return true;
-
-    for (var i = 0; i < next.length; i++) {
-      if (next[i].value != rows[i].value || next[i].date != rows[i].date) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  void _recomputeCache(List<_DailyDto> list) {
-    _cachedHealth = DataHealthAnalyzer.analyze(
-      key: 'Daily_${widget.facId}_${widget.theme.title}',
-      loading: false,
-      error: null,
-      values: list.map((e) => e.value).toList(),
-    );
-
-    _cachedChartData = list.isEmpty
-        ? null
-        : _DailyChartData.from(list, widget.month);
-
-    if (list.isEmpty) {
-      _lastVal = '--';
-      _lastTs = '--';
-      return;
-    }
-
-    final now = DateTime.now();
-    final isCurrentMonth = DateFormat('yyyyMM').format(now) == widget.month;
-
-    final lastDto = isCurrentMonth
-        ? list.firstWhere(
-            (e) =>
-                e.date.year == now.year &&
-                e.date.month == now.month &&
-                e.date.day == now.day,
-            orElse: () => list.last,
-          )
-        : list.last;
-
-    _lastVal = '${lastDto.value.toStringAsFixed(1)} ${widget.theme.unit}';
-    _lastTs = DateFormat('yyyy-MM-dd').format(lastDto.date);
+    _prepareData();
   }
 
   @override
   void didUpdateWidget(covariant UtilityDashboardOverviewDailyChart oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final changed =
+    final rowsChanged = !identical(oldWidget.rows, widget.rows);
+
+    final configChanged =
         oldWidget.facId != widget.facId ||
         oldWidget.month != widget.month ||
-        oldWidget.nameEng != widget.nameEng ||
-        oldWidget.type != widget.type;
+        oldWidget.theme.title != widget.theme.title ||
+        oldWidget.theme.unit != widget.theme.unit;
 
-    if (!changed) return;
+    if (rowsChanged || configChanged) {
+      _prepareData(force: true);
+    }
+  }
 
-    _pollTimer?.cancel();
+  void _prepareData({bool force = false}) {
+    if (!force && identical(_cachedRowsReference, widget.rows)) {
+      return;
+    }
 
-    setState(() {
-      rows = [];
-      loading = true;
-      error = null;
-      _cachedHealth = null;
+    _cachedRowsReference = widget.rows;
+
+    final rows = widget.rows;
+
+    _cachedHealth = DataHealthAnalyzer.analyze(
+      key: 'Daily_${widget.facId}_${widget.theme.title}',
+      loading: widget.loading,
+      error: widget.error,
+      values: rows.map((item) => item.value).toList(growable: false),
+    );
+
+    if (rows.isEmpty || !_hasRequired) {
       _cachedChartData = null;
-      _lastVal = '--';
-      _lastTs = '--';
-    });
+      _lastValue = '--';
+      _lastTimestamp = '--';
+      return;
+    }
 
-    _load();
-    _startPolling();
+    _cachedChartData = _DailyChartData.from(rows: rows, month: widget.month);
+
+    final latest = _resolveLatestPoint(rows);
+
+    _lastValue =
+        '${latest.value.toStringAsFixed(1)} '
+        '${widget.theme.unit}';
+
+    _lastTimestamp = DateFormat('yyyy-MM-dd').format(latest.date);
+  }
+
+  UtilityDailyPoint _resolveLatestPoint(List<UtilityDailyPoint> rows) {
+    final now = DateTime.now();
+
+    final isCurrentMonth = DateFormat('yyyyMM').format(now) == widget.month;
+
+    if (!isCurrentMonth) {
+      return rows.last;
+    }
+
+    for (var index = rows.length - 1; index >= 0; index--) {
+      final item = rows[index];
+
+      if (item.date.year == now.year &&
+          item.date.month == now.month &&
+          item.date.day == now.day) {
+        return item;
+      }
+    }
+
+    return rows.last;
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
     fx.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final healthResult =
+    final health =
         _cachedHealth ??
         DataHealthAnalyzer.analyze(
           key: 'Daily_${widget.facId}_${widget.theme.title}',
-          loading: loading,
-          error: error,
+          loading: widget.loading,
+          error: widget.error,
           values: const [],
         );
 
@@ -366,19 +272,18 @@ class _UtilityDashboardOverviewDailyChartState
           builder: (context, child) {
             return Transform.scale(scale: fx.scale.value, child: child);
           },
-          child: _Shell(
+          child: _DailyChartShell(
             width: widget.width,
             height: widget.height ?? 320,
             facilityColor: widget.theme.line,
-
-            child: _body(healthResult),
+            child: _buildBody(health),
           ),
         ),
       ),
     );
   }
 
-  Widget _body(DataHealthResult health) {
+  Widget _buildBody(DataHealthResult health) {
     if (!_hasRequired) {
       return const EmptyChartState(
         icon: Icons.warning_amber_rounded,
@@ -387,11 +292,10 @@ class _UtilityDashboardOverviewDailyChartState
       );
     }
 
-    if (loading && rows.isEmpty) {
+    if (widget.loading && widget.rows.isEmpty) {
       return Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
+        child: SizedBox.square(
+          dimension: 22,
           child: CircularProgressIndicator(
             strokeWidth: 2.2,
             color: widget.theme.line,
@@ -400,39 +304,39 @@ class _UtilityDashboardOverviewDailyChartState
       );
     }
 
-    if (error != null && rows.isEmpty) {
-      return ChartApiErrorState(color: widget.theme.line, onRetry: _load);
+    if (widget.error != null && widget.rows.isEmpty) {
+      return ChartApiErrorState(
+        color: widget.theme.line,
+        onRetry: widget.onRetry ?? () {},
+      );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-
       children: [
         if (widget.showHeader) ...[
           CommonChartTitleBar(
             title: widget.theme.title,
             health: health,
-            value: _lastVal,
-            valueTs: _lastTs,
+            value: _lastValue,
+            valueTs: _lastTimestamp,
             backgroundColor: Colors.transparent,
-            borderColor: widget.theme.line.withOpacity(0.44),
+            borderColor: widget.theme.line.withOpacity(.44),
           ),
           const SizedBox(height: 6),
         ],
-
         const SizedBox(height: 6),
         Expanded(
-          child: rows.isEmpty || _cachedChartData == null
+          child: widget.rows.isEmpty || _cachedChartData == null
               ? const EmptyChartState(
                   title: 'No Daily Data',
-                  message:
-                      'No utility consumption data available for this month.',
+                  message: 'No utility data available for this month.',
                 )
               : DecoratedBox(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white.withOpacity(0.06)),
-                    color: Colors.black.withOpacity(0.05),
+                    border: Border.all(color: Colors.white.withOpacity(.06)),
+                    color: Colors.black.withOpacity(.05),
                   ),
                   child: RepaintBoundary(
                     child: _DailyBarChart(
@@ -447,13 +351,14 @@ class _UtilityDashboardOverviewDailyChartState
   }
 }
 
-class _Shell extends StatelessWidget {
+class _DailyChartShell extends StatelessWidget {
   final double width;
   final double height;
+
   final Color facilityColor;
   final Widget child;
 
-  const _Shell({
+  const _DailyChartShell({
     required this.width,
     required this.height,
     required this.facilityColor,
@@ -481,7 +386,7 @@ class _DailyBarChart extends StatelessWidget {
   Widget build(BuildContext context) {
     return SfCartesianChart(
       plotAreaBorderWidth: 1,
-      plotAreaBorderColor: Colors.white.withOpacity(0.12),
+      plotAreaBorderColor: Colors.white.withOpacity(.12),
       tooltipBehavior: TooltipBehavior(
         enable: true,
         canShowMarker: true,
@@ -500,11 +405,11 @@ class _DailyBarChart extends StatelessWidget {
         dateFormat: DateFormat('dd'),
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(0.08),
+          color: Colors.white.withOpacity(.08),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(0.15), width: 1),
+        axisLine: AxisLine(color: Colors.white.withOpacity(.15), width: 1),
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(0.75),
+          color: Colors.white.withOpacity(.75),
           fontSize: 13,
         ),
         labelPosition: ChartDataLabelPosition.outside,
@@ -517,31 +422,31 @@ class _DailyBarChart extends StatelessWidget {
         numberFormat: NumberFormat('0.##'),
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(0.08),
+          color: Colors.white.withOpacity(.08),
         ),
         title: AxisTitle(
           text: theme.unit,
           alignment: ChartAlignment.center,
           textStyle: TextStyle(
-            color: Colors.white.withOpacity(0.8),
+            color: Colors.white.withOpacity(.8),
             fontWeight: FontWeight.w600,
             fontSize: 13,
           ),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(0.15), width: 1),
+        axisLine: AxisLine(color: Colors.white.withOpacity(.15), width: 1),
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(0.75),
+          color: Colors.white.withOpacity(.75),
           fontSize: 13,
         ),
       ),
       series: <CartesianSeries<_BarPoint, DateTime>>[
         ColumnSeries<_BarPoint, DateTime>(
-          animationDuration: 1000,
+          animationDuration: 700,
           dataSource: data.points,
-          xValueMapper: (p, _) => p.ts,
-          yValueMapper: (p, _) => p.y,
-          width: 0.85,
-          spacing: 0.2,
+          xValueMapper: (point, _) => point.ts,
+          yValueMapper: (point, _) => point.value,
+          width: .85,
+          spacing: .2,
           borderRadius: const BorderRadius.all(Radius.circular(6)),
           color: theme.line,
           gradient: LinearGradient(
@@ -549,8 +454,8 @@ class _DailyBarChart extends StatelessWidget {
             end: Alignment.bottomCenter,
             colors: [theme.fillTop, theme.fillBottom],
           ),
-          borderColor: theme.line.withOpacity(0.95),
-          borderWidth: 0.8,
+          borderColor: theme.line.withOpacity(.95),
+          borderWidth: .8,
         ),
       ],
     );

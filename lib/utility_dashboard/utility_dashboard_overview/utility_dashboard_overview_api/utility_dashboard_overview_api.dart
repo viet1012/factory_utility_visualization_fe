@@ -1,7 +1,8 @@
 import 'package:dio/dio.dart';
 
 import '../../../utility_models/response/minute_point.dart';
-import '../utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/CoolingTankTemperaturePanel.dart';
+import '../utility_dashboard_overview_models/utility_daily_dashboard_response.dart';
+import '../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
 import '../utility_dashboard_overview_monthly/monthly_utility_usage_panel.dart';
 import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
 
@@ -31,22 +32,49 @@ class UtilityDashboardOverviewApi {
   }
 
   ///  HOURLY
-
-  Future<List<HourlyTempCompareDto>> getCoolingTankHourly({
+  Future<UtilityHourlyDashboardResponse> getHourlyDashboard({
     required String facId,
-    required int hours,
-    String type = 'WATER',
+    int hours = 48,
+    String? nameEn,
+    double? exchange,
+    double? sepzone,
   }) async {
-    final res = await dio.get(
-      '/api/utility/hourly-sensor-compare',
-      queryParameters: {'facId': facId, 'hours': hours, 'type': type},
+    final normalizedFac = facId.trim();
+
+    if (normalizedFac.isEmpty) {
+      throw ArgumentError('facId is required');
+    }
+
+    final query = <String, dynamic>{'facId': normalizedFac, 'hours': hours};
+
+    final normalizedName = nameEn?.trim();
+
+    if (normalizedName != null && normalizedName.isNotEmpty) {
+      query['nameEn'] = normalizedName;
+    }
+
+    if (exchange != null) {
+      query['exchange'] = exchange;
+    }
+
+    if (sepzone != null) {
+      query['sepzone'] = sepzone;
+    }
+
+    final response = await dio.get(
+      '/api/utility/hourly-dashboard',
+      queryParameters: query,
     );
 
-    final data = res.data as List;
+    final raw = response.data;
 
-    return data
-        .map((e) => HourlyTempCompareDto.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
+    if (raw is! Map) {
+      throw const FormatException('Invalid hourly dashboard response');
+    }
+
+    return UtilityHourlyDashboardResponse.fromJson(
+      Map<String, dynamic>.from(raw),
+    );
   }
 
   Future<List<Map<String, dynamic>>> getEnergyHourly({
@@ -65,25 +93,35 @@ class UtilityDashboardOverviewApi {
   }
 
   /// ENERGY DAILY
-  Future<List<Map<String, dynamic>>> getEnergyDaily({
+  Future<UtilityDailyDashboardResponse> getDailyDashboard({
     required String facId,
     required String month,
-    String? nameEn,
-    required String type,
   }) async {
-    final res = await dio.get(
+    final normalizedFac = facId.trim();
+    final normalizedMonth = month.trim();
+
+    if (normalizedFac.isEmpty) {
+      throw ArgumentError('facId is required');
+    }
+
+    if (!RegExp(r'^\d{6}$').hasMatch(normalizedMonth)) {
+      throw ArgumentError('month must be yyyyMM, for example 202607');
+    }
+
+    final response = await dio.get(
       '/api/utility/energy-daily',
-      queryParameters: {
-        'facId': facId,
-        'month': month,
-        'nameEn': nameEn,
-        'type': type,
-      },
+      queryParameters: {'facId': normalizedFac, 'month': normalizedMonth},
     );
 
-    final List data = res.data;
+    final raw = response.data;
 
-    return data.map((e) => Map<String, dynamic>.from(e)).toList();
+    if (raw is! Map) {
+      throw const FormatException('Invalid daily dashboard response');
+    }
+
+    return UtilityDailyDashboardResponse.fromJson(
+      Map<String, dynamic>.from(raw),
+    );
   }
 
   /// ENERGY MONTHLY SUMMARY

@@ -108,7 +108,7 @@
 //   }
 // }
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/SignalHealthHeader.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_daily/utility_dashboard_overview_daily_chart.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_daily/utility_daily_dashboard_section.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_map_category/UtilityMapWithCategoryTabs.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutes_hourly/utility_realtime_tab_panel.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
@@ -116,8 +116,6 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
-import '../utility_dashboard_common/chart_theme.dart';
 
 class UtilityDashboardOverview extends StatefulWidget {
   final String mainImageUrl;
@@ -457,39 +455,44 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                             child: Column(
                               children: [
                                 _title('DAILY'),
-
                                 Expanded(
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child:
-                                            UtilityDashboardOverviewDailyChart(
-                                              facId: selectedFac,
-                                              month: monthKey,
-                                              theme: ChartThemes.power,
-                                            ),
-                                      ),
-                                      Expanded(
-                                        child:
-                                            UtilityDashboardOverviewDailyChart(
-                                              facId: selectedFac,
-                                              month: monthKey,
-                                              theme: ChartThemes.water,
-                                              type: 'WATER',
-                                            ),
-                                      ),
-                                      Expanded(
-                                        child:
-                                            UtilityDashboardOverviewDailyChart(
-                                              facId: selectedFac,
-                                              month: monthKey,
-                                              theme: ChartThemes.air,
-                                              type: 'AIR',
-                                            ),
-                                      ),
-                                    ],
+                                  child: UtilityDailyDashboardSection(
+                                    facId: selectedFac,
+                                    month: monthKey,
                                   ),
                                 ),
+                                // Expanded(
+                                //   child: Row(
+                                //     children: [
+                                //       Expanded(
+                                //         child:
+                                //             UtilityDashboardOverviewDailyChart(
+                                //               facId: selectedFac,
+                                //               month: monthKey,
+                                //               theme: ChartThemes.power,
+                                //             ),
+                                //       ),
+                                //       Expanded(
+                                //         child:
+                                //             UtilityDashboardOverviewDailyChart(
+                                //               facId: selectedFac,
+                                //               month: monthKey,
+                                //               theme: ChartThemes.water,
+                                //               type: 'WATER',
+                                //             ),
+                                //       ),
+                                //       Expanded(
+                                //         child:
+                                //             UtilityDashboardOverviewDailyChart(
+                                //               facId: selectedFac,
+                                //               month: monthKey,
+                                //               theme: ChartThemes.air,
+                                //               type: 'AIR',
+                                //             ),
+                                //       ),
+                                //     ],
+                                //   ),
+                                // ),
                               ],
                             ),
                           ),

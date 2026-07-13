@@ -3,6 +3,8 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/SignalHealthMatrixController.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/utility_alarm_center_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_provider/utility_daily_dashboard_provider.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_provider/utility_hourly_dashboard_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/industrial_side_tab_bar.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_screens/utility_setting_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_para_api.dart';
@@ -57,8 +59,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   void initState() {
     super.initState();
 
-    const baseUrl = 'http://192.168.122.16:9093';
-    // const baseUrl = 'http://localhost:9999';
+    // const baseUrl = 'http://192.168.122.16:9093';
+    const baseUrl = 'http://localhost:9999';
 
     DioClient.init(baseUrl: baseUrl);
 
@@ -144,7 +146,20 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         ChangeNotifierProvider<SignalHealthMatrixController>.value(
           value: signalHealthController,
         ),
+
+        ChangeNotifierProvider(
+          create: (context) => UtilityDailyDashboardProvider(
+            context.read<UtilityDashboardOverviewApi>(),
+          ),
+        ),
+
+        ChangeNotifierProvider(
+          create: (context) => UtilityHourlyDashboardProvider(
+            context.read<UtilityDashboardOverviewApi>(),
+          ),
+        ),
       ],
+
       child: Scaffold(
         body: Container(
           decoration: BoxDecoration(

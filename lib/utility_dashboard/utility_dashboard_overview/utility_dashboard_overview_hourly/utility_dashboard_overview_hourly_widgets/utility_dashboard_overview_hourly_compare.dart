@@ -1,12 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../../utility_dashboard_common/chart_theme.dart';
 import '../../../utility_dashboard_common/data_health.dart';
-import '../../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import '../../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
 import '../../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../../utility_dashboard_overview_widgets/health_indicator.dart';
 import '../../utility_dashboard_overview_widgets/scada_panel_frame.dart';
@@ -198,237 +195,80 @@ class _SummaryData {
   }
 }
 
-class UtilityDashboardOverviewHourlyCompare extends StatefulWidget {
+class UtilityDashboardOverviewHourlyCompare extends StatelessWidget {
+  final List<HourlyEnergyPoint> rows;
+
   final String facId;
-  final int hours;
-  final String? nameEng;
   final String title;
   final ChartTheme theme;
 
+  final bool loading;
+  final Object? error;
+
+  final VoidCallback? onRetry;
+
   const UtilityDashboardOverviewHourlyCompare({
     super.key,
+    required this.rows,
     required this.facId,
     required this.theme,
-    this.hours = 48,
+    required this.loading,
+    required this.error,
+    this.onRetry,
     this.title = 'Hourly Compare',
-    this.nameEng,
   });
 
   @override
-  State<UtilityDashboardOverviewHourlyCompare> createState() =>
-      _UtilityDashboardOverviewHourlyCompareState();
-}
+  Widget build(BuildContext context) {
+    final mappedRows = rows
+        .map(
+          (item) => _HourlyCompareDto(
+            scaleHour: item.scaleHour,
+            today: item.today,
+            yesterday: item.yesterday,
+            todayUsd: item.todayUsd,
+            yesterdayUsd: item.yesterdayUsd,
+          ),
+        )
+        .toList(growable: false);
 
-class _UtilityDashboardOverviewHourlyCompareState
-    extends State<UtilityDashboardOverviewHourlyCompare> {
-  static const Duration _requestTimeout = Duration(seconds: 15);
+    final chartData = mappedRows.isEmpty ? null : _ChartData.from(mappedRows);
 
-  List<_HourlyCompareDto> rows = [];
-  bool loading = true;
-  Object? error;
+    final summary = mappedRows.isEmpty ? null : _SummaryData.from(mappedRows);
 
-  _ChartData? _cachedChartData;
-  _SummaryData? _cachedSummary;
-  DataHealthResult? _cachedHealth;
-
-  bool _loadingNow = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(
-    covariant UtilityDashboardOverviewHourlyCompare oldWidget,
-  ) {
-    super.didUpdateWidget(oldWidget);
-
-    final changed =
-        oldWidget.facId != widget.facId ||
-        oldWidget.hours != widget.hours ||
-        oldWidget.nameEng != widget.nameEng ||
-        oldWidget.theme.title != widget.theme.title;
-
-    if (!changed) return;
-
-    setState(() {
-      rows = [];
-      loading = true;
-      error = null;
-      _cachedChartData = null;
-      _cachedSummary = null;
-      _cachedHealth = null;
-    });
-
-    _load();
-  }
-
-  bool _dataChanged(List<_HourlyCompareDto> next) {
-    if (next.length != rows.length) return true;
-
-    for (var i = 0; i < next.length; i++) {
-      final old = rows[i];
-      final cur = next[i];
-
-      if (old.scaleHour != cur.scaleHour ||
-          old.today != cur.today ||
-          old.yesterday != cur.yesterday ||
-          old.todayUsd != cur.todayUsd ||
-          old.yesterdayUsd != cur.yesterdayUsd) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  Future<void> _load() async {
-    if (_loadingNow || !mounted) return;
-
-    if (widget.facId.trim().isEmpty) {
-      setState(() {
-        loading = false;
-        error = 'Missing facId';
-        rows = [];
-        _cachedChartData = null;
-        _cachedSummary = null;
-        _cachedHealth = DataHealthAnalyzer.analyze(
-          key: 'Hourly_${widget.facId}_${widget.theme.title}',
-          loading: false,
-          error: true,
-          values: const [],
-        );
-      });
-      return;
-    }
-
-    _loadingNow = true;
-
-    if (rows.isEmpty) {
-      setState(() {
-        loading = true;
-        error = null;
-      });
-    }
-
-    try {
-      final api = context.read<UtilityDashboardOverviewApi>();
-
-      final res = await api
-          .getEnergyHourly(
-            facId: widget.facId,
-            hours: widget.hours,
-            nameEn: widget.nameEng,
-          )
-          .timeout(_requestTimeout);
-
-      final list =
-          res
-              .map((e) => _HourlyCompareDto.fromJson(e))
-              .where((e) => e.scaleHour >= 0 && e.scaleHour <= 23)
-              .toList()
-            ..sort((a, b) => a.scaleHour.compareTo(b.scaleHour));
-
-      if (!mounted) return;
-
-      if (!_dataChanged(list) && error == null && !loading) {
-        return;
-      }
-
-      final chartData = _ChartData.from(list);
-      final summary = _SummaryData.from(list);
-
-      final health = DataHealthAnalyzer.analyze(
-        key: 'Hourly_${widget.facId}_${widget.theme.title}',
-        loading: false,
-        error: null,
-        values: list
-            .expand(
-              (e) => [
-                if (e.today != null) e.today!,
-                if (e.yesterday != null) e.yesterday!,
-                if (e.todayUsd != null) e.todayUsd!,
-                if (e.yesterdayUsd != null) e.yesterdayUsd!,
-              ],
-            )
-            .toList(),
-      );
-
-      setState(() {
-        rows = list;
-        loading = false;
-        error = null;
-        _cachedChartData = chartData;
-        _cachedSummary = summary;
-        _cachedHealth = health;
-      });
-    } on TimeoutException catch (e) {
-      _handleLoadError(e);
-    } catch (e) {
-      debugPrint('Hourly compare load error: $e');
-      _handleLoadError(e);
-    } finally {
-      _loadingNow = false;
-    }
-  }
-
-  void _handleLoadError(Object e) {
-    if (!mounted) return;
-
-    _cachedHealth = DataHealthAnalyzer.analyze(
-      key: 'Hourly_${widget.facId}_${widget.theme.title}',
-      loading: false,
-      error: true,
-      values: rows
+    final health = DataHealthAnalyzer.analyze(
+      key: 'Hourly_${facId}_${theme.title}',
+      loading: loading,
+      error: error,
+      values: mappedRows
           .expand(
-            (e) => [
-              if (e.today != null) e.today!,
-              if (e.yesterday != null) e.yesterday!,
-              if (e.todayUsd != null) e.todayUsd!,
-              if (e.yesterdayUsd != null) e.yesterdayUsd!,
+            (item) => [
+              if (item.today != null) item.today!,
+              if (item.yesterday != null) item.yesterday!,
+              if (item.todayUsd != null) item.todayUsd!,
+              if (item.yesterdayUsd != null) item.yesterdayUsd!,
             ],
           )
-          .toList(),
+          .toList(growable: false),
     );
 
-    setState(() {
-      loading = false;
-      error = e;
-
-      // Gi? rows/cache cu d? chart không b? tr?ng khi API l?i.
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final healthResult =
-        _cachedHealth ??
-        DataHealthAnalyzer.analyze(
-          key: 'Hourly_${widget.facId}_${widget.theme.title}',
-          loading: loading,
-          error: error,
-          values: const [],
-        );
-
     return ScadaPanelFrame(
-      color: widget.theme.line,
+      color: theme.line,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _SummaryBar(
             loading: loading,
             error: error,
-            hasRows: rows.isNotEmpty,
-            summary: _cachedSummary,
-            theme: widget.theme,
-            health: healthResult,
+            hasRows: mappedRows.isNotEmpty,
+            summary: summary,
+            theme: theme,
+            health: health,
           ),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
-              child: _body(),
+              child: _buildBody(mappedRows, chartData),
             ),
           ),
         ],
@@ -436,47 +276,29 @@ class _UtilityDashboardOverviewHourlyCompareState
     );
   }
 
-  Widget _body() {
+  Widget _buildBody(List<_HourlyCompareDto> rows, _ChartData? chartData) {
     if (loading && rows.isEmpty) {
       return Center(
-        child: SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: widget.theme.line,
-          ),
+        child: SizedBox.square(
+          dimension: 18,
+          child: CircularProgressIndicator(strokeWidth: 2, color: theme.line),
         ),
       );
     }
 
     if (error != null && rows.isEmpty) {
-      return ChartApiErrorState(color: widget.theme.line, onRetry: _load);
+      return ChartApiErrorState(color: theme.line, onRetry: onRetry ?? () {});
     }
 
-    if (rows.isEmpty) {
+    if (rows.isEmpty || chartData == null) {
       return const EmptyChartState(
         title: 'No Hourly Data',
-        message: 'No hourly comparison data found for this period.',
+        message: 'No hourly electricity data found.',
       );
     }
 
-    final cd = _cachedChartData ?? _ChartData.from(rows);
-
     return RepaintBoundary(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxHeight <= 0 || constraints.maxWidth <= 0) {
-            return const SizedBox.shrink();
-          }
-
-          return SizedBox(
-            width: constraints.maxWidth,
-            height: constraints.maxHeight,
-            child: _HourlyChart(chartData: cd, theme: widget.theme),
-          );
-        },
-      ),
+      child: _HourlyChart(chartData: chartData, theme: theme),
     );
   }
 }
