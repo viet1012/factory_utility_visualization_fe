@@ -439,7 +439,7 @@ class _DiffBadge extends StatelessWidget {
             diff.abs().toStringAsFixed(1),
             style: TextStyle(
               color: color,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -468,8 +468,8 @@ class _CompactStat extends StatelessWidget {
         Text(
           label.toUpperCase(),
           style: TextStyle(
-            color: Colors.white.withOpacity(.40),
-            fontSize: 12,
+            color: Colors.white70,
+            fontSize: 9,
             fontWeight: FontWeight.w800,
             // letterSpacing: .5,
           ),

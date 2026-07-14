@@ -1,37 +1,42 @@
-import 'dart:async';
 import 'dart:math';
 
-import 'package:dio/dio.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_common/chart_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-import '../../../utility_models/response/minute_point.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
-import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import '../utility_dashboard_overview_models/utility_minute_dashboard_response.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../utility_dashboard_overview_widgets/common_chart_title_bar.dart';
 import '../utility_dashboard_overview_widgets/scada_chart_panel.dart';
 
 class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
   final String facId;
-  final int minutes;
+  final String utilityType;
+  final ChartTheme theme;
+
+  final List<OverviewMinutePointDto> rows;
+  final bool loading;
+  final Object? error;
+
+  final VoidCallback? onRetry;
+
   final double? height;
   final String? nameEn;
-  final ChartTheme theme;
-  final String utilityType;
 
   const UtilityDashboardOverviewMinutesChart({
     super.key,
     required this.facId,
+    required this.utilityType,
     required this.theme,
-    this.minutes = 60,
+    required this.rows,
+    required this.loading,
+    required this.error,
+    this.onRetry,
     this.height,
     this.nameEn,
-    required this.utilityType,
   });
 
   @override
@@ -42,163 +47,39 @@ class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
 class _UtilityDashboardOverviewMinutesChartState
     extends State<UtilityDashboardOverviewMinutesChart>
     with TickerProviderStateMixin {
-  static const Duration _pollInterval = Duration(seconds: 50);
-  static const Duration _requestTimeout = Duration(seconds: 12);
-
   late final UtilityInfoBoxFx fx;
 
-  List<MinutePointDto> rows = [];
-  Object? error;
-  bool loading = true;
   DataHealthResult? _cachedHealth;
 
-  // `_activeRequestId != null` nghĩa là có 1 request đang bay.
-  // requestId tăng dần mỗi lần gọi, dùng để chỉ áp response mới nhất vào UI —
-  // đồng bộ pattern với MonthlySummaryScreen.
-  int? _activeRequestId;
-  int _requestSeq = 0;
+  List<OverviewMinutePointDto>? _cachedRowsReference;
+  String? _cachedFacId;
+  String? _cachedUtilityType;
+  String? _cachedThemeTitle;
+  bool? _cachedLoading;
+  Object? _cachedError;
 
-  Timer? _pollTimer;
+  _MainChartData? _mainChartData;
+  _WaterChartData? _waterChartData;
+  OverviewMinutePointDto? _headerPoint;
 
-  bool _disposed = false;
+  List<OverviewMinutePointDto> get rows => widget.rows;
 
-  bool get _alive => mounted && !_disposed;
+  bool get loading => widget.loading;
+
+  Object? get error => widget.error;
+
+  bool get _isWater => widget.utilityType.trim().toUpperCase() == 'WATER';
+
+  bool get _isElectricity =>
+      widget.utilityType.trim().toUpperCase() == 'ELECTRICITY';
 
   @override
   void initState() {
     super.initState();
+
     fx = UtilityInfoBoxFx(this)..init();
 
-    unawaited(_load());
-    _startPolling();
-  }
-
-  void _startPolling() {
-    _pollTimer?.cancel();
-
-    _pollTimer = Timer.periodic(_pollInterval, (_) {
-      if (!mounted || _activeRequestId != null) return;
-      unawaited(_load(silent: true));
-    });
-  }
-
-  /// Gọi API thuần, không đụng setState/mounted — dễ test độc lập.
-  Future<List<MinutePointDto>> _fetchMinuteData({
-    required String facId,
-    required int minutes,
-    required String? nameEn,
-    required String utilityType,
-  }) async {
-    final api = context.read<UtilityDashboardOverviewApi>();
-
-    return api
-        .getEnergyMinute(
-          facId: facId,
-          minutes: minutes,
-          nameEn: nameEn,
-          utilityType: utilityType,
-        )
-        .timeout(_requestTimeout);
-  }
-
-  Future<void> _load({bool silent = false, bool force = false}) async {
-    if (!mounted) return;
-
-    // Có request khác đang chạy và không force -> bỏ qua (không "nuốt" mất
-    // yêu cầu vĩnh viễn: caller có force=true, ví dụ didUpdateWidget, vẫn
-    // luôn tạo được request mới, không phụ thuộc request cũ đã xong hay chưa).
-    if (_activeRequestId != null && !force) return;
-
-    final requestId = ++_requestSeq;
-    _activeRequestId = requestId;
-
-    final requestFacId = widget.facId;
-    final requestMinutes = widget.minutes;
-    final requestNameEn = widget.nameEn;
-    final requestUtilityType = widget.utilityType;
-
-    if (!silent && rows.isEmpty) {
-      setState(() {
-        loading = true;
-        error = null;
-      });
-    }
-
-    try {
-      final data = await _fetchMinuteData(
-        facId: requestFacId,
-        minutes: requestMinutes,
-        nameEn: requestNameEn,
-        utilityType: requestUtilityType,
-      );
-
-      if (!mounted) return;
-
-      // Chỉ request mới nhất mới được phép áp vào UI — chặn trường hợp
-      // response cũ (facId/minutes/nameEn trước đó) về trễ hơn response mới.
-      if (_activeRequestId != requestId) return;
-
-      final valid = data.where((e) => e.value != null).toList();
-
-      _cachedHealth = DataHealthAnalyzer.analyze(
-        key: 'Minutes_${widget.facId}_${widget.theme.title}',
-        loading: false,
-        error: null,
-        values: valid.map((e) => e.value!).toList(),
-      );
-
-      if (_dataChanged(data) || loading || error != null) {
-        setState(() {
-          rows = data;
-          loading = false;
-          error = null;
-        });
-      }
-    } on TimeoutException catch (e) {
-      _handleLoadError(e, '[TIMEOUT]', requestId);
-    } on DioException catch (e) {
-      _handleLoadError(e, '[DIO] ${e.type}', requestId);
-    } catch (e) {
-      _handleLoadError(e, '[ERROR]', requestId);
-    } finally {
-      if (_activeRequestId == requestId) {
-        _activeRequestId = null;
-      }
-    }
-  }
-
-  void _handleLoadError(Object e, String tag, int requestId) {
-    debugPrint('$tag $e');
-
-    if (!_alive || _activeRequestId != requestId) return;
-
-    _cachedHealth = DataHealthAnalyzer.analyze(
-      key: 'Minutes_${widget.facId}_${widget.theme.title}',
-      loading: false,
-      error: true,
-      values: rows.where((e) => e.value != null).map((e) => e.value!).toList(),
-    );
-
-    if (!_alive || _activeRequestId != requestId) return;
-
-    setState(() {
-      loading = false;
-      error = e;
-    });
-  }
-
-  bool _dataChanged(List<MinutePointDto> newData) {
-    if (newData.length != rows.length) return true;
-
-    for (var i = 0; i < newData.length; i++) {
-      if (newData[i].value != rows[i].value ||
-          newData[i].ts != rows[i].ts ||
-          newData[i].nameEn != rows[i].nameEn) {
-        return true;
-      }
-    }
-
-    return false;
+    _prepareData();
   }
 
   @override
@@ -208,61 +89,94 @@ class _UtilityDashboardOverviewMinutesChartState
     super.didUpdateWidget(oldWidget);
 
     final changed =
+        !identical(oldWidget.rows, widget.rows) ||
         oldWidget.facId != widget.facId ||
-        oldWidget.minutes != widget.minutes ||
-        oldWidget.nameEn != widget.nameEn ||
-        oldWidget.utilityType != widget.utilityType;
+        oldWidget.utilityType != widget.utilityType ||
+        oldWidget.theme.title != widget.theme.title ||
+        oldWidget.loading != widget.loading ||
+        oldWidget.error != widget.error;
 
-    if (!changed) return;
+    if (changed) {
+      _prepareData(force: true);
+    }
+  }
 
-    _pollTimer?.cancel();
+  void _prepareData({bool force = false}) {
+    if (!force &&
+        identical(_cachedRowsReference, widget.rows) &&
+        _cachedFacId == widget.facId &&
+        _cachedUtilityType == widget.utilityType &&
+        _cachedThemeTitle == widget.theme.title &&
+        _cachedLoading == widget.loading &&
+        _cachedError == widget.error) {
+      return;
+    }
 
-    setState(() {
-      rows = [];
-      loading = true;
-      error = null;
-      _cachedHealth = null;
-    });
+    _cachedRowsReference = widget.rows;
+    _cachedFacId = widget.facId;
+    _cachedUtilityType = widget.utilityType;
+    _cachedThemeTitle = widget.theme.title;
+    _cachedLoading = widget.loading;
+    _cachedError = widget.error;
 
-    // force: true — luôn tạo request mới cho tham số mới, kể cả khi 1 poll
-    // cũ đang bay. Nhờ _requestId, response cũ (nếu về sau) sẽ tự bị bỏ qua.
-    unawaited(_load(force: true));
-    _startPolling();
+    final validRows = widget.rows
+        .where(
+          (item) =>
+              item.value != null &&
+              !item.value!.isNaN &&
+              !item.value!.isInfinite,
+        )
+        .toList(growable: false);
+
+    _headerPoint = null;
+
+    for (final point in validRows) {
+      final currentHeader = _headerPoint;
+
+      if (currentHeader == null || point.value! > currentHeader.value!) {
+        _headerPoint = point;
+      }
+    }
+
+    _cachedHealth = DataHealthAnalyzer.analyze(
+      key:
+          'Minutes_${widget.facId}_${widget.theme.title}_${widget.utilityType}',
+      loading: widget.loading,
+      error: widget.error,
+      values: validRows.map((item) => item.value!).toList(growable: false),
+    );
+
+    if (_isWater) {
+      _mainChartData = null;
+      _waterChartData = validRows.isEmpty
+          ? null
+          : _WaterChartData.from(rows: validRows, facId: widget.facId);
+    } else {
+      _waterChartData = null;
+      _mainChartData = validRows.isEmpty
+          ? null
+          : _MainChartData.from(
+              rows: validRows,
+              utilityType: widget.utilityType,
+            );
+    }
   }
 
   @override
   void dispose() {
-    _disposed = true;
-
-    _pollTimer?.cancel();
-    _pollTimer = null;
-
-    // Vô hiệu hóa request cũ nếu nó trả về sau khi widget dispose.
-    _requestSeq++;
-    _activeRequestId = null;
-
     fx.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final t = widget.theme;
-
-    MinutePointDto? headerPoint;
-
-    final valid = rows.where((e) => e.value != null).toList();
-
-    if (valid.isNotEmpty) {
-      headerPoint = valid.reduce((a, b) => a.value! >= b.value! ? a : b);
-    }
-
-    final healthResult =
+    final health =
         _cachedHealth ??
         DataHealthAnalyzer.analyze(
-          key: 'Minutes_${widget.facId}_${widget.theme.title}',
-          loading: loading,
-          error: error,
+          key:
+              'Minutes_${widget.facId}_${widget.theme.title}_${widget.utilityType}',
+          loading: widget.loading,
+          error: widget.error,
           values: const [],
         );
 
@@ -280,19 +194,20 @@ class _UtilityDashboardOverviewMinutesChartState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               CommonChartTitleBar(
-                title: t.title,
-                health: healthResult,
+                title: widget.theme.title,
+                health: health,
                 backgroundColor: Colors.transparent,
                 borderColor: widget.theme.line.withOpacity(.44),
                 valueLabel: 'Max',
-                value: headerPoint == null
+                value: _headerPoint == null
                     ? '--'
-                    : '${headerPoint.value!.toStringAsFixed(1)} ${t.unit}',
-                valueTs: headerPoint == null
+                    : '${_headerPoint!.value!.toStringAsFixed(1)} '
+                          '${widget.theme.unit}',
+                valueTs: _headerPoint == null
                     ? '--'
-                    : DateFormat('HH:mm:ss').format(headerPoint.ts.toLocal()),
+                    : DateFormat('HH:mm:ss').format(_headerPoint!.ts.toLocal()),
               ),
-              Expanded(child: _body()),
+              Expanded(child: _buildBody()),
             ],
           ),
         ),
@@ -300,13 +215,15 @@ class _UtilityDashboardOverviewMinutesChartState
     );
   }
 
-  Widget _body() {
+  Widget _buildBody() {
     if (loading && rows.isEmpty) {
-      return const Center(
-        child: SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
+      return Center(
+        child: SizedBox.square(
+          dimension: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: widget.theme.line,
+          ),
         ),
       );
     }
@@ -314,7 +231,7 @@ class _UtilityDashboardOverviewMinutesChartState
     if (error != null && rows.isEmpty) {
       return ChartApiErrorState(
         color: widget.theme.line,
-        onRetry: () => _load(force: true),
+        onRetry: widget.onRetry ?? () {},
       );
     }
 
@@ -325,395 +242,204 @@ class _UtilityDashboardOverviewMinutesChartState
       );
     }
 
-    final isWater = widget.utilityType.toUpperCase() == 'WATER';
+    if (_isWater) {
+      final data = _waterChartData;
 
-    if (isWater) {
-      return _waterCleanChart();
-    }
+      if (data == null || data.totalPoints < 2) {
+        return const _NotEnoughPoints();
+      }
 
-    return _chart();
-  }
-
-  double _niceStep(double rawStep) {
-    if (rawStep <= 0) return 1;
-
-    final exp = (log(rawStep) / ln10).floor();
-    final base = pow(10, exp).toDouble();
-    final fraction = rawStep / base;
-
-    if (fraction <= 1) return 1 * base;
-    if (fraction <= 2) return 2 * base;
-    if (fraction <= 5) return 5 * base;
-
-    return 10 * base;
-  }
-
-  double _niceCeil(double value, double step) {
-    if (step <= 0) return value;
-    return (value / step).ceil() * step;
-  }
-
-  Widget _chart() {
-    final t = widget.theme;
-
-    final data = rows
-        .where((e) => e.value != null)
-        .map(
-          (e) => _ChartPoint(
-            e.ts.toLocal(),
-            e.value!,
-            e.nameEn ?? widget.utilityType,
-          ),
-        )
-        .toList();
-
-    if (data.length < 2) {
-      return Center(
-        child: Text(
-          'Not enough points',
-          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+      return RepaintBoundary(
+        child: _WaterMinuteChart(
+          key: ValueKey('water_${widget.facId}_${widget.utilityType}'),
+          data: data,
+          theme: widget.theme,
         ),
       );
     }
 
-    final ys = data.map((e) => e.y).toList()..sort();
-    final minDataY = ys.first;
-    final maxDataY = ys.last;
+    final data = _mainChartData;
 
-    final dataRange = (maxDataY - minDataY).abs();
-
-    final pad = dataRange == 0
-        ? (maxDataY.abs() * 0.1).clamp(0.5, 999999).toDouble()
-        : dataRange * 0.15;
-
-    final minX = data.first.ts;
-    final maxX = data.last.ts;
-
-    double minY;
-    double maxY;
-
-    if (widget.utilityType.toUpperCase() == 'ELECTRICITY') {
-      // Electricity luôn bắt đầu từ 0
-      minY = 0;
-
-      final rawMaxY = maxDataY + pad;
-      final step = _niceStep((rawMaxY - minY) / 5);
-
-      maxY = _niceCeil(rawMaxY, step);
-    } else {
-      // Water / Air scale theo dữ liệu
-      minY = minDataY - pad;
-      maxY = maxDataY + pad;
+    if (data == null || data.points.length < 2) {
+      return const _NotEnoughPoints();
     }
-    final lastPoint = data.last;
+
     return RepaintBoundary(
-      child: SfCartesianChart(
+      child: _MainMinuteChart(
         key: ValueKey(
           'main_${widget.facId}_${widget.utilityType}_${widget.nameEn ?? ''}',
         ),
-        enableAxisAnimation: false,
-        margin: EdgeInsets.zero,
-        plotAreaBorderWidth: 1,
-        plotAreaBorderColor: Colors.white.withOpacity(0.10),
-        tooltipBehavior: TooltipBehavior(
-          enable: true,
-          canShowMarker: true,
-          header: '',
-          textStyle: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        primaryXAxis: DateTimeAxis(
-          minimum: minX,
-          maximum: maxX.add(const Duration(minutes: 2)),
-          intervalType: DateTimeIntervalType.minutes,
-          dateFormat: DateFormat('HH:mm'),
-          majorGridLines: MajorGridLines(
-            width: 1,
-            color: Colors.white.withOpacity(0.06),
-          ),
-          axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
-          labelStyle: TextStyle(
-            color: Colors.white.withOpacity(0.55),
-            fontSize: 13,
-          ),
-        ),
-        primaryYAxis: NumericAxis(
-          minimum: minY,
-          maximum: maxY,
-          interval: _niceStep((maxY - minY) / 5),
-          numberFormat: NumberFormat('0.0'),
-          majorGridLines: MajorGridLines(
-            width: 1,
-            color: Colors.white.withOpacity(.06),
-          ),
-          axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
-          labelStyle: TextStyle(
-            color: Colors.white.withOpacity(.55),
-            fontSize: 13,
-          ),
-          title: AxisTitle(
-            text: t.unit,
-            alignment: ChartAlignment.center,
-            textStyle: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-        ),
-        series: [
-          SplineSeries<_ChartPoint, DateTime>(
-            animationDuration: 1200,
-            dataSource: data,
-            xValueMapper: (p, _) => p.ts,
-            yValueMapper: (p, _) => p.y,
-            color: t.line.withOpacity(0.18),
-            width: 7,
-          ),
-          SplineAreaSeries<_ChartPoint, DateTime>(
-            animationDuration: 1000,
-            dataSource: data,
-            xValueMapper: (p, _) => p.ts,
-            yValueMapper: (p, _) => p.y,
-            splineType: SplineType.natural,
-            borderColor: t.line,
-            borderWidth: 2,
-            gradient: LinearGradient(
-              colors: [t.fillTop, t.fillBottom],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-            markerSettings: MarkerSettings(
-              isVisible: true,
-              width: 4,
-              height: 4,
-              borderWidth: 1,
-              borderColor: widget.theme.line.withOpacity(0.9),
-            ),
-          ),
-          ScatterSeries<_ChartPoint, DateTime>(
-            isVisibleInLegend: false,
-            dataSource: [lastPoint],
-            xValueMapper: (p, _) => p.ts,
-            yValueMapper: (p, _) => p.y,
-            color: t.line,
-            markerSettings: MarkerSettings(
-              isVisible: true,
-              width: 4,
-              height: 4,
-              borderWidth: 2,
-              borderColor: Colors.white,
-            ),
-            dataLabelMapper: (p, _) => p.y.toStringAsFixed(1),
-            dataLabelSettings: const DataLabelSettings(
-              isVisible: true,
-              labelAlignment: ChartDataLabelAlignment.outer,
-              textStyle: TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
+        data: data,
+        theme: widget.theme,
+        isElectricity: _isElectricity,
       ),
     );
   }
+}
 
-  Color _seriesColorByRank({required int rank, required int total}) {
-    final base = HSLColor.fromColor(widget.theme.line);
+// ============================================================
+// COMMON POINT
+// ============================================================
 
-    if (total <= 1) {
-      return base.withLightness(0.48).toColor();
+class _ChartPoint {
+  final DateTime ts;
+  final double y;
+  final String nameEn;
+
+  const _ChartPoint({required this.ts, required this.y, required this.nameEn});
+}
+
+// ============================================================
+// MAIN ELECTRICITY / AIR DATA
+// ============================================================
+
+class _MainChartData {
+  final List<_ChartPoint> points;
+
+  final DateTime minX;
+  final DateTime maxX;
+
+  final double minY;
+  final double maxY;
+  final double interval;
+
+  const _MainChartData({
+    required this.points,
+    required this.minX,
+    required this.maxX,
+    required this.minY,
+    required this.maxY,
+    required this.interval,
+  });
+
+  factory _MainChartData.from({
+    required List<OverviewMinutePointDto> rows,
+    required String utilityType,
+  }) {
+    final points =
+        rows
+            .where((item) => item.value != null)
+            .map(
+              (item) => _ChartPoint(
+                ts: item.ts.toLocal(),
+                y: item.value!,
+                nameEn: item.nameEn?.trim().isNotEmpty == true
+                    ? item.nameEn!.trim()
+                    : utilityType,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.ts.compareTo(b.ts));
+
+    final values = points.map((point) => point.y).toList(growable: false);
+
+    final minDataY = values.reduce(min);
+    final maxDataY = values.reduce(max);
+
+    final dataRange = (maxDataY - minDataY).abs();
+
+    final padding = dataRange == 0
+        ? max(maxDataY.abs() * .10, .5)
+        : dataRange * .15;
+
+    final isElectricity = utilityType.trim().toUpperCase() == 'ELECTRICITY';
+
+    late final double minY;
+    late final double maxY;
+
+    if (isElectricity) {
+      minY = 0;
+
+      final rawMax = maxDataY + padding;
+      final step = _niceStep(rawMax / 5);
+
+      maxY = _niceCeil(rawMax, step);
+    } else {
+      minY = minDataY - padding;
+      maxY = maxDataY + padding;
     }
 
-    // rank = 0 là line cao nhất -> đậm nhất
-    const darkest = 0.34;
-    const lightest = 0.72;
+    final interval = _niceStep((maxY - minY) / 5);
 
-    final ratio = rank / (total - 1);
-    final lightness = darkest + ((lightest - darkest) * ratio);
-
-    return base
-        .withLightness(lightness.clamp(0.25, 0.80))
-        .withSaturation((base.saturation * 0.95).clamp(0.55, 1.0))
-        .toColor();
+    return _MainChartData(
+      points: List<_ChartPoint>.unmodifiable(points),
+      minX: points.first.ts,
+      maxX: points.last.ts,
+      minY: minY,
+      maxY: maxY,
+      interval: interval,
+    );
   }
+}
 
-  // Map<String, List<_ChartPoint>> _groupWaterPoints() {
-  //   final data = rows
-  //       .where((e) => e.value != null)
-  //       .map(
-  //         (e) => _ChartPoint(
-  //           e.ts.toLocal(),
-  //           e.value!,
-  //           (e.nameEn == null || e.nameEn!.trim().isEmpty)
-  //               ? 'Cooling tank'
-  //               : e.nameEn!.trim(),
-  //         ),
-  //       )
-  //       .toList();
-  //
-  //   final grouped = <String, List<_ChartPoint>>{};
-  //
-  //   for (final p in data) {
-  //     grouped.putIfAbsent(p.nameEn, () => []).add(p);
-  //   }
-  //
-  //   for (final item in grouped.values) {
-  //     item.sort((a, b) => a.ts.compareTo(b.ts));
-  //   }
-  //
-  //   return grouped;
-  // }
-  bool _isKvhFac() {
-    final fac = widget.facId.trim().toUpperCase();
+// ============================================================
+// WATER DATA
+// ============================================================
 
-    return fac == 'KVH' || fac.contains('KVH');
-  }
+class _WaterSeries {
+  final String name;
+  final List<_ChartPoint> points;
+  final int rank;
 
-  String _waterName(String? nameEn) {
-    final name = nameEn?.trim();
+  const _WaterSeries({
+    required this.name,
+    required this.points,
+    required this.rank,
+  });
+}
 
-    if (name == null || name.isEmpty) {
-      return 'Cooling tank';
-    }
+class _WaterChartData {
+  final List<_WaterSeries> series;
 
-    return name;
-  }
+  final DateTime minX;
+  final DateTime maxX;
 
-  DateTime _minuteKey(DateTime ts) {
-    return DateTime(ts.year, ts.month, ts.day, ts.hour, ts.minute);
-  }
+  final double minY;
+  final double maxY;
+  final double interval;
 
-  String _kvhSeriesName(String rawName) {
-    // Ví dụ: "KVH - Tank 1" -> "KVH"
-    if (rawName.contains('-')) {
-      final prefix = rawName.split('-').first.trim();
+  final int totalPoints;
 
-      if (prefix.isNotEmpty) {
-        return prefix;
-      }
-    }
+  const _WaterChartData({
+    required this.series,
+    required this.minX,
+    required this.maxX,
+    required this.minY,
+    required this.maxY,
+    required this.interval,
+    required this.totalPoints,
+  });
 
-    // Nếu API chỉ trả "Tank 1", "Tank 2" thì vẫn gom về KVH
-    return widget.facId.trim().isEmpty ? 'KVH' : widget.facId.trim();
-  }
+  factory _WaterChartData.from({
+    required List<OverviewMinutePointDto> rows,
+    required String facId,
+  }) {
+    final grouped = _groupWaterRows(rows: rows, facId: facId);
 
-  Map<String, List<_ChartPoint>> _groupWaterPoints() {
-    final isKvh = _isKvhFac();
+    final cleaned = <String, List<_ChartPoint>>{};
 
-    // FAC A / B / C giữ nguyên: mỗi nameEn là 1 line riêng
-    if (!isKvh) {
-      final grouped = <String, List<_ChartPoint>>{};
+    for (final entry in grouped.entries) {
+      final name = entry.key.trim();
 
-      for (final e in rows.where((e) => e.value != null)) {
-        final rawName = _waterName(e.nameEn);
-
-        final point = _ChartPoint(e.ts.toLocal(), e.value!, rawName);
-
-        grouped.putIfAbsent(rawName, () => <_ChartPoint>[]);
-        grouped[rawName]!.add(point);
-      }
-
-      for (final item in grouped.values) {
-        item.sort((a, b) => a.ts.compareTo(b.ts));
-      }
-
-      return grouped;
-    }
-
-    // KVH: gom nhiều tank lại thành 1 series, cùng phút thì lấy trung bình
-    final bucket = <String, Map<DateTime, List<double>>>{};
-
-    for (final e in rows.where((e) => e.value != null)) {
-      final rawName = _waterName(e.nameEn);
-      final seriesName = _kvhSeriesName(rawName);
-
-      final ts = _minuteKey(e.ts.toLocal());
-
-      bucket.putIfAbsent(seriesName, () => <DateTime, List<double>>{});
-      bucket[seriesName]!.putIfAbsent(ts, () => <double>[]);
-      bucket[seriesName]![ts]!.add(e.value!);
-    }
-
-    final grouped = <String, List<_ChartPoint>>{};
-
-    for (final entry in bucket.entries) {
-      final seriesName = entry.key;
-
-      final points = entry.value.entries.map((timeEntry) {
-        final values = timeEntry.value;
-        final avg = values.reduce((a, b) => a + b) / values.length;
-
-        return _ChartPoint(timeEntry.key, avg, seriesName);
-      }).toList()..sort((a, b) => a.ts.compareTo(b.ts));
-
-      grouped[seriesName] = points;
-    }
-
-    return grouped;
-  }
-
-  Widget _waterCleanChart() {
-    final t = widget.theme;
-    final rawGrouped = _groupWaterPoints();
-
-    // Chuẩn hóa tên series và loại bỏ group rỗng.
-    // Fac_A và "Fac_A " sẽ được gom chung.
-    final grouped = <String, List<_ChartPoint>>{};
-
-    for (final entry in rawGrouped.entries) {
-      final seriesName = entry.key.trim();
-
-      if (seriesName.isEmpty || entry.value.isEmpty) {
+      if (name.isEmpty || entry.value.isEmpty) {
         continue;
       }
 
-      grouped.putIfAbsent(seriesName, () => <_ChartPoint>[]);
-      grouped[seriesName]!.addAll(entry.value);
-    }
-
-    // Sắp xếp điểm theo thời gian và loại trùng timestamp.
-    for (final entry in grouped.entries) {
-      final pointsByTime = <DateTime, _ChartPoint>{};
+      final byTime = <DateTime, _ChartPoint>{};
 
       for (final point in entry.value) {
-        // Nếu cùng timestamp bị trùng, giữ bản ghi cuối.
-        pointsByTime[point.ts] = point;
+        byTime[point.ts] = point;
       }
 
-      entry.value
-        ..clear()
-        ..addAll(pointsByTime.values)
+      final points = byTime.values.toList()
         ..sort((a, b) => a.ts.compareTo(b.ts));
+
+      if (points.isNotEmpty) {
+        cleaned[name] = points;
+      }
     }
 
-    grouped.removeWhere((_, points) => points.isEmpty);
-
-    final data = grouped.values.expand((points) => points).toList()
-      ..sort((a, b) => a.ts.compareTo(b.ts));
-
-    debugPrint(
-      'WATER GROUP COUNT = ${grouped.length}, '
-      'NAMES = ${grouped.keys.toList()}',
-    );
-
-    if (data.length < 2 || grouped.isEmpty) {
-      return const Center(
-        child: Text(
-          'Not enough points',
-          style: TextStyle(color: Colors.white70, fontSize: 13),
-        ),
-      );
-    }
-
-    final showLegend = grouped.length > 1;
-
-    // Xếp hạng series theo giá trị trung bình.
-    final rankedEntries = grouped.entries.toList()
+    final rankedEntries = cleaned.entries.toList()
       ..sort((a, b) {
         final avgA =
             a.value.fold<double>(0, (sum, point) => sum + point.y) /
@@ -726,41 +452,312 @@ class _UtilityDashboardOverviewMinutesChartState
         return avgB.compareTo(avgA);
       });
 
-    final rankByName = <String, int>{};
+    final series = <_WaterSeries>[];
 
-    for (var i = 0; i < rankedEntries.length; i++) {
-      rankByName[rankedEntries[i].key] = i;
+    for (var index = 0; index < rankedEntries.length; index++) {
+      final entry = rankedEntries[index];
+
+      series.add(
+        _WaterSeries(
+          name: entry.key,
+          points: List<_ChartPoint>.unmodifiable(entry.value),
+          rank: index,
+        ),
+      );
     }
 
-    // Tìm thời gian nhỏ nhất/lớn nhất trên toàn bộ dữ liệu.
-    final minTs = data
-        .map((point) => point.ts)
-        .reduce((a, b) => a.isBefore(b) ? a : b);
+    final allPoints = series.expand((item) => item.points).toList()
+      ..sort((a, b) => a.ts.compareTo(b.ts));
 
-    final maxTs = data
-        .map((point) => point.ts)
-        .reduce((a, b) => a.isAfter(b) ? a : b);
+    final values = allPoints.map((point) => point.y).toList(growable: false);
 
-    final ys = data.map((point) => point.y).toList()..sort();
+    final minValue = values.reduce(min);
+    final maxValue = values.reduce(max);
 
-    final minValue = ys.first;
-    final maxValue = ys.last;
     final range = maxValue - minValue;
+    final padding = max(range * .10, .2);
 
-    final padding = max(range * 0.10, 0.2);
     final minY = minValue - padding;
     final maxY = maxValue + padding;
-    final yInterval = max((maxY - minY) / 4, 0.1);
+
+    return _WaterChartData(
+      series: List<_WaterSeries>.unmodifiable(series),
+      minX: allPoints.first.ts,
+      maxX: allPoints.last.ts,
+      minY: minY,
+      maxY: maxY,
+      interval: max((maxY - minY) / 4, .1),
+      totalPoints: allPoints.length,
+    );
+  }
+
+  static Map<String, List<_ChartPoint>> _groupWaterRows({
+    required List<OverviewMinutePointDto> rows,
+    required String facId,
+  }) {
+    final normalizedFac = facId.trim().toUpperCase();
+
+    final isKvh = normalizedFac == 'KVH' || normalizedFac.contains('KVH');
+
+    if (!isKvh) {
+      final grouped = <String, List<_ChartPoint>>{};
+
+      for (final item in rows) {
+        final value = item.value;
+
+        if (value == null) continue;
+
+        final name = _waterName(item.nameEn);
+
+        grouped.putIfAbsent(name, () => <_ChartPoint>[]);
+
+        grouped[name]!.add(
+          _ChartPoint(ts: item.ts.toLocal(), y: value, nameEn: name),
+        );
+      }
+
+      return grouped;
+    }
+
+    /*
+     * KVH:
+     * API mới thường trả:
+     * Fac_A - Tank xx
+     * Fac_B - Tank xx
+     * Fac_C - Tank xx
+     *
+     * Mỗi FAC thành một series.
+     * Trong cùng phút, nếu có nhiều điểm thì lấy trung bình.
+     */
+    final buckets = <String, Map<DateTime, List<double>>>{};
+
+    for (final item in rows) {
+      final value = item.value;
+
+      if (value == null) continue;
+
+      final rawName = _waterName(item.nameEn);
+      final seriesName = _kvhSeriesName(rawName, fallback: facId);
+
+      final minute = _minuteKey(item.ts.toLocal());
+
+      buckets.putIfAbsent(seriesName, () => <DateTime, List<double>>{});
+
+      buckets[seriesName]!.putIfAbsent(minute, () => <double>[]);
+
+      buckets[seriesName]![minute]!.add(value);
+    }
+
+    final grouped = <String, List<_ChartPoint>>{};
+
+    for (final seriesEntry in buckets.entries) {
+      final points = <_ChartPoint>[];
+
+      for (final minuteEntry in seriesEntry.value.entries) {
+        final values = minuteEntry.value;
+
+        final average =
+            values.fold<double>(0, (sum, value) => sum + value) / values.length;
+
+        points.add(
+          _ChartPoint(ts: minuteEntry.key, y: average, nameEn: seriesEntry.key),
+        );
+      }
+
+      points.sort((a, b) => a.ts.compareTo(b.ts));
+
+      grouped[seriesEntry.key] = points;
+    }
+
+    return grouped;
+  }
+
+  static String _waterName(String? nameEn) {
+    final name = nameEn?.trim();
+
+    if (name == null || name.isEmpty) {
+      return 'Cooling tank';
+    }
+
+    return name;
+  }
+
+  static DateTime _minuteKey(DateTime value) {
+    return DateTime(
+      value.year,
+      value.month,
+      value.day,
+      value.hour,
+      value.minute,
+    );
+  }
+
+  static String _kvhSeriesName(String rawName, {required String fallback}) {
+    final separatorIndex = rawName.indexOf(' - ');
+
+    if (separatorIndex > 0) {
+      final prefix = rawName.substring(0, separatorIndex).trim();
+
+      if (prefix.isNotEmpty) {
+        return prefix;
+      }
+    }
+
+    return fallback.trim().isEmpty ? 'KVH' : fallback.trim();
+  }
+}
+
+// ============================================================
+// MAIN CHART
+// ============================================================
+
+class _MainMinuteChart extends StatelessWidget {
+  final _MainChartData data;
+  final ChartTheme theme;
+  final bool isElectricity;
+
+  const _MainMinuteChart({
+    super.key,
+    required this.data,
+    required this.theme,
+    required this.isElectricity,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lastPoint = data.points.last;
 
     return SfCartesianChart(
-      key: ValueKey(
-        'water_${widget.facId}_${widget.utilityType}_${widget.nameEn ?? ''}',
+      enableAxisAnimation: false,
+      margin: EdgeInsets.zero,
+      plotAreaBorderWidth: 1,
+      plotAreaBorderColor: Colors.white.withOpacity(.10),
+      tooltipBehavior: TooltipBehavior(
+        enable: true,
+        canShowMarker: true,
+        header: '',
+        textStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
       ),
+      primaryXAxis: DateTimeAxis(
+        minimum: data.minX,
+        maximum: data.maxX.add(const Duration(minutes: 2)),
+        intervalType: DateTimeIntervalType.minutes,
+        dateFormat: DateFormat('HH:mm'),
+        majorGridLines: MajorGridLines(
+          width: 1,
+          color: Colors.white.withOpacity(.06),
+        ),
+        axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
+        labelStyle: TextStyle(
+          color: Colors.white.withOpacity(.55),
+          fontSize: 13,
+        ),
+      ),
+      primaryYAxis: NumericAxis(
+        minimum: data.minY,
+        maximum: data.maxY,
+        interval: data.interval,
+        numberFormat: NumberFormat('0.0'),
+        majorGridLines: MajorGridLines(
+          width: 1,
+          color: Colors.white.withOpacity(.06),
+        ),
+        axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
+        labelStyle: TextStyle(
+          color: Colors.white.withOpacity(.55),
+          fontSize: 13,
+        ),
+        title: AxisTitle(
+          text: theme.unit,
+          alignment: ChartAlignment.center,
+          textStyle: TextStyle(
+            color: Colors.white.withOpacity(.80),
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+        ),
+      ),
+      series: <CartesianSeries<_ChartPoint, DateTime>>[
+        SplineSeries<_ChartPoint, DateTime>(
+          animationDuration: 0,
+          dataSource: data.points,
+          xValueMapper: (point, _) => point.ts,
+          yValueMapper: (point, _) => point.y,
+          color: theme.line.withOpacity(.15),
+          width: 6,
+        ),
+        SplineAreaSeries<_ChartPoint, DateTime>(
+          animationDuration: 0,
+          dataSource: data.points,
+          xValueMapper: (point, _) => point.ts,
+          yValueMapper: (point, _) => point.y,
+          splineType: SplineType.natural,
+          borderColor: theme.line,
+          borderWidth: 2,
+          gradient: LinearGradient(
+            colors: [theme.fillTop, theme.fillBottom],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          markerSettings: MarkerSettings(
+            isVisible: data.points.length <= 30,
+            width: 4,
+            height: 4,
+            borderWidth: 1,
+            borderColor: theme.line.withOpacity(.90),
+          ),
+        ),
+        ScatterSeries<_ChartPoint, DateTime>(
+          isVisibleInLegend: false,
+          dataSource: [lastPoint],
+          xValueMapper: (point, _) => point.ts,
+          yValueMapper: (point, _) => point.y,
+          color: theme.line,
+          markerSettings: const MarkerSettings(
+            isVisible: true,
+            width: 6,
+            height: 6,
+            borderWidth: 2,
+            borderColor: Colors.white,
+          ),
+          dataLabelMapper: (point, _) => point.y.toStringAsFixed(1),
+          dataLabelSettings: const DataLabelSettings(
+            isVisible: true,
+            labelAlignment: ChartDataLabelAlignment.outer,
+            textStyle: TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================
+// WATER CHART
+// ============================================================
+
+class _WaterMinuteChart extends StatelessWidget {
+  final _WaterChartData data;
+  final ChartTheme theme;
+
+  const _WaterMinuteChart({super.key, required this.data, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final showLegend = data.series.length > 1;
+
+    return SfCartesianChart(
       enableAxisAnimation: false,
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withOpacity(.08),
-
       legend: Legend(
         isVisible: showLegend,
         position: LegendPosition.top,
@@ -771,101 +768,154 @@ class _UtilityDashboardOverviewMinutesChartState
           fontWeight: FontWeight.w700,
         ),
       ),
-
       tooltipBehavior: TooltipBehavior(
         enable: true,
         header: '',
         format: 'point.x\nseries.name: point.y',
       ),
-
       primaryXAxis: DateTimeAxis(
-        minimum: minTs,
-        maximum: maxTs.add(const Duration(minutes: 2)),
+        minimum: data.minX,
+        maximum: data.maxX.add(const Duration(minutes: 2)),
         intervalType: DateTimeIntervalType.minutes,
         dateFormat: DateFormat('HH:mm'),
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(.04),
         ),
+        axisLine: AxisLine(color: Colors.white.withOpacity(.08)),
         labelStyle: TextStyle(
           color: Colors.white.withOpacity(.55),
           fontSize: 11,
         ),
       ),
-
       primaryYAxis: NumericAxis(
-        minimum: minY,
-        maximum: maxY,
-        interval: yInterval,
+        minimum: data.minY,
+        maximum: data.maxY,
+        interval: data.interval,
         numberFormat: NumberFormat('0.0'),
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(.05),
         ),
+        axisLine: AxisLine(color: Colors.white.withOpacity(.08)),
         labelStyle: TextStyle(
           color: Colors.white.withOpacity(.55),
           fontSize: 11,
         ),
         title: AxisTitle(
-          text: t.unit,
+          text: theme.unit,
           alignment: ChartAlignment.center,
           textStyle: TextStyle(
-            color: Colors.white.withOpacity(.8),
+            color: Colors.white.withOpacity(.80),
             fontWeight: FontWeight.w600,
             fontSize: 12,
           ),
         ),
       ),
+      series: data.series
+          .map((series) {
+            final color = _seriesColorByRank(
+              baseColor: theme.line,
+              rank: series.rank,
+              total: data.series.length,
+            );
 
-      // Chỉ tạo đúng 1 LineSeries cho mỗi FAC.
-      series: grouped.entries.map((entry) {
-        final seriesName = entry.key;
-        final points = entry.value;
-        final rank = rankByName[seriesName] ?? 0;
-
-        final color = _seriesColorByRank(rank: rank, total: grouped.length);
-
-        return LineSeries<_ChartPoint, DateTime>(
-          name: seriesName,
-          dataSource: points,
-          xValueMapper: (point, _) => point.ts,
-          yValueMapper: (point, _) => point.y,
-
-          width: rank == 0 ? 3.0 : 2.0,
-          color: color,
-
-          markerSettings: const MarkerSettings(isVisible: false),
-
-          // Chỉ hiển thị label tại điểm cuối.
-          dataLabelMapper: (point, index) {
-            final isLastPoint = index == points.length - 1;
-
-            if (!isLastPoint) {
-              return null;
-            }
-
-            return point.y.toStringAsFixed(1);
-          },
-
-          dataLabelSettings: DataLabelSettings(
-            isVisible: true,
-            labelAlignment: ChartDataLabelAlignment.outer,
-            textStyle: TextStyle(
+            return LineSeries<_ChartPoint, DateTime>(
+              name: series.name,
+              dataSource: series.points,
+              animationDuration: 0,
+              xValueMapper: (point, _) => point.ts,
+              yValueMapper: (point, _) => point.y,
+              width: series.rank == 0 ? 3 : 2,
               color: color,
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        );
-      }).toList(),
+              markerSettings: const MarkerSettings(isVisible: false),
+              dataLabelMapper: (point, index) {
+                if (index != series.points.length - 1) {
+                  return null;
+                }
+
+                return point.y.toStringAsFixed(1);
+              },
+              dataLabelSettings: DataLabelSettings(
+                isVisible: true,
+                labelAlignment: ChartDataLabelAlignment.outer,
+                textStyle: TextStyle(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            );
+          })
+          .toList(growable: false),
     );
   }
 }
 
-class _ChartPoint {
-  final DateTime ts;
-  final double y;
-  final String nameEn;
+// ============================================================
+// HELPERS
+// ============================================================
 
-  _ChartPoint(this.ts, this.y, this.nameEn);
+class _NotEnoughPoints extends StatelessWidget {
+  const _NotEnoughPoints();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        'Not enough points',
+        style: TextStyle(color: Colors.white.withOpacity(.70), fontSize: 13),
+      ),
+    );
+  }
+}
+
+double _niceStep(double rawStep) {
+  if (rawStep <= 0 || rawStep.isNaN || rawStep.isInfinite) {
+    return 1;
+  }
+
+  final exponent = (log(rawStep) / ln10).floor();
+
+  final base = pow(10, exponent).toDouble();
+
+  final fraction = rawStep / base;
+
+  if (fraction <= 1) return base;
+  if (fraction <= 2) return 2 * base;
+  if (fraction <= 5) return 5 * base;
+
+  return 10 * base;
+}
+
+double _niceCeil(double value, double step) {
+  if (step <= 0 || step.isNaN || step.isInfinite) {
+    return value;
+  }
+
+  return (value / step).ceil() * step;
+}
+
+Color _seriesColorByRank({
+  required Color baseColor,
+  required int rank,
+  required int total,
+}) {
+  final base = HSLColor.fromColor(baseColor);
+
+  if (total <= 1) {
+    return base.withLightness(.48).toColor();
+  }
+
+  const darkest = .34;
+  const lightest = .72;
+
+  final ratio = rank / (total - 1);
+
+  final lightness = darkest + ((lightest - darkest) * ratio);
+
+  return base
+      .withLightness(lightness.clamp(.25, .80))
+      .withSaturation((base.saturation * .95).clamp(.55, 1))
+      .toColor();
 }

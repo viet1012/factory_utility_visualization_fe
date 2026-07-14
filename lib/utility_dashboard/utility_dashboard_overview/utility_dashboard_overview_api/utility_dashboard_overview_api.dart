@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../utility_models/response/minute_point.dart';
 import '../utility_dashboard_overview_models/utility_daily_dashboard_response.dart';
 import '../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
+import '../utility_dashboard_overview_models/utility_minute_dashboard_response.dart';
 import '../utility_dashboard_overview_monthly/monthly_utility_usage_panel.dart';
 import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
 
@@ -12,6 +13,34 @@ class UtilityDashboardOverviewApi {
   UtilityDashboardOverviewApi(this.dio);
 
   /// ENERGY MINUTES
+  Future<UtilityMinuteDashboardResponse> getMinuteDashboard({
+    required String facId,
+    int minutes = 60,
+  }) async {
+    final normalizedFac = facId.trim();
+
+    if (normalizedFac.isEmpty) {
+      throw ArgumentError.value(facId, 'facId', 'facId is required');
+    }
+
+    final safeMinutes = minutes <= 0 ? 60 : minutes.clamp(1, 24 * 60);
+
+    final response = await dio.get(
+      '/api/utility/minute-dashboard',
+      queryParameters: {'facId': normalizedFac, 'minutes': safeMinutes},
+    );
+
+    final raw = response.data;
+
+    if (raw is! Map) {
+      throw const FormatException('Invalid minute dashboard response');
+    }
+
+    return UtilityMinuteDashboardResponse.fromJson(
+      Map<String, dynamic>.from(raw),
+    );
+  }
+
   Future<List<MinutePointDto>> getEnergyMinute({
     required String facId,
     required int minutes,

@@ -7,7 +7,7 @@ import '../../utility_dashboard_common/chart_theme.dart';
 import '../utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/CoolingTankTemperaturePanel.dart';
 import '../utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_compare.dart';
 import '../utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_header.dart';
-import '../utility_dashboard_overview_minutely/utility_dashboard_overview_minutes_chart.dart';
+import '../utility_dashboard_overview_minutely/utility_minute_dashboard_section.dart';
 import '../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
 import '../utility_dashboard_overview_provider/utility_hourly_dashboard_provider.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
@@ -95,33 +95,10 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
   }
 
   Widget _minutesView() {
-    return Column(
+    return UtilityMinuteDashboardSection(
       key: const PageStorageKey<String>('minutes_view'),
-      children: [
-        Expanded(
-          child: UtilityDashboardOverviewMinutesChart(
-            facId: widget.selectedFac,
-            theme: ChartThemes.power,
-            utilityType: 'ELECTRICITY',
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: UtilityDashboardOverviewMinutesChart(
-            facId: widget.selectedFac,
-            theme: ChartThemes.water,
-            utilityType: 'WATER',
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: UtilityDashboardOverviewMinutesChart(
-            facId: widget.selectedFac,
-            theme: ChartThemes.air,
-            utilityType: 'AIR',
-          ),
-        ),
-      ],
+      facId: widget.selectedFac,
+      minutes: 60,
     );
   }
 
