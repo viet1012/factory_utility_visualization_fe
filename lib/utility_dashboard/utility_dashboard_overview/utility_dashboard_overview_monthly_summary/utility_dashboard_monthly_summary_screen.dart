@@ -30,10 +30,13 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
 
     _provider = context.read<UtilityMonthlySummaryProvider>();
 
+    final initialFacId = widget.facId;
+    final initialMonth = widget.month;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      unawaited(_provider.start(facId: widget.facId, month: widget.month));
+      unawaited(_provider.start(facId: initialFacId, month: initialMonth));
     });
   }
 
@@ -41,13 +44,24 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
   void didUpdateWidget(covariant MonthlySummaryScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final sourceChanged =
-        oldWidget.facId.trim() != widget.facId.trim() ||
-        oldWidget.month.trim() != widget.month.trim();
+    final oldFacId = oldWidget.facId.trim();
+    final newFacId = widget.facId.trim();
+
+    final oldMonth = oldWidget.month.trim();
+    final newMonth = widget.month.trim();
+
+    final sourceChanged = oldFacId != newFacId || oldMonth != newMonth;
 
     if (!sourceChanged) return;
 
-    unawaited(_provider.start(facId: widget.facId, month: widget.month));
+    final nextFacId = widget.facId;
+    final nextMonth = widget.month;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      unawaited(_provider.start(facId: nextFacId, month: nextMonth));
+    });
   }
 
   String get monthLabel {
@@ -56,9 +70,9 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     if (raw.length != 6) return raw;
 
     final year = raw.substring(0, 4);
-    final m = int.tryParse(raw.substring(4, 6));
+    final monthNumber = int.tryParse(raw.substring(4, 6));
 
-    if (m == null || m < 1 || m > 12) {
+    if (monthNumber == null || monthNumber < 1 || monthNumber > 12) {
       return raw;
     }
 
@@ -77,7 +91,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
       'Dec',
     ];
 
-    return '${months[m - 1]} $year';
+    return '${months[monthNumber - 1]} $year';
   }
 
   Future<void> _forceRefresh() async {
@@ -174,7 +188,6 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                         children: [
                           if (electricity != null)
                             Expanded(child: _ElectricCard(item: electricity)),
-
                           if (water != null)
                             Expanded(
                               child: _UtilityMinMaxCard(
@@ -188,7 +201,6 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                                 icon: Icons.water_drop_rounded,
                               ),
                             ),
-
                           if (air != null)
                             Expanded(
                               child: _UtilityMinMaxCard(
@@ -207,7 +219,6 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                     ),
                   ],
                 ),
-
                 if (vm.refreshing)
                   const Positioned(
                     top: 32,

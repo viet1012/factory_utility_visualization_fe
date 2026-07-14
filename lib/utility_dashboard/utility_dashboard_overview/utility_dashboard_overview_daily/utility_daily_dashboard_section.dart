@@ -28,29 +28,55 @@ class _UtilityDailyDashboardSectionState
     extends State<UtilityDailyDashboardSection> {
   late final UtilityDailyDashboardProvider _provider;
 
+  int _scheduleToken = 0;
+
   @override
   void initState() {
     super.initState();
 
     _provider = context.read<UtilityDailyDashboardProvider>();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      unawaited(_provider.start(facId: widget.facId, month: widget.month));
-    });
+    _scheduleStart(facId: widget.facId, month: widget.month);
   }
 
   @override
   void didUpdateWidget(covariant UtilityDailyDashboardSection oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final changed =
-        oldWidget.facId != widget.facId || oldWidget.month != widget.month;
+    final oldFacId = oldWidget.facId.trim();
+    final newFacId = widget.facId.trim();
+
+    final oldMonth = oldWidget.month.trim();
+    final newMonth = widget.month.trim();
+
+    final changed = oldFacId != newFacId || oldMonth != newMonth;
 
     if (!changed) return;
 
-    unawaited(_provider.start(facId: widget.facId, month: widget.month));
+    _scheduleStart(facId: widget.facId, month: widget.month);
+  }
+
+  void _scheduleStart({required String facId, required String month}) {
+    final token = ++_scheduleToken;
+
+    final nextFacId = facId.trim();
+    final nextMonth = month.trim();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      /*
+       * Nếu FAC/month đổi nhiều lần trong cùng một frame,
+       * chỉ callback mới nhất được phép chạy.
+       */
+      if (token != _scheduleToken) return;
+
+      unawaited(_provider.start(facId: nextFacId, month: nextMonth));
+    });
+  }
+
+  void _retry() {
+    unawaited(_provider.load());
   }
 
   @override
@@ -85,11 +111,7 @@ class _UtilityDailyDashboardSectionState
         }
 
         if (vm.error != null && !hasData) {
-          return ChartApiErrorState(
-            onRetry: () {
-              unawaited(_provider.load());
-            },
-          );
+          return ChartApiErrorState(onRetry: _retry);
         }
 
         return Stack(
@@ -103,9 +125,7 @@ class _UtilityDailyDashboardSectionState
                     rows: vm.electricity,
                     loading: vm.loading,
                     error: vm.error,
-                    onRetry: () {
-                      unawaited(_provider.load());
-                    },
+                    onRetry: _retry,
                     theme: ChartThemes.power,
                   ),
                 ),
@@ -117,9 +137,7 @@ class _UtilityDailyDashboardSectionState
                     rows: vm.water,
                     loading: vm.loading,
                     error: vm.error,
-                    onRetry: () {
-                      unawaited(_provider.load());
-                    },
+                    onRetry: _retry,
                     theme: ChartThemes.water,
                   ),
                 ),
@@ -131,9 +149,7 @@ class _UtilityDailyDashboardSectionState
                     rows: vm.air,
                     loading: vm.loading,
                     error: vm.error,
-                    onRetry: () {
-                      unawaited(_provider.load());
-                    },
+                    onRetry: _retry,
                     theme: ChartThemes.air,
                   ),
                 ),

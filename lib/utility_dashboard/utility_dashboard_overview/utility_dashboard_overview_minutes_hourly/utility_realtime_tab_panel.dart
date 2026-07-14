@@ -137,28 +137,53 @@ class _UtilityHourlyDashboardSectionState
     extends State<UtilityHourlyDashboardSection> {
   late final UtilityHourlyDashboardProvider _provider;
 
+  int _scheduleToken = 0;
+
   @override
   void initState() {
     super.initState();
 
     _provider = context.read<UtilityHourlyDashboardProvider>();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      unawaited(_provider.start(facId: widget.facId));
-    });
+    _scheduleStart(facId: widget.facId);
   }
 
   @override
   void didUpdateWidget(covariant UtilityHourlyDashboardSection oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.facId == widget.facId) {
-      return;
-    }
+    final oldFacId = oldWidget.facId.trim();
+    final newFacId = widget.facId.trim();
 
-    unawaited(_provider.start(facId: widget.facId));
+    if (oldFacId == newFacId) return;
+
+    _scheduleStart(facId: widget.facId);
+  }
+
+  void _scheduleStart({required String facId}) {
+    final token = ++_scheduleToken;
+    final nextFacId = facId.trim();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      // Nếu FAC đổi nhiều lần trước khi frame hoàn thành,
+      // chỉ request mới nhất được phép chạy.
+      if (token != _scheduleToken) return;
+
+      unawaited(_provider.start(facId: nextFacId));
+    });
+  }
+
+  void _retry() {
+    unawaited(_provider.load());
+  }
+
+  @override
+  void dispose() {
+    _scheduleToken++;
+
+    super.dispose();
   }
 
   @override
@@ -203,9 +228,7 @@ class _UtilityHourlyDashboardSectionState
         if (vm.error != null && !hasData) {
           return ChartApiErrorState(
             color: ChartThemes.power.line,
-            onRetry: () {
-              unawaited(_provider.load());
-            },
+            onRetry: _retry,
           );
         }
 
@@ -221,9 +244,7 @@ class _UtilityHourlyDashboardSectionState
                     theme: ChartThemes.power,
                     loading: vm.loading,
                     error: vm.error,
-                    onRetry: () {
-                      unawaited(_provider.load());
-                    },
+                    onRetry: _retry,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -235,9 +256,7 @@ class _UtilityHourlyDashboardSectionState
                     utilityType: 'WATER',
                     loading: vm.loading,
                     error: vm.error,
-                    onRetry: () {
-                      unawaited(_provider.load());
-                    },
+                    onRetry: _retry,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -249,16 +268,11 @@ class _UtilityHourlyDashboardSectionState
                     utilityType: 'AIR',
                     loading: vm.loading,
                     error: vm.error,
-                    onRetry: () {
-                      unawaited(_provider.load());
-                    },
+                    onRetry: _retry,
                   ),
                 ),
               ],
             ),
-
-            // Silent refresh:
-            // giữ dữ liệu/chart cũ và chỉ hiện thanh nhỏ.
             if (vm.refreshing)
               Positioned(
                 top: 0,

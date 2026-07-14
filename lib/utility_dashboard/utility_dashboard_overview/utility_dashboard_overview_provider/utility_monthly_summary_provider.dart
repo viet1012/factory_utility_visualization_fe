@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
@@ -14,6 +15,7 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
   static const Duration pollInterval = Duration(hours: 6);
 
   Timer? _pollTimer;
+  bool _notifyScheduled = false;
 
   bool _disposed = false;
   bool _fetching = false;
@@ -374,7 +376,29 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
   void _safeNotify() {
     if (_disposed) return;
 
-    notifyListeners();
+    final binding = WidgetsBinding.instance;
+    final phase = binding.schedulerPhase;
+
+    final isBuilding =
+        phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks;
+
+    if (!isBuilding) {
+      notifyListeners();
+      return;
+    }
+
+    if (_notifyScheduled) return;
+
+    _notifyScheduled = true;
+
+    binding.addPostFrameCallback((_) {
+      _notifyScheduled = false;
+
+      if (_disposed) return;
+
+      notifyListeners();
+    });
   }
 
   // ============================================================
