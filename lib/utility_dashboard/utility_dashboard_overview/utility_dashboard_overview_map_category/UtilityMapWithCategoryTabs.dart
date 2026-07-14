@@ -201,24 +201,12 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // Align(
-                //   alignment: const FractionalOffset(0.99, 0.9),
-                //   child: _facBox('Fac_B', 'Fac B'),
-                // ),
-                // Align(
-                //   alignment: const FractionalOffset(0.99, 0.02),
-                //   child: _facBox('Fac_A', 'Fac A'),
-                // ),
-                // Align(
-                //   alignment: const FractionalOffset(0.05, 0.02),
-                //   child: _facBox('Fac_C', 'Fac C'),
-                // ),
                 Align(
-                  alignment: const FractionalOffset(0.03, 0.1),
+                  alignment: const FractionalOffset(0.03, 0.2),
                   child: _facBox('Fac_B', 'Fac B'),
                 ),
                 Align(
-                  alignment: const FractionalOffset(0.03, 0.68),
+                  alignment: const FractionalOffset(0.03, 0.9),
                   child: _facBox('Fac_A', 'Fac A'),
                 ),
                 Align(
@@ -288,7 +276,6 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
       filterCate: selected.filterCate,
       height: 130,
       isHighlighted: widget.shouldHighlight(facId),
-      onVoltageAlarmChanged: widget.onVoltageAlarmChanged,
     );
   }
 

@@ -6,11 +6,16 @@ import '../utility_dashboard_overview_models/utility_hourly_dashboard_response.d
 import '../utility_dashboard_overview_models/utility_minute_dashboard_response.dart';
 import '../utility_dashboard_overview_monthly/monthly_utility_usage_panel.dart';
 import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
+import '../utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
 
 class UtilityDashboardOverviewApi {
   final Dio dio;
 
   UtilityDashboardOverviewApi(this.dio);
+
+  static const Duration _monthlyGetTimeout = Duration(seconds: 15);
+
+  static const Duration _monthlyRefreshTimeout = Duration(seconds: 60);
 
   /// ENERGY MINUTES
   Future<UtilityMinuteDashboardResponse> getMinuteDashboard({
@@ -153,18 +158,6 @@ class UtilityDashboardOverviewApi {
     );
   }
 
-  /// ENERGY MONTHLY SUMMARY
-  String _normalizeName(String name) {
-    switch (name) {
-      case 'Total Energy Consumption':
-        return 'Total Energy';
-      case 'Total Water Consumption':
-        return 'TOTAL WATER';
-      default:
-        return name.toUpperCase();
-    }
-  }
-
   Future<List<Map<String, dynamic>>> getEnergyMonthlySummary({
     required String facId,
     required String month,
@@ -214,6 +207,54 @@ class UtilityDashboardOverviewApi {
         'timestamp': e['pickAt'] ?? e['timestamp'],
       };
     }).toList();
+  }
+
+  /// ===============================================================
+  /// MONTHLY SUMMARY - NEW API
+  /// ===============================================================
+
+  Future<List<EnergyMonthlySummary>> getMonthlySummary({
+    required String facId,
+    required String month,
+  }) async {
+    final normalizedFac = _normalizeMonthlyFac(facId);
+
+    final normalizedMonth = _normalizeMonthlyMonth(month);
+
+    final response = await dio
+        .get(
+          '/api/utility/monthly-summary',
+          queryParameters: {'facId': normalizedFac, 'month': normalizedMonth},
+        )
+        .timeout(_monthlyGetTimeout);
+
+    return _parseMonthlySummaryResponse(
+      response.data,
+      fallbackMonth: normalizedMonth,
+    );
+  }
+
+  /// Ép backend xóa cache FAC + month,
+  /// sau đó query DB lại và cache kết quả mới.
+  Future<List<EnergyMonthlySummary>> forceRefreshMonthlySummary({
+    required String facId,
+    required String month,
+  }) async {
+    final normalizedFac = _normalizeMonthlyFac(facId);
+
+    final normalizedMonth = _normalizeMonthlyMonth(month);
+
+    final response = await dio
+        .post(
+          '/api/utility/monthly-summary/refresh',
+          queryParameters: {'facId': normalizedFac, 'month': normalizedMonth},
+        )
+        .timeout(_monthlyRefreshTimeout);
+
+    return _parseMonthlySummaryResponse(
+      response.data,
+      fallbackMonth: normalizedMonth,
+    );
   }
 
   /// VOLTAGE STATUS (min/max + alarm)
@@ -278,5 +319,81 @@ class UtilityDashboardOverviewApi {
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
+  }
+
+  List<EnergyMonthlySummary> _parseMonthlySummaryResponse(
+    dynamic raw, {
+    required String fallbackMonth,
+  }) {
+    if (raw is! List) {
+      throw const FormatException('Invalid monthly summary response');
+    }
+
+    final result = <EnergyMonthlySummary>[];
+
+    for (final item in raw) {
+      if (item is! Map) {
+        continue;
+      }
+
+      final json = Map<String, dynamic>.from(item);
+
+      json['name'] = _normalizeName(json['name']?.toString() ?? '');
+
+      json['cate'] = json['cate']?.toString() ?? '';
+
+      json['month'] = json['month']?.toString() ?? fallbackMonth;
+
+      json['unit'] = json['unit']?.toString() ?? '';
+
+      /*
+     * Backend mới trả generatedAt.
+     * Model cũ có thể đang dùng timestamp.
+     */
+      json['timestamp'] =
+          json['generatedAt'] ?? json['pickAt'] ?? json['timestamp'];
+
+      result.add(EnergyMonthlySummary.fromJson(json));
+    }
+
+    return List<EnergyMonthlySummary>.unmodifiable(result);
+  }
+
+  /// ENERGY MONTHLY SUMMARY
+  String _normalizeName(String name) {
+    switch (name) {
+      case 'Total Energy Consumption':
+        return 'Total Energy';
+      case 'Total Water Consumption':
+        return 'TOTAL WATER';
+      default:
+        return name.toUpperCase();
+    }
+  }
+
+  String _normalizeMonthlyFac(String facId) {
+    final normalized = facId.trim();
+
+    return normalized.isEmpty ? 'KVH' : normalized;
+  }
+
+  String _normalizeMonthlyMonth(String month) {
+    final normalized = month.trim();
+
+    if (!RegExp(r'^\d{6}$').hasMatch(normalized)) {
+      throw ArgumentError.value(
+        month,
+        'month',
+        'Month must use yyyyMM format, for example 202607',
+      );
+    }
+
+    final monthNumber = int.tryParse(normalized.substring(4, 6));
+
+    if (monthNumber == null || monthNumber < 1 || monthNumber > 12) {
+      throw ArgumentError.value(month, 'month', 'Invalid month value');
+    }
+
+    return normalized;
   }
 }

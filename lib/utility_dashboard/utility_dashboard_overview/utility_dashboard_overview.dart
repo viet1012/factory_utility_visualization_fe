@@ -207,7 +207,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
     const Map<String, Alignment> facPositions = {
       'Fac_A': Alignment(0.3, -0.70),
       'Fac_B': Alignment(0.3, 0.72),
-      'idle': Alignment(0.1, 0.8),
+      'idle': Alignment(0.8, 0.9),
     };
 
     return ValueListenableBuilder<Map<String, VoltageStatus>>(

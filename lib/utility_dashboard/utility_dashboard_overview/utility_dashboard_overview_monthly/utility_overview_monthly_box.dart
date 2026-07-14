@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_detail_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +14,10 @@ import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/utility_glow_card.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
+// ============================================================
+// MODEL
+// ============================================================
+
 class EnergyMonthlySummary {
   final String cate;
   final String name;
@@ -28,16 +30,23 @@ class EnergyMonthlySummary {
 
   final double? value;
   final double? avgValue;
+
   final double? vndCost;
   final double? usdCost;
+
   final double? prevValue;
   final double? prevAvgValue;
+
   final double? prevVndCost;
   final double? prevUsdCost;
+
   final double? deltaValue;
   final double? deltaPercent;
+
   final String unit;
+
   final DateTime? pickAt;
+  final DateTime? generatedAt;
 
   const EnergyMonthlySummary({
     required this.cate,
@@ -59,61 +68,124 @@ class EnergyMonthlySummary {
     required this.deltaPercent,
     required this.unit,
     required this.pickAt,
+    required this.generatedAt,
   });
 
   factory EnergyMonthlySummary.fromJson(Map<String, dynamic> json) {
-    double? toDouble(dynamic v) => (v as num?)?.toDouble();
-
     return EnergyMonthlySummary(
-      cate: (json['cate'] ?? '').toString(),
-      name: (json['name'] ?? '').toString(),
-      month: (json['month'] ?? '').toString(),
+      cate: _readString(json['cate']),
+      name: _readString(json['name']),
+      month: _readString(json['month']),
 
-      minValue: toDouble(json['minValue']),
-      maxValue: toDouble(json['maxValue']),
-      prevMinValue: toDouble(json['prevMinValue']),
-      prevMaxValue: toDouble(json['prevMaxValue']),
+      minValue: _readDouble(json['minValue']),
+      maxValue: _readDouble(json['maxValue']),
+      prevMinValue: _readDouble(json['prevMinValue']),
+      prevMaxValue: _readDouble(json['prevMaxValue']),
 
-      value: toDouble(json['value']),
-      avgValue: toDouble(json['avgValue']),
-      vndCost: toDouble(json['vndCost']),
-      usdCost: toDouble(json['usdCost']),
-      prevValue: toDouble(json['prevValue']),
-      prevAvgValue: toDouble(json['prevAvgValue']),
-      prevVndCost: toDouble(json['prevVndCost']),
-      prevUsdCost: toDouble(json['prevUsdCost']),
-      deltaValue: toDouble(json['deltaValue']),
-      deltaPercent: toDouble(json['deltaPercent']),
-      unit: (json['unit'] ?? '').toString(),
-      pickAt: DateTime.tryParse((json['pickAt'] ?? '').toString())?.toLocal(),
+      value: _readDouble(json['value']),
+      avgValue: _readDouble(json['avgValue']),
+
+      vndCost: _readDouble(json['vndCost']),
+      usdCost: _readDouble(json['usdCost']),
+
+      prevValue: _readDouble(json['prevValue']),
+      prevAvgValue: _readDouble(json['prevAvgValue']),
+
+      prevVndCost: _readDouble(json['prevVndCost']),
+      prevUsdCost: _readDouble(json['prevUsdCost']),
+
+      deltaValue: _readDouble(json['deltaValue']),
+      deltaPercent: _readDouble(json['deltaPercent']),
+
+      unit: _readString(json['unit']),
+
+      pickAt: _readDateTime(json['pickAt'] ?? json['timestamp']),
+
+      generatedAt: _readDateTime(json['generatedAt']),
     );
   }
 
-  double get displayValue => value ?? avgValue ?? 0;
+  static String _readString(dynamic value) {
+    return value?.toString().trim() ?? '';
+  }
 
-  double? get previousDisplayValue => prevValue ?? prevAvgValue;
+  static double? _readDouble(dynamic value) {
+    if (value == null) return null;
 
-  double? get currentCost => usdCost ?? vndCost;
+    if (value is num) {
+      return value.toDouble();
+    }
 
-  double? get previousCost => prevUsdCost ?? prevVndCost;
+    final raw = value.toString().trim();
+
+    if (raw.isEmpty) return null;
+
+    return double.tryParse(raw.replaceAll(',', ''));
+  }
+
+  static DateTime? _readDateTime(dynamic value) {
+    if (value == null) return null;
+
+    final raw = value.toString().trim();
+
+    if (raw.isEmpty) return null;
+
+    return DateTime.tryParse(raw)?.toLocal();
+  }
+
+  double get displayValue {
+    return value ?? avgValue ?? 0;
+  }
+
+  double? get previousDisplayValue {
+    return prevValue ?? prevAvgValue;
+  }
+
+  double? get currentCost {
+    return usdCost ?? vndCost;
+  }
+
+  double? get previousCost {
+    return prevUsdCost ?? prevVndCost;
+  }
 }
+
+// ============================================================
+// FORMATTERS
+// ============================================================
 
 final NumberFormat _numFmt = NumberFormat('#,##0');
 final NumberFormat _moneyFmt = NumberFormat('#,##0');
 
-String _format(double v) => _numFmt.format(v);
+String _format(double value) {
+  return _numFmt.format(value);
+}
 
-String _formatMoney(double v) => _moneyFmt.format(v);
+String _formatMoney(double value) {
+  return _moneyFmt.format(value);
+}
+
+String _formatCost(double? value) {
+  if (value == null) {
+    return '--';
+  }
+
+  return '\$${_formatMoney(value)}';
+}
+
+// ============================================================
+// MONTHLY BOX
+// ============================================================
 
 class UtilityOverviewMonthlyBox extends StatefulWidget {
   final double width;
   final double? height;
+
   final String facId;
   final String month;
   final String headerTitle;
+
   final bool isHighlighted;
-  final void Function(String facId, VoltageStatus? status)?
-  onVoltageAlarmChanged;
   final String? filterCate;
 
   const UtilityOverviewMonthlyBox({
@@ -124,37 +196,46 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
     this.width = 300,
     this.height = 280,
     this.isHighlighted = true,
-    this.onVoltageAlarmChanged,
     this.filterCate,
   });
 
   @override
-  State<UtilityOverviewMonthlyBox> createState() =>
-      _UtilityOverviewMonthlyBoxState();
+  State<UtilityOverviewMonthlyBox> createState() {
+    return _UtilityOverviewMonthlyBoxState();
+  }
 }
 
 class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     with TickerProviderStateMixin {
-  static const Duration _refreshInterval = Duration(seconds: 30);
-  static const Duration _requestTimeout = Duration(seconds: 15);
+  /// Monthly summary không cần refresh mỗi 30 giây.
+  /// GET sẽ dùng cache backend.
+  static const Duration _refreshInterval = Duration(hours: 6);
+
+  static const Duration _requestTimeout = Duration(seconds: 30);
 
   late final UtilityInfoBoxFx _fx;
+
   late final AnimationController _highlightController;
   late final Animation<double> _opacityAnimation;
 
   Timer? _refreshTimer;
 
-  bool _loading = true;
-  bool _loadingNow = false;
   bool _disposed = false;
   bool _screenActive = true;
-  bool _wasAlarm = false;
+
+  bool _loading = true;
+  bool _fetching = false;
+
+  int _requestToken = 0;
 
   Object? _error;
   DataHealthResult? _cachedHealth;
 
   List<EnergyMonthlySummary> _items = const [];
-  List<VoltageStatus> _voltageStatuses = const [];
+
+  bool get _canUpdate {
+    return mounted && !_disposed && _screenActive;
+  }
 
   @override
   void initState() {
@@ -165,7 +246,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     _highlightController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 280),
-      value: widget.isHighlighted ? 1.0 : 0.55,
+      value: widget.isHighlighted ? 1 : 0.55,
     );
 
     _opacityAnimation = CurvedAnimation(
@@ -174,25 +255,25 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _disposed) return;
-      _load();
+      if (!_canUpdate) return;
+
+      unawaited(_load());
     });
 
-    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
-      if (!mounted || _disposed || !_screenActive) return;
-      _load(silent: true);
-    });
+    _startRefreshTimer();
   }
 
   @override
   void activate() {
     super.activate();
+
     _screenActive = true;
   }
 
   @override
   void deactivate() {
     _screenActive = false;
+
     super.deactivate();
   }
 
@@ -208,44 +289,64 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       }
     }
 
-    final sourceChanged =
-        oldWidget.facId != widget.facId || oldWidget.month != widget.month;
+    final oldFac = oldWidget.facId.trim();
+    final newFac = widget.facId.trim();
+
+    final oldMonth = oldWidget.month.trim();
+    final newMonth = widget.month.trim();
+
+    final sourceChanged = oldFac != newFac || oldMonth != newMonth;
 
     if (!sourceChanged) return;
 
+    /// Vô hiệu hóa response cũ.
+    _requestToken++;
+
+    _fetching = false;
     _cachedHealth = null;
-    _wasAlarm = false;
 
     setState(() {
       _loading = true;
       _error = null;
       _items = const [];
-      _voltageStatuses = const [];
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _disposed) return;
-      _load();
+      if (!_canUpdate) return;
+
+      unawaited(_load(force: true));
     });
   }
 
-  @override
-  void dispose() {
-    _disposed = true;
-    _screenActive = false;
+  void _startRefreshTimer() {
     _refreshTimer?.cancel();
-    _fx.dispose();
-    _highlightController.dispose();
-    super.dispose();
+
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
+      if (!_canUpdate || _fetching) {
+        return;
+      }
+
+      unawaited(_load(silent: true));
+    });
   }
 
-  Future<void> _load({bool silent = false}) async {
-    if (_loadingNow || _disposed || !mounted || !_screenActive) return;
+  Future<void> _load({bool silent = false, bool force = false}) async {
+    if (!_canUpdate) return;
+
+    if (_fetching && !force) {
+      return;
+    }
 
     final facId = widget.facId.trim();
-    if (facId.isEmpty) return;
+    final month = widget.month.trim();
 
-    _loadingNow = true;
+    if (facId.isEmpty || month.isEmpty) {
+      return;
+    }
+
+    final requestToken = ++_requestToken;
+
+    _fetching = true;
 
     if (!silent && _items.isEmpty) {
       setState(() {
@@ -257,34 +358,24 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     try {
       final api = context.read<UtilityDashboardOverviewApi>();
 
-      final results = await Future.wait<dynamic>([
-        api.getEnergyMonthlySummary(facId: facId, month: widget.month),
-        api.getVoltageStatus(facId: facId),
-      ]).timeout(_requestTimeout);
+      /// getMonthlySummary đã trả trực tiếp:
+      /// List<EnergyMonthlySummary>
+      ///
+      /// Không parse Map lần thứ hai.
+      final result = await api
+          .getMonthlySummary(facId: facId, month: month)
+          .timeout(_requestTimeout);
 
-      if (!mounted || _disposed || !_screenActive) return;
+      if (!_isValidRequest(requestToken)) {
+        return;
+      }
 
-      final parsedItems = (results[0] as List)
-          .whereType<Map<String, dynamic>>()
-          .map(EnergyMonthlySummary.fromJson)
+      final nextItems = List<EnergyMonthlySummary>.unmodifiable(result);
+
+      final healthValues = nextItems
+          .map((item) => item.displayValue)
+          .where((value) => value.isFinite && value != 0)
           .toList(growable: false);
-
-      final parsedVoltages = List<VoltageStatus>.from(
-        results[1] as List<VoltageStatus>,
-      );
-
-      final alarmVoltages = parsedVoltages
-          .where((e) => e.isAlarm)
-          .toList(growable: false);
-
-      final hasAlarmNow = alarmVoltages.isNotEmpty;
-
-      final healthValues = <double>[
-        ...parsedItems.map((e) => e.displayValue).where((v) => v != 0),
-        ...parsedVoltages
-            .expand((e) => [e.minVol, e.maxVol])
-            .where((v) => v != 0),
-      ];
 
       final nextHealth = DataHealthAnalyzer.analyze(
         key: 'Monthly_${widget.facId}_${widget.headerTitle}',
@@ -294,47 +385,66 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       );
 
       setState(() {
-        _items = parsedItems;
-        _voltageStatuses = parsedVoltages;
+        _items = nextItems;
         _cachedHealth = nextHealth;
+
         _loading = false;
         _error = null;
       });
-
-      if (_wasAlarm != hasAlarmNow) {
-        widget.onVoltageAlarmChanged?.call(
-          widget.facId,
-          hasAlarmNow ? alarmVoltages.first : null,
-        );
-      }
-
-      _wasAlarm = hasAlarmNow;
-    } catch (e) {
-      if (!mounted || _disposed || !_screenActive) return;
-
-      if (_items.isEmpty) {
-        setState(() {
-          _error = e;
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _error = null;
-          _loading = false;
-        });
-      }
+    } on TimeoutException catch (exception) {
+      _handleLoadError(requestToken, exception, '[MONTHLY TIMEOUT]');
+    } catch (exception, stackTrace) {
+      _handleLoadError(
+        requestToken,
+        exception,
+        '[MONTHLY ERROR]',
+        stackTrace: stackTrace,
+      );
     } finally {
-      _loadingNow = false;
+      if (_isValidRequest(requestToken)) {
+        _fetching = false;
+      }
     }
   }
 
+  void _handleLoadError(
+    int requestToken,
+    Object exception,
+    String tag, {
+    StackTrace? stackTrace,
+  }) {
+    if (!_isValidRequest(requestToken)) {
+      return;
+    }
+
+    debugPrint('$tag $exception');
+
+    if (stackTrace != null) {
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
+    setState(() {
+      _loading = false;
+
+      /// Nếu đã có dữ liệu cũ thì tiếp tục hiển thị.
+      /// Chỉ hiện lỗi khi chưa có dữ liệu.
+      _error = _items.isEmpty ? exception : null;
+    });
+  }
+
+  bool _isValidRequest(int requestToken) {
+    return _canUpdate && requestToken == _requestToken;
+  }
+
   void _openFacilityDetail() {
-    final svc = context.read<UtilityFacadeService>();
+    final service = context.read<UtilityFacadeService>();
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => UtilityFacDetailScreens(facId: widget.facId, svc: svc),
+        builder: (_) {
+          return UtilityFacDetailScreens(facId: widget.facId, svc: service);
+        },
       ),
     );
   }
@@ -346,36 +456,35 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       return _items;
     }
 
-    return _items
-        .where((e) {
-          final cate = e.cate.toUpperCase();
+    for (final item in _items) {
+      final cate = item.cate.trim().toUpperCase();
 
-          if (filter == 'ELECTRICITY') {
-            return cate.contains('ELECTRIC');
-          }
+      bool matched;
 
-          if (filter == 'WATER') {
-            return cate.contains('WATER');
-          }
+      if (filter == 'ELECTRICITY') {
+        matched = cate.contains('ELECTRIC');
+      } else if (filter == 'WATER') {
+        matched = cate.contains('WATER');
+      } else if (filter == 'AIR') {
+        matched = cate.contains('AIR') || cate.contains('COMPRESSED');
+      } else {
+        matched = cate.contains(filter);
+      }
 
-          if (filter == 'AIR') {
-            return cate.contains('AIR');
-          }
+      if (matched) {
+        return <EnergyMonthlySummary>[item];
+      }
+    }
 
-          return cate.contains(filter);
-        })
-        .take(1)
-        .toList();
+    return const [];
   }
 
-  ChartTheme get _currentTheme {
+  ChartTheme _resolveCurrentTheme(List<EnergyMonthlySummary> displayItems) {
     final filterCate = widget.filterCate?.trim();
 
     if (filterCate != null && filterCate.isNotEmpty) {
       return ChartThemeResolver.theme(filterCate);
     }
-
-    final displayItems = _filteredItems();
 
     if (displayItems.isNotEmpty) {
       return ChartThemeResolver.theme(displayItems.first.cate);
@@ -386,8 +495,14 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
   @override
   Widget build(BuildContext context) {
+    final displayItems = _filteredItems();
+
+    final currentTheme = _resolveCurrentTheme(displayItems);
+
     final facColor = ChartThemes.colorFromFac(widget.headerTitle);
-    ;
+
+    final headerColor = currentTheme.iconColor;
+
     final healthResult =
         _cachedHealth ??
         DataHealthAnalyzer.analyze(
@@ -396,9 +511,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
           error: _error,
           values: const [],
         );
-
-    final currentTheme = _currentTheme;
-    final headerColor = currentTheme.iconColor;
 
     return GestureDetector(
       onTap: _openFacilityDetail,
@@ -429,10 +541,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
                     child: _MonthlyBody(
                       loading: _loading,
                       error: _error,
-                      // items: _items,
-                      items: _filteredItems(),
-                      voltageStatuses: _voltageStatuses,
-                      facId: widget.facId,
+                      items: displayItems,
                       onRetry: _load,
                     ),
                   ),
@@ -444,7 +553,27 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       ),
     );
   }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _screenActive = false;
+
+    _requestToken++;
+
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+
+    _fx.dispose();
+    _highlightController.dispose();
+
+    super.dispose();
+  }
 }
+
+// ============================================================
+// MONTHLY SHELL
+// ============================================================
 
 class _MonthlyShell extends StatelessWidget {
   final double width;
@@ -470,13 +599,13 @@ class _MonthlyShell extends StatelessWidget {
         borderRadius: radius,
         child: Stack(
           children: [
-            /// Glass Blur
+            /// Glass blur
             BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
               child: const SizedBox.expand(),
             ),
 
-            /// Glass Background
+            /// Glass background
             Container(
               decoration: BoxDecoration(
                 borderRadius: radius,
@@ -511,7 +640,7 @@ class _MonthlyShell extends StatelessWidget {
               ),
             ),
 
-            /// Outer Border
+            /// Outer border
             Container(
               decoration: BoxDecoration(
                 borderRadius: radius,
@@ -522,7 +651,7 @@ class _MonthlyShell extends StatelessWidget {
               ),
             ),
 
-            /// Cyan glow border
+            /// Glow border
             Container(
               decoration: BoxDecoration(
                 borderRadius: radius,
@@ -547,7 +676,7 @@ class _MonthlyShell extends StatelessWidget {
               ),
             ),
 
-            /// Top glass reflection
+            /// Top reflection
             Positioned(
               top: 0,
               left: 0,
@@ -597,69 +726,46 @@ class _MonthlyShell extends StatelessWidget {
   }
 }
 
-class _MonthlyBody extends StatefulWidget {
+// ============================================================
+// MONTHLY BODY
+// ============================================================
+
+class _MonthlyBody extends StatelessWidget {
   final bool loading;
   final Object? error;
+
   final List<EnergyMonthlySummary> items;
-  final List<VoltageStatus> voltageStatuses;
-  final String facId;
+
   final Future<void> Function() onRetry;
 
   const _MonthlyBody({
     required this.loading,
     required this.error,
     required this.items,
-    required this.voltageStatuses,
-    required this.facId,
     required this.onRetry,
   });
 
   @override
-  State<_MonthlyBody> createState() => _MonthlyBodyState();
-}
-
-class _MonthlyBodyState extends State<_MonthlyBody>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _flowController;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _flowController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _flowController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (widget.loading && widget.items.isEmpty) {
+    if (loading && items.isEmpty) {
       return const Center(
-        child: SizedBox(
-          width: 18,
-          height: 18,
+        child: SizedBox.square(
+          dimension: 18,
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
       );
     }
 
-    if (widget.error != null && widget.items.isEmpty) {
+    if (error != null && items.isEmpty) {
       return _InlineState(
         icon: Icons.cloud_off_rounded,
         title: 'API Error',
         message: 'Tap to retry',
-        onTap: widget.onRetry,
+        onTap: onRetry,
       );
     }
 
-    if (widget.items.isEmpty) {
+    if (items.isEmpty) {
       return const _InlineState(
         icon: Icons.dataset_outlined,
         title: 'No Data',
@@ -667,74 +773,35 @@ class _MonthlyBodyState extends State<_MonthlyBody>
       );
     }
 
-    final alarms = widget.voltageStatuses
-        .where((e) => e.isAlarm)
-        .toList(growable: false);
+    if (items.length == 1) {
+      return Center(
+        child: RepaintBoundary(child: _EnergyRow(item: items.first)),
+      );
+    }
 
-    return Column(
-      children: [
-        if (alarms.isNotEmpty) ...[
-          RepaintBoundary(
-            child: _AlarmBanner(alarms: alarms, facId: widget.facId),
-          ),
-          const SizedBox(height: 8),
-        ],
-
-        const _SoftDivider(),
-
-        // Expanded(
-        //   child: ListView.separated(
-        //     padding: EdgeInsets.zero,
-        //     physics: const NeverScrollableScrollPhysics(),
-        //     itemCount: widget.items.length,
-        //     separatorBuilder: (_, __) => const SizedBox(height: 8),
-        //     itemBuilder: (_, index) {
-        //       final item = widget.items[index];
-        //       final theme = ChartThemes.byCate(item.cate);
-        //       final color = theme.iconColor;
-        //
-        //       return RepaintBoundary(
-        //         child: ScadaPanelFrame(
-        //           color: color,
-        //           child: _EnergyRow(item: item, animation: _flowController),
-        //         ),
-        //       );
-        //     },
-        //   ),
-        // ),
-        Expanded(
-          child: widget.items.length == 1
-              ? Center(
-                  child: RepaintBoundary(
-                    child: _EnergyRow(
-                      item: widget.items.first,
-                      animation: _flowController,
-                    ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: EdgeInsets.zero,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: widget.items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, index) {
-                    final item = widget.items[index];
-                    final theme = ChartThemes.byCate(item.cate);
-                    final color = theme.iconColor;
-
-                    return _EnergyRow(item: item, animation: _flowController);
-                  },
-                ),
-        ),
-      ],
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      separatorBuilder: (_, __) {
+        return const SizedBox(height: 8);
+      },
+      itemBuilder: (_, index) {
+        return RepaintBoundary(child: _EnergyRow(item: items[index]));
+      },
     );
   }
 }
+
+// ============================================================
+// INLINE STATE
+// ============================================================
 
 class _InlineState extends StatelessWidget {
   final IconData icon;
   final String title;
   final String message;
+
   final Future<void> Function()? onTap;
 
   const _InlineState({
@@ -749,12 +816,12 @@ class _InlineState extends StatelessWidget {
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: Colors.white.withOpacity(0.55), size: 22),
+        Icon(icon, color: Colors.white.withOpacity(.55), size: 22),
         const SizedBox(height: 6),
         Text(
           title,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.84),
+            color: Colors.white.withOpacity(.84),
             fontSize: 12,
             fontWeight: FontWeight.w900,
           ),
@@ -763,7 +830,7 @@ class _InlineState extends StatelessWidget {
         Text(
           message,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.52),
+            color: Colors.white.withOpacity(.52),
             fontSize: 10.5,
             fontWeight: FontWeight.w700,
           ),
@@ -778,129 +845,52 @@ class _InlineState extends StatelessWidget {
     return Center(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
+        onTap: () {
+          unawaited(onTap!());
+        },
         child: Padding(padding: const EdgeInsets.all(10), child: content),
       ),
     );
   }
 }
 
-class _AlarmBanner extends StatelessWidget {
-  final List<VoltageStatus> alarms;
-  final String facId;
-
-  const _AlarmBanner({required this.alarms, required this.facId});
-
-  void _openDetail(BuildContext context) {
-    final api = context.read<UtilityDashboardOverviewApi>();
-
-    showDialog(
-      context: context,
-      builder: (_) => VoltageChartDialog(api: api, facId: facId),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final alarm = alarms.first;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(9),
-        onTap: () => _openDetail(context),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.14),
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: Colors.red.withOpacity(0.45), width: 1),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.red.withOpacity(0.22),
-                ),
-                child: const Icon(
-                  Icons.warning_rounded,
-                  color: Colors.red,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  alarms.length == 1
-                      ? '${alarm.boxDeviceId} voltage alarm'
-                      : '${alarms.length} voltage issues detected',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.white.withOpacity(0.7),
-                size: 18,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SoftDivider extends StatelessWidget {
-  const _SoftDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.transparent,
-            Colors.white.withOpacity(0.16),
-            Colors.transparent,
-          ],
-        ),
-      ),
-    );
-  }
-}
+// ============================================================
+// ENERGY ROW
+// ============================================================
 
 class _EnergyRow extends StatelessWidget {
   final EnergyMonthlySummary item;
-  final Animation<double> animation;
 
-  const _EnergyRow({required this.item, required this.animation});
+  const _EnergyRow({required this.item});
 
   String _titleByCate(ChartTheme theme) {
     final cate = item.cate.toUpperCase();
 
-    if (cate.contains('ELECTRIC')) return 'Total Energy';
-    if (cate.contains('WATER')) return 'Water';
-    if (cate.contains('AIR')) return 'Air';
+    if (cate.contains('ELECTRIC')) {
+      return 'Total Energy';
+    }
 
-    return item.name.trim().isNotEmpty ? item.name.trim() : theme.title;
+    if (cate.contains('WATER')) {
+      return 'Water';
+    }
+
+    if (cate.contains('AIR')) {
+      return 'Air';
+    }
+
+    final name = item.name.trim();
+
+    return name.isNotEmpty ? name : theme.title;
   }
 
-  String _prevText(String unit) {
-    final prev = item.previousDisplayValue;
-    if (prev == null) return '--';
-    return '${_format(prev)} $unit';
+  String _previousText(String unit) {
+    final previous = item.previousDisplayValue;
+
+    if (previous == null) {
+      return '--';
+    }
+
+    return '${_format(previous)} $unit';
   }
 
   String _valueTypeLabel() {
@@ -911,24 +901,27 @@ class _EnergyRow extends StatelessWidget {
 
       if (raw.length == 6) {
         final year = raw.substring(0, 4);
-        final month = int.parse(raw.substring(4, 6));
 
-        const months = [
-          'Jan',
-          'Feb',
-          'Mar',
-          'Apr',
-          'May',
-          'Jun',
-          'Jul',
-          'Aug',
-          'Sep',
-          'Oct',
-          'Nov',
-          'Dec',
-        ];
+        final monthNumber = int.tryParse(raw.substring(4, 6));
 
-        return '${months[month - 1]} $year MTD';
+        if (monthNumber != null && monthNumber >= 1 && monthNumber <= 12) {
+          const months = [
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'May',
+            'Jun',
+            'Jul',
+            'Aug',
+            'Sep',
+            'Oct',
+            'Nov',
+            'Dec',
+          ];
+
+          return '${months[monthNumber - 1]} $year MTD';
+        }
       }
 
       return 'Monthly';
@@ -948,10 +941,10 @@ class _EnergyRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ChartThemes.byCate(item.cate);
-    final color = theme.iconColor;
-    final icon = theme.icon;
 
+    final color = theme.iconColor;
     final title = _titleByCate(theme);
+
     final unit = item.unit.trim().isNotEmpty ? item.unit.trim() : theme.unit;
 
     final value = item.displayValue;
@@ -963,30 +956,39 @@ class _EnergyRow extends StatelessWidget {
     final cate = item.cate.toUpperCase();
 
     final isElectricity = cate.contains('ELECTRIC');
+
     final isWater = cate.contains('WATER');
+
     final isAir = cate.contains('AIR');
 
-    final deltaColor = delta == null
-        ? Colors.white54
-        : isElectricity
-        ? (isDown ? Colors.greenAccent : Colors.redAccent)
-        : (isUp ? Colors.redAccent : Colors.greenAccent);
+    final Color deltaColor;
 
-    final deltaIcon = isUp
-        ? Icons.arrow_upward_rounded
-        : isDown
-        ? Icons.arrow_downward_rounded
-        : Icons.remove_rounded;
+    if (delta == null) {
+      deltaColor = Colors.white54;
+    } else if (isElectricity) {
+      deltaColor = isDown ? Colors.greenAccent : Colors.redAccent;
+    } else {
+      deltaColor = isUp ? Colors.redAccent : Colors.greenAccent;
+    }
+
+    final IconData deltaIcon;
+
+    if (isUp) {
+      deltaIcon = Icons.arrow_upward_rounded;
+    } else if (isDown) {
+      deltaIcon = Icons.arrow_downward_rounded;
+    } else {
+      deltaIcon = Icons.remove_rounded;
+    }
 
     final content = Row(
       children: [
-        // _MetricIcon(icon: icon, color: color, animation: animation),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              /// title + delta
+              /// Title + type + delta
               Row(
                 children: [
                   Expanded(
@@ -1022,7 +1024,6 @@ class _EnergyRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 3),
-
                   if (delta != null)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -1055,31 +1056,31 @@ class _EnergyRow extends StatelessWidget {
 
               const SizedBox(height: 6),
 
-              /// main value
+              /// Current value + previous value
               Row(
                 children: [
                   TweenAnimationBuilder<double>(
                     tween: Tween<double>(begin: 0, end: value),
                     duration: const Duration(milliseconds: 750),
                     curve: Curves.easeOutCubic,
-                    builder: (_, v, __) {
+                    builder: (_, animatedValue, __) {
                       return Text(
-                        '${_format(v)} $unit',
+                        '${_format(animatedValue)} $unit',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: color,
                           fontSize: 24,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -0.45,
+                          letterSpacing: -.45,
                         ),
                       );
                     },
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _MiniMetric(
-                      value: _prevText(unit),
+                      value: _previousText(unit),
                       color: Colors.white70,
                       icon: Icons.history_rounded,
                     ),
@@ -1088,15 +1089,14 @@ class _EnergyRow extends StatelessWidget {
               ),
 
               const Spacer(),
-              // const SizedBox(height: 6),
 
-              /// sub info
+              /// Electricity costs
               if (isElectricity)
                 Row(
                   children: [
                     Expanded(
                       child: _MiniMetric(
-                        value: '\$${_formatMoney(item.currentCost!)}',
+                        value: _formatCost(item.currentCost),
                         color: Colors.orangeAccent,
                         icon: Icons.monetization_on_outlined,
                       ),
@@ -1104,7 +1104,7 @@ class _EnergyRow extends StatelessWidget {
                     const SizedBox(width: 6),
                     Expanded(
                       child: _MiniMetric(
-                        value: '\$${_formatMoney(item.previousCost!)}',
+                        value: _formatCost(item.previousCost),
                         color: Colors.white70,
                         icon: Icons.history_rounded,
                       ),
@@ -1118,245 +1118,26 @@ class _EnergyRow extends StatelessWidget {
         ),
       ],
     );
+
     if (isElectricity) {
       return UtilityGlowCard.electricity(color: color, child: content);
-    } else if (isWater) {
+    }
+
+    if (isWater) {
       return UtilityGlowCard.water(color: color, child: content);
-    } else if (isAir) {
+    }
+
+    if (isAir) {
       return UtilityGlowCard.air(color: color, child: content);
     }
 
-    // fallback: loại không xác định, vẫn dùng bản electricity làm mặc định
     return UtilityGlowCard.electricity(color: color, child: content);
-    // return Container(
-    //   padding: const EdgeInsets.all(4),
-    //   decoration: BoxDecoration(
-    //     borderRadius: BorderRadius.circular(14),
-    //     gradient: LinearGradient(
-    //       begin: Alignment.topLeft,
-    //       end: Alignment.bottomRight,
-    //       colors: [
-    //         Colors.black.withOpacity(.5),
-    //         color.withOpacity(.1),
-    //         Colors.black.withOpacity(.5),
-    //       ],
-    //     ),
-    //     border: Border.all(color: color.withOpacity(.35), width: 1),
-    //     boxShadow: [
-    //       BoxShadow(
-    //         color: color.withOpacity(.14),
-    //         blurRadius: 14,
-    //         spreadRadius: -4,
-    //       ),
-    //     ],
-    //   ),
-    //   child: Row(
-    //     children: [
-    //       _MetricIcon(icon: icon, color: color, animation: animation),
-    //
-    //       const SizedBox(width: 8),
-    //
-    //       Expanded(
-    //         child: Column(
-    //           crossAxisAlignment: CrossAxisAlignment.start,
-    //           children: [
-    //             /// title + delta
-    //             Row(
-    //               children: [
-    //                 Expanded(
-    //                   child: Text(
-    //                     title,
-    //                     maxLines: 1,
-    //                     overflow: TextOverflow.ellipsis,
-    //                     style: TextStyle(
-    //                       color: Colors.white.withOpacity(.88),
-    //                       fontSize: 14,
-    //                       fontWeight: FontWeight.w900,
-    //                       letterSpacing: .2,
-    //                     ),
-    //                   ),
-    //                 ),
-    //                 Container(
-    //                   padding: const EdgeInsets.symmetric(
-    //                     horizontal: 7,
-    //                     vertical: 2,
-    //                   ),
-    //                   decoration: BoxDecoration(
-    //                     color: color.withOpacity(.14),
-    //                     borderRadius: BorderRadius.circular(999),
-    //                     border: Border.all(color: color.withOpacity(.35)),
-    //                   ),
-    //                   child: Text(
-    //                     _valueTypeLabel(),
-    //                     style: TextStyle(
-    //                       color: color,
-    //                       fontSize: 11,
-    //                       fontWeight: FontWeight.bold,
-    //                     ),
-    //                   ),
-    //                 ),
-    //                 const SizedBox(width: 3),
-    //
-    //                 if (delta != null)
-    //                   Container(
-    //                     padding: const EdgeInsets.symmetric(
-    //                       horizontal: 3,
-    //                       vertical: 3,
-    //                     ),
-    //                     decoration: BoxDecoration(
-    //                       color: deltaColor.withOpacity(.12),
-    //                       borderRadius: BorderRadius.circular(999),
-    //                       border: Border.all(
-    //                         color: deltaColor.withOpacity(.45),
-    //                       ),
-    //                     ),
-    //                     child: Row(
-    //                       mainAxisSize: MainAxisSize.min,
-    //                       children: [
-    //                         Icon(deltaIcon, color: deltaColor, size: 12),
-    //                         const SizedBox(width: 2),
-    //                         Text(
-    //                           '${delta.abs().toStringAsFixed(1)}%',
-    //                           style: TextStyle(
-    //                             color: deltaColor,
-    //                             fontSize: 10.5,
-    //                             fontWeight: FontWeight.bold,
-    //                           ),
-    //                         ),
-    //                       ],
-    //                     ),
-    //                   ),
-    //               ],
-    //             ),
-    //
-    //             const SizedBox(height: 6),
-    //
-    //             /// main value
-    //             Row(
-    //               children: [
-    //                 TweenAnimationBuilder<double>(
-    //                   tween: Tween<double>(begin: 0, end: value),
-    //                   duration: const Duration(milliseconds: 750),
-    //                   curve: Curves.easeOutCubic,
-    //                   builder: (_, v, __) {
-    //                     return Text(
-    //                       '${_format(v)} $unit',
-    //                       maxLines: 1,
-    //                       overflow: TextOverflow.ellipsis,
-    //                       style: TextStyle(
-    //                         color: color,
-    //                         fontSize: 20,
-    //                         fontWeight: FontWeight.bold,
-    //                         letterSpacing: -0.45,
-    //                         shadows: [
-    //                           Shadow(
-    //                             color: color.withOpacity(.45),
-    //                             blurRadius: 8,
-    //                           ),
-    //                         ],
-    //                       ),
-    //                     );
-    //                   },
-    //                 ),
-    //                 SizedBox(width: 8),
-    //
-    //                 Expanded(
-    //                   child: _MiniMetric(
-    //                     value: _prevText(unit),
-    //                     color: Colors.white70,
-    //                     icon: Icons.history_rounded,
-    //                   ),
-    //                 ),
-    //               ],
-    //             ),
-    //
-    //             const Spacer(),
-    //             // const SizedBox(height: 6),
-    //
-    //             /// sub info
-    //             if (isElectricity)
-    //               Row(
-    //                 children: [
-    //                   Expanded(
-    //                     child: _MiniMetric(
-    //                       value: '\$${_formatMoney(item.currentCost!)}',
-    //                       color: Colors.orangeAccent,
-    //                       icon: Icons.payments_rounded,
-    //                     ),
-    //                   ),
-    //                   const SizedBox(width: 6),
-    //                   Expanded(
-    //                     child: _MiniMetric(
-    //                       value: '\$${_formatMoney(item.previousCost!)}',
-    //                       color: Colors.orangeAccent,
-    //                       icon: Icons.history_rounded,
-    //                     ),
-    //                   ),
-    //                 ],
-    //               )
-    //             else
-    //               const SizedBox(height: 24),
-    //           ],
-    //         ),
-    //       ),
-    //     ],
-    //   ),
-    // );
   }
 }
 
-class _MetricIcon extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final Animation<double> animation;
-
-  const _MetricIcon({
-    required this.icon,
-    required this.color,
-    required this.animation,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (_, __) {
-        final glow = 0.25 + (animation.value * 0.25);
-
-        return Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                color.withOpacity(.30),
-                color.withOpacity(.08),
-                Colors.black.withOpacity(.10),
-              ],
-            ),
-            border: Border.all(color: color.withOpacity(.55)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(glow),
-                blurRadius: 14,
-                spreadRadius: -2,
-              ),
-            ],
-          ),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: 20,
-            shadows: [Shadow(color: color.withOpacity(.7), blurRadius: 10)],
-          ),
-        );
-      },
-    );
-  }
-}
+// ============================================================
+// MINI METRIC
+// ============================================================
 
 class _MiniMetric extends StatelessWidget {
   final String value;
@@ -1364,7 +1145,6 @@ class _MiniMetric extends StatelessWidget {
   final IconData icon;
 
   const _MiniMetric({
-    super.key,
     required this.value,
     required this.color,
     required this.icon,
@@ -1374,7 +1154,6 @@ class _MiniMetric extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 24,
-      // padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(.14),
         borderRadius: BorderRadius.circular(8),
@@ -1401,85 +1180,3 @@ class _MiniMetric extends StatelessWidget {
     );
   }
 }
-
-// class _EnergyRow extends StatelessWidget {
-//   final EnergyMonthlySummary item;
-//   final Animation<double> animation;
-//
-//   const _EnergyRow({required this.item, required this.animation});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final theme = ChartThemes.getThemeByCate(item.cate);
-//     final icon = ChartThemes.cateIcon(item.cate);
-//     final color = ChartThemes.cateIconColor(item.cate, theme);
-//
-//     final title = item.name.trim().isNotEmpty ? item.name.trim() : theme.title;
-//     final unit = item.unit.trim().isNotEmpty ? item.unit.trim() : theme.unit;
-//
-//     return Container(
-//       padding: const EdgeInsets.all(6),
-//       decoration: BoxDecoration(
-//         color: Colors.black.withOpacity(0.18),
-//         borderRadius: BorderRadius.circular(14),
-//         border: Border.all(color: color.withOpacity(0.20)),
-//         boxShadow: [
-//           BoxShadow(
-//             color: color.withOpacity(0.08),
-//             blurRadius: 14,
-//             offset: const Offset(0, 6),
-//           ),
-//         ],
-//       ),
-//       child: Row(
-//         children: [
-//           ScadaEnergyIcon(
-//             icon: icon,
-//             color: color,
-//             cate: item.cate,
-//             animation: animation,
-//           ),
-//
-//           const SizedBox(width: 10),
-//
-//           Expanded(
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 Text(
-//                   title,
-//                   maxLines: 1,
-//                   overflow: TextOverflow.ellipsis,
-//                   style: TextStyle(
-//                     color: Colors.white.withOpacity(0.70),
-//                     fontSize: 13,
-//                     fontWeight: FontWeight.w700,
-//                   ),
-//                 ),
-//                 const SizedBox(height: 4),
-//                 TweenAnimationBuilder<double>(
-//                   tween: Tween<double>(begin: 0, end: item.value),
-//                   duration: const Duration(milliseconds: 750),
-//                   curve: Curves.easeOutCubic,
-//                   builder: (_, value, __) {
-//                     return Text(
-//                       '${_format(value)} $unit',
-//                       maxLines: 1,
-//                       overflow: TextOverflow.ellipsis,
-//                       style: TextStyle(
-//                         color: color,
-//                         fontSize: 16,
-//                         fontWeight: FontWeight.w900,
-//                         letterSpacing: -0.25,
-//                       ),
-//                     );
-//                   },
-//                 ),
-//               ],
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:factory_utility_visualization/weather_widgets/weather/api/weather_api_service.dart';
 import 'package:factory_utility_visualization/weather_widgets/weather/api_rain_painter.dart';
@@ -165,8 +166,8 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
           if (_isRaining) _buildRainLayer(),
           if (widget.showWeatherInfo)
             Positioned(
-              left: 10,
-              bottom: 10,
+              right: 10,
+              top: 10,
               child: _WeatherInfoBadge(
                 weather: _currentWeather,
                 isRaining: _isRaining,
@@ -256,62 +257,232 @@ class _WeatherInfoBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (weather == null) {
-      return Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Text(
-          'Loading weather...',
-          style: TextStyle(color: Colors.white, fontSize: 10),
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(.16)),
+            ),
+            child: const Text(
+              'Loading weather...',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ),
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF1A237E), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _getWeatherIcon(weather!.condition),
-                color: Colors.white,
-                size: 16,
+    final currentWeather = weather!;
+    final condition = currentWeather.condition;
+
+    final accentColor = isRaining
+        ? const Color(0xff22d3ee)
+        : const Color(0xff60a5fa);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+
+            // Glass background
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withOpacity(.16),
+                accentColor.withOpacity(.08),
+                Colors.black.withOpacity(.18),
+              ],
+            ),
+
+            border: Border.all(color: Colors.white.withOpacity(.22), width: 1),
+
+            boxShadow: [
+              BoxShadow(
+                color: accentColor.withOpacity(.18),
+                blurRadius: 18,
+                spreadRadius: -8,
+                offset: const Offset(0, 8),
               ),
-              const SizedBox(width: 6),
-              Text(
-                weather!.condition.toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+              BoxShadow(
+                color: Colors.black.withOpacity(.25),
+                blurRadius: 16,
+                spreadRadius: -8,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
-          if (isRaining) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Intensity: ${(rainIntensity * 100).toInt()}%',
-              style: const TextStyle(color: Colors.cyanAccent, fontSize: 14),
-            ),
-          ],
-          const SizedBox(height: 4),
-          Text(
-            '${weather!.temperature.toStringAsFixed(1)}°C',
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
+          child: Stack(
+            children: [
+              // Ánh sáng phản chiếu phía trên
+              Positioned(
+                top: 0,
+                left: 12,
+                right: 12,
+                child: Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.transparent,
+                        Colors.white.withOpacity(.65),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Glow nhẹ góc phải
+              Positioned(
+                top: -24,
+                right: -24,
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: accentColor.withOpacity(.12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accentColor.withOpacity(.25),
+                        blurRadius: 30,
+                        spreadRadius: 4,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 30,
+                        height: 30,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: accentColor.withOpacity(.16),
+                          border: Border.all(
+                            color: accentColor.withOpacity(.45),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accentColor.withOpacity(.22),
+                              blurRadius: 12,
+                              spreadRadius: -3,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          _getWeatherIcon(condition),
+                          color: Colors.white,
+                          size: 17,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          condition.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        currentWeather.temperature.toStringAsFixed(1),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          height: 1,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -.7,
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(left: 2, bottom: 2),
+                        child: Text(
+                          '°C',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (isRaining) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accentColor.withOpacity(.12),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: accentColor.withOpacity(.35)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.water_drop_rounded,
+                            color: accentColor,
+                            size: 13,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Rain ${(rainIntensity * 100).round()}%',
+                            style: TextStyle(
+                              color: accentColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
