@@ -168,11 +168,25 @@ class EnergyMonthlySummary {
 // FORMATTERS
 // ============================================================
 
-final NumberFormat _numFmt = NumberFormat('#,##0');
+// ============================================================
+// FORMATTERS
+// ============================================================
+
+final NumberFormat _integerFmt = NumberFormat('#,##0');
+final NumberFormat _decimalFmt = NumberFormat('#,##0.0');
 final NumberFormat _moneyFmt = NumberFormat('#,##0');
 
-String _format(double value) {
-  return _numFmt.format(value);
+const EdgeInsets _metricCardPadding = EdgeInsets.symmetric(
+  horizontal: 10,
+  vertical: 8,
+);
+
+String _formatInteger(double value) {
+  return _integerFmt.format(value);
+}
+
+String _formatDecimal(double value) {
+  return _decimalFmt.format(value);
 }
 
 String _formatMoney(double value) {
@@ -192,6 +206,90 @@ String _formatCost(double? value, String unit) {
   }
 
   return '$formattedValue $normalizedUnit';
+}
+
+bool _isElectricityItem(EnergyMonthlySummary item) {
+  return item.cate.trim().toUpperCase().contains('ELECTRIC');
+}
+
+bool _isWaterItem(EnergyMonthlySummary item) {
+  return item.cate.trim().toUpperCase().contains('WATER');
+}
+
+bool _isAirItem(EnergyMonthlySummary item) {
+  final cate = item.cate.trim().toUpperCase();
+
+  return cate.contains('AIR') || cate.contains('COMPRESSED');
+}
+
+String _resolveUnit(EnergyMonthlySummary item, ChartTheme theme) {
+  final apiUnit = item.unit.trim();
+
+  if (apiUnit.isNotEmpty) {
+    return apiUnit;
+  }
+
+  return theme.unit.trim();
+}
+
+String _formatUtilityValue(
+  EnergyMonthlySummary item,
+  double? value,
+  String unit,
+) {
+  if (value == null) {
+    return '--';
+  }
+
+  final formatted = _isElectricityItem(item)
+      ? _formatInteger(value)
+      : _formatDecimal(value);
+
+  if (unit.trim().isEmpty) {
+    return formatted;
+  }
+
+  return '$formatted ${unit.trim()}';
+}
+
+String _monthlyTypeLabel(EnergyMonthlySummary item) {
+  if (_isWaterItem(item) || _isAirItem(item)) {
+    return 'Monthly Avg';
+  }
+
+  if (!_isElectricityItem(item)) {
+    return 'Monthly';
+  }
+
+  final raw = item.month.trim();
+
+  if (!RegExp(r'^\d{6}$').hasMatch(raw)) {
+    return 'Monthly MTD';
+  }
+
+  final year = raw.substring(0, 4);
+  final monthNumber = int.tryParse(raw.substring(4, 6));
+
+  if (monthNumber == null || monthNumber < 1 || monthNumber > 12) {
+    return 'Monthly MTD';
+  }
+
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  return '${months[monthNumber - 1]} $year MTD';
 }
 
 // ============================================================
@@ -477,27 +575,25 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       return _items;
     }
 
-    for (final item in _items) {
-      final cate = item.cate.trim().toUpperCase();
+    return _items
+        .where((item) {
+          final cate = item.cate.trim().toUpperCase();
 
-      bool matched;
+          if (filter == 'ELECTRICITY') {
+            return cate.contains('ELECTRIC');
+          }
 
-      if (filter == 'ELECTRICITY') {
-        matched = cate.contains('ELECTRIC');
-      } else if (filter == 'WATER') {
-        matched = cate.contains('WATER');
-      } else if (filter == 'AIR') {
-        matched = cate.contains('AIR') || cate.contains('COMPRESSED');
-      } else {
-        matched = cate.contains(filter);
-      }
+          if (filter == 'WATER') {
+            return cate.contains('WATER');
+          }
 
-      if (matched) {
-        return <EnergyMonthlySummary>[item];
-      }
-    }
+          if (filter == 'AIR') {
+            return cate.contains('AIR') || cate.contains('COMPRESSED');
+          }
 
-    return const [];
+          return cate.contains(filter);
+        })
+        .toList(growable: false);
   }
 
   ChartTheme _resolveCurrentTheme(List<EnergyMonthlySummary> displayItems) {
@@ -747,9 +843,7 @@ class _MonthlyShell extends StatelessWidget {
 class _MonthlyBody extends StatelessWidget {
   final bool loading;
   final Object? error;
-
   final List<EnergyMonthlySummary> items;
-
   final Future<void> Function() onRetry;
 
   const _MonthlyBody({
@@ -762,49 +856,58 @@ class _MonthlyBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading && items.isEmpty) {
-      return const Center(
-        child: SizedBox.square(
-          dimension: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
+      return const Padding(
+        padding: EdgeInsets.all(24),
+        child: Center(
+          child: SizedBox.square(
+            dimension: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
         ),
       );
     }
 
     if (error != null && items.isEmpty) {
-      return _InlineState(
-        icon: Icons.cloud_off_rounded,
-        title: 'API Error',
-        message: 'Tap to retry',
-        onTap: onRetry,
+      return Padding(
+        padding: const EdgeInsets.all(20),
+        child: _InlineState(
+          icon: Icons.cloud_off_rounded,
+          title: 'API Error',
+          message: 'Tap to retry',
+          onTap: onRetry,
+        ),
       );
     }
 
     if (items.isEmpty) {
-      return const _InlineState(
-        icon: Icons.dataset_outlined,
-        title: 'No Data',
-        message: 'No monthly utility data.',
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: _InlineState(
+          icon: Icons.dataset_outlined,
+          title: 'No Data',
+          message: 'No monthly utility data.',
+        ),
       );
     }
 
-    if (items.length == 1) {
-      return Padding(
-        padding: const EdgeInsets.all(6),
-        child: RepaintBoundary(child: _EnergyRow(item: items.first)),
-      );
-    }
+    final waterItems = items.where(_isWaterItem).toList(growable: false);
 
-    return Padding(
-      padding: const EdgeInsets.all(6),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var index = 0; index < items.length; index++) ...[
-            RepaintBoundary(child: _EnergyRow(item: items[index])),
-            if (index < items.length - 1) const SizedBox(height: 8),
-          ],
+    final otherItems = items
+        .where((item) => !_isWaterItem(item))
+        .toList(growable: false);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var index = 0; index < otherItems.length; index++) ...[
+          RepaintBoundary(child: _EnergyRow(item: otherItems[index])),
+          if (index < otherItems.length - 1 || waterItems.isNotEmpty)
+            const SizedBox(height: 8),
         ],
-      ),
+
+        if (waterItems.isNotEmpty)
+          RepaintBoundary(child: _WaterGroupCard(items: waterItems)),
+      ],
     );
   }
 }
@@ -869,9 +972,207 @@ class _InlineState extends StatelessWidget {
     );
   }
 }
-
 // ============================================================
-// ENERGY ROW
+// COMMON METRIC UI
+// ============================================================
+
+class _MetricTypeBadge extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _MetricTypeBadge({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    if (text.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(.30)),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricDeltaBadge extends StatelessWidget {
+  final double? delta;
+  final bool reverseColor;
+
+  const _MetricDeltaBadge({required this.delta, this.reverseColor = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final value = delta;
+
+    if (value == null) {
+      return const SizedBox.shrink();
+    }
+
+    final isUp = value > 0;
+    final isDown = value < 0;
+
+    final Color color;
+
+    if (value == 0) {
+      color = Colors.white54;
+    } else if (reverseColor) {
+      color = isUp ? Colors.redAccent : Colors.greenAccent;
+    } else {
+      color = isUp ? Colors.redAccent : Colors.greenAccent;
+    }
+
+    final icon = isUp
+        ? Icons.arrow_upward_rounded
+        : isDown
+        ? Icons.arrow_downward_rounded
+        : Icons.remove_rounded;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(.30)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 10),
+          const SizedBox(width: 2),
+          Text(
+            '${value.abs().toStringAsFixed(1)}%',
+            style: TextStyle(
+              color: color,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricHeader extends StatelessWidget {
+  final String title;
+  final String typeLabel;
+  final Color color;
+  final double? delta;
+
+  const _MetricHeader({
+    required this.title,
+    required this.typeLabel,
+    required this.color,
+    required this.delta,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withOpacity(.88),
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .2,
+            ),
+          ),
+        ),
+
+        if (delta != null) ...[
+          const SizedBox(width: 6),
+          _MetricDeltaBadge(delta: delta),
+        ],
+
+        const SizedBox(width: 6),
+
+        _MetricTypeBadge(text: typeLabel, color: color),
+      ],
+    );
+  }
+}
+
+class _MetricValueRow extends StatelessWidget {
+  final String current;
+  final String previous;
+  final double? delta;
+  final Color color;
+  final double currentFontSize;
+
+  const _MetricValueRow({
+    required this.current,
+    required this.previous,
+    required this.delta,
+    required this.color,
+    this.currentFontSize = 21,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Text(
+            current,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: currentFontSize,
+              height: 1,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -.25,
+            ),
+          ),
+        ),
+        const SizedBox(width: 7),
+        // Text(
+        //   'Prev ',
+        //   style: TextStyle(
+        //     color: Colors.white.withOpacity(.40),
+        //     fontSize: 9.5,
+        //     fontWeight: FontWeight.w700,
+        //   ),
+        // ),
+        Flexible(
+          child: Text(
+            previous,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: Colors.white.withOpacity(.65),
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+// ============================================================
+// ELECTRICITY / AIR ROW
 // ============================================================
 
 class _EnergyRow extends StatelessWidget {
@@ -879,282 +1180,101 @@ class _EnergyRow extends StatelessWidget {
 
   const _EnergyRow({required this.item});
 
-  String _titleByCate(ChartTheme theme) {
-    final cate = item.cate.toUpperCase();
-
-    if (cate.contains('ELECTRIC')) {
+  String _title() {
+    if (_isElectricityItem(item)) {
       return 'Total Energy';
     }
 
-    if (cate.contains('WATER')) {
-      return 'Water';
-    }
-
-    if (cate.contains('AIR')) {
-      return 'Air';
+    if (_isAirItem(item)) {
+      return 'Compressed Air';
     }
 
     final name = item.name.trim();
 
-    return name.isNotEmpty ? name : theme.title;
-  }
-
-  String _previousText(String unit) {
-    final previous = item.previousDisplayValue;
-
-    if (previous == null) {
-      return '--';
-    }
-
-    return '${_format(previous)} $unit';
-  }
-
-  String _valueTypeLabel() {
-    final cate = item.cate.toUpperCase();
-
-    if (cate.contains('ELECTRIC')) {
-      final raw = item.month;
-
-      if (raw.length == 6) {
-        final year = raw.substring(0, 4);
-
-        final monthNumber = int.tryParse(raw.substring(4, 6));
-
-        if (monthNumber != null && monthNumber >= 1 && monthNumber <= 12) {
-          const months = [
-            'Jan',
-            'Feb',
-            'Mar',
-            'Apr',
-            'May',
-            'Jun',
-            'Jul',
-            'Aug',
-            'Sep',
-            'Oct',
-            'Nov',
-            'Dec',
-          ];
-
-          return '${months[monthNumber - 1]} $year MTD';
-        }
-      }
-
-      return 'Monthly';
-    }
-
-    if (cate.contains('WATER')) {
-      return 'Monthly Avg';
-    }
-
-    if (cate.contains('AIR')) {
-      return 'Monthly Avg';
-    }
-
-    return '';
+    return name.isNotEmpty ? name : item.cate;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ChartThemes.byCate(item.cate);
-
     final color = theme.iconColor;
-    final title = _titleByCate(theme);
 
-    final unit = item.unit.trim().isNotEmpty ? item.unit.trim() : theme.unit;
+    final isElectricity = _isElectricityItem(item);
+    final isAir = _isAirItem(item);
 
-    final value = item.displayValue;
-    final delta = item.deltaPercent;
+    final unit = _resolveUnit(item, theme);
 
-    final isUp = delta != null && delta > 0;
-    final isDown = delta != null && delta < 0;
+    final previousText = _formatUtilityValue(
+      item,
+      item.previousDisplayValue,
+      unit,
+    );
 
-    final cate = item.cate.toUpperCase();
-
-    final isElectricity = cate.contains('ELECTRIC');
-
-    final isWater = cate.contains('WATER');
-
-    final isAir = cate.contains('AIR');
-
-    final Color deltaColor;
-
-    if (delta == null) {
-      deltaColor = Colors.white54;
-    } else if (isElectricity) {
-      deltaColor = isDown ? Colors.greenAccent : Colors.redAccent;
-    } else {
-      deltaColor = isUp ? Colors.redAccent : Colors.greenAccent;
-    }
-
-    final IconData deltaIcon;
-
-    if (isUp) {
-      deltaIcon = Icons.arrow_upward_rounded;
-    } else if (isDown) {
-      deltaIcon = Icons.arrow_downward_rounded;
-    } else {
-      deltaIcon = Icons.remove_rounded;
-    }
-
-    final content = Row(
-      children: [
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              /// Title + type + delta
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(.88),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .2,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(.14),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: color.withOpacity(.35)),
-                    ),
-                    child: Text(
-                      _valueTypeLabel(),
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 3),
-                  if (delta != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 3,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: deltaColor.withOpacity(.1),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: deltaColor.withOpacity(.45)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(deltaIcon, color: deltaColor, size: 12),
-                          const SizedBox(width: 2),
-                          Text(
-                            '${delta.abs().toStringAsFixed(1)}%',
-                            style: TextStyle(
-                              color: deltaColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-
-              // const SizedBox(height: 6),
-
-              /// Electricity costs - đưa lên trước value
-              if (isElectricity) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MoneyMetric(
-                        label: 'CURRENT COST',
-                        value: _formatCost(
-                          item.currentCost,
-                          item.currentCostUnit,
-                        ),
-                        color: Colors.orangeAccent,
-                        icon: Icons.monetization_on_outlined,
-                        fontSize: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: _MoneyMetric(
-                        label: 'PREVIOUS COST',
-                        value: _formatCost(
-                          item.previousCost,
-                          item.previousCostUnit,
-                        ),
-                        color: Colors.white70,
-                        icon: Icons.history_rounded,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-              ],
-
-              /// Current value + previous value
-              Row(
-                children: [
-                  Expanded(
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0, end: value),
-                      duration: const Duration(milliseconds: 750),
-                      curve: Curves.easeOutCubic,
-                      builder: (_, animatedValue, __) {
-                        return Text(
-                          '${_format(animatedValue)} $unit',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -.45,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _MiniMetric(
-                      value: _previousText(unit),
-                      color: Colors.white70,
-                      icon: Icons.history_rounded,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              /// Giữ chiều cao cho Water/Air
-              if (!isElectricity) const SizedBox(height: 24),
-            ],
+    final content = Padding(
+      padding: _metricCardPadding,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _MetricHeader(
+            title: _title(),
+            typeLabel: _monthlyTypeLabel(item),
+            color: color,
+            delta: item.deltaPercent,
           ),
-        ),
-      ],
+
+          const SizedBox(height: 6),
+
+          if (isElectricity) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: _MoneyMetric(
+                    label: 'CURRENT COST',
+                    value: _formatCost(item.currentCost, item.currentCostUnit),
+                    color: Colors.orangeAccent,
+                    icon: Icons.monetization_on_outlined,
+                    fontSize: 22,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _MoneyMetric(
+                    label: 'PREVIOUS COST',
+                    value: _formatCost(
+                      item.previousCost,
+                      item.previousCostUnit,
+                    ),
+                    color: Colors.white70,
+                    icon: Icons.history_rounded,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: item.displayValue),
+            duration: const Duration(milliseconds: 650),
+            curve: Curves.easeOutCubic,
+            builder: (_, animatedValue, __) {
+              return _MetricValueRow(
+                current: _formatUtilityValue(item, animatedValue, unit),
+                previous: previousText,
+                delta: item.deltaPercent,
+                color: color,
+                currentFontSize: 22,
+              );
+            },
+          ),
+        ],
+      ),
     );
 
     if (isElectricity) {
       return UtilityGlowCard.electricity(color: color, child: content);
-    }
-
-    if (isWater) {
-      return UtilityGlowCard.water(color: color, child: content);
     }
 
     if (isAir) {
@@ -1164,52 +1284,128 @@ class _EnergyRow extends StatelessWidget {
     return UtilityGlowCard.electricity(color: color, child: content);
   }
 }
-
 // ============================================================
-// MINI METRIC
+// WATER GROUP
 // ============================================================
 
-class _MiniMetric extends StatelessWidget {
-  final String value;
-  final Color color;
-  final IconData icon;
+class _WaterGroupCard extends StatelessWidget {
+  final List<EnergyMonthlySummary> items;
 
-  const _MiniMetric({
-    required this.value,
-    required this.color,
-    required this.icon,
-  });
+  const _WaterGroupCard({required this.items});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 24,
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.14),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(.08)),
-      ),
-      child: Row(
-        children: [
-          // Icon(icon, size: 16, color: color.withOpacity(.9)),
-          // const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+    final color = ChartThemes.water.iconColor;
+
+    return UtilityGlowCard.water(
+      color: color,
+      child: Padding(
+        padding: _metricCardPadding,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _MetricHeader(
+              title: 'Water',
+              typeLabel: 'Monthly Avg',
+              color: color,
+              delta: null,
             ),
-          ),
-        ],
+
+            const SizedBox(height: 8),
+
+            for (var index = 0; index < items.length; index++) ...[
+              _WaterCompactRow(item: items[index], color: color),
+
+              if (index < items.length - 1) ...[
+                const SizedBox(height: 7),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Colors.white.withOpacity(.08),
+                ),
+                const SizedBox(height: 7),
+              ],
+            ],
+          ],
+        ),
       ),
     );
   }
 }
+
+class _WaterCompactRow extends StatelessWidget {
+  final EnergyMonthlySummary item;
+  final Color color;
+
+  const _WaterCompactRow({required this.item, required this.color});
+
+  String _displayName() {
+    final name = item.name.trim();
+    final normalized = name.toUpperCase();
+
+    if (normalized.contains('COOLING TANK')) {
+      return 'Cooling Tank Temperature';
+    }
+
+    if (normalized.contains('PIPELINE PRESSURE')) {
+      return 'Pipeline Pressure';
+    }
+
+    return name.isNotEmpty ? name : 'Water metric';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ChartThemes.water;
+
+    final unit = _resolveUnit(item, theme);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _displayName(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(.76),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            if (item.deltaPercent != null) ...[
+              const SizedBox(width: 6),
+              _MetricDeltaBadge(delta: item.deltaPercent),
+            ],
+          ],
+        ),
+
+        const SizedBox(height: 4),
+
+        _MetricValueRow(
+          current: _formatUtilityValue(item, item.displayValue, unit),
+          previous: _formatUtilityValue(item, item.previousDisplayValue, unit),
+          delta: null,
+          color: color,
+          currentFontSize: 22,
+        ),
+      ],
+    );
+  }
+}
+// ============================================================
+// MINI METRIC
+// ============================================================
+
+// ============================================================
+// MONEY METRIC
+// ============================================================
 
 class _MoneyMetric extends StatelessWidget {
   final String label;
@@ -1229,20 +1425,19 @@ class _MoneyMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 48),
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.14),
+        color: Colors.black.withOpacity(.12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(.08)),
+        border: Border.all(color: Colors.white.withOpacity(.07)),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 13, color: color.withOpacity(.85)),
+              Icon(icon, size: 12, color: color.withOpacity(.80)),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
@@ -1250,10 +1445,9 @@ class _MoneyMetric extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(.58),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: .25,
+                    color: Colors.white.withOpacity(.50),
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
@@ -1267,8 +1461,8 @@ class _MoneyMetric extends StatelessWidget {
             style: TextStyle(
               color: color,
               fontSize: fontSize,
-              fontWeight: FontWeight.w900,
               height: 1,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
