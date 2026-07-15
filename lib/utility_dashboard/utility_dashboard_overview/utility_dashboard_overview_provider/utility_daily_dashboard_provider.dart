@@ -14,7 +14,7 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
 
   static const Duration pollInterval = Duration(hours: 1);
 
-  static const Duration requestTimeout = Duration(seconds: 15);
+  static const Duration requestTimeout = Duration(seconds: 30);
 
   Timer? _pollTimer;
   bool _notifyScheduled = false;

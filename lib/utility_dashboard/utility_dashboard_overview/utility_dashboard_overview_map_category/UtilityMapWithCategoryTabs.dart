@@ -202,11 +202,11 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
               fit: StackFit.expand,
               children: [
                 Align(
-                  alignment: const FractionalOffset(0.03, 0.2),
+                  alignment: const FractionalOffset(0.03, 0.15),
                   child: _facBox('Fac_B', 'Fac B'),
                 ),
                 Align(
-                  alignment: const FractionalOffset(0.03, 0.9),
+                  alignment: const FractionalOffset(0.03, 0.85),
                   child: _facBox('Fac_A', 'Fac A'),
                 ),
                 Align(
@@ -274,7 +274,7 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
       month: widget.monthKey,
       headerTitle: title,
       filterCate: selected.filterCate,
-      height: 130,
+      height: 160,
       isHighlighted: widget.shouldHighlight(facId),
     );
   }

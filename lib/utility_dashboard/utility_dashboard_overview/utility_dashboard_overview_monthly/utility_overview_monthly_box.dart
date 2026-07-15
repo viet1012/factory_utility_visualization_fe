@@ -148,6 +148,20 @@ class EnergyMonthlySummary {
   double? get previousCost {
     return prevUsdCost ?? prevVndCost;
   }
+
+  String get currentCostUnit {
+    if (usdCost != null) return 'USD';
+    if (vndCost != null) return 'VND';
+
+    return '';
+  }
+
+  String get previousCostUnit {
+    if (prevUsdCost != null) return 'USD';
+    if (prevVndCost != null) return 'VND';
+
+    return '';
+  }
 }
 
 // ============================================================
@@ -165,12 +179,19 @@ String _formatMoney(double value) {
   return _moneyFmt.format(value);
 }
 
-String _formatCost(double? value) {
+String _formatCost(double? value, String unit) {
   if (value == null) {
     return '--';
   }
 
-  return '\$${_formatMoney(value)}';
+  final formattedValue = _formatMoney(value);
+  final normalizedUnit = unit.trim();
+
+  if (normalizedUnit.isEmpty) {
+    return formattedValue;
+  }
+
+  return '$formattedValue $normalizedUnit';
 }
 
 // ============================================================
@@ -1054,28 +1075,64 @@ class _EnergyRow extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 6),
+              // const SizedBox(height: 6),
+
+              /// Electricity costs - đưa lên trước value
+              if (isElectricity) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MoneyMetric(
+                        label: 'CURRENT COST',
+                        value: _formatCost(
+                          item.currentCost,
+                          item.currentCostUnit,
+                        ),
+                        color: Colors.orangeAccent,
+                        icon: Icons.monetization_on_outlined,
+                        fontSize: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _MoneyMetric(
+                        label: 'PREVIOUS COST',
+                        value: _formatCost(
+                          item.previousCost,
+                          item.previousCostUnit,
+                        ),
+                        color: Colors.white70,
+                        icon: Icons.history_rounded,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
 
               /// Current value + previous value
               Row(
                 children: [
-                  TweenAnimationBuilder<double>(
-                    tween: Tween<double>(begin: 0, end: value),
-                    duration: const Duration(milliseconds: 750),
-                    curve: Curves.easeOutCubic,
-                    builder: (_, animatedValue, __) {
-                      return Text(
-                        '${_format(animatedValue)} $unit',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -.45,
-                        ),
-                      );
-                    },
+                  Expanded(
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: value),
+                      duration: const Duration(milliseconds: 750),
+                      curve: Curves.easeOutCubic,
+                      builder: (_, animatedValue, __) {
+                        return Text(
+                          '${_format(animatedValue)} $unit',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -.45,
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -1090,29 +1147,8 @@ class _EnergyRow extends StatelessWidget {
 
               const Spacer(),
 
-              /// Electricity costs
-              if (isElectricity)
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MiniMetric(
-                        value: _formatCost(item.currentCost),
-                        color: Colors.orangeAccent,
-                        icon: Icons.monetization_on_outlined,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: _MiniMetric(
-                        value: _formatCost(item.previousCost),
-                        color: Colors.white70,
-                        icon: Icons.history_rounded,
-                      ),
-                    ),
-                  ],
-                )
-              else
-                const SizedBox(height: 24),
+              /// Giữ chiều cao cho Water/Air
+              if (!isElectricity) const SizedBox(height: 24),
             ],
           ),
         ),
@@ -1161,8 +1197,8 @@ class _MiniMetric extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: color.withOpacity(.9)),
-          const SizedBox(width: 6),
+          // Icon(icon, size: 16, color: color.withOpacity(.9)),
+          // const SizedBox(width: 6),
           Expanded(
             child: Text(
               value,
@@ -1173,6 +1209,72 @@ class _MiniMetric extends StatelessWidget {
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MoneyMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+  final double fontSize;
+
+  const _MoneyMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+    required this.fontSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 48),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(.14),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(.08)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 13, color: color.withOpacity(.85)),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(.58),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: .25,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w900,
+              height: 1,
             ),
           ),
         ],
