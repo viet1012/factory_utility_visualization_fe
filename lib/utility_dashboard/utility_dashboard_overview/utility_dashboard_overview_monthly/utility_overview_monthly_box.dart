@@ -215,7 +215,7 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
     required this.month,
     required this.headerTitle,
     this.width = 300,
-    this.height = 280,
+    this.height,
     this.isHighlighted = true,
     this.filterCate,
   });
@@ -548,9 +548,10 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
             },
             child: _MonthlyShell(
               width: widget.width,
-              height: widget.height ?? 220,
+              height: widget.height,
               facColor: facColor,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   UtilityInfoBoxHeader.header(
@@ -558,13 +559,11 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
                     facTitle: widget.headerTitle,
                     healthResult: healthResult,
                   ),
-                  Expanded(
-                    child: _MonthlyBody(
-                      loading: _loading,
-                      error: _error,
-                      items: displayItems,
-                      onRetry: _load,
-                    ),
+                  _MonthlyBody(
+                    loading: _loading,
+                    error: _error,
+                    items: displayItems,
+                    onRetry: _load,
                   ),
                 ],
               ),
@@ -598,13 +597,13 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
 class _MonthlyShell extends StatelessWidget {
   final double width;
-  final double height;
+  final double? height;
   final Color facColor;
   final Widget child;
 
   const _MonthlyShell({
     required this.width,
-    required this.height,
+    this.height,
     required this.facColor,
     required this.child,
   });
@@ -613,21 +612,19 @@ class _MonthlyShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(16);
 
-    return SizedBox(
-      width: width,
-      height: height,
-      child: ClipRRect(
-        borderRadius: radius,
-        child: Stack(
-          children: [
-            /// Glass blur
-            BackdropFilter(
+    final content = ClipRRect(
+      borderRadius: radius,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
               child: const SizedBox.expand(),
             ),
+          ),
 
-            /// Glass background
-            Container(
+          Positioned.fill(
+            child: Container(
               decoration: BoxDecoration(
                 borderRadius: radius,
                 gradient: LinearGradient(
@@ -641,41 +638,34 @@ class _MonthlyShell extends StatelessWidget {
                 ),
               ),
             ),
+          ),
 
-            /// Top highlight
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              child: Container(
-                height: 42,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      facColor.withOpacity(.18),
-                      facColor.withOpacity(.05),
-                      Colors.transparent,
-                    ],
-                  ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: Container(
+              height: 42,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    facColor.withOpacity(.18),
+                    facColor.withOpacity(.05),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),
+          ),
 
-            /// Outer border
-            Container(
+          Positioned.fill(
+            child: Container(
               decoration: BoxDecoration(
                 borderRadius: radius,
                 border: Border.all(
                   color: Colors.white.withOpacity(.22),
                   width: 1.2,
                 ),
-              ),
-            ),
-
-            /// Glow border
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: radius,
                 boxShadow: [
                   BoxShadow(
                     color: facColor.withOpacity(.18),
@@ -685,9 +675,10 @@ class _MonthlyShell extends StatelessWidget {
                 ],
               ),
             ),
+          ),
 
-            /// Inner border
-            Padding(
+          Positioned.fill(
+            child: Padding(
               padding: const EdgeInsets.all(4),
               child: Container(
                 decoration: BoxDecoration(
@@ -696,54 +687,56 @@ class _MonthlyShell extends StatelessWidget {
                 ),
               ),
             ),
+          ),
 
-            /// Top reflection
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(height: 1, color: Colors.white.withOpacity(.45)),
-            ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(height: 1, color: Colors.white.withOpacity(.45)),
+          ),
 
-            /// Bottom glow
-            Positioned(
-              bottom: 0,
-              left: 24,
-              right: 24,
-              child: Container(
-                height: 2,
-                decoration: BoxDecoration(
-                  color: facColor.withOpacity(.35),
-                  boxShadow: [
-                    BoxShadow(color: facColor.withOpacity(.45), blurRadius: 8),
-                  ],
-                ),
+          Positioned(
+            bottom: 0,
+            left: 24,
+            right: 24,
+            child: Container(
+              height: 2,
+              decoration: BoxDecoration(
+                color: facColor.withOpacity(.35),
+                boxShadow: [
+                  BoxShadow(color: facColor.withOpacity(.45), blurRadius: 8),
+                ],
               ),
             ),
+          ),
 
-            /// Corner light
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(.9),
-                  boxShadow: [
-                    BoxShadow(color: facColor.withOpacity(.7), blurRadius: 8),
-                  ],
-                ),
+          Positioned(
+            top: 10,
+            left: 10,
+            child: Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(.9),
+                boxShadow: [
+                  BoxShadow(color: facColor.withOpacity(.7), blurRadius: 8),
+                ],
               ),
             ),
+          ),
 
-            /// Content
-            Padding(padding: const EdgeInsets.all(1), child: child),
-          ],
-        ),
+          Padding(padding: const EdgeInsets.all(1), child: child),
+        ],
       ),
     );
+
+    if (height != null) {
+      return SizedBox(width: width, height: height, child: content);
+    }
+
+    return SizedBox(width: width, child: content);
   }
 }
 
@@ -795,21 +788,23 @@ class _MonthlyBody extends StatelessWidget {
     }
 
     if (items.length == 1) {
-      return Center(
+      return Padding(
+        padding: const EdgeInsets.all(6),
         child: RepaintBoundary(child: _EnergyRow(item: items.first)),
       );
     }
 
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: items.length,
-      separatorBuilder: (_, __) {
-        return const SizedBox(height: 8);
-      },
-      itemBuilder: (_, index) {
-        return RepaintBoundary(child: _EnergyRow(item: items[index]));
-      },
+    return Padding(
+      padding: const EdgeInsets.all(6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var index = 0; index < items.length; index++) ...[
+            RepaintBoundary(child: _EnergyRow(item: items[index])),
+            if (index < items.length - 1) const SizedBox(height: 8),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -1144,8 +1139,7 @@ class _EnergyRow extends StatelessWidget {
                   ),
                 ],
               ),
-
-              const Spacer(),
+              const SizedBox(height: 8),
 
               /// Giữ chiều cao cho Water/Air
               if (!isElectricity) const SizedBox(height: 24),

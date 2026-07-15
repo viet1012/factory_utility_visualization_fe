@@ -274,7 +274,6 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
       month: widget.monthKey,
       headerTitle: title,
       filterCate: selected.filterCate,
-      height: 160,
       isHighlighted: widget.shouldHighlight(facId),
     );
   }
