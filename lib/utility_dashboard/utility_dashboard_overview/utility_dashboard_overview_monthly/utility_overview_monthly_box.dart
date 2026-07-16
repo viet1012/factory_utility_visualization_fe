@@ -633,10 +633,10 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
                 child: Transform.scale(scale: _fx.scale.value, child: child),
               );
             },
-            child: _MonthlyShell(
+            child: SizedBox(
               width: widget.width,
               height: widget.height,
-              facColor: facColor,
+              // facColor: facColor,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -984,7 +984,7 @@ class _MetricPeriodLabel extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: color.withOpacity(.7),
+        color: color,
         fontSize: 8.5,
         height: 1,
         fontWeight: FontWeight.w800,
@@ -1030,7 +1030,6 @@ class _MetricDeltaBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(.10),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withOpacity(.30)),
       ),
@@ -1043,8 +1042,8 @@ class _MetricDeltaBadge extends StatelessWidget {
             '${value.abs().toStringAsFixed(1)}%',
             style: TextStyle(
               color: color,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
@@ -1134,9 +1133,9 @@ class _MetricValueRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
               style: TextStyle(
-                color: Colors.white.withOpacity(.58),
+                color: Colors.white70,
                 fontSize: previousFontSize,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w900,
                 letterSpacing: -.20,
               ),
             ),
@@ -1194,28 +1193,8 @@ class _EnergyRow extends StatelessWidget {
           _MetricHeader(title: _title(), delta: item.deltaPercent),
 
           const SizedBox(height: 3),
-
           // 2. Kỳ dữ liệu nằm ngay dưới tên.
           _MetricPeriodLabel(text: _monthlyPeriodLabel(item), color: color),
-
-          const SizedBox(height: 3),
-
-          // 3. Current bên trái, previous bên phải.
-          TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0, end: item.displayValue),
-            duration: const Duration(milliseconds: 650),
-            curve: Curves.easeOutCubic,
-            builder: (_, animatedValue, __) {
-              return _MetricValueRow(
-                current: _formatUtilityValue(item, animatedValue, unit),
-                previous: previousText,
-                color: color,
-                currentFontSize: 22,
-                previousFontSize: 22,
-              );
-            },
-          ),
-
           // Cost của điện đặt dưới value để period luôn sát title.
           if (isElectricity) ...[
             const SizedBox(height: 8),
@@ -1240,12 +1219,33 @@ class _EnergyRow extends StatelessWidget {
                     ),
                     color: Colors.white70,
                     icon: Icons.history_rounded,
-                    fontSize: 18,
+                    fontSize: 22,
                   ),
                 ),
               ],
             ),
           ],
+          // const SizedBox(height: 3),
+          Divider(
+            height: 1,
+            thickness: .5,
+            color: Colors.white.withOpacity(.5),
+          ),
+          // 3. Current bên trái, previous bên phải.
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: item.displayValue),
+            duration: const Duration(milliseconds: 650),
+            curve: Curves.easeOutCubic,
+            builder: (_, animatedValue, __) {
+              return _MetricValueRow(
+                current: _formatUtilityValue(item, animatedValue, unit),
+                previous: previousText,
+                color: color,
+                currentFontSize: 22,
+                previousFontSize: 22,
+              );
+            },
+          ),
         ],
       ),
     );
@@ -1289,8 +1289,8 @@ class _WaterGroupCard extends StatelessWidget {
                 const SizedBox(height: 7),
                 Divider(
                   height: 1,
-                  thickness: 1,
-                  color: Colors.white.withOpacity(.08),
+                  thickness: .5,
+                  color: Colors.white.withOpacity(.5),
                 ),
                 const SizedBox(height: 7),
               ],
@@ -1436,7 +1436,7 @@ class _MoneyMetric extends StatelessWidget {
               color: color,
               fontSize: fontSize,
               height: 1,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],

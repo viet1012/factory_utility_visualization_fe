@@ -13,7 +13,7 @@ class UtilityDashboardOverviewApi {
 
   UtilityDashboardOverviewApi(this.dio);
 
-  static const Duration _monthlyGetTimeout = Duration(seconds: 15);
+  static const Duration _monthlyGetTimeout = Duration(seconds: 30);
 
   static const Duration _monthlyRefreshTimeout = Duration(seconds: 60);
 
