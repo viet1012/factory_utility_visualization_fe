@@ -263,7 +263,6 @@ class MinuteSeriesProvider extends ChangeNotifier {
             from: from,
             to: to,
             boxDeviceId: r.boxDeviceId!.trim(),
-            plcAddress: null,
             cateIds: _normCateIds(r.cateIds),
           )
           .timeout(requestTimeout);

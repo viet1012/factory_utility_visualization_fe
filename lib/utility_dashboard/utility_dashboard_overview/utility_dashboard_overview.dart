@@ -2,7 +2,7 @@
 // import 'package:flutter/material.dart';
 //
 // import '../../weather_widgets/overview/factory_map_with_rain.dart';
-// import '../ultility_dashboard_chart/utility_hourly_bar_panel.dart';
+// import '../utility_all_factory_chart/utility_hourly_bar_panel.dart';
 // import '../utility_dashboard_widgets/utility_category_compare_view.dart';
 //
 // class UtilityDashboardOverview extends StatelessWidget {

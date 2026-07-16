@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../utility_api/dio_client.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
@@ -107,7 +106,7 @@ class MonthlyUtilityUsagePanel extends StatelessWidget {
                 month: now.month,
                 nameEn: nameEn,
                 theme: t,
-                api: UtilityDashboardOverviewApi(DioClient.dio),
+                api: UtilityDashboardOverviewApi(),
               ),
             ),
           ],

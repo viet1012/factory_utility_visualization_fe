@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../utility_api/dio_client.dart';
 import '../../../utility_models/response/minute_point.dart';
 import '../utility_dashboard_overview_models/utility_daily_dashboard_response.dart';
 import '../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
@@ -9,40 +10,57 @@ import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly
 import '../utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
 
 class UtilityDashboardOverviewApi {
-  final Dio dio;
+  UtilityDashboardOverviewApi();
 
-  UtilityDashboardOverviewApi(this.dio);
+  Dio get _dio => DioClient.dio;
 
-  static const Duration _monthlyGetTimeout = Duration(seconds: 30);
+  // ============================================================
+  // ENDPOINTS
+  // ============================================================
 
-  static const Duration _monthlyRefreshTimeout = Duration(seconds: 60);
+  static const String _minuteDashboardPath = '/api/utility/minute-dashboard';
 
-  /// ENERGY MINUTES
+  static const String _energyMinutePath = '/api/utility/energy-minute';
+
+  static const String _hourlyDashboardPath = '/api/utility/hourly-dashboard';
+
+  static const String _energyHourlyPath = '/api/utility/energy/hourly';
+
+  static const String _energyDailyPath = '/api/utility/energy-daily';
+
+  static const String _monthlySummaryPath = '/api/utility/monthly-summary';
+
+  static const String _monthlySummaryRefreshPath =
+      '/api/utility/monthly-summary/refresh';
+
+  static const String _monthlyUsagePath = '/api/utility/monthly-usage';
+
+  static const String _voltageStatusPath = '/api/utility/voltage/status';
+
+  static const String _voltageDetailPath = '/api/utility/voltage/detail';
+
+  static const String _signalHealthMatrixPath =
+      '/api/utility/signal-health-matrix';
+
+  // ============================================================
+  // MINUTE
+  // ============================================================
+
   Future<UtilityMinuteDashboardResponse> getMinuteDashboard({
     required String facId,
     int minutes = 60,
   }) async {
-    final normalizedFac = facId.trim();
+    final normalizedFac = _requiredText(facId, fieldName: 'facId');
 
-    if (normalizedFac.isEmpty) {
-      throw ArgumentError.value(facId, 'facId', 'facId is required');
-    }
+    final safeMinutes = _safeRange(minutes, fallback: 60, min: 1, max: 24 * 60);
 
-    final safeMinutes = minutes <= 0 ? 60 : minutes.clamp(1, 24 * 60);
-
-    final response = await dio.get(
-      '/api/utility/minute-dashboard',
+    final response = await _get(
+      _minuteDashboardPath,
       queryParameters: {'facId': normalizedFac, 'minutes': safeMinutes},
     );
 
-    final raw = response.data;
-
-    if (raw is! Map) {
-      throw const FormatException('Invalid minute dashboard response');
-    }
-
     return UtilityMinuteDashboardResponse.fromJson(
-      Map<String, dynamic>.from(raw),
+      _asMap(response.data, errorMessage: 'Invalid minute dashboard response'),
     );
   }
 
@@ -52,20 +70,32 @@ class UtilityDashboardOverviewApi {
     String? utilityType,
     String? nameEn,
   }) async {
-    final res = await dio.get(
-      '/api/utility/energy-minute',
-      queryParameters: {
-        'facId': facId,
-        'minutes': minutes,
-        'type': utilityType,
-      },
-    );
-    final List data = res.data;
+    final normalizedFac = _requiredText(facId, fieldName: 'facId');
 
-    return data.map((e) => MinutePointDto.fromJson(e)).toList();
+    final safeMinutes = _safeRange(minutes, fallback: 60, min: 1, max: 24 * 60);
+
+    final query = <String, dynamic>{
+      'facId': normalizedFac,
+      'minutes': safeMinutes,
+    };
+
+    _putOptionalText(query, key: 'type', value: utilityType);
+
+    _putOptionalText(query, key: 'nameEn', value: nameEn);
+
+    final response = await _get(_energyMinutePath, queryParameters: query);
+
+    return _parseList(
+      response.data,
+      MinutePointDto.fromJson,
+      errorMessage: 'Invalid energy minute response',
+    );
   }
 
-  ///  HOURLY
+  // ============================================================
+  // HOURLY
+  // ============================================================
+
   Future<UtilityHourlyDashboardResponse> getHourlyDashboard({
     required String facId,
     int hours = 48,
@@ -73,19 +103,13 @@ class UtilityDashboardOverviewApi {
     double? exchange,
     double? sepzone,
   }) async {
-    final normalizedFac = facId.trim();
+    final normalizedFac = _requiredText(facId, fieldName: 'facId');
 
-    if (normalizedFac.isEmpty) {
-      throw ArgumentError('facId is required');
-    }
+    final safeHours = _safeRange(hours, fallback: 48, min: 1, max: 24 * 31);
 
-    final query = <String, dynamic>{'facId': normalizedFac, 'hours': hours};
+    final query = <String, dynamic>{'facId': normalizedFac, 'hours': safeHours};
 
-    final normalizedName = nameEn?.trim();
-
-    if (normalizedName != null && normalizedName.isNotEmpty) {
-      query['nameEn'] = normalizedName;
-    }
+    _putOptionalText(query, key: 'nameEn', value: nameEn);
 
     if (exchange != null) {
       query['exchange'] = exchange;
@@ -95,19 +119,10 @@ class UtilityDashboardOverviewApi {
       query['sepzone'] = sepzone;
     }
 
-    final response = await dio.get(
-      '/api/utility/hourly-dashboard',
-      queryParameters: query,
-    );
-
-    final raw = response.data;
-
-    if (raw is! Map) {
-      throw const FormatException('Invalid hourly dashboard response');
-    }
+    final response = await _get(_hourlyDashboardPath, queryParameters: query);
 
     return UtilityHourlyDashboardResponse.fromJson(
-      Map<String, dynamic>.from(raw),
+      _asMap(response.data, errorMessage: 'Invalid hourly dashboard response'),
     );
   }
 
@@ -116,140 +131,86 @@ class UtilityDashboardOverviewApi {
     required int hours,
     String? nameEn,
   }) async {
-    final res = await dio.get(
-      '/api/utility/energy/hourly',
-      queryParameters: {'facId': facId, 'hours': hours, 'nameEn': nameEn},
-    );
-    print("url: ${res.realUri}");
-    final List data = res.data;
+    final normalizedFac = _requiredText(facId, fieldName: 'facId');
 
-    return data.map((e) => Map<String, dynamic>.from(e)).toList();
+    final safeHours = _safeRange(hours, fallback: 48, min: 1, max: 24 * 31);
+
+    final query = <String, dynamic>{'facId': normalizedFac, 'hours': safeHours};
+
+    _putOptionalText(query, key: 'nameEn', value: nameEn);
+
+    final response = await _get(_energyHourlyPath, queryParameters: query);
+
+    return _parseMapList(
+      response.data,
+      errorMessage: 'Invalid energy hourly response',
+    );
   }
 
-  /// ENERGY DAILY
+  // ============================================================
+  // DAILY
+  // ============================================================
+
   Future<UtilityDailyDashboardResponse> getDailyDashboard({
     required String facId,
     required String month,
   }) async {
-    final normalizedFac = facId.trim();
-    final normalizedMonth = month.trim();
+    final normalizedFac = _requiredText(facId, fieldName: 'facId');
 
-    if (normalizedFac.isEmpty) {
-      throw ArgumentError('facId is required');
-    }
+    final normalizedMonth = _normalizeMonth(month);
 
-    if (!RegExp(r'^\d{6}$').hasMatch(normalizedMonth)) {
-      throw ArgumentError('month must be yyyyMM, for example 202607');
-    }
-
-    final response = await dio.get(
-      '/api/utility/energy-daily',
+    final response = await _get(
+      _energyDailyPath,
       queryParameters: {'facId': normalizedFac, 'month': normalizedMonth},
     );
 
-    final raw = response.data;
-
-    if (raw is! Map) {
-      throw const FormatException('Invalid daily dashboard response');
-    }
-
     return UtilityDailyDashboardResponse.fromJson(
-      Map<String, dynamic>.from(raw),
+      _asMap(response.data, errorMessage: 'Invalid daily dashboard response'),
     );
   }
 
-  Future<List<Map<String, dynamic>>> getEnergyMonthlySummary({
-    required String facId,
-    required String month,
-  }) async {
-    final res = await dio.get(
-      '/api/utility/monthly-summary',
-      queryParameters: {'facId': facId, 'month': month},
-    );
-
-    print('res: ${res.realUri}');
-
-    final List data = res.data as List;
-
-    double? toDouble(dynamic v) {
-      if (v == null) return null;
-      if (v is num) return v.toDouble();
-      return double.tryParse(v.toString());
-    }
-
-    return data.map<Map<String, dynamic>>((e) {
-      return {
-        'name': _normalizeName(e['name'] ?? ''),
-        'cate': e['cate'] ?? '',
-        'month': e['month'] ?? month,
-        'unit': e['unit'] ?? '',
-
-        'minValue': toDouble(e['minValue']),
-        'maxValue': toDouble(e['maxValue']),
-        'prevMinValue': toDouble(e['prevMinValue']),
-        'prevMaxValue': toDouble(e['prevMaxValue']),
-
-        'value': toDouble(e['value']),
-        'avgValue': toDouble(e['avgValue']),
-
-        'vndCost': toDouble(e['vndCost']),
-        'usdCost': toDouble(e['usdCost']),
-
-        'prevValue': toDouble(e['prevValue']),
-        'prevAvgValue': toDouble(e['prevAvgValue']),
-        'prevVndCost': toDouble(e['prevVndCost']),
-        'prevUsdCost': toDouble(e['prevUsdCost']),
-
-        'deltaValue': toDouble(e['deltaValue']),
-        'deltaPercent': toDouble(e['deltaPercent']),
-
-        'pickAt': e['pickAt'],
-        'timestamp': e['pickAt'] ?? e['timestamp'],
-      };
-    }).toList();
-  }
-
-  /// ===============================================================
-  /// MONTHLY SUMMARY - NEW API
-  /// ===============================================================
+  // ============================================================
+  // MONTHLY SUMMARY
+  // ============================================================
 
   Future<List<EnergyMonthlySummary>> getMonthlySummary({
     required String facId,
     required String month,
-  }) async {
-    final normalizedFac = _normalizeMonthlyFac(facId);
-
-    final normalizedMonth = _normalizeMonthlyMonth(month);
-
-    final response = await dio
-        .get(
-          '/api/utility/monthly-summary',
-          queryParameters: {'facId': normalizedFac, 'month': normalizedMonth},
-        )
-        .timeout(_monthlyGetTimeout);
-
-    return _parseMonthlySummaryResponse(
-      response.data,
-      fallbackMonth: normalizedMonth,
+  }) {
+    return _requestMonthlySummary(
+      facId: facId,
+      month: month,
+      forceRefresh: false,
     );
   }
 
-  /// Ép backend xóa cache FAC + month,
-  /// sau đó query DB lại và cache kết quả mới.
   Future<List<EnergyMonthlySummary>> forceRefreshMonthlySummary({
     required String facId,
     required String month,
+  }) {
+    return _requestMonthlySummary(
+      facId: facId,
+      month: month,
+      forceRefresh: true,
+    );
+  }
+
+  Future<List<EnergyMonthlySummary>> _requestMonthlySummary({
+    required String facId,
+    required String month,
+    required bool forceRefresh,
   }) async {
     final normalizedFac = _normalizeMonthlyFac(facId);
+    final normalizedMonth = _normalizeMonth(month);
 
-    final normalizedMonth = _normalizeMonthlyMonth(month);
+    final query = <String, dynamic>{
+      'facId': normalizedFac,
+      'month': normalizedMonth,
+    };
 
-    final response = await dio
-        .post(
-          '/api/utility/monthly-summary/refresh',
-          queryParameters: {'facId': normalizedFac, 'month': normalizedMonth},
-        )
-        .timeout(_monthlyRefreshTimeout);
+    final response = forceRefresh
+        ? await _post(_monthlySummaryRefreshPath, queryParameters: query)
+        : await _get(_monthlySummaryPath, queryParameters: query);
 
     return _parseMonthlySummaryResponse(
       response.data,
@@ -257,30 +218,21 @@ class UtilityDashboardOverviewApi {
     );
   }
 
-  /// VOLTAGE STATUS (min/max + alarm)
-  Future<List<VoltageStatus>> getVoltageStatus({required String facId}) async {
-    final res = await dio.get(
-      '/api/utility/voltage/status',
-      queryParameters: {'facId': facId},
-    );
+  /// Method tương thích với code cũ.
+  ///
+  /// Code mới nên dùng [getMonthlySummary].
+  Future<List<Map<String, dynamic>>> getEnergyMonthlySummary({
+    required String facId,
+    required String month,
+  }) async {
+    final items = await getMonthlySummary(facId: facId, month: month);
 
-    final data = res.data;
-    if (data is! List) return const [];
-
-    return List<VoltageStatus>.from(data.map((e) => VoltageStatus.fromJson(e)));
+    return items.map(_monthlySummaryToMap).toList(growable: false);
   }
 
-  /// VOLTAGE DETAIL (chart)
-  Future<List<dynamic>> getVoltageDetail({required String facId}) async {
-    final res = await dio.get(
-      '/api/utility/voltage/detail',
-      queryParameters: {'facId': facId},
-    );
-
-    final data = res.data;
-    if (data is! List) return [];
-    return data;
-  }
+  // ============================================================
+  // MONTHLY USAGE
+  // ============================================================
 
   Future<List<MonthlyUtilityUsage>> getMonthlyUtilityUsage({
     required String facId,
@@ -288,38 +240,115 @@ class UtilityDashboardOverviewApi {
     required int month,
     String nameEn = 'Total Energy Consumption',
   }) async {
-    final res = await dio.get(
-      '/api/utility/monthly-usage',
+    final normalizedFac = _requiredText(facId, fieldName: 'facId');
+
+    if (year < 2000 || year > 9999) {
+      throw ArgumentError.value(year, 'year', 'Invalid year');
+    }
+
+    if (month < 1 || month > 12) {
+      throw ArgumentError.value(month, 'month', 'Month must be from 1 to 12');
+    }
+
+    final response = await _get(
+      _monthlyUsagePath,
       queryParameters: {
-        'fac': facId,
+        'fac': normalizedFac,
         'year': year,
         'month': month,
-        'nameEn': nameEn,
+        'nameEn': nameEn.trim(),
       },
     );
 
-    final data = res.data;
-
-    if (data is! List) return const [];
-
-    return data
-        .map((e) => MonthlyUtilityUsage.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
+    return _parseList(
+      response.data,
+      MonthlyUtilityUsage.fromJson,
+      errorMessage: 'Invalid monthly usage response',
+    );
   }
 
-  /// SIGNAL HEALTH MATRIX
+  // ============================================================
+  // VOLTAGE
+  // ============================================================
+
+  Future<List<VoltageStatus>> getVoltageStatus({required String facId}) async {
+    final normalizedFac = _requiredText(facId, fieldName: 'facId');
+
+    final response = await _get(
+      _voltageStatusPath,
+      queryParameters: {'facId': normalizedFac},
+    );
+
+    return _parseList(
+      response.data,
+      VoltageStatus.fromJson,
+      errorMessage: 'Invalid voltage status response',
+    );
+  }
+
+  Future<List<dynamic>> getVoltageDetail({required String facId}) async {
+    final normalizedFac = _requiredText(facId, fieldName: 'facId');
+
+    final response = await _get(
+      _voltageDetailPath,
+      queryParameters: {'facId': normalizedFac},
+    );
+
+    final raw = response.data;
+
+    if (raw is! List) {
+      throw const FormatException('Invalid voltage detail response');
+    }
+
+    return List<dynamic>.unmodifiable(raw);
+  }
+
+  // ============================================================
+  // SIGNAL HEALTH
+  // ============================================================
+
   Future<List<Map<String, dynamic>>> getSignalHealthMatrix() async {
-    final res = await dio.get('/api/utility/signal-health-matrix');
+    final response = await _get(_signalHealthMatrixPath);
 
-    final data = res.data;
-
-    if (data is! List) return const [];
-
-    return data
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
+    return _parseMapList(
+      response.data,
+      errorMessage: 'Invalid signal health matrix response',
+    );
   }
+
+  // ============================================================
+  // HTTP
+  // ============================================================
+
+  Future<Response<dynamic>> _get(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) {
+    return _dio.get<dynamic>(
+      path,
+      queryParameters: queryParameters,
+      options: options,
+    );
+  }
+
+  Future<Response<dynamic>> _post(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Object? data,
+    Options? options,
+  }) {
+    return _dio.post<dynamic>(
+      path,
+      queryParameters: queryParameters,
+      data: data,
+      options: options,
+    );
+  }
+
+  // ============================================================
+  // MONTHLY PARSE
+  // ============================================================
 
   List<EnergyMonthlySummary> _parseMonthlySummaryResponse(
     dynamic raw, {
@@ -340,16 +369,14 @@ class UtilityDashboardOverviewApi {
 
       json['name'] = _normalizeName(json['name']?.toString() ?? '');
 
-      json['cate'] = json['cate']?.toString() ?? '';
+      json['cate'] = json['cate']?.toString().trim() ?? '';
 
-      json['month'] = json['month']?.toString() ?? fallbackMonth;
+      final rawMonth = json['month']?.toString().trim() ?? '';
 
-      json['unit'] = json['unit']?.toString() ?? '';
+      json['month'] = rawMonth.isEmpty ? fallbackMonth : rawMonth;
 
-      /*
-     * Backend mới trả generatedAt.
-     * Model cũ có thể đang dùng timestamp.
-     */
+      json['unit'] = json['unit']?.toString().trim() ?? '';
+
       json['timestamp'] =
           json['generatedAt'] ?? json['pickAt'] ?? json['timestamp'];
 
@@ -359,16 +386,133 @@ class UtilityDashboardOverviewApi {
     return List<EnergyMonthlySummary>.unmodifiable(result);
   }
 
-  /// ENERGY MONTHLY SUMMARY
-  String _normalizeName(String name) {
-    switch (name) {
-      case 'Total Energy Consumption':
-        return 'Total Energy';
-      case 'Total Water Consumption':
-        return 'TOTAL WATER';
-      default:
-        return name.toUpperCase();
+  Map<String, dynamic> _monthlySummaryToMap(EnergyMonthlySummary item) {
+    final pickAt = item.pickAt?.toIso8601String();
+    final generatedAt = item.generatedAt?.toIso8601String();
+
+    return {
+      'name': item.name,
+      'cate': item.cate,
+      'month': item.month,
+      'unit': item.unit,
+
+      'minValue': item.minValue,
+      'maxValue': item.maxValue,
+      'prevMinValue': item.prevMinValue,
+      'prevMaxValue': item.prevMaxValue,
+
+      'value': item.value,
+      'avgValue': item.avgValue,
+
+      'vndCost': item.vndCost,
+      'usdCost': item.usdCost,
+
+      'prevValue': item.prevValue,
+      'prevAvgValue': item.prevAvgValue,
+      'prevVndCost': item.prevVndCost,
+      'prevUsdCost': item.prevUsdCost,
+
+      'deltaValue': item.deltaValue,
+      'deltaPercent': item.deltaPercent,
+
+      'pickAt': pickAt,
+      'generatedAt': generatedAt,
+      'timestamp': generatedAt ?? pickAt,
+    };
+  }
+
+  // ============================================================
+  // GENERIC PARSE
+  // ============================================================
+
+  Map<String, dynamic> _asMap(dynamic raw, {required String errorMessage}) {
+    if (raw is! Map) {
+      throw FormatException(errorMessage);
     }
+
+    return Map<String, dynamic>.from(raw);
+  }
+
+  List<Map<String, dynamic>> _parseMapList(
+    dynamic raw, {
+    required String errorMessage,
+  }) {
+    if (raw is! List) {
+      throw FormatException(errorMessage);
+    }
+
+    final result = <Map<String, dynamic>>[];
+
+    for (final item in raw) {
+      if (item is Map) {
+        result.add(Map<String, dynamic>.from(item));
+      }
+    }
+
+    return List<Map<String, dynamic>>.unmodifiable(result);
+  }
+
+  List<T> _parseList<T>(
+    dynamic raw,
+    T Function(Map<String, dynamic>) parser, {
+    required String errorMessage,
+  }) {
+    if (raw is! List) {
+      throw FormatException(errorMessage);
+    }
+
+    final result = <T>[];
+
+    for (final item in raw) {
+      if (item is! Map) {
+        continue;
+      }
+
+      result.add(parser(Map<String, dynamic>.from(item)));
+    }
+
+    return List<T>.unmodifiable(result);
+  }
+
+  // ============================================================
+  // VALIDATION
+  // ============================================================
+
+  String _requiredText(String value, {required String fieldName}) {
+    final normalized = value.trim();
+
+    if (normalized.isEmpty) {
+      throw ArgumentError.value(value, fieldName, '$fieldName is required');
+    }
+
+    return normalized;
+  }
+
+  void _putOptionalText(
+    Map<String, dynamic> query, {
+    required String key,
+    required String? value,
+  }) {
+    final normalized = value?.trim();
+
+    if (normalized == null || normalized.isEmpty) {
+      return;
+    }
+
+    query[key] = normalized;
+  }
+
+  int _safeRange(
+    int value, {
+    required int fallback,
+    required int min,
+    required int max,
+  }) {
+    if (value <= 0) {
+      return fallback;
+    }
+
+    return value.clamp(min, max);
   }
 
   String _normalizeMonthlyFac(String facId) {
@@ -377,7 +521,7 @@ class UtilityDashboardOverviewApi {
     return normalized.isEmpty ? 'KVH' : normalized;
   }
 
-  String _normalizeMonthlyMonth(String month) {
+  String _normalizeMonth(String month) {
     final normalized = month.trim();
 
     if (!RegExp(r'^\d{6}$').hasMatch(normalized)) {
@@ -395,5 +539,20 @@ class UtilityDashboardOverviewApi {
     }
 
     return normalized;
+  }
+
+  String _normalizeName(String name) {
+    final normalized = name.trim();
+
+    switch (normalized) {
+      case 'Total Energy Consumption':
+        return 'Total Energy';
+
+      case 'Total Water Consumption':
+        return 'Total Water';
+
+      default:
+        return normalized;
+    }
   }
 }
