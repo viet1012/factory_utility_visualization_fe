@@ -168,17 +168,13 @@ class EnergyMonthlySummary {
 // FORMATTERS
 // ============================================================
 
-// ============================================================
-// FORMATTERS
-// ============================================================
-
 final NumberFormat _integerFmt = NumberFormat('#,##0');
 final NumberFormat _decimalFmt = NumberFormat('#,##0.0');
 final NumberFormat _moneyFmt = NumberFormat('#,##0');
 
 const EdgeInsets _metricCardPadding = EdgeInsets.symmetric(
-  horizontal: 10,
-  vertical: 8,
+  horizontal: 5,
+  vertical: 5,
 );
 
 String _formatInteger(double value) {
@@ -252,44 +248,39 @@ String _formatUtilityValue(
   return '$formatted ${unit.trim()}';
 }
 
-String _monthlyTypeLabel(EnergyMonthlySummary item) {
-  if (_isWaterItem(item) || _isAirItem(item)) {
-    return 'Monthly Avg';
-  }
-
-  if (!_isElectricityItem(item)) {
-    return 'Monthly';
-  }
+String _monthlyPeriodLabel(EnergyMonthlySummary item) {
+  final isAverage = _isWaterItem(item) || _isAirItem(item);
+  final suffix = isAverage ? 'AVG' : 'MTD';
 
   final raw = item.month.trim();
 
   if (!RegExp(r'^\d{6}$').hasMatch(raw)) {
-    return 'Monthly MTD';
+    return 'MONTHLY $suffix';
   }
 
   final year = raw.substring(0, 4);
   final monthNumber = int.tryParse(raw.substring(4, 6));
 
   if (monthNumber == null || monthNumber < 1 || monthNumber > 12) {
-    return 'Monthly MTD';
+    return 'MONTHLY $suffix';
   }
 
   const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
   ];
 
-  return '${months[monthNumber - 1]} $year MTD';
+  return '${months[monthNumber - 1]} $year $suffix';
 }
 
 // ============================================================
@@ -707,7 +698,6 @@ class _MonthlyShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(16);
-
     final content = ClipRRect(
       borderRadius: radius,
       child: Stack(
@@ -718,7 +708,6 @@ class _MonthlyShell extends StatelessWidget {
               child: const SizedBox.expand(),
             ),
           ),
-
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
@@ -976,33 +965,30 @@ class _InlineState extends StatelessWidget {
 // COMMON METRIC UI
 // ============================================================
 
-class _MetricTypeBadge extends StatelessWidget {
+class _MetricPeriodLabel extends StatelessWidget {
   final String text;
   final Color color;
 
-  const _MetricTypeBadge({required this.text, required this.color});
+  const _MetricPeriodLabel({required this.text, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    if (text.trim().isEmpty) {
+    final label = text.trim().toUpperCase();
+
+    if (label.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(.30)),
-      ),
-      child: Text(
-        text,
-        maxLines: 1,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-        ),
+    return Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: color.withOpacity(.7),
+        fontSize: 8.5,
+        height: 1,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.05,
       ),
     );
   }
@@ -1069,16 +1055,9 @@ class _MetricDeltaBadge extends StatelessWidget {
 
 class _MetricHeader extends StatelessWidget {
   final String title;
-  final String typeLabel;
-  final Color color;
   final double? delta;
 
-  const _MetricHeader({
-    required this.title,
-    required this.typeLabel,
-    required this.color,
-    required this.delta,
-  });
+  const _MetricHeader({required this.title, required this.delta});
 
   @override
   Widget build(BuildContext context) {
@@ -1091,9 +1070,10 @@ class _MetricHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: Colors.white.withOpacity(.88),
-              fontSize: 13,
+              fontSize: 14,
+              height: 1,
               fontWeight: FontWeight.w900,
-              letterSpacing: .2,
+              letterSpacing: .15,
             ),
           ),
         ),
@@ -1102,10 +1082,6 @@ class _MetricHeader extends StatelessWidget {
           const SizedBox(width: 6),
           _MetricDeltaBadge(delta: delta),
         ],
-
-        const SizedBox(width: 6),
-
-        _MetricTypeBadge(text: typeLabel, color: color),
       ],
     );
   }
@@ -1114,20 +1090,24 @@ class _MetricHeader extends StatelessWidget {
 class _MetricValueRow extends StatelessWidget {
   final String current;
   final String previous;
-  final double? delta;
   final Color color;
   final double currentFontSize;
+  final double previousFontSize;
 
   const _MetricValueRow({
     required this.current,
     required this.previous,
-    required this.delta,
     required this.color,
-    this.currentFontSize = 21,
+    this.currentFontSize = 22,
+    this.previousFontSize = 16,
   });
 
   @override
   Widget build(BuildContext context) {
+    final normalizedPrevious = previous.trim();
+    final hasPrevious =
+        normalizedPrevious.isNotEmpty && normalizedPrevious != '--';
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -1139,34 +1119,29 @@ class _MetricValueRow extends StatelessWidget {
             style: TextStyle(
               color: color,
               fontSize: currentFontSize,
-              height: 1,
+              height: .95,
               fontWeight: FontWeight.w900,
-              letterSpacing: -.25,
+              letterSpacing: -.35,
             ),
           ),
         ),
-        const SizedBox(width: 7),
-        // Text(
-        //   'Prev ',
-        //   style: TextStyle(
-        //     color: Colors.white.withOpacity(.40),
-        //     fontSize: 9.5,
-        //     fontWeight: FontWeight.w700,
-        //   ),
-        // ),
-        Flexible(
-          child: Text(
-            previous,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: Colors.white.withOpacity(.65),
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
+        if (hasPrevious) ...[
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              normalizedPrevious,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: Colors.white.withOpacity(.58),
+                fontSize: previousFontSize,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -.20,
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -1203,7 +1178,6 @@ class _EnergyRow extends StatelessWidget {
     final isAir = _isAirItem(item);
 
     final unit = _resolveUnit(item, theme);
-
     final previousText = _formatUtilityValue(
       item,
       item.previousDisplayValue,
@@ -1216,16 +1190,35 @@ class _EnergyRow extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _MetricHeader(
-            title: _title(),
-            typeLabel: _monthlyTypeLabel(item),
-            color: color,
-            delta: item.deltaPercent,
+          // 1. Header chỉ còn tên metric và phần trăm thay đổi.
+          _MetricHeader(title: _title(), delta: item.deltaPercent),
+
+          const SizedBox(height: 3),
+
+          // 2. Kỳ dữ liệu nằm ngay dưới tên.
+          _MetricPeriodLabel(text: _monthlyPeriodLabel(item), color: color),
+
+          const SizedBox(height: 3),
+
+          // 3. Current bên trái, previous bên phải.
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: item.displayValue),
+            duration: const Duration(milliseconds: 650),
+            curve: Curves.easeOutCubic,
+            builder: (_, animatedValue, __) {
+              return _MetricValueRow(
+                current: _formatUtilityValue(item, animatedValue, unit),
+                previous: previousText,
+                color: color,
+                currentFontSize: 22,
+                previousFontSize: 22,
+              );
+            },
           ),
 
-          const SizedBox(height: 6),
-
+          // Cost của điện đặt dưới value để period luôn sát title.
           if (isElectricity) ...[
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -1252,23 +1245,7 @@ class _EnergyRow extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
           ],
-
-          TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0, end: item.displayValue),
-            duration: const Duration(milliseconds: 650),
-            curve: Curves.easeOutCubic,
-            builder: (_, animatedValue, __) {
-              return _MetricValueRow(
-                current: _formatUtilityValue(item, animatedValue, unit),
-                previous: previousText,
-                delta: item.deltaPercent,
-                color: color,
-                currentFontSize: 22,
-              );
-            },
-          ),
         ],
       ),
     );
@@ -1305,15 +1282,6 @@ class _WaterGroupCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _MetricHeader(
-              title: 'Water',
-              typeLabel: 'Monthly Avg',
-              color: color,
-              delta: null,
-            ),
-
-            const SizedBox(height: 8),
-
             for (var index = 0; index < items.length; index++) ...[
               _WaterCompactRow(item: items[index], color: color),
 
@@ -1352,19 +1320,19 @@ class _WaterCompactRow extends StatelessWidget {
       return 'Pipeline Pressure';
     }
 
-    return name.isNotEmpty ? name : 'Water metric';
+    return name.isNotEmpty ? name : 'Water Metric';
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ChartThemes.water;
-
     final unit = _resolveUnit(item, theme);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // 1. Header chỉ còn tên metric và delta.
         Row(
           children: [
             Expanded(
@@ -1373,8 +1341,9 @@ class _WaterCompactRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(.76),
-                  fontSize: 11.5,
+                  color: Colors.white.withOpacity(.78),
+                  fontSize: 14,
+                  height: 1,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1386,14 +1355,20 @@ class _WaterCompactRow extends StatelessWidget {
           ],
         ),
 
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
 
+        // 2. Water luôn hiển thị dạng JAN 2026 AVG.
+        _MetricPeriodLabel(text: _monthlyPeriodLabel(item), color: color),
+
+        const SizedBox(height: 3),
+
+        // 3. Current và previous dùng cùng format với điện/khí nén.
         _MetricValueRow(
           current: _formatUtilityValue(item, item.displayValue, unit),
           previous: _formatUtilityValue(item, item.previousDisplayValue, unit),
-          delta: null,
           color: color,
           currentFontSize: 22,
+          previousFontSize: 22,
         ),
       ],
     );
@@ -1425,7 +1400,6 @@ class _MoneyMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(.12),
         borderRadius: BorderRadius.circular(8),
