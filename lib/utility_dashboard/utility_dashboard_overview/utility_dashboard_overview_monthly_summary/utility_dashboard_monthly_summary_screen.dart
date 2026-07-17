@@ -426,7 +426,7 @@ class _ElectricCard extends StatelessWidget {
             color: Colors.white70,
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
 
           Row(
             children: [
@@ -438,7 +438,6 @@ class _ElectricCard extends StatelessWidget {
                   color: color,
                 ),
               ),
-              const SizedBox(height: 5),
               Expanded(
                 child: _InfoTile(
                   icon: Icons.history_rounded,
@@ -450,7 +449,7 @@ class _ElectricCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
 
           Expanded(
             child: Align(
@@ -500,7 +499,7 @@ class _UtilityMinMaxCard extends StatelessWidget {
             color: Colors.white70,
           ),
 
-          const SizedBox(height: 5),
+          const SizedBox(height: 6),
 
           Row(
             children: [
@@ -536,7 +535,7 @@ class _UtilityMinMaxCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
 
           Expanded(
             child: Align(
@@ -696,7 +695,7 @@ class _InfoLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 22,
+      height: 24,
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(.18),
         borderRadius: BorderRadius.circular(7),
@@ -705,15 +704,7 @@ class _InfoLine extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, size: 18, color: color),
-          // const SizedBox(width: 3),
-          // Text(
-          //   label,
-          //   style: TextStyle(
-          //     color: Colors.white.withOpacity(.56),
-          //     fontSize: 14,
-          //     fontWeight: FontWeight.w800,
-          //   ),
-          // ),
+
           const SizedBox(width: 3),
           Expanded(
             child: Text(
@@ -723,7 +714,7 @@ class _InfoLine extends StatelessWidget {
               textAlign: TextAlign.right,
               style: TextStyle(
                 color: color,
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -750,8 +741,8 @@ class _InfoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      // height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      height: 60,
+      // padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(.16),
         borderRadius: BorderRadius.circular(8),
@@ -775,16 +766,23 @@ class _InfoTile extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 1),
-          Text(
-            value,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
+          const SizedBox(height: 2),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final fontSize = (constraints.maxWidth * 0.08).clamp(20.0, 28.0);
+
+              return Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: fontSize,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -867,7 +865,6 @@ class _DeltaPill extends StatelessWidget {
     final color = isUp ? Colors.redAccent : Colors.lightGreenAccent;
 
     return Container(
-      height: 22,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(.09),

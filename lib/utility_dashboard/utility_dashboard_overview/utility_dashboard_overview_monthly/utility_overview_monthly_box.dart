@@ -909,7 +909,7 @@ class _MetricDeltaBadge extends StatelessWidget {
           '${value.abs().toStringAsFixed(1)}%',
           style: TextStyle(
             color: color,
-            fontSize: 14,
+            fontSize: 16,
             height: 1,
             fontWeight: FontWeight.w900,
           ),
@@ -979,7 +979,7 @@ class _MetricValueText extends StatelessWidget {
               text: value,
               style: TextStyle(
                 color: color,
-                fontSize: 20,
+                fontSize: 22,
                 height: 1,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -.30,
@@ -991,7 +991,7 @@ class _MetricValueText extends StatelessWidget {
                 text: ' $normalizedUnit',
                 style: TextStyle(
                   color: color,
-                  fontSize: 10,
+                  fontSize: 12,
                   height: 1,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1002,7 +1002,7 @@ class _MetricValueText extends StatelessWidget {
                 text: ' ($normalizedBadge)',
                 style: TextStyle(
                   color: color.withOpacity(.9),
-                  fontSize: 8.5,
+                  fontSize: 12.5,
                   height: 1,
                   fontWeight: FontWeight.w900,
                   letterSpacing: .15,
@@ -1118,7 +1118,7 @@ class _MetricColumnsHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = TextStyle(
       color: Colors.white,
-      fontSize: 9.5,
+      fontSize: 12.5,
       height: 1,
       fontWeight: FontWeight.w900,
       letterSpacing: .45,
@@ -1209,18 +1209,17 @@ class _EnergyRow extends StatelessWidget {
               previousUnit: item.previousCostUnit,
               mode: mode,
               delta: item.costDeltaPercent,
-              currentColor: Colors.orangeAccent,
+              currentColor: color,
             ),
 
-            const SizedBox(height: 6),
-
+            const SizedBox(height: 3),
             Divider(
               height: 1,
               thickness: .5,
-              color: Colors.white.withOpacity(.14),
+              color: Colors.white.withOpacity(.7),
             ),
 
-            const SizedBox(height: 6),
+            const SizedBox(height: 3),
           ],
 
           TweenAnimationBuilder<double>(
@@ -1282,13 +1281,13 @@ class _WaterGroupCard extends StatelessWidget {
               _WaterCompactRow(item: items[index], color: color),
 
               if (index < items.length - 1) ...[
-                const SizedBox(height: 7),
+                const SizedBox(height: 3),
                 Divider(
                   height: 1,
                   thickness: .5,
                   color: Colors.white.withOpacity(.5),
                 ),
-                const SizedBox(height: 7),
+                const SizedBox(height: 3),
               ],
             ],
           ],
