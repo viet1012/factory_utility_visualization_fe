@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -142,11 +141,18 @@ class EnergyMonthlySummary {
   }
 
   double? get currentCost {
-    return usdCost ?? vndCost;
+    if (usdCost != null) return usdCost;
+    if (vndCost != null) return vndCost;
+
+    return null;
   }
 
   double? get previousCost {
-    return prevUsdCost ?? prevVndCost;
+    // Chỉ lấy previous tương ứng với loại tiền hiện tại.
+    if (usdCost != null) return prevUsdCost;
+    if (vndCost != null) return prevVndCost;
+
+    return null;
   }
 
   String get currentCostUnit {
@@ -157,10 +163,39 @@ class EnergyMonthlySummary {
   }
 
   String get previousCostUnit {
-    if (prevUsdCost != null) return 'USD';
-    if (prevVndCost != null) return 'VND';
+    // Unit previous phải đi theo loại tiền current.
+    if (usdCost != null && prevUsdCost != null) return 'USD';
+    if (vndCost != null && prevVndCost != null) return 'VND';
 
     return '';
+  }
+
+  bool get hasComparableCost {
+    final current = currentCost;
+    final previous = previousCost;
+
+    return current != null &&
+        previous != null &&
+        currentCostUnit.isNotEmpty &&
+        currentCostUnit == previousCostUnit;
+  }
+
+  /// Current cost - previous cost.
+  double? get costDeltaValue {
+    if (!hasComparableCost) return null;
+
+    return currentCost! - previousCost!;
+  }
+
+  /// Phần trăm thay đổi chi phí so với tháng trước.
+  double? get costDeltaPercent {
+    if (!hasComparableCost) return null;
+
+    final previous = previousCost!;
+
+    if (previous == 0) return null;
+
+    return ((currentCost! - previous) / previous) * 100;
   }
 }
 
@@ -173,9 +208,23 @@ final NumberFormat _decimalFmt = NumberFormat('#,##0.0');
 final NumberFormat _moneyFmt = NumberFormat('#,##0');
 
 const EdgeInsets _metricCardPadding = EdgeInsets.symmetric(
-  horizontal: 5,
+  horizontal: 2,
   vertical: 5,
 );
+
+String _formatUtilityNumber(EnergyMonthlySummary item, double? value) {
+  if (value == null) {
+    return '--';
+  }
+
+  return _isElectricityItem(item)
+      ? _formatInteger(value)
+      : _formatDecimal(value);
+}
+
+String _metricModeLabel(EnergyMonthlySummary item) {
+  return _isElectricityItem(item) ? 'MTD' : 'AVG';
+}
 
 String _formatInteger(double value) {
   return _integerFmt.format(value);
@@ -303,7 +352,7 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
     required this.facId,
     required this.month,
     required this.headerTitle,
-    this.width = 300,
+    this.width = 330,
     this.height,
     this.isHighlighted = true,
     this.filterCate,
@@ -607,8 +656,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
     final currentTheme = _resolveCurrentTheme(displayItems);
 
-    final facColor = ChartThemes.colorFromFac(widget.headerTitle);
-
     final headerColor = currentTheme.iconColor;
 
     final healthResult =
@@ -675,153 +722,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     _highlightController.dispose();
 
     super.dispose();
-  }
-}
-
-// ============================================================
-// MONTHLY SHELL
-// ============================================================
-
-class _MonthlyShell extends StatelessWidget {
-  final double width;
-  final double? height;
-  final Color facColor;
-  final Widget child;
-
-  const _MonthlyShell({
-    required this.width,
-    this.height,
-    required this.facColor,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(16);
-    final content = ClipRRect(
-      borderRadius: radius,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-              child: const SizedBox.expand(),
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(.16),
-                    const Color(0xff67CFFF).withOpacity(.08),
-                    const Color(0xff0B1C2F).withOpacity(.18),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            child: Container(
-              height: 42,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    facColor.withOpacity(.18),
-                    facColor.withOpacity(.05),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                border: Border.all(
-                  color: Colors.white.withOpacity(.22),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: facColor.withOpacity(.18),
-                    blurRadius: 18,
-                    spreadRadius: -6,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withOpacity(.08)),
-                ),
-              ),
-            ),
-          ),
-
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(height: 1, color: Colors.white.withOpacity(.45)),
-          ),
-
-          Positioned(
-            bottom: 0,
-            left: 24,
-            right: 24,
-            child: Container(
-              height: 2,
-              decoration: BoxDecoration(
-                color: facColor.withOpacity(.35),
-                boxShadow: [
-                  BoxShadow(color: facColor.withOpacity(.45), blurRadius: 8),
-                ],
-              ),
-            ),
-          ),
-
-          Positioned(
-            top: 10,
-            left: 10,
-            child: Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(.9),
-                boxShadow: [
-                  BoxShadow(color: facColor.withOpacity(.7), blurRadius: 8),
-                ],
-              ),
-            ),
-          ),
-
-          Padding(padding: const EdgeInsets.all(1), child: child),
-        ],
-      ),
-    );
-
-    if (height != null) {
-      return SizedBox(width: width, height: height, child: content);
-    }
-
-    return SizedBox(width: width, child: content);
   }
 }
 
@@ -965,61 +865,34 @@ class _InlineState extends StatelessWidget {
 // COMMON METRIC UI
 // ============================================================
 
-class _MetricPeriodLabel extends StatelessWidget {
-  final String text;
-  final Color color;
-
-  const _MetricPeriodLabel({required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final label = text.trim().toUpperCase();
-
-    if (label.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Text(
-      label,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: color,
-        fontSize: 8.5,
-        height: 1,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.05,
-      ),
-    );
-  }
-}
-
 class _MetricDeltaBadge extends StatelessWidget {
   final double? delta;
-  final bool reverseColor;
 
-  const _MetricDeltaBadge({required this.delta, this.reverseColor = false});
+  const _MetricDeltaBadge({required this.delta});
 
   @override
   Widget build(BuildContext context) {
     final value = delta;
 
     if (value == null) {
-      return const SizedBox.shrink();
+      return Text(
+        '--',
+        style: TextStyle(
+          color: Colors.white.withOpacity(.35),
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+        ),
+      );
     }
 
     final isUp = value > 0;
     final isDown = value < 0;
 
-    final Color color;
-
-    if (value == 0) {
-      color = Colors.white54;
-    } else if (reverseColor) {
-      color = isUp ? Colors.redAccent : Colors.greenAccent;
-    } else {
-      color = isUp ? Colors.redAccent : Colors.greenAccent;
-    }
+    final color = value == 0
+        ? Colors.white54
+        : isUp
+        ? Colors.redAccent
+        : Colors.greenAccent;
 
     final icon = isUp
         ? Icons.arrow_upward_rounded
@@ -1027,120 +900,250 @@ class _MetricDeltaBadge extends StatelessWidget {
         ? Icons.arrow_downward_rounded
         : Icons.remove_rounded;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(.30)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 10),
-          const SizedBox(width: 2),
-          Text(
-            '${value.abs().toStringAsFixed(1)}%',
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 1),
+        Text(
+          '${value.abs().toStringAsFixed(1)}%',
+          style: TextStyle(
+            color: color,
+            fontSize: 14,
+            height: 1,
+            fontWeight: FontWeight.w900,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
 class _MetricHeader extends StatelessWidget {
   final String title;
-  final double? delta;
+  final Color colors;
 
-  const _MetricHeader({required this.title, required this.delta});
+  const _MetricHeader({required this.title, required this.colors});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white.withOpacity(.88),
-              fontSize: 14,
-              height: 1,
-              fontWeight: FontWeight.w900,
-              letterSpacing: .15,
-            ),
-          ),
-        ),
-
-        if (delta != null) ...[
-          const SizedBox(width: 6),
-          _MetricDeltaBadge(delta: delta),
-        ],
-      ],
+    return Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: colors,
+        fontSize: 14,
+        height: 1,
+        fontWeight: FontWeight.w900,
+        letterSpacing: .15,
+      ),
     );
   }
 }
 
-class _MetricValueRow extends StatelessWidget {
-  final String current;
-  final String previous;
+class _MetricValueText extends StatelessWidget {
+  final String value;
+  final String unit;
   final Color color;
-  final double currentFontSize;
-  final double previousFontSize;
 
-  const _MetricValueRow({
-    required this.current,
-    required this.previous,
+  final String? badge;
+  final bool emphasized;
+  final TextAlign textAlign;
+
+  const _MetricValueText({
+    required this.value,
+    required this.unit,
     required this.color,
-    this.currentFontSize = 22,
-    this.previousFontSize = 16,
+    this.badge,
+    this.emphasized = false,
+    this.textAlign = TextAlign.left,
   });
 
   @override
   Widget build(BuildContext context) {
-    final normalizedPrevious = previous.trim();
-    final hasPrevious =
-        normalizedPrevious.isNotEmpty && normalizedPrevious != '--';
+    final normalizedUnit = unit.trim();
+    final normalizedBadge = badge?.trim().toUpperCase() ?? '';
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Text(
-            current,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: currentFontSize,
-              height: .95,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -.35,
-            ),
-          ),
-        ),
-        if (hasPrevious) ...[
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              normalizedPrevious,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
+    final alignment = textAlign == TextAlign.right
+        ? Alignment.centerRight
+        : Alignment.centerLeft;
+
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: alignment,
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: value,
               style: TextStyle(
-                color: Colors.white70,
-                fontSize: previousFontSize,
+                color: color,
+                fontSize: 20,
+                height: 1,
                 fontWeight: FontWeight.w900,
-                letterSpacing: -.20,
+                letterSpacing: -.30,
+              ),
+            ),
+
+            if (normalizedUnit.isNotEmpty)
+              TextSpan(
+                text: ' $normalizedUnit',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10,
+                  height: 1,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+
+            if (normalizedBadge.isNotEmpty)
+              TextSpan(
+                text: ' ($normalizedBadge)',
+                style: TextStyle(
+                  color: color.withOpacity(.9),
+                  fontSize: 8.5,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .15,
+                ),
+              ),
+          ],
+        ),
+        maxLines: 1,
+        textAlign: textAlign,
+      ),
+    );
+  }
+}
+
+class _MetricComparisonRow extends StatelessWidget {
+  final String currentValue;
+  final String currentUnit;
+
+  final String previousValue;
+  final String previousUnit;
+
+  final String mode;
+  final double? delta;
+
+  final Color currentColor;
+
+  const _MetricComparisonRow({
+    required this.currentValue,
+    required this.currentUnit,
+    required this.previousValue,
+    required this.previousUnit,
+    required this.mode,
+    required this.delta,
+    required this.currentColor,
+  });
+
+  bool get _hasPrevious {
+    final value = previousValue.trim();
+
+    return value.isNotEmpty && value != '--';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 28,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // CURRENT
+          Expanded(
+            flex: 11,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _MetricValueText(
+                value: currentValue,
+                unit: currentUnit,
+                badge: mode,
+                color: currentColor,
+                emphasized: true,
+                textAlign: TextAlign.left,
               ),
             ),
           ),
+
+          const SizedBox(width: 8),
+
+          // PRE MONTH
+          Expanded(
+            flex: 9,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _hasPrevious
+                  ? _MetricValueText(
+                      value: previousValue,
+                      unit: previousUnit,
+                      color: Colors.white,
+                      emphasized: false,
+                      textAlign: TextAlign.left,
+                    )
+                  : Text(
+                      '--',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(.35),
+                        fontSize: 17,
+                        height: 1,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // DIFF
+          SizedBox(
+            width: 60,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _MetricDeltaBadge(delta: delta),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _MetricColumnsHeader extends StatelessWidget {
+  const _MetricColumnsHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      color: Colors.white,
+      fontSize: 9.5,
+      height: 1,
+      fontWeight: FontWeight.w900,
+      letterSpacing: .45,
+    );
+
+    return Row(
+      children: [
+        Expanded(
+          flex: 11,
+          child: Text('CURRENT', textAlign: TextAlign.left, style: style),
+        ),
+
+        const SizedBox(width: 8),
+
+        Expanded(
+          flex: 9,
+          child: Text('PRE MONTH', textAlign: TextAlign.left, style: style),
+        ),
+
+        const SizedBox(width: 8),
+
+        SizedBox(
+          width: 60,
+          child: Text('DIFF', textAlign: TextAlign.right, style: style),
+        ),
       ],
     );
   }
@@ -1176,73 +1179,66 @@ class _EnergyRow extends StatelessWidget {
     final isElectricity = _isElectricityItem(item);
     final isAir = _isAirItem(item);
 
-    final unit = _resolveUnit(item, theme);
-    final previousText = _formatUtilityValue(
-      item,
-      item.previousDisplayValue,
-      unit,
-    );
+    final utilityUnit = _resolveUnit(item, theme);
+    final mode = _metricModeLabel(item);
 
     final content = Padding(
-      padding: _metricCardPadding,
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Header chỉ còn tên metric và phần trăm thay đổi.
-          _MetricHeader(title: _title(), delta: item.deltaPercent),
+          _MetricHeader(title: _title(), colors: theme.line),
 
-          const SizedBox(height: 3),
-          // 2. Kỳ dữ liệu nằm ngay dưới tên.
-          _MetricPeriodLabel(text: _monthlyPeriodLabel(item), color: color),
-          // Cost của điện đặt dưới value để period luôn sát title.
+          const SizedBox(height: 10),
+
+          const _MetricColumnsHeader(),
+
+          const SizedBox(height: 4),
+
+          // Điện có thêm một hàng chi phí.
           if (isElectricity) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _MoneyMetric(
-                    label: 'CURRENT COST',
-                    value: _formatCost(item.currentCost, item.currentCostUnit),
-                    color: Colors.orangeAccent,
-                    icon: Icons.monetization_on_outlined,
-                    fontSize: 22,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _MoneyMetric(
-                    label: 'PREVIOUS COST',
-                    value: _formatCost(
-                      item.previousCost,
-                      item.previousCostUnit,
-                    ),
-                    color: Colors.white70,
-                    icon: Icons.history_rounded,
-                    fontSize: 22,
-                  ),
-                ),
-              ],
+            _MetricComparisonRow(
+              currentValue: item.currentCost == null
+                  ? '--'
+                  : _formatMoney(item.currentCost!),
+              currentUnit: item.currentCostUnit,
+              previousValue: item.previousCost == null
+                  ? '--'
+                  : _formatMoney(item.previousCost!),
+              previousUnit: item.previousCostUnit,
+              mode: mode,
+              delta: item.costDeltaPercent,
+              currentColor: Colors.orangeAccent,
             ),
+
+            const SizedBox(height: 6),
+
+            Divider(
+              height: 1,
+              thickness: .5,
+              color: Colors.white.withOpacity(.14),
+            ),
+
+            const SizedBox(height: 6),
           ],
-          // const SizedBox(height: 3),
-          Divider(
-            height: 1,
-            thickness: .5,
-            color: Colors.white.withOpacity(.5),
-          ),
-          // 3. Current bên trái, previous bên phải.
+
           TweenAnimationBuilder<double>(
             tween: Tween<double>(begin: 0, end: item.displayValue),
             duration: const Duration(milliseconds: 650),
             curve: Curves.easeOutCubic,
             builder: (_, animatedValue, __) {
-              return _MetricValueRow(
-                current: _formatUtilityValue(item, animatedValue, unit),
-                previous: previousText,
-                color: color,
-                currentFontSize: 22,
-                previousFontSize: 22,
+              return _MetricComparisonRow(
+                currentValue: _formatUtilityNumber(item, animatedValue),
+                currentUnit: utilityUnit,
+                previousValue: _formatUtilityNumber(
+                  item,
+                  item.previousDisplayValue,
+                ),
+                previousUnit: utilityUnit,
+                mode: mode,
+                delta: item.deltaPercent,
+                currentColor: color,
               );
             },
           ),
@@ -1332,43 +1328,22 @@ class _WaterCompactRow extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 1. Header chỉ còn tên metric và delta.
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                _displayName(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(.78),
-                  fontSize: 14,
-                  height: 1,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            if (item.deltaPercent != null) ...[
-              const SizedBox(width: 6),
-              _MetricDeltaBadge(delta: item.deltaPercent),
-            ],
-          ],
-        ),
+        _MetricHeader(title: _displayName(), colors: theme.line),
 
-        const SizedBox(height: 3),
+        const SizedBox(height: 10),
 
-        // 2. Water luôn hiển thị dạng JAN 2026 AVG.
-        _MetricPeriodLabel(text: _monthlyPeriodLabel(item), color: color),
+        const _MetricColumnsHeader(),
 
-        const SizedBox(height: 3),
+        const SizedBox(height: 4),
 
-        // 3. Current và previous dùng cùng format với điện/khí nén.
-        _MetricValueRow(
-          current: _formatUtilityValue(item, item.displayValue, unit),
-          previous: _formatUtilityValue(item, item.previousDisplayValue, unit),
-          color: color,
-          currentFontSize: 22,
-          previousFontSize: 22,
+        _MetricComparisonRow(
+          currentValue: _formatUtilityNumber(item, item.displayValue),
+          currentUnit: unit,
+          previousValue: _formatUtilityNumber(item, item.previousDisplayValue),
+          previousUnit: unit,
+          mode: 'AVG',
+          delta: item.deltaPercent,
+          currentColor: color,
         ),
       ],
     );
