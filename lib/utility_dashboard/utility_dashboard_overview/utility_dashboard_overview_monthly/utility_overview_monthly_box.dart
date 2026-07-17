@@ -909,7 +909,7 @@ class _MetricDeltaBadge extends StatelessWidget {
           '${value.abs().toStringAsFixed(1)}%',
           style: TextStyle(
             color: color,
-            fontSize: 16,
+            fontSize: 13,
             height: 1,
             fontWeight: FontWeight.w900,
           ),
