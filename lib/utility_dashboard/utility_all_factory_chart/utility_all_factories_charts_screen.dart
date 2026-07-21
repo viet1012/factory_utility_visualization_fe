@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/utility_all_factories_controller.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/widgets/utility_all_factories_content.dart';
 import 'package:flutter/material.dart';
@@ -25,10 +27,14 @@ class _UtilityAllFactoriesChartsScreenState
     with WidgetsBindingObserver {
   late final UtilityAllFactoriesController controller;
 
+  Timer? _resumeAnimationTimer;
+
   bool _appActive = true;
+  bool _isScrolling = false;
+  bool _disposed = false;
 
   bool get _animationEnabled {
-    return _appActive && widget.isCurrentScreen;
+    return !_disposed && _appActive && widget.isCurrentScreen && !_isScrolling;
   }
 
   @override
@@ -42,78 +48,162 @@ class _UtilityAllFactoriesChartsScreenState
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || _disposed) return;
 
       controller.initialize();
     });
   }
 
-  @override
-  void didUpdateWidget(covariant UtilityAllFactoriesChartsScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (oldWidget.isCurrentScreen != widget.isCurrentScreen) {
-      setState(() {});
-    }
-  }
+  // ============================================================
+  // APP LIFECYCLE
+  // ============================================================
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final active = state == AppLifecycleState.resumed;
+    final nextActive = state == AppLifecycleState.resumed;
 
-    if (_appActive == active) {
+    if (_appActive == nextActive || !mounted) {
       return;
     }
 
     setState(() {
-      _appActive = active;
+      _appActive = nextActive;
     });
   }
 
+  /*
+   * Không cần setState trong didUpdateWidget.
+   *
+   * Khi isCurrentScreen thay đổi, Flutter tự gọi build lại rồi.
+   * Gọi setState ở đây sẽ tạo thêm một frame rebuild không cần thiết.
+   */
+  @override
+  void didUpdateWidget(covariant UtilityAllFactoriesChartsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (!widget.isCurrentScreen) {
+      _resumeAnimationTimer?.cancel();
+
+      if (_isScrolling) {
+        _isScrolling = false;
+      }
+    }
+  }
+
+  // ============================================================
+  // SCROLL PERFORMANCE
+  // ============================================================
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (_disposed || !mounted) {
+      return false;
+    }
+
+    if (notification is ScrollStartNotification ||
+        notification is ScrollUpdateNotification ||
+        notification is OverscrollNotification) {
+      _pauseAnimationForScroll();
+    } else if (notification is ScrollEndNotification) {
+      _scheduleResumeAnimation();
+    }
+
+    return false;
+  }
+
+  void _pauseAnimationForScroll() {
+    _resumeAnimationTimer?.cancel();
+
+    if (_isScrolling) {
+      return;
+    }
+
+    setState(() {
+      _isScrolling = true;
+    });
+  }
+
+  void _scheduleResumeAnimation() {
+    _resumeAnimationTimer?.cancel();
+
+    _resumeAnimationTimer = Timer(const Duration(milliseconds: 180), () {
+      if (_disposed || !mounted || !_isScrolling) {
+        return;
+      }
+
+      setState(() {
+        _isScrolling = false;
+      });
+    });
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+
+  @override
+  Widget build(BuildContext context) {
+    final animationEnabled = _animationEnabled;
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleScrollNotification,
+      child: TickerMode(
+        enabled: animationEnabled,
+        child: RepaintBoundary(
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF0A0E27), Color(0xFF020B16)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                RepaintBoundary(
+                  child: _UtilityBackgroundLayer(
+                    controller: controller,
+                    animated: animationEnabled,
+                  ),
+                ),
+
+                RepaintBoundary(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: _UtilityContentLayer(controller: controller),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
   @override
   void dispose() {
+    _disposed = true;
+
+    _resumeAnimationTimer?.cancel();
+    _resumeAnimationTimer = null;
+
     WidgetsBinding.instance.removeObserver(this);
 
     controller.dispose();
 
     super.dispose();
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return TickerMode(
-      enabled: _animationEnabled,
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0A0E27), Color(0xFF020B16)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            _UtilityBackgroundLayer(
-              controller: controller,
-              animated: _animationEnabled,
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: _UtilityContentLayer(controller: controller),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // ============================================================
 // BACKGROUND
-// Chỉ rebuild khi category thay đổi.
+// Chỉ cập nhật khi category hoặc trạng thái animated thay đổi.
 // ============================================================
-
 class _UtilityBackgroundLayer extends StatefulWidget {
   final UtilityAllFactoriesController controller;
   final bool animated;
@@ -154,29 +244,22 @@ class _UtilityBackgroundLayerState extends State<_UtilityBackgroundLayer> {
   }
 
   void _handleControllerChanged() {
-    final next = widget.controller.selectedCate;
+    final nextCategory = widget.controller.selectedCate;
 
-    if (next == _category) {
+    if (!mounted || nextCategory == _category) {
       return;
     }
 
     setState(() {
-      _category = next;
+      _category = nextCategory;
     });
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_handleControllerChanged);
-
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ChartThemes.byCate(_category);
 
-    return Positioned.fill(
+    return IgnorePointer(
       child: UtilityIndustrialMotionBackground(
         key: ValueKey('utility-background-$_category'),
         cate: _category,
@@ -185,11 +268,16 @@ class _UtilityBackgroundLayerState extends State<_UtilityBackgroundLayer> {
       ),
     );
   }
-}
 
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleControllerChanged);
+
+    super.dispose();
+  }
+}
 // ============================================================
 // CONTENT
-// Chỉ content rebuild khi controller thay đổi.
 // ============================================================
 
 class _UtilityContentLayer extends StatelessWidget {
@@ -201,17 +289,11 @@ class _UtilityContentLayer extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: controller,
-      builder: (context, _) {
+      builder: (context, child) {
         final category = controller.selectedCate;
-
         final theme = ChartThemes.byCate(category);
 
-        return RepaintBoundary(
-          child: UtilityAllFactoriesContent(
-            controller: controller,
-            theme: theme,
-          ),
-        );
+        return UtilityAllFactoriesContent(controller: controller, theme: theme);
       },
     );
   }

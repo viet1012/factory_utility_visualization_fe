@@ -660,35 +660,6 @@ class _WaterChartData {
 // ============================================================
 // MAIN CHART
 // ============================================================
-PlotBand _standardPlotBand({
-  required double value,
-  required String unit,
-  required Color color,
-}) {
-  return PlotBand(
-    start: value,
-    end: value,
-
-    // Vẽ trên series để điện/nước/khí đều giống nhau.
-    shouldRenderAboveSeries: true,
-
-    borderWidth: 2,
-    borderColor: color,
-
-    // Nét đứt giống nhau.
-    dashArray: const <double>[7, 5],
-
-    text: 'Standard ${value.toStringAsFixed(1)} $unit',
-    textStyle: TextStyle(
-      color: color,
-      fontSize: 11,
-      fontWeight: FontWeight.w800,
-    ),
-
-    horizontalTextAlignment: TextAnchor.end,
-    verticalTextAlignment: TextAnchor.start,
-  );
-}
 
 class _MainMinuteChart extends StatelessWidget {
   final _MainChartData data;
