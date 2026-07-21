@@ -7,7 +7,7 @@ class PanelStyle {
 
   static const double scadaW = 72;
   static const double plcW = 78;
-  static const double valueW = 112;
+  static const double valueW = 140;
   static const double timeW = 92;
   static const double gap = 12;
 

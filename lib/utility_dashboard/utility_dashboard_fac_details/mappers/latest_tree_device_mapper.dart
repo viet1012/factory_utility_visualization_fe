@@ -17,6 +17,8 @@ class LatestTreeDeviceMapper {
     for (final category in facility.categories) {
       for (final scada in category.scadas) {
         for (final box in scada.boxes) {
+          final boxId = box.boxId.trim();
+
           for (final device in box.devices) {
             final boxDeviceId = device.boxDeviceId.trim();
 
@@ -28,6 +30,9 @@ class LatestTreeDeviceMapper {
               boxDeviceId,
               () => FacDeviceViewData(boxDeviceId: boxDeviceId),
             );
+
+            // Box ID chứa device này.
+            _addNonEmpty(viewData.boxIds, boxId);
 
             _addNonEmpty(viewData.categories, category.cate);
 
@@ -47,7 +52,9 @@ class LatestTreeDeviceMapper {
   }
 
   static List<String> sortedDeviceIds(Map<String, FacDeviceViewData> devices) {
-    return devices.keys.toList()..sort(_compareText);
+    final values = devices.keys.toList()..sort(_compareText);
+
+    return values;
   }
 
   static DateTime? latestRecordedAt(Iterable<FacDeviceViewData> devices) {
@@ -57,7 +64,9 @@ class LatestTreeDeviceMapper {
       for (final signal in device.signals) {
         final time = _parseDateTime(signal.recordedAt);
 
-        if (time == null) continue;
+        if (time == null) {
+          continue;
+        }
 
         if (latest == null || time.isAfter(latest)) {
           latest = time;
@@ -97,7 +106,9 @@ class LatestTreeDeviceMapper {
   }
 
   static DateTime? _parseDateTime(Object? value) {
-    if (value == null) return null;
+    if (value == null) {
+      return null;
+    }
 
     if (value is DateTime) {
       return value;

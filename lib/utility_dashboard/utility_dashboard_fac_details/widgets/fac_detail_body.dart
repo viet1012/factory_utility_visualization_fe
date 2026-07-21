@@ -7,6 +7,7 @@ import '../helpers/fac_detail_formatters.dart';
 import '../layout/fac_overlay_map.dart';
 import '../layout/overlay_layout_store.dart';
 import '../layout/scada_style.dart';
+import '../mappers/fac_box_group_mapper.dart';
 import '../mappers/latest_tree_device_mapper.dart';
 import '../models/group_frame_types.dart';
 import '../widgets/color_picker_dialog.dart';
@@ -37,6 +38,7 @@ class _FacDetailBodyState extends State<FacDetailBody> {
   @override
   void initState() {
     super.initState();
+
     _refreshFacility();
   }
 
@@ -44,15 +46,23 @@ class _FacDetailBodyState extends State<FacDetailBody> {
   void didUpdateWidget(covariant FacDetailBody oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.facId != widget.facId) {
-      _editController.reset();
-      _refreshFacility();
+    if (oldWidget.facId == widget.facId) {
+      return;
     }
+
+    _editController.reset();
+    _refreshFacility();
   }
+
+  // ============================================================
+  // REFRESH
+  // ============================================================
 
   void _refreshFacility() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       context.read<LatestProvider>().refreshFacility(
         widget.facId,
@@ -61,57 +71,105 @@ class _FacDetailBodyState extends State<FacDetailBody> {
     });
   }
 
-  Future<void> _pickColor() async {
-    final boxDeviceId = _editController.editingBoxDeviceId;
+  // ============================================================
+  // COLOR
+  //
+  // Controller và store vẫn đang dùng tên boxDeviceId,
+  // nhưng giá trị truyền vào thực tế bây giờ là boxId.
+  // ============================================================
 
-    if (boxDeviceId == null) return;
+  Future<void> _pickColor() async {
+    final boxId = _editController.editingBoxDeviceId;
+
+    if (boxId == null || boxId.trim().isEmpty) {
+      return;
+    }
 
     final color = await showDialog<Color>(
       context: context,
-      builder: (_) => const ColorPickerDialog(),
+      builder: (_) {
+        return const ColorPickerDialog();
+      },
     );
 
-    if (!mounted || color == null) return;
+    if (!mounted || color == null) {
+      return;
+    }
 
     await _layoutStore.setGroupColor(
       facId: widget.facId,
-      boxDeviceId: boxDeviceId,
+      boxDeviceId: boxId,
       color: color,
     );
   }
 
+  // ============================================================
+  // DIRECTION
+  // ============================================================
+
   Future<void> _saveDirection({
-    required String boxDeviceId,
+    required String boxId,
     required ArrowDirection direction,
   }) async {
-    _editController.setLocalDirection(boxDeviceId, direction);
+    final normalizedBoxId = boxId.trim();
 
-    final position = _layoutStore.groupLayoutOf(widget.facId)[boxDeviceId];
+    if (normalizedBoxId.isEmpty) {
+      return;
+    }
 
-    if (position == null) return;
+    _editController.setLocalDirection(normalizedBoxId, direction);
+
+    final position = _layoutStore.groupLayoutOf(widget.facId)[normalizedBoxId];
+
+    /*
+     * Box chưa từng được kéo/lưu vị trí.
+     * Không ghi direction xuống store vì chưa có position.
+     *
+     * Direction vẫn được giữ tạm trong editController.
+     */
+    if (position == null) {
+      return;
+    }
 
     await _savePosition(
-      boxDeviceId: boxDeviceId,
+      boxId: normalizedBoxId,
       position: position,
       direction: direction,
     );
   }
 
+  // ============================================================
+  // POSITION
+  // ============================================================
+
   Future<void> _savePosition({
-    required String boxDeviceId,
+    required String boxId,
     required Offset position,
     required ArrowDirection direction,
   }) {
+    final normalizedBoxId = boxId.trim();
+
+    if (normalizedBoxId.isEmpty) {
+      return Future<void>.value();
+    }
+
     return _layoutStore.setGroupPos(
       facId: widget.facId,
-      boxDeviceId: boxDeviceId,
+
+      /*
+       * Store vẫn dùng property boxDeviceId.
+       * Key thực tế được lưu là boxId.
+       */
+      boxDeviceId: normalizedBoxId,
+
       pos01: position,
       direction: direction,
-
-      // Không truyền color.
-      // Store sẽ giữ màu hiện tại của box.
     );
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -123,75 +181,153 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
     final facility = latestProvider.facilityOf(widget.facId);
 
+    // ==========================================================
+    // 1. MAP TREE THÀNH DEVICE
+    // ==========================================================
+
     final devicesById = LatestTreeDeviceMapper.mapFacility(facility);
 
-    final boxDeviceIds = LatestTreeDeviceMapper.sortedDeviceIds(devicesById);
+    // ==========================================================
+    // 2. GOM NHIỀU BOX DEVICE THEO BOX ID
+    //
+    // Ví dụ:
+    // DB-01_ES35-SW
+    // DB-01_TEMP
+    // DB-01_POWER
+    //
+    // đều thuộc boxId DB-01 và chỉ hiển thị một frame DB-01.
+    // ==========================================================
+
+    final boxesById = FacBoxGroupMapper.groupDevices(devicesById);
+
+    final boxIds = FacBoxGroupMapper.sortedKeys(boxesById);
+
+    // ==========================================================
+    // LAST UPDATED
+    // ==========================================================
 
     final lastUpdated = LatestTreeDeviceMapper.latestRecordedAt(
       devicesById.values,
     );
 
+    // ==========================================================
+    // LAYOUT DATA
+    //
+    // Tất cả key bên dưới bây giờ đều là boxId.
+    // ==========================================================
+
+    final savedDirections = layoutStore.groupDirectionOf(widget.facId);
+
     final directions = <String, ArrowDirection>{
-      ...layoutStore.groupDirectionOf(widget.facId),
+      ...savedDirections,
       ...editController.localDirections,
     };
 
-    _ensureEditingDevice(editController, boxDeviceIds);
+    final groupLayout = layoutStore.groupLayoutOf(widget.facId);
+
+    final groupColors = layoutStore.groupColorOf(widget.facId);
+
+    _ensureEditingBox(controller: editController, boxIds: boxIds);
+
+    final editingBoxId = editController.editingBoxDeviceId;
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: ScadaStyle.dark,
         elevation: 0,
+
         leading: IconButton(
+          tooltip: 'Back',
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: Navigator.of(context).pop,
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
         ),
+
         title: TopHeader(
           facId: widget.facId,
           lastText: FacDetailFormatters.time(lastUpdated),
           editMode: editController.editMode,
           onToggleEdit: editController.toggleEditMode,
         ),
+
         actions: [
-          if (editController.editMode &&
-              editController.editingBoxDeviceId != null)
+          if (editController.editMode && editingBoxId != null)
             EditActions(
               selectedDirection:
-                  directions[editController.editingBoxDeviceId] ??
-                  ArrowDirection.right,
+                  directions[editingBoxId] ?? ArrowDirection.right,
+
               onPickColor: _pickColor,
+
               onChangeDirection: (direction) {
-                final boxDeviceId = editController.editingBoxDeviceId;
+                final currentBoxId = editController.editingBoxDeviceId;
 
-                if (boxDeviceId == null) return;
+                if (currentBoxId == null) {
+                  return;
+                }
 
-                _saveDirection(boxDeviceId: boxDeviceId, direction: direction);
+                _saveDirection(boxId: currentBoxId, direction: direction);
               },
             ),
         ],
       ),
+
       body: ScadaGradient(
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: FacOverlayMap(
               facId: widget.facId,
-              boxDeviceIds: boxDeviceIds,
-              devicesById: devicesById,
-              groupLayout: layoutStore.groupLayoutOf(widget.facId),
+
+              /*
+               * Danh sách Box ID.
+               */
+              boxIds: boxIds,
+
+              /*
+               * Mỗi phần tử chứa toàn bộ signal của
+               * các boxDeviceId cùng Box ID.
+               */
+              boxesById: boxesById,
+
+              /*
+               * Layout, direction và color đều sử dụng
+               * Box ID làm key.
+               */
+              groupLayout: groupLayout,
               directions: directions,
-              colors: layoutStore.groupColorOf(widget.facId),
+              colors: groupColors,
+
               editMode: editController.editMode,
-              editingBoxDeviceId: editController.editingBoxDeviceId,
-              onPickEditingDevice: editController.selectDevice,
-              onUpdateDirection: _saveDirection,
+
+              /*
+               * Controller vẫn có tên editingBoxDeviceId,
+               * nhưng giá trị bên trong là Box ID.
+               */
+              editingBoxId: editingBoxId,
+
+              onPickEditingBox: (boxId) {
+                editController.selectDevice(boxId);
+              },
+
+              onUpdateDirection: ({required boxDeviceId, required direction}) {
+                /*
+                 * Tên callback cũ là boxDeviceId.
+                 * Giá trị thực tế là boxId.
+                 */
+                return _saveDirection(boxId: boxDeviceId, direction: direction);
+              },
+
               onUpdateGroupPosition:
                   ({required boxDeviceId, required position}) {
+                    final boxId = boxDeviceId.trim();
+
+                    final direction = directions[boxId] ?? ArrowDirection.right;
+
                     return _savePosition(
-                      boxDeviceId: boxDeviceId,
+                      boxId: boxId,
                       position: position,
-                      direction:
-                          directions[boxDeviceId] ?? ArrowDirection.right,
+                      direction: direction,
                     );
                   },
             ),
@@ -201,20 +337,36 @@ class _FacDetailBodyState extends State<FacDetailBody> {
     );
   }
 
-  void _ensureEditingDevice(
-    FacDetailEditController controller,
-    List<String> boxDeviceIds,
-  ) {
-    if (!controller.editMode ||
-        controller.editingBoxDeviceId != null ||
-        boxDeviceIds.isEmpty) {
+  // ============================================================
+  // AUTO SELECT BOX KHI BẬT EDIT MODE
+  // ============================================================
+
+  void _ensureEditingBox({
+    required FacDetailEditController controller,
+    required List<String> boxIds,
+  }) {
+    if (!controller.editMode) {
+      return;
+    }
+
+    if (controller.editingBoxDeviceId != null) {
+      return;
+    }
+
+    if (boxIds.isEmpty) {
       return;
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
-      controller.ensureSelected(boxDeviceIds);
+      /*
+       * Method vẫn tên ensureSelected,
+       * nhưng danh sách truyền vào là Box ID.
+       */
+      controller.ensureSelected(boxIds);
     });
   }
 }

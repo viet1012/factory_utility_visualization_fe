@@ -1,36 +1,27 @@
 import '../../utility_dashboard_overview/'
     'utility_dashboard_overview_models/latest_tree_response.dart';
 
-class FacDeviceViewData {
-  final String boxDeviceId;
+class FacBoxViewData {
+  final String key;
+  final String boxId;
 
-  final Set<String> boxIds;
+  final Set<String> boxDeviceIds;
   final Set<String> categories;
   final Set<String> scadaIds;
 
   final List<LatestSignalDto> signals;
 
-  FacDeviceViewData({
-    required this.boxDeviceId,
-    Set<String>? boxIds,
+  FacBoxViewData({
+    required this.key,
+    required this.boxId,
+    Set<String>? boxDeviceIds,
     Set<String>? categories,
     Set<String>? scadaIds,
     List<LatestSignalDto>? signals,
-  }) : boxIds = boxIds ?? <String>{},
+  }) : boxDeviceIds = boxDeviceIds ?? <String>{},
        categories = categories ?? <String>{},
        scadaIds = scadaIds ?? <String>{},
        signals = signals ?? <LatestSignalDto>[];
-
-  String? get primaryBoxId {
-    final values =
-        boxIds
-            .map((value) => value.trim())
-            .where((value) => value.isNotEmpty)
-            .toList()
-          ..sort(_compareText);
-
-    return values.isEmpty ? null : values.first;
-  }
 
   String? get primaryCategory {
     final values =
@@ -52,6 +43,14 @@ class FacDeviceViewData {
           ..sort(_compareText);
 
     return values.join(', ');
+  }
+
+  int get deviceCount {
+    return boxDeviceIds.length;
+  }
+
+  int get signalCount {
+    return signals.length;
   }
 
   static int _compareText(String first, String second) {

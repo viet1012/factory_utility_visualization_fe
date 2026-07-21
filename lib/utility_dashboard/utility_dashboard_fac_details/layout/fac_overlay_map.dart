@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../helpers/map_geometry_helper.dart';
+import '../models/fac_box_view_data.dart';
 import '../models/fac_detail_callbacks.dart';
-import '../models/fac_device_view_data.dart';
 import '../models/group_frame_types.dart';
 import '../widgets/group_frame.dart';
 import '../widgets/hover_box_panel.dart';
@@ -14,31 +14,39 @@ import 'scada_style.dart';
 class FacOverlayMap extends StatefulWidget {
   final String facId;
 
-  final List<String> boxDeviceIds;
-  final Map<String, FacDeviceViewData> devicesById;
+  /// Danh sách Box ID, không còn là Box Device ID.
+  final List<String> boxIds;
 
+  /// Dữ liệu đã gom theo Box ID.
+  final Map<String, FacBoxViewData> boxesById;
+
+  /// Các map này cũng dùng Box ID làm key.
   final Map<String, Offset> groupLayout;
   final Map<String, ArrowDirection> directions;
   final Map<String, Color> colors;
 
   final bool editMode;
-  final String? editingBoxDeviceId;
 
-  final ValueChanged<String?> onPickEditingDevice;
+  /// Dù controller bên ngoài còn tên cũ,
+  /// giá trị truyền vào đây là Box ID.
+  final String? editingBoxId;
+
+  final ValueChanged<String?> onPickEditingBox;
+
   final UpdateGroupPosition onUpdateGroupPosition;
   final UpdateGroupDirection onUpdateDirection;
 
   const FacOverlayMap({
     super.key,
     required this.facId,
-    required this.boxDeviceIds,
-    required this.devicesById,
+    required this.boxIds,
+    required this.boxesById,
     required this.groupLayout,
     required this.directions,
     required this.colors,
     required this.editMode,
-    required this.editingBoxDeviceId,
-    required this.onPickEditingDevice,
+    required this.editingBoxId,
+    required this.onPickEditingBox,
     required this.onUpdateGroupPosition,
     required this.onUpdateDirection,
   });
@@ -59,24 +67,26 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
 
   bool _imageReady = false;
 
-  /// Box đang được click để mở table.
-  String? _selectedBoxDeviceId;
+  /// Box ID đang được click để mở table.
+  String? _selectedBoxId;
 
   String get _imagePath {
-    return 'assets/images/${widget.facId.toLowerCase()}.png';
+    return 'assets/images/'
+        '${widget.facId.toLowerCase()}.png';
   }
 
   BoxDecoration get _mapDecoration {
     return BoxDecoration(
-      color: Colors.black.withOpacity(0.18),
+      color: Colors.black.withOpacity(.18),
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: Colors.white.withOpacity(0.08)),
+      border: Border.all(color: Colors.white.withOpacity(.08)),
     );
   }
 
   @override
   void initState() {
     super.initState();
+
     _loadImageSize();
   }
 
@@ -90,12 +100,22 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
       return;
     }
 
-    if (widget.editMode && _selectedBoxDeviceId != null) {
+    /*
+     * Khi chuyển sang edit mode,
+     * đóng table đang mở.
+     */
+    if (widget.editMode && _selectedBoxId != null) {
       _closeTable();
+      return;
     }
 
-    if (_selectedBoxDeviceId != null &&
-        !widget.devicesById.containsKey(_selectedBoxDeviceId)) {
+    /*
+     * Nếu dữ liệu refresh làm mất Box ID đang chọn,
+     * đóng table.
+     */
+    final selectedBoxId = _selectedBoxId;
+
+    if (selectedBoxId != null && !widget.boxesById.containsKey(selectedBoxId)) {
       _closeTable();
     }
   }
@@ -108,11 +128,16 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
     super.dispose();
   }
 
+  // ============================================================
+  // IMAGE
+  // ============================================================
+
   Future<void> _loadImageSize() async {
     final requestedFacId = widget.facId;
     final requestedImagePath = _imagePath;
 
     final provider = AssetImage(requestedImagePath);
+
     final completer = Completer<ImageInfo>();
 
     final stream = provider.resolve(const ImageConfiguration());
@@ -141,7 +166,9 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
     try {
       final info = await completer.future;
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       if (widget.facId != requestedFacId || _imagePath != requestedImagePath) {
         return;
@@ -156,13 +183,22 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
         _imageReady = true;
       });
     } catch (error) {
-      if (!mounted) return;
-      if (widget.facId != requestedFacId) return;
+      if (!mounted) {
+        return;
+      }
 
-      debugPrint('[FacOverlayMap] Load image size error: $error');
+      if (widget.facId != requestedFacId) {
+        return;
+      }
+
+      debugPrint(
+        '[FacOverlayMap] '
+        'Load image size error: $error',
+      );
 
       setState(() {
         _imageSize = ScadaStyle.imageFallbackSize;
+
         _imageReady = true;
       });
     }
@@ -170,7 +206,7 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
 
   void _resetMap() {
     setState(() {
-      _selectedBoxDeviceId = null;
+      _selectedBoxId = null;
 
       _imageReady = false;
       _imageSize = ScadaStyle.imageFallbackSize;
@@ -179,49 +215,51 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
     });
   }
 
-  FacDeviceViewData? _deviceOf(String boxDeviceId) {
-    return widget.devicesById[boxDeviceId];
+  // ============================================================
+  // BOX DATA
+  // ============================================================
+
+  FacBoxViewData? _boxOf(String boxId) {
+    return widget.boxesById[boxId];
   }
 
-  Offset _devicePosition(String boxDeviceId) {
-    final savedPosition = widget.groupLayout[boxDeviceId];
+  Offset _boxPosition(String boxId) {
+    final savedPosition = widget.groupLayout[boxId];
 
     if (savedPosition != null) {
       return savedPosition;
     }
 
-    return MapGeometryHelper.autoPlace(
-      widget.boxDeviceIds.indexOf(boxDeviceId),
-    );
+    return MapGeometryHelper.autoPlace(widget.boxIds.indexOf(boxId));
   }
 
-  void _toggleTable(String boxDeviceId) {
+  // ============================================================
+  // TABLE
+  // ============================================================
+
+  void _toggleTable(String boxId) {
     if (widget.editMode) {
       return;
     }
 
-    final device = _deviceOf(boxDeviceId);
+    final box = _boxOf(boxId);
 
-    if (device == null || device.signals.isEmpty) {
+    if (box == null || box.signals.isEmpty) {
       return;
     }
 
     setState(() {
-      if (_selectedBoxDeviceId == boxDeviceId) {
-        _selectedBoxDeviceId = null;
-      } else {
-        _selectedBoxDeviceId = boxDeviceId;
-      }
+      _selectedBoxId = _selectedBoxId == boxId ? null : boxId;
     });
   }
 
   void _closeTable() {
-    if (_selectedBoxDeviceId == null) {
+    if (_selectedBoxId == null) {
       return;
     }
 
     setState(() {
-      _selectedBoxDeviceId = null;
+      _selectedBoxId = null;
     });
   }
 
@@ -233,14 +271,19 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
     }
   }
 
+  // ============================================================
+  // KEYBOARD
+  // ============================================================
+
   KeyEventResult _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) {
       return KeyEventResult.ignored;
     }
 
     if (event.logicalKey == LogicalKeyboardKey.escape &&
-        _selectedBoxDeviceId != null) {
+        _selectedBoxId != null) {
       _closeTable();
+
       return KeyEventResult.handled;
     }
 
@@ -248,9 +291,9 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
       return KeyEventResult.ignored;
     }
 
-    final boxDeviceId = widget.editingBoxDeviceId;
+    final boxId = widget.editingBoxId;
 
-    if (boxDeviceId == null) {
+    if (boxId == null) {
       return KeyEventResult.ignored;
     }
 
@@ -260,15 +303,19 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
       return KeyEventResult.ignored;
     }
 
+    final currentPosition = _boxPosition(boxId);
+
     final nextPosition = MapGeometryHelper.clampPosition(
-      _devicePosition(boxDeviceId) + direction * _keyboardStep(),
+      currentPosition + direction * _keyboardStep(),
     );
 
+    /*
+     * Callback vẫn dùng tên boxDeviceId
+     * vì typedef cũ chưa đổi.
+     * Giá trị thực tế là boxId.
+     */
     unawaited(
-      widget.onUpdateGroupPosition(
-        boxDeviceId: boxDeviceId,
-        position: nextPosition,
-      ),
+      widget.onUpdateGroupPosition(boxDeviceId: boxId, position: nextPosition),
     );
 
     return KeyEventResult.handled;
@@ -276,14 +323,14 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
 
   double _keyboardStep() {
     if (HardwareKeyboard.instance.isAltPressed) {
-      return 0.002;
+      return .002;
     }
 
     if (HardwareKeyboard.instance.isShiftPressed) {
-      return 0.02;
+      return .02;
     }
 
-    return 0.008;
+    return .008;
   }
 
   Offset _keyboardDirection(LogicalKeyboardKey key) {
@@ -305,6 +352,10 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
 
     return Offset.zero;
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -347,6 +398,7 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
           imageRect.width,
           imageRect.height,
         );
+        final tableOpened = _selectedBoxId != null;
 
         return Focus(
           focusNode: _focusNode,
@@ -356,13 +408,11 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
           },
           child: InteractiveViewer(
             transformationController: _transformController,
-            minScale: 0.8,
+            minScale: .8,
             maxScale: 5,
-
-            // Khi table đang mở vẫn cho zoom/pan.
-            // Chỉ khóa trong edit mode.
-            panEnabled: !widget.editMode,
-            scaleEnabled: !widget.editMode,
+            trackpadScrollCausesScale: false,
+            panEnabled: !widget.editMode && !tableOpened,
+            scaleEnabled: !widget.editMode && !tableOpened,
 
             child: SizedBox(
               width: containerSize.width,
@@ -391,15 +441,18 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
                     ),
                   ),
 
+                  /*
+                   * Overlay chỉ nằm trong vùng ảnh.
+                   */
                   Positioned.fromRect(
                     rect: imageRect,
                     child: ClipRect(
                       child: Stack(
                         clipBehavior: Clip.hardEdge,
                         children: [
-                          for (final boxDeviceId in widget.boxDeviceIds)
-                            _buildDeviceFrame(
-                              boxDeviceId: boxDeviceId,
+                          for (final boxId in widget.boxIds)
+                            _buildBoxFrame(
+                              boxId: boxId,
                               imageRect: localImageRect,
                             ),
                         ],
@@ -417,14 +470,20 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
     );
   }
 
-  Widget _buildDeviceFrame({
-    required String boxDeviceId,
-    required Rect imageRect,
-  }) {
-    final device = _deviceOf(boxDeviceId);
-    final position = _devicePosition(boxDeviceId);
+  // ============================================================
+  // BOX FRAME
+  // ============================================================
 
-    final isTableSelected = _selectedBoxDeviceId == boxDeviceId;
+  Widget _buildBoxFrame({required String boxId, required Rect imageRect}) {
+    final box = _boxOf(boxId);
+
+    if (box == null) {
+      return const SizedBox.shrink();
+    }
+
+    final position = _boxPosition(boxId);
+
+    final isTableSelected = _selectedBoxId == boxId;
 
     return Positioned(
       left: position.dx * imageRect.width,
@@ -434,39 +493,51 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
             ? SystemMouseCursors.move
             : SystemMouseCursors.click,
         child: GroupFrame(
-          boxDeviceId: boxDeviceId,
-          scadaText: device?.scadaText ?? '',
-          cate: device?.primaryCategory,
-          boxColor: widget.colors[boxDeviceId],
+          /*
+           * GroupFrame còn tên property cũ,
+           * nhưng nội dung hiển thị là Box ID.
+           */
+          boxDeviceId: box.boxId,
+
+          scadaText: box.scadaText,
+          cate: box.primaryCategory,
+
+          boxColor: widget.colors[boxId],
+
           hasAlarm: false,
+
           groupPos01: position,
           parentSize: imageRect.size,
+
           editMode: widget.editMode,
 
-          // Trong edit mode: selected theo controller.
-          // Ngoài edit mode: selected theo table đang mở.
           isEditing: widget.editMode
-              ? widget.editingBoxDeviceId == boxDeviceId
+              ? widget.editingBoxId == boxId
               : isTableSelected,
 
-          direction: widget.directions[boxDeviceId] ?? ArrowDirection.right,
+          direction: widget.directions[boxId] ?? ArrowDirection.right,
 
           onTap: () {
             _focusNode.requestFocus();
 
             if (widget.editMode) {
-              widget.onPickEditingDevice(boxDeviceId);
+              widget.onPickEditingBox(boxId);
+
               return;
             }
 
-            _toggleTable(boxDeviceId);
+            _toggleTable(boxId);
           },
 
           onDragGroup01: widget.editMode
-              ? (position) {
+              ? (newPosition) {
                   return widget.onUpdateGroupPosition(
-                    boxDeviceId: boxDeviceId,
-                    position: position,
+                    /*
+                     * Tên parameter cũ,
+                     * giá trị thực tế là Box ID.
+                     */
+                    boxDeviceId: boxId,
+                    position: newPosition,
                   );
                 }
               : null,
@@ -475,28 +546,43 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
     );
   }
 
-  Widget _buildSelectedTable(Rect imageRect) {
-    final boxDeviceId = _selectedBoxDeviceId;
+  // ============================================================
+  // SELECTED TABLE
+  // ============================================================
 
-    if (boxDeviceId == null || widget.editMode) {
+  Widget _buildSelectedTable(Rect imageRect) {
+    final boxId = _selectedBoxId;
+
+    if (boxId == null || widget.editMode) {
       return const SizedBox.shrink();
     }
 
-    final device = _deviceOf(boxDeviceId);
+    final box = _boxOf(boxId);
 
-    if (device == null || device.signals.isEmpty) {
+    if (box == null || box.signals.isEmpty) {
       return const SizedBox.shrink();
     }
 
     return HoverBoxPanel(
-      boxId: boxDeviceId,
-      scadaId: device.scadaText,
-      imageRect: imageRect,
-      pos01: _devicePosition(boxDeviceId),
-      rows: device.signals,
-      category: device.primaryCategory,
+      /*
+       * Header hiển thị Box ID.
+       */
+      boxId: box.boxId,
 
-      // Table giờ không cần quản lý enter/exit.
+      scadaId: box.scadaText,
+
+      imageRect: imageRect,
+
+      pos01: _boxPosition(boxId),
+
+      /*
+       * Toàn bộ signal từ các Box Device
+       * nằm trong cùng Box ID.
+       */
+      rows: box.signals,
+
+      category: box.primaryCategory,
+
       onEnterPanel: () {},
       onExitPanel: () {},
     );
