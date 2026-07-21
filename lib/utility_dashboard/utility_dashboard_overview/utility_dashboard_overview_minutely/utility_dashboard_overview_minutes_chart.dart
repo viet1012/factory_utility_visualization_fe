@@ -12,6 +12,33 @@ import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../utility_dashboard_overview_widgets/common_chart_title_bar.dart';
 import '../utility_dashboard_overview_widgets/scada_chart_panel.dart';
 
+class UtilityStandardValues {
+  const UtilityStandardValues._();
+
+  // Thay lại theo tiêu chuẩn thực tế của nhà máy.
+  static const double electricity = 100.0;
+  static const double water = 35.0;
+  static const double compressedAir = 6.0;
+
+  static double byUtilityType(String utilityType) {
+    final normalized = utilityType.trim().toUpperCase();
+
+    if (normalized.contains('ELECTRIC')) {
+      return electricity;
+    }
+
+    if (normalized.contains('WATER')) {
+      return water;
+    }
+
+    if (normalized.contains('AIR') || normalized.contains('COMPRESSED')) {
+      return compressedAir;
+    }
+
+    return 0;
+  }
+}
+
 class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
   final String facId;
   final String utilityType;
@@ -72,6 +99,10 @@ class _UtilityDashboardOverviewMinutesChartState
 
   bool get _isElectricity =>
       widget.utilityType.trim().toUpperCase() == 'ELECTRICITY';
+
+  double get _standardValue {
+    return UtilityStandardValues.byUtilityType(widget.utilityType);
+  }
 
   @override
   void initState() {
@@ -150,7 +181,11 @@ class _UtilityDashboardOverviewMinutesChartState
       _mainChartData = null;
       _waterChartData = validRows.isEmpty
           ? null
-          : _WaterChartData.from(rows: validRows, facId: widget.facId);
+          : _WaterChartData.from(
+              rows: validRows,
+              facId: widget.facId,
+              standardValue: _standardValue,
+            );
     } else {
       _waterChartData = null;
       _mainChartData = validRows.isEmpty
@@ -158,6 +193,7 @@ class _UtilityDashboardOverviewMinutesChartState
           : _MainChartData.from(
               rows: validRows,
               utilityType: widget.utilityType,
+              standardValue: _standardValue,
             );
     }
   }
@@ -254,6 +290,7 @@ class _UtilityDashboardOverviewMinutesChartState
           key: ValueKey('water_${widget.facId}_${widget.utilityType}'),
           data: data,
           theme: widget.theme,
+          standardValue: _standardValue,
         ),
       );
     }
@@ -272,6 +309,7 @@ class _UtilityDashboardOverviewMinutesChartState
         data: data,
         theme: widget.theme,
         isElectricity: _isElectricity,
+        standardValue: _standardValue,
       ),
     );
   }
@@ -315,6 +353,7 @@ class _MainChartData {
   factory _MainChartData.from({
     required List<OverviewMinutePointDto> rows,
     required String utilityType,
+    required double standardValue,
   }) {
     final points =
         rows
@@ -336,10 +375,14 @@ class _MainChartData {
     final minDataY = values.reduce(min);
     final maxDataY = values.reduce(max);
 
-    final dataRange = (maxDataY - minDataY).abs();
+    final minSourceY = min(minDataY, standardValue);
+
+    final maxSourceY = max(maxDataY, standardValue);
+
+    final dataRange = (maxSourceY - minSourceY).abs();
 
     final padding = dataRange == 0
-        ? max(maxDataY.abs() * .10, .5)
+        ? max(maxSourceY.abs() * .10, .5)
         : dataRange * .15;
 
     final isElectricity = utilityType.trim().toUpperCase() == 'ELECTRICITY';
@@ -350,13 +393,14 @@ class _MainChartData {
     if (isElectricity) {
       minY = 0;
 
-      final rawMax = maxDataY + padding;
+      final rawMax = max(maxDataY, standardValue) + padding;
+
       final step = _niceStep(rawMax / 5);
 
       maxY = _niceCeil(rawMax, step);
     } else {
-      minY = minDataY - padding;
-      maxY = maxDataY + padding;
+      minY = minSourceY - padding;
+      maxY = maxSourceY + padding;
     }
 
     final interval = _niceStep((maxY - minY) / 5);
@@ -413,6 +457,7 @@ class _WaterChartData {
   factory _WaterChartData.from({
     required List<OverviewMinutePointDto> rows,
     required String facId,
+    required double standardValue,
   }) {
     final grouped = _groupWaterRows(rows: rows, facId: facId);
 
@@ -474,11 +519,16 @@ class _WaterChartData {
     final minValue = values.reduce(min);
     final maxValue = values.reduce(max);
 
-    final range = maxValue - minValue;
+    final minSource = min(minValue, standardValue);
+
+    final maxSource = max(maxValue, standardValue);
+
+    final range = maxSource - minSource;
+
     final padding = max(range * .10, .2);
 
-    final minY = minValue - padding;
-    final maxY = maxValue + padding;
+    final minY = minSource - padding;
+    final maxY = maxSource + padding;
 
     return _WaterChartData(
       series: List<_WaterSeries>.unmodifiable(series),
@@ -610,28 +660,71 @@ class _WaterChartData {
 // ============================================================
 // MAIN CHART
 // ============================================================
+PlotBand _standardPlotBand({
+  required double value,
+  required String unit,
+  required Color color,
+}) {
+  return PlotBand(
+    start: value,
+    end: value,
+
+    // Vẽ trên series để điện/nước/khí đều giống nhau.
+    shouldRenderAboveSeries: true,
+
+    borderWidth: 2,
+    borderColor: color,
+
+    // Nét đứt giống nhau.
+    dashArray: const <double>[7, 5],
+
+    text: 'Standard ${value.toStringAsFixed(1)} $unit',
+    textStyle: TextStyle(
+      color: color,
+      fontSize: 11,
+      fontWeight: FontWeight.w800,
+    ),
+
+    horizontalTextAlignment: TextAnchor.end,
+    verticalTextAlignment: TextAnchor.start,
+  );
+}
 
 class _MainMinuteChart extends StatelessWidget {
   final _MainChartData data;
   final ChartTheme theme;
   final bool isElectricity;
+  final double standardValue;
 
   const _MainMinuteChart({
     super.key,
     required this.data,
     required this.theme,
     required this.isElectricity,
+    required this.standardValue,
   });
 
   @override
   Widget build(BuildContext context) {
     final lastPoint = data.points.last;
 
+    final maxX = data.maxX.add(const Duration(minutes: 2));
+
+    /*
+     * Standard line cũng dùng _ChartPoint.
+     * Không dùng _StandardPoint riêng nữa.
+     */
+    final standardPoints = <_ChartPoint>[
+      _ChartPoint(ts: data.minX, y: standardValue, nameEn: 'Standard'),
+      _ChartPoint(ts: maxX, y: standardValue, nameEn: 'Standard'),
+    ];
+
     return SfCartesianChart(
       enableAxisAnimation: false,
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withOpacity(.10),
+
       tooltipBehavior: TooltipBehavior(
         enable: true,
         canShowMarker: true,
@@ -641,9 +734,10 @@ class _MainMinuteChart extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
+
       primaryXAxis: DateTimeAxis(
         minimum: data.minX,
-        maximum: data.maxX.add(const Duration(minutes: 2)),
+        maximum: maxX,
         intervalType: DateTimeIntervalType.minutes,
         dateFormat: DateFormat('HH:mm'),
         majorGridLines: MajorGridLines(
@@ -656,6 +750,7 @@ class _MainMinuteChart extends StatelessWidget {
           fontSize: 13,
         ),
       ),
+
       primaryYAxis: NumericAxis(
         minimum: data.minY,
         maximum: data.maxY,
@@ -680,7 +775,55 @@ class _MainMinuteChart extends StatelessWidget {
           ),
         ),
       ),
+
+      /*
+       * Tất cả series đều dùng:
+       * CartesianSeries<_ChartPoint, DateTime>
+       */
       series: <CartesianSeries<_ChartPoint, DateTime>>[
+        // ======================================================
+        // STANDARD LINE
+        // ======================================================
+        LineSeries<_ChartPoint, DateTime>(
+          name: 'Standard',
+          animationDuration: 0,
+          dataSource: standardPoints,
+          xValueMapper: (point, _) => point.ts,
+          yValueMapper: (point, _) => point.y,
+          color: theme.line,
+          width: 2,
+          dashArray: const <double>[7, 5],
+          isVisibleInLegend: false,
+          enableTooltip: false,
+          markerSettings: const MarkerSettings(isVisible: false),
+
+          /*
+           * Chỉ hiện label ở điểm cuối.
+           */
+          dataLabelMapper: (point, index) {
+            if (index != standardPoints.length - 1) {
+              return null;
+            }
+
+            return 'Standard '
+                '${standardValue.toStringAsFixed(1)} '
+                '${theme.unit}';
+          },
+
+          dataLabelSettings: DataLabelSettings(
+            isVisible: true,
+            labelAlignment: ChartDataLabelAlignment.outer,
+            textStyle: TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+
+        // ======================================================
+        // GLOW LINE
+        // ======================================================
         SplineSeries<_ChartPoint, DateTime>(
           animationDuration: 0,
           dataSource: data.points,
@@ -688,7 +831,13 @@ class _MainMinuteChart extends StatelessWidget {
           yValueMapper: (point, _) => point.y,
           color: theme.line.withOpacity(.15),
           width: 6,
+          enableTooltip: false,
+          isVisibleInLegend: false,
         ),
+
+        // ======================================================
+        // MAIN AREA
+        // ======================================================
         SplineAreaSeries<_ChartPoint, DateTime>(
           animationDuration: 0,
           dataSource: data.points,
@@ -709,10 +858,16 @@ class _MainMinuteChart extends StatelessWidget {
             borderWidth: 1,
             borderColor: theme.line.withOpacity(.90),
           ),
+          isVisibleInLegend: false,
         ),
+
+        // ======================================================
+        // LAST POINT
+        // ======================================================
         ScatterSeries<_ChartPoint, DateTime>(
           isVisibleInLegend: false,
-          dataSource: [lastPoint],
+          enableTooltip: false,
+          dataSource: <_ChartPoint>[lastPoint],
           xValueMapper: (point, _) => point.ts,
           yValueMapper: (point, _) => point.y,
           color: theme.line,
@@ -723,13 +878,15 @@ class _MainMinuteChart extends StatelessWidget {
             borderWidth: 2,
             borderColor: Colors.white,
           ),
-          dataLabelMapper: (point, _) => point.y.toStringAsFixed(1),
+          dataLabelMapper: (point, _) {
+            return point.y.toStringAsFixed(1);
+          },
           dataLabelSettings: const DataLabelSettings(
             isVisible: true,
             labelAlignment: ChartDataLabelAlignment.outer,
             textStyle: TextStyle(
               color: Colors.white,
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -746,18 +903,109 @@ class _MainMinuteChart extends StatelessWidget {
 class _WaterMinuteChart extends StatelessWidget {
   final _WaterChartData data;
   final ChartTheme theme;
+  final double standardValue;
 
-  const _WaterMinuteChart({super.key, required this.data, required this.theme});
+  const _WaterMinuteChart({
+    super.key,
+    required this.data,
+    required this.theme,
+    required this.standardValue,
+  });
 
   @override
   Widget build(BuildContext context) {
     final showLegend = data.series.length > 1;
+
+    final maxX = data.maxX.add(const Duration(minutes: 2));
+
+    final standardPoints = <_ChartPoint>[
+      _ChartPoint(ts: data.minX, y: standardValue, nameEn: 'Standard'),
+      _ChartPoint(ts: maxX, y: standardValue, nameEn: 'Standard'),
+    ];
+
+    final chartSeries = <CartesianSeries<_ChartPoint, DateTime>>[
+      // ========================================================
+      // STANDARD LINE
+      // ========================================================
+      LineSeries<_ChartPoint, DateTime>(
+        name: 'Standard',
+        animationDuration: 0,
+        dataSource: standardPoints,
+        xValueMapper: (point, _) => point.ts,
+        yValueMapper: (point, _) => point.y,
+        color: theme.line,
+        width: 2,
+        dashArray: const <double>[7, 5],
+        isVisibleInLegend: false,
+        enableTooltip: false,
+        markerSettings: const MarkerSettings(isVisible: false),
+        dataLabelMapper: (point, index) {
+          if (index != standardPoints.length - 1) {
+            return null;
+          }
+
+          return 'Standard '
+              '${standardValue.toStringAsFixed(1)} '
+              '${theme.unit}';
+        },
+        dataLabelSettings: DataLabelSettings(
+          isVisible: true,
+          labelAlignment: ChartDataLabelAlignment.outer,
+          textStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    ];
+
+    // ==========================================================
+    // WATER SERIES
+    // ==========================================================
+    for (final waterSeries in data.series) {
+      final color = _seriesColorByRank(
+        baseColor: theme.line,
+        rank: waterSeries.rank,
+        total: data.series.length,
+      );
+
+      chartSeries.add(
+        LineSeries<_ChartPoint, DateTime>(
+          name: waterSeries.name,
+          dataSource: waterSeries.points,
+          animationDuration: 0,
+          xValueMapper: (point, _) => point.ts,
+          yValueMapper: (point, _) => point.y,
+          width: waterSeries.rank == 0 ? 3 : 2,
+          color: color,
+          markerSettings: const MarkerSettings(isVisible: false),
+          dataLabelMapper: (point, index) {
+            if (index != waterSeries.points.length - 1) {
+              return null;
+            }
+
+            return point.y.toStringAsFixed(1);
+          },
+          dataLabelSettings: DataLabelSettings(
+            isVisible: true,
+            labelAlignment: ChartDataLabelAlignment.outer,
+            textStyle: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+    }
 
     return SfCartesianChart(
       enableAxisAnimation: false,
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withOpacity(.08),
+
       legend: Legend(
         isVisible: showLegend,
         position: LegendPosition.top,
@@ -768,14 +1016,16 @@ class _WaterMinuteChart extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
+
       tooltipBehavior: TooltipBehavior(
         enable: true,
         header: '',
         format: 'point.x\nseries.name: point.y',
       ),
+
       primaryXAxis: DateTimeAxis(
         minimum: data.minX,
-        maximum: data.maxX.add(const Duration(minutes: 2)),
+        maximum: maxX,
         intervalType: DateTimeIntervalType.minutes,
         dateFormat: DateFormat('HH:mm'),
         majorGridLines: MajorGridLines(
@@ -788,11 +1038,14 @@ class _WaterMinuteChart extends StatelessWidget {
           fontSize: 11,
         ),
       ),
+
       primaryYAxis: NumericAxis(
         minimum: data.minY,
         maximum: data.maxY,
         interval: data.interval,
         numberFormat: NumberFormat('0.0'),
+
+        // Không dùng plotBands nữa.
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(.05),
@@ -812,46 +1065,11 @@ class _WaterMinuteChart extends StatelessWidget {
           ),
         ),
       ),
-      series: data.series
-          .map((series) {
-            final color = _seriesColorByRank(
-              baseColor: theme.line,
-              rank: series.rank,
-              total: data.series.length,
-            );
 
-            return LineSeries<_ChartPoint, DateTime>(
-              name: series.name,
-              dataSource: series.points,
-              animationDuration: 0,
-              xValueMapper: (point, _) => point.ts,
-              yValueMapper: (point, _) => point.y,
-              width: series.rank == 0 ? 3 : 2,
-              color: color,
-              markerSettings: const MarkerSettings(isVisible: false),
-              dataLabelMapper: (point, index) {
-                if (index != series.points.length - 1) {
-                  return null;
-                }
-
-                return point.y.toStringAsFixed(1);
-              },
-              dataLabelSettings: DataLabelSettings(
-                isVisible: true,
-                labelAlignment: ChartDataLabelAlignment.outer,
-                textStyle: TextStyle(
-                  color: color,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            );
-          })
-          .toList(growable: false),
+      series: chartSeries,
     );
   }
 }
-
 // ============================================================
 // HELPERS
 // ============================================================
