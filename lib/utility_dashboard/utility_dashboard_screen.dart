@@ -22,7 +22,6 @@ import '../utility_models/utility_facade_service.dart';
 import '../utility_state/chart_catalog_provider.dart';
 import '../utility_state/latest_provider.dart';
 import '../utility_state/minute_series_provider.dart';
-import '../utility_state/tree_latest_provider.dart';
 import 'utility_dashboard_overview/utility_dashboard_overview.dart';
 
 class UtilityDashboardScreen extends StatefulWidget {
@@ -34,9 +33,9 @@ class UtilityDashboardScreen extends StatefulWidget {
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin {
-  static const String _baseUrl = 'http://192.168.122.16:9093';
+  // static const String _baseUrl = 'http://192.168.122.16:9093';
 
-  // const baseUrl = 'http://localhost:9999';
+  static const _baseUrl = 'http://localhost:9999';
 
   static const int _tabCount = 5;
 
@@ -64,7 +63,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final MinuteSeriesProvider minuteSeriesProvider;
   late final ChartCatalogProvider chartCatalogProvider;
   late final LatestProvider latestProvider;
-  late final TreeLatestProvider treeLatestProvider;
 
   late final SignalHealthMatrixController signalHealthController;
 
@@ -130,8 +128,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     chartCatalogProvider = ChartCatalogProvider(api);
 
     latestProvider = LatestProvider(api: api);
-
-    treeLatestProvider = TreeLatestProvider(facade);
 
     signalHealthController = SignalHealthMatrixController(overviewApi)
       ..startPolling();
@@ -208,10 +204,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         ),
 
         ChangeNotifierProvider<LatestProvider>.value(value: latestProvider),
-
-        ChangeNotifierProvider<TreeLatestProvider>.value(
-          value: treeLatestProvider,
-        ),
 
         ChangeNotifierProvider<SignalHealthMatrixController>.value(
           value: signalHealthController,
@@ -339,7 +331,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     minuteSeriesProvider.dispose();
     chartCatalogProvider.dispose();
     latestProvider.dispose();
-    treeLatestProvider.dispose();
 
     signalHealthController.dispose();
 

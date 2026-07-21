@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_models/utility_daily_dashboard_response.dart';
@@ -13,12 +13,11 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
   UtilityDailyDashboardProvider(this.api);
 
   static const Duration pollInterval = Duration(hours: 1);
-
   static const Duration requestTimeout = Duration(seconds: 30);
 
   Timer? _pollTimer;
-  bool _notifyScheduled = false;
 
+  bool _notifyScheduled = false;
   bool _loading = false;
   bool _refreshing = false;
   bool _fetching = false;
@@ -31,9 +30,15 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
   String? _facId;
   String? _month;
 
-  List<UtilityDailyPoint> _electricity = const [];
-  List<UtilityDailyPoint> _water = const [];
-  List<UtilityDailyPoint> _air = const [];
+  List<UtilityDailyPoint> _electricity = const <UtilityDailyPoint>[];
+
+  List<UtilityDailyPoint> _water = const <UtilityDailyPoint>[];
+
+  List<UtilityDailyPoint> _air = const <UtilityDailyPoint>[];
+
+  // ============================================================
+  // GETTERS
+  // ============================================================
 
   bool get loading => _loading;
 
@@ -53,85 +58,141 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
 
   List<UtilityDailyPoint> get air => _air;
 
-  bool get hasData =>
-      _electricity.isNotEmpty || _water.isNotEmpty || _air.isNotEmpty;
-
-  bool get hasValidParams {
-    final fac = _facId;
-    final month = _month;
-
-    return fac != null &&
-        fac.isNotEmpty &&
-        month != null &&
-        RegExp(r'^\d{6}$').hasMatch(month);
+  bool get hasData {
+    return _electricity.isNotEmpty || _water.isNotEmpty || _air.isNotEmpty;
   }
 
+  bool get hasValidParams {
+    final currentFac = _facId;
+    final currentMonth = _month;
+
+    if (currentFac == null || currentFac.trim().isEmpty) {
+      return false;
+    }
+
+    if (currentMonth == null) {
+      return false;
+    }
+
+    return _isValidMonth(currentMonth);
+  }
+
+  // ============================================================
+  // START
+  // ============================================================
+
   Future<void> start({required String facId, required String month}) async {
-    final normalizedFac = facId.trim();
-    final normalizedMonth = month.trim();
+    if (_disposed) return;
+
+    final normalizedFac = _normalizeFac(facId);
+    final normalizedMonth = _normalizeMonth(month);
 
     final changed = normalizedFac != _facId || normalizedMonth != _month;
 
-    _facId = normalizedFac;
-    _month = normalizedMonth;
-
-    _pollTimer?.cancel();
+    /*
+     * Khi start lại, luôn hủy lịch polling cũ.
+     * Polling mới chỉ được tạo sau khi request hiện tại hoàn tất.
+     */
+    _stopPolling();
 
     if (changed) {
-      _electricity = const [];
-      _water = const [];
-      _air = const [];
+      /*
+       * Request cũ nếu còn chạy sẽ không được phép cập nhật state.
+       */
+      _invalidateCurrentRequest();
+
+      _facId = normalizedFac;
+      _month = normalizedMonth;
+
+      _electricity = const <UtilityDailyPoint>[];
+      _water = const <UtilityDailyPoint>[];
+      _air = const <UtilityDailyPoint>[];
+
       _error = null;
+
+      _fetching = false;
       _loading = true;
       _refreshing = false;
+
       _safeNotifyListeners();
+    } else {
+      _facId = normalizedFac;
+      _month = normalizedMonth;
     }
 
-    await load();
+    await load(silent: !changed && hasData, force: changed);
 
     if (_disposed) return;
 
-    _pollTimer = Timer.periodic(pollInterval, (_) {
-      unawaited(load(silent: true));
-    });
+    _scheduleNextPoll();
   }
 
-  Future<void> load({bool silent = false}) async {
-    if (_fetching || _disposed) return;
+  // ============================================================
+  // LOAD
+  // ============================================================
+
+  Future<void> load({bool silent = false, bool force = false}) async {
+    if (_disposed) return;
+
+    /*
+     * Polling hoặc refresh thủ công không được chạy chồng.
+     *
+     * force chỉ dùng khi đổi facility/tháng, vì request cũ đã được
+     * invalidate bằng request token.
+     */
+    if (_fetching && !force) {
+      return;
+    }
 
     if (!hasValidParams) {
+      _fetching = false;
       _loading = false;
       _refreshing = false;
+
       _error = 'Missing facId or invalid month format yyyyMM';
+
       _safeNotifyListeners();
       return;
     }
 
-    final facId = _facId!;
-    final month = _month!;
+    final requestFacId = _facId!;
+    final requestMonth = _month!;
+
     final token = ++_requestToken;
 
     _fetching = true;
     _error = null;
 
     if (silent && hasData) {
+      /*
+       * Silent refresh giữ nguyên dữ liệu cũ trên màn hình.
+       */
       _refreshing = true;
+      _loading = false;
     } else {
       _loading = true;
+      _refreshing = false;
     }
 
     _safeNotifyListeners();
 
     try {
       final response = await api
-          .getDailyDashboard(facId: facId, month: month)
+          .getDailyDashboard(facId: requestFacId, month: requestMonth)
           .timeout(requestTimeout);
 
-      if (!_isValidRequest(token)) return;
+      if (!_isValidRequest(token)) {
+        return;
+      }
 
-      _electricity = response.electricity;
-      _water = response.water;
-      _air = response.air;
+      /*
+       * Luôn tạo list mới để Selector/Consumer nhận ra dữ liệu đổi.
+       */
+      _electricity = List<UtilityDailyPoint>.unmodifiable(response.electricity);
+
+      _water = List<UtilityDailyPoint>.unmodifiable(response.water);
+
+      _air = List<UtilityDailyPoint>.unmodifiable(response.air);
 
       _error = null;
     } on TimeoutException catch (error, stackTrace) {
@@ -150,10 +211,93 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
         _fetching = false;
         _loading = false;
         _refreshing = false;
+
         _safeNotifyListeners();
       }
     }
   }
+
+  // ============================================================
+  // REFRESH
+  // ============================================================
+
+  Future<void> refresh() async {
+    if (_disposed || _fetching) {
+      return;
+    }
+
+    /*
+     * Người dùng vừa refresh thủ công thì đếm lại chu kỳ 1 giờ
+     * từ thời điểm refresh hoàn tất.
+     */
+    _stopPolling();
+
+    await load(silent: hasData, force: false);
+
+    if (_disposed) return;
+
+    _scheduleNextPoll();
+  }
+
+  // ============================================================
+  // POLLING
+  // ============================================================
+
+  void _scheduleNextPoll() {
+    if (_disposed || !hasValidParams) {
+      return;
+    }
+
+    _stopPolling();
+
+    _pollTimer = Timer(pollInterval, () async {
+      if (_disposed) return;
+
+      await load(silent: true, force: false);
+
+      if (_disposed) return;
+
+      /*
+         * Request hoàn tất rồi mới bắt đầu đếm tiếp 1 giờ.
+         */
+      _scheduleNextPoll();
+    });
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  // ============================================================
+  // CLEAR
+  // ============================================================
+
+  void clear() {
+    if (_disposed) return;
+
+    _invalidateCurrentRequest();
+    _stopPolling();
+
+    _facId = null;
+    _month = null;
+
+    _electricity = const <UtilityDailyPoint>[];
+    _water = const <UtilityDailyPoint>[];
+    _air = const <UtilityDailyPoint>[];
+
+    _error = null;
+
+    _fetching = false;
+    _loading = false;
+    _refreshing = false;
+
+    _safeNotifyListeners();
+  }
+
+  // ============================================================
+  // ERROR
+  // ============================================================
 
   void _handleError(
     int token,
@@ -161,36 +305,72 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
     StackTrace stackTrace,
     String tag,
   ) {
-    if (!_isValidRequest(token)) return;
+    if (!_isValidRequest(token)) {
+      return;
+    }
 
+    /*
+     * Chỉ lưu error, không xóa dữ liệu cũ.
+     * Vì vậy silent refresh lỗi thì biểu đồ vẫn còn dữ liệu.
+     */
     _error = error;
 
     debugPrint('$tag $error');
     debugPrintStack(stackTrace: stackTrace);
   }
 
-  Future<void> refresh() {
-    return load(silent: hasData);
+  // ============================================================
+  // VALIDATION
+  // ============================================================
+
+  String _normalizeFac(String facId) {
+    final normalized = facId.trim();
+
+    /*
+     * Có thể đổi thành KVH nếu màn hình của bạn cho phép fac rỗng.
+     */
+    return normalized.isEmpty ? 'KVH' : normalized;
   }
 
-  void clear() {
+  String _normalizeMonth(String month) {
+    final normalized = month.trim();
+
+    if (!_isValidMonth(normalized)) {
+      throw ArgumentError.value(
+        month,
+        'month',
+        'Month must use yyyyMM format, for example 202607',
+      );
+    }
+
+    return normalized;
+  }
+
+  bool _isValidMonth(String value) {
+    if (!RegExp(r'^\d{6}$').hasMatch(value)) {
+      return false;
+    }
+
+    final monthNumber = int.tryParse(value.substring(4, 6));
+
+    return monthNumber != null && monthNumber >= 1 && monthNumber <= 12;
+  }
+
+  // ============================================================
+  // REQUEST TOKEN
+  // ============================================================
+
+  void _invalidateCurrentRequest() {
     _requestToken++;
-
-    _electricity = const [];
-    _water = const [];
-    _air = const [];
-
-    _error = null;
-    _loading = false;
-    _refreshing = false;
-    _fetching = false;
-
-    _safeNotifyListeners();
   }
 
   bool _isValidRequest(int token) {
     return !_disposed && token == _requestToken;
   }
+
+  // ============================================================
+  // NOTIFY
+  // ============================================================
 
   void _safeNotifyListeners() {
     if (_disposed) return;
@@ -207,7 +387,9 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
       return;
     }
 
-    if (_notifyScheduled) return;
+    if (_notifyScheduled) {
+      return;
+    }
 
     _notifyScheduled = true;
 
@@ -220,12 +402,16 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
     });
   }
 
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
   @override
   void dispose() {
     _disposed = true;
-    _requestToken++;
 
-    _pollTimer?.cancel();
+    _invalidateCurrentRequest();
+    _stopPolling();
 
     super.dispose();
   }

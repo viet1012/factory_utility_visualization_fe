@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_models/latest_tree_response.dart';
 import '../utility_models/f2_utility_parameter_master.dart';
 import '../utility_models/f2_utility_scada_channel.dart';
 import '../utility_models/response/chart_catalog_response.dart';
@@ -239,5 +240,46 @@ class UtilityApi {
       debugPrint('ERROR: $e');
       rethrow;
     }
+  }
+
+  Future<List<LatestFacilityDto>> getLatestTree({
+    String? facId,
+    String? scadaId,
+    String? cate,
+    String? boxDeviceId,
+    List<String>? cateIds,
+  }) async {
+    final query = <String, dynamic>{};
+    void putText(String key, String? value) {
+      final normalized = value?.trim();
+      if (normalized != null && normalized.isNotEmpty) {
+        query[key] = normalized;
+      }
+    }
+
+    putText('facId', facId);
+    putText('scadaId', scadaId);
+    putText('cate', cate);
+    putText('boxDeviceId', boxDeviceId);
+    final normalizedCateIds = (cateIds ?? [])
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    if (normalizedCateIds.isNotEmpty) {
+      query['cateIds'] = normalizedCateIds;
+    }
+    final response = await _dio.get<dynamic>(
+      '/api/utility/latest',
+      queryParameters: query,
+    );
+    final raw = response.data;
+    if (raw is! List) {
+      throw const FormatException('Invalid latest tree response');
+    }
+    return List<LatestFacilityDto>.unmodifiable(
+      raw.whereType<Map>().map(
+        (item) => LatestFacilityDto.fromJson(Map<String, dynamic>.from(item)),
+      ),
+    );
   }
 }

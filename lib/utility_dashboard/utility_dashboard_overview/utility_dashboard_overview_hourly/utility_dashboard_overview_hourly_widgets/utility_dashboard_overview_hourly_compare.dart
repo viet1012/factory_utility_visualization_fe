@@ -338,51 +338,47 @@ class _SummaryBar extends StatelessWidget {
       margin: const EdgeInsets.all(8),
       child: Row(
         children: [
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: 'T ${s.sumToday.toStringAsFixed(0)} / ',
-                    style: TextStyle(
-                      color: const Color(0xFF5CFF7A).withOpacity(0.9),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Today ${s.sumToday.toStringAsFixed(0)} / ',
+                  style: TextStyle(
+                    color: const Color(0xFF5CFF7A).withOpacity(0.9),
+                    fontWeight: FontWeight.w900,
                   ),
-                  TextSpan(
-                    text: 'Y ${s.sumYday.toStringAsFixed(0)} ${theme.unit}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.60),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                ),
+                TextSpan(
+                  text:
+                      'Yesterday ${s.sumYday.toStringAsFixed(0)} ${theme.unit}',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.60),
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
 
           const SizedBox(width: 8),
+
           Expanded(
             child: Text.rich(
               TextSpan(
                 children: [
                   TextSpan(
-                    text: '\$${s.sumTodayUsd.toStringAsFixed(2)} / ',
+                    text: '${s.sumTodayUsd.toStringAsFixed(2)}\$ / ',
                     style: TextStyle(
                       color: const Color(0xFF5CFF7A).withOpacity(0.9),
-                      fontSize: 16,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   TextSpan(
-                    text: '\$${s.sumYdayUsd.toStringAsFixed(2)}',
+                    text: '${s.sumYdayUsd.toStringAsFixed(2)}\$',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.60),
-                      fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -392,7 +388,6 @@ class _SummaryBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-
           HealthIndicator(
             result: health,
             size: 8,

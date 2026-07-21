@@ -3,195 +3,427 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../utility_api/utility_api.dart';
-import '../utility_models/response/latest_record.dart';
+import '../utility_dashboard/utility_dashboard_overview/'
+    'utility_dashboard_overview_models/latest_tree_response.dart';
 
 class LatestProvider extends ChangeNotifier {
   final UtilityApi api;
-  final Duration interval;
+  final Duration refreshInterval;
 
   LatestProvider({
     required this.api,
-    this.interval = const Duration(seconds: 30),
+    this.refreshInterval = const Duration(minutes: 1),
   });
 
   Timer? _timer;
 
-  // cache theo "key filter" => list record
-  final Map<String, List<LatestRecordDto>> _cache = {};
+  bool _disposed = false;
+  bool _loading = false;
+  bool _refreshing = false;
 
-  // error theo key
-  final Map<String, Object?> _errors = {};
+  Object? _error;
 
-  // last updated theo key
-  final Map<String, DateTime?> _lastUpdated = {};
+  List<LatestFacilityDto> _items = const [];
 
-  // ✅ lock theo key (không chặn nhau giữa A/B/C)
-  final Map<String, bool> _inFlight = {};
+  String? _activeFac;
+  String? _activeCate;
 
-  // ===== Lưu request theo key để polling tự động =====
-  final Map<String, _Req> _reqs = {};
+  bool get loading => _loading;
 
-  /// tạo key unique theo filter của box
-  String buildKey({
-    String? facId,
-    String? scadaId,
-    String? cate,
-    String? boxDeviceId,
-    List<String>? cateIds,
-  }) {
-    final cateIdsCsv =
-        (cateIds ?? []).map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
-          ..sort();
+  bool get refreshing => _refreshing;
 
-    return [
-      (facId ?? '').trim(),
-      (scadaId ?? '').trim(),
-      (cate ?? '').trim(),
-      (boxDeviceId ?? '').trim(),
-      cateIdsCsv.join(','),
-    ].join('|');
-  }
+  Object? get error => _error;
 
-  List<LatestRecordDto> getRows(String key) => _cache[key] ?? const [];
+  bool get hasData => _items.isNotEmpty;
 
-  Object? getError(String key) => _errors[key];
+  List<LatestFacilityDto> get items => _items;
 
-  DateTime? getLastUpdated(String key) => _lastUpdated[key];
+  String? get activeFac => _activeFac;
 
-  /// register một key để provider biết cần fetch key đó
-  void registerKey(String key) {
-    _cache.putIfAbsent(key, () => const []);
-    _errors.putIfAbsent(key, () => null);
-    _lastUpdated.putIfAbsent(key, () => null);
-    _inFlight.putIfAbsent(key, () => false);
-  }
+  String? get activeCate => _activeCate;
 
-  /// upsert request theo key (để polling tự động)
-  void upsertRequest({
-    required String key,
-    String? facId,
-    String? scadaId,
-    String? cate,
-    String? boxDeviceId,
-    List<String>? cateIds,
-  }) {
-    _reqs[key] = _Req(
-      facId: facId,
-      scadaId: scadaId,
-      cate: cate,
-      boxDeviceId: boxDeviceId,
-      cateIds: cateIds,
-    );
-    registerKey(key);
-  }
+  // ============================================================
+  // INITIAL LOAD
+  // ============================================================
 
-  /// remove key (khi widget dispose / filter đổi và muốn dọn)
-  void removeKey(String key) {
-    _reqs.remove(key);
-    _cache.remove(key);
-    _errors.remove(key);
-    _lastUpdated.remove(key);
-    _inFlight.remove(key);
-    notifyListeners();
-  }
+  Future<void> loadInitial() async {
+    if (_loading || _items.isNotEmpty || _disposed) {
+      return;
+    }
 
-  /// fetch 1 key cụ thể
-  /// - notify = true: widget gọi trực tiếp để hiển thị ngay
-  /// - notify = false: polling gọi nhiều key, sẽ notify 1 lần sau
-  Future<void> fetchKey({
-    required String key,
-    String? facId,
-    String? scadaId,
-    String? cate,
-    String? boxDeviceId,
-    List<String>? cateIds,
-    bool notify = true,
-  }) async {
-    // ✅ lock theo key để tránh spam cùng key, nhưng không chặn key khác
-    if (_inFlight[key] == true) return;
-    _inFlight[key] = true;
+    _loading = true;
+    _error = null;
+    _safeNotify();
 
     try {
-      final data = await api.getLatest(
-        facId: facId,
-        scadaId: scadaId,
-        cate: cate,
-        boxDeviceId: boxDeviceId,
-        cateIds: cateIds,
-      );
+      final result = await api.getLatestTree();
 
-      _cache[key] = data;
-      _errors[key] = null;
-      _lastUpdated[key] = DateTime.now();
-      if (notify) notifyListeners();
-    } catch (e) {
-      _errors[key] = e;
-      if (notify) notifyListeners();
+      if (_disposed) return;
+
+      _items = List<LatestFacilityDto>.unmodifiable(result);
+      _error = null;
+    } catch (error, stackTrace) {
+      if (_disposed) return;
+
+      _error = error;
+
+      debugPrint('[LATEST INITIAL ERROR] $error');
+      debugPrintStack(stackTrace: stackTrace);
     } finally {
-      _inFlight[key] = false;
+      if (!_disposed) {
+        _loading = false;
+        _safeNotify();
+      }
     }
   }
 
-  /// tick tất cả key đã register (dựa trên _reqs)
-  Future<void> _tickAllWithReqs() async {
-    if (_reqs.isEmpty) return;
+  Future<void> load() {
+    return loadInitial();
+  }
 
-    // ✅ chạy song song để A/B/C cập nhật cùng lúc
-    final futures = <Future<void>>[];
+  // ============================================================
+  // GET FACILITY
+  // ============================================================
 
-    for (final entry in _reqs.entries) {
-      final key = entry.key;
-      final r = entry.value;
+  LatestFacilityDto? facilityOf(String? facId) {
+    final normalizedFac = _normalize(facId);
 
-      futures.add(
-        fetchKey(
-          key: key,
-          facId: r.facId,
-          scadaId: r.scadaId,
-          cate: r.cate,
-          boxDeviceId: r.boxDeviceId,
-          cateIds: r.cateIds,
-          notify: false, // ✅ polling: notify 1 lần sau
-        ),
+    if (normalizedFac == null) {
+      return null;
+    }
+
+    return _findFacility(_items, normalizedFac);
+  }
+
+  // ============================================================
+  // ACTIVE TAB
+  // ============================================================
+
+  void setActiveTab({required String? fac, required String? cate}) {
+    final normalizedFac = _normalize(fac);
+    final normalizedCate = _normalize(cate);
+
+    if (_sameNullable(_activeFac, normalizedFac) &&
+        _sameNullable(_activeCate, normalizedCate)) {
+      return;
+    }
+
+    _activeFac = normalizedFac;
+    _activeCate = normalizedCate;
+  }
+
+  // ============================================================
+  // REFRESH ALL
+  // ============================================================
+
+  Future<void> refreshAll() async {
+    if (_disposed || _loading || _refreshing) {
+      return;
+    }
+
+    _refreshing = true;
+    _error = null;
+    _safeNotify();
+
+    try {
+      final result = await api.getLatestTree();
+
+      if (_disposed) return;
+
+      _items = List<LatestFacilityDto>.unmodifiable(result);
+      _error = null;
+    } catch (error, stackTrace) {
+      if (_disposed) return;
+
+      _error = error;
+
+      debugPrint('[LATEST REFRESH ALL ERROR] $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      if (!_disposed) {
+        _refreshing = false;
+        _safeNotify();
+      }
+    }
+  }
+
+  // ============================================================
+  // REFRESH ONE FACILITY
+  // ============================================================
+
+  Future<void> refreshFacility(String facId, {bool silent = true}) async {
+    if (_disposed || _refreshing) {
+      return;
+    }
+
+    final fac = _normalize(facId);
+
+    if (fac == null) {
+      return;
+    }
+
+    _refreshing = true;
+    _error = null;
+
+    if (!silent || _items.isEmpty) {
+      _safeNotify();
+    }
+
+    try {
+      final result = await api.getLatestTree(facId: fac);
+
+      if (_disposed) return;
+
+      _mergeFacility(fac: fac, incoming: result);
+
+      _error = null;
+    } catch (error, stackTrace) {
+      if (_disposed) return;
+
+      _error = error;
+
+      debugPrint(
+        '[LATEST FACILITY REFRESH ERROR] '
+        'fac=$fac error=$error',
       );
+
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      if (!_disposed) {
+        _refreshing = false;
+        _safeNotify();
+      }
     }
-
-    await Future.wait(futures);
-
-    // ✅ notify 1 lần cho cả batch
-    notifyListeners();
   }
 
-  /// start polling cho toàn app
+  void _mergeFacility({
+    required String fac,
+    required List<LatestFacilityDto> incoming,
+  }) {
+    final incomingFacility = _findFacility(incoming, fac);
+
+    final replacement =
+        incomingFacility ?? LatestFacilityDto(fac: fac, categories: const []);
+
+    final facilities = List<LatestFacilityDto>.from(_items);
+
+    final facilityIndex = facilities.indexWhere(
+      (item) => _sameText(item.fac, fac),
+    );
+
+    if (facilityIndex < 0) {
+      facilities.add(replacement);
+    } else {
+      facilities[facilityIndex] = replacement;
+    }
+
+    facilities.sort((first, second) {
+      return first.fac.toLowerCase().compareTo(second.fac.toLowerCase());
+    });
+
+    _items = List<LatestFacilityDto>.unmodifiable(facilities);
+  }
+
+  // ============================================================
+  // REFRESH ACTIVE CATEGORY
+  // ============================================================
+
+  Future<void> refreshActiveTab() async {
+    if (_disposed || _refreshing) {
+      return;
+    }
+
+    final fac = _activeFac;
+    final cate = _activeCate;
+
+    if (fac == null || cate == null) {
+      return;
+    }
+
+    _refreshing = true;
+    _error = null;
+    _safeNotify();
+
+    try {
+      final result = await api.getLatestTree(facId: fac, cate: cate);
+
+      if (_disposed) return;
+
+      _mergeCategory(fac: fac, cate: cate, incoming: result);
+
+      _error = null;
+    } catch (error, stackTrace) {
+      if (_disposed) return;
+
+      _error = error;
+
+      debugPrint(
+        '[LATEST ACTIVE REFRESH ERROR] '
+        'fac=$fac cate=$cate error=$error',
+      );
+
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      if (!_disposed) {
+        _refreshing = false;
+        _safeNotify();
+      }
+    }
+  }
+
+  Future<void> refresh() {
+    if (_activeFac != null && _activeCate != null) {
+      return refreshActiveTab();
+    }
+
+    return refreshAll();
+  }
+
+  void _mergeCategory({
+    required String fac,
+    required String cate,
+    required List<LatestFacilityDto> incoming,
+  }) {
+    final incomingFacility = _findFacility(incoming, fac);
+
+    final incomingCategory = incomingFacility == null
+        ? null
+        : _findCategory(incomingFacility.categories, cate);
+
+    final replacement =
+        incomingCategory ?? LatestCategoryDto(cate: cate, scadas: const []);
+
+    final facilities = List<LatestFacilityDto>.from(_items);
+
+    final facilityIndex = facilities.indexWhere(
+      (item) => _sameText(item.fac, fac),
+    );
+
+    if (facilityIndex < 0) {
+      facilities.add(LatestFacilityDto(fac: fac, categories: [replacement]));
+
+      _items = List<LatestFacilityDto>.unmodifiable(facilities);
+      return;
+    }
+
+    final currentFacility = facilities[facilityIndex];
+
+    final categories = List<LatestCategoryDto>.from(currentFacility.categories);
+
+    final categoryIndex = categories.indexWhere(
+      (item) => _sameText(item.cate, cate),
+    );
+
+    if (categoryIndex < 0) {
+      categories.add(replacement);
+    } else {
+      categories[categoryIndex] = replacement;
+    }
+
+    facilities[facilityIndex] = LatestFacilityDto(
+      fac: currentFacility.fac,
+      categories: List<LatestCategoryDto>.unmodifiable(categories),
+    );
+
+    _items = List<LatestFacilityDto>.unmodifiable(facilities);
+  }
+
+  // ============================================================
+  // POLLING
+  // ============================================================
+
   void startPolling() {
     _timer?.cancel();
 
-    // ✅ tick ngay lập tức
-    unawaited(_tickAllWithReqs());
-
-    _timer = Timer.periodic(interval, (_) {
-      unawaited(_tickAllWithReqs());
+    _timer = Timer.periodic(refreshInterval, (_) {
+      unawaited(refreshAll());
     });
   }
 
-  void stop() {
+  void startFacilityPolling(
+    String facId, {
+    Duration interval = const Duration(seconds: 30),
+  }) {
+    _timer?.cancel();
+
+    _timer = Timer.periodic(interval, (_) {
+      unawaited(refreshFacility(facId, silent: true));
+    });
+  }
+
+  void stopPolling() {
     _timer?.cancel();
     _timer = null;
   }
 
+  // ============================================================
+  // HELPERS
+  // ============================================================
+
+  LatestFacilityDto? _findFacility(
+    List<LatestFacilityDto> facilities,
+    String fac,
+  ) {
+    for (final facility in facilities) {
+      if (_sameText(facility.fac, fac)) {
+        return facility;
+      }
+    }
+
+    return null;
+  }
+
+  LatestCategoryDto? _findCategory(
+    List<LatestCategoryDto> categories,
+    String cate,
+  ) {
+    for (final category in categories) {
+      if (_sameText(category.cate, cate)) {
+        return category;
+      }
+    }
+
+    return null;
+  }
+
+  String? _normalize(String? value) {
+    final normalized = value?.trim();
+
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+
+    return normalized;
+  }
+
+  bool _sameText(String first, String second) {
+    return first.trim().toLowerCase() == second.trim().toLowerCase();
+  }
+
+  bool _sameNullable(String? first, String? second) {
+    if (first == null && second == null) {
+      return true;
+    }
+
+    if (first == null || second == null) {
+      return false;
+    }
+
+    return _sameText(first, second);
+  }
+
+  void _safeNotify() {
+    if (_disposed) return;
+
+    notifyListeners();
+  }
+
   @override
   void dispose() {
-    stop();
+    _disposed = true;
+
+    stopPolling();
+
     super.dispose();
   }
-}
-
-class _Req {
-  final String? facId;
-  final String? scadaId;
-  final String? cate;
-  final String? boxDeviceId;
-  final List<String>? cateIds;
-
-  _Req({this.facId, this.scadaId, this.cate, this.boxDeviceId, this.cateIds});
 }

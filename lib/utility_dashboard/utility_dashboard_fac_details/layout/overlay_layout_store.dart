@@ -8,7 +8,11 @@ class OverlayGroupItem {
   final String direction;
   final String? color;
 
-  OverlayGroupItem({required this.pos01, required this.direction, this.color});
+  const OverlayGroupItem({
+    required this.pos01,
+    required this.direction,
+    this.color,
+  });
 }
 
 class OverlayGroupLayoutStore extends ChangeNotifier {
@@ -20,75 +24,117 @@ class OverlayGroupLayoutStore extends ChangeNotifier {
   final Map<String, Map<String, ArrowDirection>> _groupDirections = {};
   final Map<String, Map<String, Color>> _groupColors = {};
 
+  final Map<String, int> _loadVersions = {};
+
   bool _loading = false;
+  bool _disposed = false;
 
   bool get loading => _loading;
 
-  Map<String, Offset> groupLayoutOf(String facId) => _groupLayouts[facId] ?? {};
-
-  Map<String, ArrowDirection> groupDirectionOf(String facId) =>
-      _groupDirections[facId] ?? {};
-
-  Map<String, Color> groupColorOf(String facId) => _groupColors[facId] ?? {};
-
-  ArrowDirection _parseDirection(String? value) {
-    switch ((value ?? '').toLowerCase()) {
-      case 'left':
-        return ArrowDirection.left;
-      case 'up':
-        return ArrowDirection.up;
-      case 'down':
-        return ArrowDirection.down;
-      case 'right':
-      default:
-        return ArrowDirection.right;
-    }
+  Map<String, Offset> groupLayoutOf(String facId) {
+    return Map<String, Offset>.unmodifiable(
+      _groupLayouts[facId] ?? const <String, Offset>{},
+    );
   }
 
-  Color _parseHexColor(String? hex) {
-    if (hex == null || hex.trim().isEmpty) {
-      return const Color(0x66000000);
-    }
-
-    final raw = hex.replaceFirst('#', '').trim();
-    final normalized = raw.length == 6 ? 'FF$raw' : raw;
-
-    return Color(int.parse(normalized, radix: 16));
+  Map<String, ArrowDirection> groupDirectionOf(String facId) {
+    return Map<String, ArrowDirection>.unmodifiable(
+      _groupDirections[facId] ?? const <String, ArrowDirection>{},
+    );
   }
 
-  String _toHex(Color color) {
-    final a = color.alpha.toRadixString(16).padLeft(2, '0');
-    final r = color.red.toRadixString(16).padLeft(2, '0');
-    final g = color.green.toRadixString(16).padLeft(2, '0');
-    final b = color.blue.toRadixString(16).padLeft(2, '0');
-    return '#$a$r$g$b'.toUpperCase();
+  Map<String, Color> groupColorOf(String facId) {
+    return Map<String, Color>.unmodifiable(
+      _groupColors[facId] ?? const <String, Color>{},
+    );
+  }
+
+  Offset? positionOf({required String facId, required String boxDeviceId}) {
+    return _groupLayouts[facId]?[boxDeviceId];
+  }
+
+  ArrowDirection directionOf({
+    required String facId,
+    required String boxDeviceId,
+  }) {
+    return _groupDirections[facId]?[boxDeviceId] ?? ArrowDirection.right;
+  }
+
+  Color? colorOf({required String facId, required String boxDeviceId}) {
+    return _groupColors[facId]?[boxDeviceId];
   }
 
   Future<void> loadGroups(String facId) async {
-    _loading = true;
-    notifyListeners();
+    final normalizedFacId = facId.trim();
 
-    try {
-      final res = await svc.getOverlayGroups(facId);
-
-      _groupLayouts[facId] = {};
-      _groupDirections[facId] = {};
-      _groupColors[facId] = {};
-
-      res.forEach((boxId, item) {
-        _groupLayouts[facId]![boxId] = item.pos01;
-        _groupDirections[facId]![boxId] = _parseDirection(item.direction);
-        _groupColors[facId]![boxId] = _parseHexColor(item.color);
-      });
-    } catch (e) {
-      debugPrint('[OverlayGroupLayoutStore] loadGroups fallback: $e');
-      _groupLayouts.putIfAbsent(facId, () => {});
-      _groupDirections.putIfAbsent(facId, () => {});
-      _groupColors.putIfAbsent(facId, () => {});
+    if (normalizedFacId.isEmpty || _disposed) {
+      return;
     }
 
-    _loading = false;
-    notifyListeners();
+    final version = (_loadVersions[normalizedFacId] ?? 0) + 1;
+
+    _loadVersions[normalizedFacId] = version;
+
+    _loading = true;
+    _safeNotify();
+
+    try {
+      final response = await svc.getOverlayGroups(normalizedFacId);
+
+      if (_disposed) return;
+
+      // Bỏ kết quả request cũ nếu đã có request mới hơn.
+      if (_loadVersions[normalizedFacId] != version) {
+        return;
+      }
+
+      final positions = <String, Offset>{};
+      final directions = <String, ArrowDirection>{};
+      final colors = <String, Color>{};
+
+      response.forEach((boxDeviceId, item) {
+        final deviceId = boxDeviceId.trim();
+
+        if (deviceId.isEmpty) {
+          return;
+        }
+
+        positions[deviceId] = item.pos01;
+
+        directions[deviceId] = _parseDirection(item.direction);
+
+        final parsedColor = _tryParseHexColor(item.color);
+
+        if (parsedColor != null) {
+          colors[deviceId] = parsedColor;
+        }
+      });
+
+      _groupLayouts[normalizedFacId] = positions;
+      _groupDirections[normalizedFacId] = directions;
+      _groupColors[normalizedFacId] = colors;
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[OverlayGroupLayoutStore] loadGroups error: '
+        'fac=$normalizedFacId error=$error',
+      );
+
+      debugPrintStack(stackTrace: stackTrace);
+
+      _groupLayouts.putIfAbsent(normalizedFacId, () => <String, Offset>{});
+
+      _groupDirections.putIfAbsent(
+        normalizedFacId,
+        () => <String, ArrowDirection>{},
+      );
+
+      _groupColors.putIfAbsent(normalizedFacId, () => <String, Color>{});
+    } finally {
+      if (!_disposed && _loadVersions[normalizedFacId] == version) {
+        _loading = false;
+        _safeNotify();
+      }
+    }
   }
 
   Future<void> setGroupPos({
@@ -98,29 +144,88 @@ class OverlayGroupLayoutStore extends ChangeNotifier {
     required ArrowDirection direction,
     Color? color,
   }) async {
-    final facMap = _groupLayouts.putIfAbsent(facId, () => {});
-    final dirMap = _groupDirections.putIfAbsent(facId, () => {});
-    final colorMap = _groupColors.putIfAbsent(facId, () => {});
+    final normalizedFacId = facId.trim();
+    final normalizedDeviceId = boxDeviceId.trim();
 
-    facMap[boxDeviceId] = pos01;
-    dirMap[boxDeviceId] = direction;
-
-    if (color != null) {
-      colorMap[boxDeviceId] = color;
+    if (normalizedFacId.isEmpty || normalizedDeviceId.isEmpty || _disposed) {
+      return;
     }
 
-    notifyListeners();
+    // Đánh dấu mọi load cũ không còn được phép ghi đè local state.
+    _invalidatePendingLoad(normalizedFacId);
+
+    final positions = _groupLayouts.putIfAbsent(
+      normalizedFacId,
+      () => <String, Offset>{},
+    );
+
+    final directions = _groupDirections.putIfAbsent(
+      normalizedFacId,
+      () => <String, ArrowDirection>{},
+    );
+
+    final colors = _groupColors.putIfAbsent(
+      normalizedFacId,
+      () => <String, Color>{},
+    );
+
+    final previousPosition = positions[normalizedDeviceId];
+
+    final previousDirection = directions[normalizedDeviceId];
+
+    final previousColor = colors[normalizedDeviceId];
+
+    // Nếu caller không truyền color thì giữ màu hiện tại.
+    final effectiveColor = color ?? previousColor;
+
+    positions[normalizedDeviceId] = _clampPosition(pos01);
+
+    directions[normalizedDeviceId] = direction;
+
+    if (effectiveColor != null) {
+      colors[normalizedDeviceId] = effectiveColor;
+    }
+
+    _safeNotify();
 
     try {
       await svc.setOverlayGroupPos(
-        facId: facId,
-        boxDeviceId: boxDeviceId,
-        pos01: pos01,
+        facId: normalizedFacId,
+        boxDeviceId: normalizedDeviceId,
+        pos01: positions[normalizedDeviceId]!,
         direction: direction,
-        color: color != null ? _toHex(color) : null,
+        color: effectiveColor == null ? null : _toHex(effectiveColor),
       );
-    } catch (e) {
-      debugPrint('[OverlayGroupLayoutStore] setGroupPos fallback: $e');
+    } catch (error, stackTrace) {
+      // Rollback local state nếu API lưu thất bại.
+      if (previousPosition == null) {
+        positions.remove(normalizedDeviceId);
+      } else {
+        positions[normalizedDeviceId] = previousPosition;
+      }
+
+      if (previousDirection == null) {
+        directions.remove(normalizedDeviceId);
+      } else {
+        directions[normalizedDeviceId] = previousDirection;
+      }
+
+      if (previousColor == null) {
+        colors.remove(normalizedDeviceId);
+      } else {
+        colors[normalizedDeviceId] = previousColor;
+      }
+
+      _safeNotify();
+
+      debugPrint(
+        '[OverlayGroupLayoutStore] setGroupPos error: '
+        'fac=$normalizedFacId '
+        'device=$normalizedDeviceId '
+        'error=$error',
+      );
+
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -129,26 +234,150 @@ class OverlayGroupLayoutStore extends ChangeNotifier {
     required String boxDeviceId,
     required Color color,
   }) async {
-    final facMap = _groupLayouts.putIfAbsent(facId, () => {});
-    final dirMap = _groupDirections.putIfAbsent(facId, () => {});
-    final colorMap = _groupColors.putIfAbsent(facId, () => {});
+    final normalizedFacId = facId.trim();
+    final normalizedDeviceId = boxDeviceId.trim();
 
-    final pos01 = facMap[boxDeviceId] ?? const Offset(0.2, 0.2);
-    final direction = dirMap[boxDeviceId] ?? ArrowDirection.right;
+    if (normalizedFacId.isEmpty || normalizedDeviceId.isEmpty || _disposed) {
+      return;
+    }
 
-    colorMap[boxDeviceId] = color;
-    notifyListeners();
+    _invalidatePendingLoad(normalizedFacId);
+
+    final positions = _groupLayouts.putIfAbsent(
+      normalizedFacId,
+      () => <String, Offset>{},
+    );
+
+    final directions = _groupDirections.putIfAbsent(
+      normalizedFacId,
+      () => <String, ArrowDirection>{},
+    );
+
+    final colors = _groupColors.putIfAbsent(
+      normalizedFacId,
+      () => <String, Color>{},
+    );
+
+    final previousColor = colors[normalizedDeviceId];
+
+    final position = positions[normalizedDeviceId] ?? const Offset(0.2, 0.2);
+
+    final direction = directions[normalizedDeviceId] ?? ArrowDirection.right;
+
+    // Đảm bảo position và direction cũng có trong local state.
+    positions[normalizedDeviceId] = position;
+    directions[normalizedDeviceId] = direction;
+    colors[normalizedDeviceId] = color;
+
+    _safeNotify();
 
     try {
       await svc.setOverlayGroupPos(
-        facId: facId,
-        boxDeviceId: boxDeviceId,
-        pos01: pos01,
+        facId: normalizedFacId,
+        boxDeviceId: normalizedDeviceId,
+        pos01: position,
         direction: direction,
         color: _toHex(color),
       );
-    } catch (e) {
-      debugPrint('[OverlayGroupLayoutStore] setGroupColor fallback: $e');
+    } catch (error, stackTrace) {
+      if (previousColor == null) {
+        colors.remove(normalizedDeviceId);
+      } else {
+        colors[normalizedDeviceId] = previousColor;
+      }
+
+      _safeNotify();
+
+      debugPrint(
+        '[OverlayGroupLayoutStore] setGroupColor error: '
+        'fac=$normalizedFacId '
+        'device=$normalizedDeviceId '
+        'error=$error',
+      );
+
+      debugPrintStack(stackTrace: stackTrace);
     }
+  }
+
+  void _invalidatePendingLoad(String facId) {
+    _loadVersions[facId] = (_loadVersions[facId] ?? 0) + 1;
+
+    if (_loading) {
+      _loading = false;
+    }
+  }
+
+  Offset _clampPosition(Offset position) {
+    return Offset(position.dx.clamp(0.0, 1.0), position.dy.clamp(0.0, 1.0));
+  }
+
+  ArrowDirection _parseDirection(String? value) {
+    switch ((value ?? '').trim().toLowerCase()) {
+      case 'left':
+        return ArrowDirection.left;
+
+      case 'up':
+        return ArrowDirection.up;
+
+      case 'down':
+        return ArrowDirection.down;
+
+      case 'right':
+      default:
+        return ArrowDirection.right;
+    }
+  }
+
+  Color? _tryParseHexColor(String? value) {
+    final text = value?.trim();
+
+    if (text == null || text.isEmpty) {
+      return null;
+    }
+
+    try {
+      var raw = text.replaceFirst('#', '');
+
+      if (raw.length == 6) {
+        raw = 'FF$raw';
+      }
+
+      if (raw.length != 8) {
+        return null;
+      }
+
+      return Color(int.parse(raw, radix: 16));
+    } catch (error) {
+      debugPrint(
+        '[OverlayGroupLayoutStore] invalid color: '
+        '$value error=$error',
+      );
+
+      return null;
+    }
+  }
+
+  String _toHex(Color color) {
+    final alpha = color.alpha.toRadixString(16).padLeft(2, '0');
+
+    final red = color.red.toRadixString(16).padLeft(2, '0');
+
+    final green = color.green.toRadixString(16).padLeft(2, '0');
+
+    final blue = color.blue.toRadixString(16).padLeft(2, '0');
+
+    return '#$alpha$red$green$blue'.toUpperCase();
+  }
+
+  void _safeNotify() {
+    if (_disposed) return;
+
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

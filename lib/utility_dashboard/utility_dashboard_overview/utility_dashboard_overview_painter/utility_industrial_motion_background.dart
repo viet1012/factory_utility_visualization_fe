@@ -47,7 +47,7 @@ class _UtilityIndustrialMotionBackgroundState
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 40),
+      duration: const Duration(seconds: 22),
     );
 
     if (widget.animated) {
@@ -1726,10 +1726,6 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
   // ============================================================
 
   // ============================================================
-  // ELECTRICITY MOTION - CONTINUOUS CURRENT + TOWER ACTIVATION
-  // ============================================================
-
-  // ============================================================
   // ELECTRICITY MOTION
   // ============================================================
   double _electricProgressForRow(int row) {
@@ -1934,22 +1930,31 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       final w = h * .42;
 
       final topWire = <Offset>[];
-      final leftWire = <Offset>[];
-      final rightWire = <Offset>[];
+      final secondaryWire = <Offset>[];
 
       for (int col = -1; col < cols; col++) {
         final x = col * stepX + offsetX;
 
         topWire.add(Offset(x, y - h));
-        leftWire.add(Offset(x - w * .48, y - h * .74));
-        rightWire.add(Offset(x + w * .48, y - h * .74));
+
+        secondaryWire.add(
+          row.isEven
+              ? Offset(x - w * .48, y - h * .74)
+              : Offset(x + w * .48, y - h * .74),
+        );
       }
 
       _drawCurrentOnContinuousWire(canvas, topWire, row: row, strong: true);
 
-      _drawCurrentOnContinuousWire(canvas, leftWire, row: row, strong: false);
-
-      _drawCurrentOnContinuousWire(canvas, rightWire, row: row, strong: false);
+      // Chỉ vẽ dây phụ xen kẽ, giảm gần một nửa workload.
+      if (row.isEven) {
+        _drawCurrentOnContinuousWire(
+          canvas,
+          secondaryWire,
+          row: row,
+          strong: false,
+        );
+      }
     }
   }
 
@@ -1962,69 +1967,73 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     if (points.length < 2) return;
 
     final path = _buildContinuousSaggingWirePath(points);
+    final metrics = path.computeMetrics();
+
     final progress = _electricProgressForRow(row);
 
-    final outerGlow = Paint()
-      ..color = color.withOpacity(strong ? .050 : .028)
-      ..strokeWidth = strong ? 4.8 : 3.4
+    final glowPaint = Paint()
+      ..color = color.withOpacity(strong ? .11 : .060)
+      ..strokeWidth = strong ? 3.0 : 2.1
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.2);
 
-    final glow = Paint()
-      ..color = color.withOpacity(strong ? .145 : .085)
-      ..strokeWidth = strong ? 2.4 : 1.7
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8);
-
-    final core = Paint()
-      ..color = color.withOpacity(strong ? .62 : .38)
-      ..strokeWidth = strong ? 1.25 : .9
+    final corePaint = Paint()
+      ..color = color.withOpacity(strong ? .68 : .40)
+      ..strokeWidth = strong ? 1.2 : .85
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    for (final metric in path.computeMetrics()) {
-      final len = metric.length;
-      if (len <= 0) continue;
+    final trailLength = strong ? 320.0 : 250.0;
 
-      final center = progress * len;
-
-      // Muốn tia đi qua nhiều tháp hơn thì tăng 2 số này.
-      final trailLen = strong ? 360.0 : 290.0;
-
-      _drawWrappedMetricPart(
-        canvas,
-        metric,
-        center - trailLen * .72,
-        center + trailLen * .28,
-        outerGlow,
-      );
-
-      _drawWrappedMetricPart(
-        canvas,
-        metric,
-        center - trailLen * .58,
-        center + trailLen * .22,
-        glow,
-      );
-
-      _drawWrappedMetricPart(
-        canvas,
-        metric,
-        center - trailLen * .44,
-        center + trailLen * .16,
-        core,
+    for (final metric in metrics) {
+      _drawCurrentMetric(
+        canvas: canvas,
+        metric: metric,
+        progress: progress,
+        trailLength: trailLength,
+        glowPaint: glowPaint,
+        corePaint: corePaint,
       );
     }
+  }
+
+  void _drawCurrentMetric({
+    required Canvas canvas,
+    required PathMetric metric,
+    required double progress,
+    required double trailLength,
+    required Paint glowPaint,
+    required Paint corePaint,
+  }) {
+    final length = metric.length;
+    if (length <= 0) return;
+
+    final center = progress * length;
+
+    _drawWrappedMetricPart(
+      canvas,
+      metric,
+      center - trailLength * .72,
+      center + trailLength * .22,
+      glowPaint,
+    );
+
+    _drawWrappedMetricPart(
+      canvas,
+      metric,
+      center - trailLength * .42,
+      center + trailLength * .12,
+      corePaint,
+    );
   }
 
   void _drawActivatedTowersByCurrent(Canvas canvas, Size size) {
     const stepX = 245.0;
     const stepY = 185.0;
+    const activeRadius = 190.0;
 
     final rows = (size.height / stepY).ceil() + 2;
     final cols = (size.width / stepX).ceil() + 3;
@@ -2032,7 +2041,6 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     for (int row = -1; row < rows; row++) {
       final y = row * stepY + 150;
       final offsetX = row.isOdd ? stepX * .45 : 0.0;
-
       final progress = _electricProgressForRow(row);
 
       final firstX = -stepX + offsetX;
@@ -2041,41 +2049,66 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
       for (int col = -1; col < cols; col++) {
         final x = col * stepX + offsetX;
-        final h = row.isEven ? 88.0 : 76.0;
-        final w = h * .42;
-        final base = Offset(x, y);
-
         final distance = (x - currentX).abs();
 
-        // Vì tia đang dài, radius cũng nên rộng hơn để tháp sáng khớp với vệt điện.
-        const activeRadius = 210.0;
-
         final raw = (1.0 - distance / activeRadius).clamp(0.0, 1.0).toDouble();
-        if (raw <= 0) continue;
 
-        final intensity = raw * raw * (3 - 2 * raw);
+        if (raw <= .04) continue;
 
-        _drawTowerElectricHalo(
+        final intensity = raw * raw * (3.0 - 2.0 * raw);
+        final h = row.isEven ? 88.0 : 76.0;
+
+        _drawLightweightTowerActivation(
           canvas,
-          base: base,
+          base: Offset(x, y),
           height: h,
-          width: w,
           intensity: intensity,
-        );
-
-        _drawTransmissionTower(
-          canvas,
-          base: base,
-          height: h,
-          width: w,
-          paint: _stroke(.045 + intensity * .22, .95 + intensity * .34),
-          glowPaint: _glow(.004 + intensity * .040, 2.8 + intensity * 3.2, 3.8),
-          detailOpacity: .040 + intensity * .20,
-          topNodeOpacity: .050 + intensity * .26,
-          opacityBoost: 1.0,
         );
       }
     }
+  }
+
+  void _drawLightweightTowerActivation(
+    Canvas canvas, {
+    required Offset base,
+    required double height,
+    required double intensity,
+  }) {
+    final top = Offset(base.dx, base.dy - height);
+    final center = Offset(base.dx, base.dy - height * .52);
+
+    // Halo nhỏ, không dùng RadialGradient mỗi cột.
+    final haloPaint = Paint()
+      ..color = color.withOpacity(.025 * intensity)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+
+    canvas.drawCircle(center, height * .26, haloPaint);
+
+    // Chỉ sáng hai chân và trục giữa, không vẽ lại toàn bộ chi tiết.
+    final highlightPaint = Paint()
+      ..color = color.withOpacity(.12 + intensity * .34)
+      ..strokeWidth = 1.0 + intensity * .65
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final halfWidth = height * .42 * .46;
+
+    final path = Path()
+      ..moveTo(top.dx, top.dy)
+      ..lineTo(base.dx - halfWidth, base.dy)
+      ..moveTo(top.dx, top.dy)
+      ..lineTo(base.dx + halfWidth, base.dy)
+      ..moveTo(top.dx, top.dy)
+      ..lineTo(base.dx, base.dy - height * .08);
+
+    canvas.drawPath(path, highlightPaint);
+
+    final nodePaint = Paint()
+      ..color = color.withOpacity(.20 + intensity * .48)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(top, 1.6 + intensity * 1.4, nodePaint);
   }
 
   void _drawTowerElectricHalo(
@@ -2107,7 +2140,15 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     final rows = (size.height / stepY).ceil() + 2;
     final cols = (size.width / stepX).ceil() + 3;
 
+    final coronaPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+
     for (int row = -1; row < rows; row++) {
+      // Chỉ vẽ corona ở hàng xen kẽ.
+      if (row.isOdd) continue;
+
       final y = row * stepY + 150;
       final offsetX = row.isOdd ? stepX * .45 : 0.0;
       final h = row.isEven ? 88.0 : 76.0;
@@ -2122,46 +2163,32 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       for (int col = -1; col < cols; col++) {
         final x = col * stepX + offsetX;
 
-        // Chỉ corona mạnh ở gần dòng điện, tránh nhấp nháy toàn màn hình.
-        final nearCurrent = (1.0 - (x - currentX).abs() / 220.0)
+        final nearCurrent = (1.0 - (x - currentX).abs() / 170.0)
             .clamp(0.0, 1.0)
             .toDouble();
 
-        if (nearCurrent <= 0) continue;
+        if (nearCurrent < .25) continue;
 
         final topY = y - h;
+        final armY = topY + h * .32;
 
-        final arm2Y = topY + h * .32;
-        final arm3Y = topY + h * .48;
-
-        final points = [
-          Offset(x - w * .58, arm2Y),
-          Offset(x + w * .58, arm2Y),
-          Offset(x - w * .42, arm3Y),
-          Offset(x + w * .42, arm3Y),
+        final points = <Offset>[
+          Offset(x - w * .58, armY + 9),
+          Offset(x + w * .58, armY + 9),
         ];
 
         for (int i = 0; i < points.length; i++) {
-          final p = points[i];
-
-          final phase = (t + row * .09 + col * .07 + i * .13) % 1;
+          final phase = (t + row * .09 + col * .07 + i * .13) % 1.0;
           final shimmer = .5 + math.sin(phase * math.pi * 2) * .5;
-
           final strength = nearCurrent * shimmer;
 
-          if (strength < .18) continue;
+          if (strength < .35) continue;
 
-          final coronaPaint = Paint()
-            ..color = color.withOpacity(.035 + .070 * strength)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = .7 + strength * .9
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+          coronaPaint
+            ..color = color.withOpacity(.025 + .055 * strength)
+            ..strokeWidth = .65 + strength * .55;
 
-          canvas.drawCircle(
-            p + const Offset(0, 9),
-            3.8 + strength * 4.2,
-            coronaPaint,
-          );
+          canvas.drawCircle(points[i], 3.0 + strength * 2.8, coronaPaint);
         }
       }
     }

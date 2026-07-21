@@ -382,7 +382,8 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => UtilityFacDetailScreens(facId: widget.facId, svc: svc),
+        builder: (_) =>
+            UtilityFacDetailScreensDemo(facId: widget.facId, svc: svc),
       ),
     );
   }

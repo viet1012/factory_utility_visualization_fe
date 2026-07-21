@@ -218,21 +218,25 @@ class UtilityFacadeService {
     String? color,
   }) async {
     final cleanFacId = _clean(facId);
-    final cleanOverlayKey = _clean(boxDeviceId);
+    final cleanBoxDeviceId = _clean(boxDeviceId);
+    final cleanColor = _clean(color);
 
-    if (cleanFacId == null || cleanOverlayKey == null) return;
+    if (cleanFacId == null || cleanBoxDeviceId == null) {
+      return;
+    }
 
-    await dio.post(
-      '/api/utility/overlay/upsert',
-      data: {
-        'facId': cleanFacId,
-        'boxDeviceId': cleanOverlayKey,
-        'x': pos01.dx,
-        'y': pos01.dy,
-        'direction': direction.name,
-        'color': _clean(color),
-      },
-    );
+    final data = <String, dynamic>{
+      'facId': cleanFacId,
+      'boxDeviceId': cleanBoxDeviceId,
+      'x': pos01.dx,
+      'y': pos01.dy,
+      'direction': direction.name,
+
+      // Quan trọng: không gửi null để tránh backend xóa màu cũ.
+      if (cleanColor != null) 'color': cleanColor,
+    };
+
+    await dio.post('/api/utility/overlay/upsert', data: data);
   }
 
   void clearCache() {

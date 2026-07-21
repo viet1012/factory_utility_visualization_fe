@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 
-import '../../../../utility_models/response/latest_record.dart';
+import '../../../utility_dashboard_overview/'
+    'utility_dashboard_overview_models/latest_tree_response.dart';
 import '../hover_box_panel.dart';
 import 'hover_panel_style.dart';
 
 class DataRowTile extends StatefulWidget {
-  final LatestRecordDto row;
+  final LatestSignalDto signal;
+  final String scadaId;
   final bool isEven;
 
-  const DataRowTile({super.key, required this.row, required this.isEven});
+  const DataRowTile({
+    super.key,
+    required this.signal,
+    required this.scadaId,
+    required this.isEven,
+  });
 
   @override
   State<DataRowTile> createState() => _DataRowTileState();
@@ -17,13 +24,39 @@ class DataRowTile extends StatefulWidget {
 class _DataRowTileState extends State<DataRowTile> {
   bool _hovered = false;
 
-  String get _timeText => formatTime(widget.row.recordedAt);
+  LatestSignalDto get signal => widget.signal;
+
+  String get _nameText {
+    final nameEn = clean(signal.nameEn);
+
+    if (nameEn.isNotEmpty) {
+      return nameEn;
+    }
+
+    final plcAddress = clean(signal.plcAddress);
+
+    return plcAddress.isNotEmpty ? plcAddress : '-';
+  }
+
+  String get _timeText {
+    final recordedAt = signal.recordedAt;
+
+    if (recordedAt == null) {
+      return '-';
+    }
+
+    if (recordedAt is DateTime) {
+      return formatTime(recordedAt);
+    }
+
+    final parsed = DateTime.tryParse(recordedAt.toString());
+
+    return parsed == null ? '-' : formatTime(parsed);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final row = widget.row;
-
-    final bg = _hovered
+    final backgroundColor = _hovered
         ? PanelStyle.accent.withOpacity(0.13)
         : widget.isEven
         ? Colors.white.withOpacity(0.035)
@@ -31,14 +64,18 @@ class _DataRowTileState extends State<DataRowTile> {
 
     return MouseRegion(
       onEnter: (_) {
-        if (!_hovered) {
-          setState(() => _hovered = true);
-        }
+        if (_hovered) return;
+
+        setState(() {
+          _hovered = true;
+        });
       },
       onExit: (_) {
-        if (_hovered) {
-          setState(() => _hovered = false);
-        }
+        if (!_hovered) return;
+
+        setState(() {
+          _hovered = false;
+        });
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 110),
@@ -46,7 +83,7 @@ class _DataRowTileState extends State<DataRowTile> {
         margin: const EdgeInsets.only(bottom: 5),
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: bg,
+          color: backgroundColor,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: _hovered
@@ -58,22 +95,25 @@ class _DataRowTileState extends State<DataRowTile> {
           children: [
             SizedBox(
               width: PanelStyle.scadaW,
-              child: CellText(clean(row.scadaId), bold: true),
+              child: CellText(widget.scadaId, bold: true),
             ),
             const SizedBox(width: PanelStyle.gap),
+
             Expanded(
               child: Tooltip(
-                message: clean(row.nameEn).isEmpty ? '-' : clean(row.nameEn),
+                message: _nameText,
                 waitDuration: const Duration(milliseconds: 450),
-                child: CellText(clean(row.nameEn)),
+                child: CellText(_nameText),
               ),
             ),
             const SizedBox(width: PanelStyle.gap),
+
             SizedBox(
               width: PanelStyle.plcW,
-              child: CellText(row.plcAddress, bold: true),
+              child: CellText(clean(signal.plcAddress), bold: true),
             ),
             const SizedBox(width: PanelStyle.gap),
+
             SizedBox(
               width: PanelStyle.valueW,
               child: Align(
@@ -84,11 +124,11 @@ class _DataRowTileState extends State<DataRowTile> {
                   text: TextSpan(
                     children: [
                       TextSpan(
-                        text: fmtValue(row.value),
+                        text: fmtValue(signal.value),
                         style: TextStyles.value,
                       ),
                       TextSpan(
-                        text: ' ${clean(row.unit)}',
+                        text: _unitText,
                         style: TextStyles.value.copyWith(
                           fontSize: 13,
                           color: Colors.white.withOpacity(0.55),
@@ -101,6 +141,7 @@ class _DataRowTileState extends State<DataRowTile> {
               ),
             ),
             const SizedBox(width: PanelStyle.gap),
+
             SizedBox(
               width: PanelStyle.timeW,
               child: Align(
@@ -122,6 +163,12 @@ class _DataRowTileState extends State<DataRowTile> {
       ),
     );
   }
+
+  String get _unitText {
+    final unit = clean(signal.unit);
+
+    return unit.isEmpty ? '' : ' $unit';
+  }
 }
 
 class CellText extends StatelessWidget {
@@ -132,10 +179,10 @@ class CellText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = value.trim().isEmpty ? '-' : value.trim();
+    final displayText = value.trim().isEmpty ? '-' : value.trim();
 
     return Text(
-      text,
+      displayText,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyles.cell.copyWith(

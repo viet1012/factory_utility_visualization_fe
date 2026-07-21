@@ -188,6 +188,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                         children: [
                           if (electricity != null)
                             Expanded(child: _ElectricCard(item: electricity)),
+                          SizedBox(width: 4),
                           if (water != null)
                             Expanded(
                               child: _UtilityMinMaxCard(
@@ -201,6 +202,8 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                                 icon: Icons.water_drop_rounded,
                               ),
                             ),
+                          SizedBox(width: 4),
+
                           if (air != null)
                             Expanded(
                               child: _UtilityMinMaxCard(
@@ -417,31 +420,36 @@ class _ElectricCard extends StatelessWidget {
       child: Column(
         children: [
           _MainValue(value: fmt(item.value), unit: unit, color: color),
-          const SizedBox(height: 6),
 
-          _InfoLine(
-            icon: Icons.history_rounded,
-            label: 'Prev',
-            value: '${fmt(item.prevValue)} $unit',
-            color: Colors.white70,
+          // const SizedBox(height: 6),
+          _MainValue(value: money(item.currentCost), unit: 'USD', color: color),
+
+          // const SizedBox(height: 6),
+          Text(
+            'Prev Month',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              height: 1,
+              fontWeight: FontWeight.w900,
+            ),
           ),
-
-          const SizedBox(height: 6),
-
           Row(
             children: [
               Expanded(
                 child: _InfoTile(
                   icon: Icons.monetization_on_outlined,
-                  label: 'Cost',
-                  value: money(item.currentCost),
-                  color: color,
+                  label: unit,
+                  value: fmt(item.prevValue),
+                  color: Colors.white70,
                 ),
               ),
               Expanded(
                 child: _InfoTile(
                   icon: Icons.history_rounded,
-                  label: 'Prev',
+                  label: 'USD',
                   value: money(item.previousCost),
                   color: Colors.white70,
                 ),
@@ -449,8 +457,7 @@ class _ElectricCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 6),
-
+          // const SizedBox(height: 6),
           Expanded(
             child: Align(
               alignment: Alignment.bottomCenter,
@@ -490,8 +497,7 @@ class _UtilityMinMaxCard extends StatelessWidget {
         children: [
           _MainValue(value: item.avgValue.toString(), unit: unit, color: color),
 
-          const SizedBox(height: 6),
-
+          // const SizedBox(height: 6),
           _InfoLine(
             icon: Icons.history_rounded,
             label: 'Prev Avg',
@@ -499,8 +505,7 @@ class _UtilityMinMaxCard extends StatelessWidget {
             color: Colors.white70,
           ),
 
-          const SizedBox(height: 6),
-
+          // const SizedBox(height: 6),
           Row(
             children: [
               Expanded(
@@ -535,8 +540,7 @@ class _UtilityMinMaxCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 6),
-
+          // const SizedBox(height: 6),
           Expanded(
             child: Align(
               alignment: Alignment.bottomCenter,
@@ -695,17 +699,28 @@ class _InfoLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 24,
+      height: 50,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.18),
+        color: Colors.black.withOpacity(.17),
         borderRadius: BorderRadius.circular(7),
         border: Border.all(color: Colors.white.withOpacity(.08)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Icon(icon, size: 18, color: color),
-
-          const SizedBox(width: 3),
+          // Icon(icon, size: 18, color: color),
+          //
+          // const SizedBox(width: 3),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
           Expanded(
             child: Text(
               value,
@@ -751,25 +766,9 @@ class _InfoTile extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 14),
-              const SizedBox(width: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(.58),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
           LayoutBuilder(
             builder: (context, constraints) {
-              final fontSize = (constraints.maxWidth * 0.08).clamp(20.0, 28.0);
+              final fontSize = (constraints.maxWidth * 0.08).clamp(15.0, 28.0);
 
               return Text(
                 value,
@@ -783,6 +782,14 @@ class _InfoTile extends StatelessWidget {
                 ),
               );
             },
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),

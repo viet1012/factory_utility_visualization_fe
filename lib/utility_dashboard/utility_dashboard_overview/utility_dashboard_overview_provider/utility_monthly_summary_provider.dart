@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
@@ -12,11 +12,23 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
 
   UtilityMonthlySummaryProvider(this.api);
 
+  // ============================================================
+  // CONFIG
+  // ============================================================
+
   static const Duration pollInterval = Duration(hours: 6);
 
-  Timer? _pollTimer;
-  bool _notifyScheduled = false;
+  static const Duration requestTimeout = Duration(seconds: 45);
 
+  static const Duration forceRefreshTimeout = Duration(seconds: 120);
+
+  // ============================================================
+  // INTERNAL STATE
+  // ============================================================
+
+  Timer? _pollTimer;
+
+  bool _notifyScheduled = false;
   bool _disposed = false;
   bool _fetching = false;
 
@@ -31,7 +43,7 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
 
   int _requestToken = 0;
 
-  List<EnergyMonthlySummary> _rows = const [];
+  List<EnergyMonthlySummary> _rows = const <EnergyMonthlySummary>[];
 
   // ============================================================
   // GETTERS
@@ -55,67 +67,70 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
 
   bool get hasData => _rows.isNotEmpty;
 
-  EnergyMonthlySummary? get electricity => _findByCate('ELECTRIC');
+  bool get hasValidParams {
+    final currentFac = _facId;
+    final currentMonth = _month;
 
-  EnergyMonthlySummary? get water => _findByCate('WATER');
+    return currentFac != null &&
+        currentFac.trim().isNotEmpty &&
+        currentMonth != null &&
+        _isValidMonth(currentMonth);
+  }
 
-  EnergyMonthlySummary? get air =>
-      _findByCate('AIR') ?? _findByCate('COMPRESSED');
+  EnergyMonthlySummary? get electricity {
+    return _findByCate('ELECTRIC');
+  }
+
+  EnergyMonthlySummary? get water {
+    return _findByCate('WATER');
+  }
+
+  EnergyMonthlySummary? get air {
+    return _findByCate('AIR') ?? _findByCate('COMPRESSED');
+  }
 
   // ============================================================
-  // START / POLLING
+  // START
   // ============================================================
 
   Future<void> start({required String facId, required String month}) async {
     if (_disposed) return;
 
     final normalizedFac = _normalizeFac(facId);
-
     final normalizedMonth = _normalizeMonth(month);
 
     final changed = normalizedFac != _facId || normalizedMonth != _month;
 
-    _facId = normalizedFac;
-    _month = normalizedMonth;
-
-    _restartPollingTimerAfterLoad();
+    // Hủy lịch polling cũ trước khi load.
+    _stopPolling();
 
     if (changed) {
+      // Response cũ nếu trả về sau sẽ không được cập nhật state.
       _invalidateCurrentRequest();
 
-      _rows = const [];
+      _facId = normalizedFac;
+      _month = normalizedMonth;
+
+      _rows = const <EnergyMonthlySummary>[];
+
       _error = null;
 
+      _fetching = false;
       _loading = true;
       _refreshing = false;
       _forceRefreshing = false;
-      _fetching = false;
 
       _safeNotify();
+    } else {
+      _facId = normalizedFac;
+      _month = normalizedMonth;
     }
 
-    await load(force: changed);
+    await load(silent: !changed && hasData, force: changed);
 
     if (_disposed) return;
 
-    _startPollingTimer();
-  }
-
-  void _startPollingTimer() {
-    _pollTimer?.cancel();
-
-    _pollTimer = Timer.periodic(pollInterval, (_) {
-      if (_disposed || _fetching || _forceRefreshing) {
-        return;
-      }
-
-      unawaited(load(silent: true));
-    });
-  }
-
-  void _restartPollingTimerAfterLoad() {
-    _pollTimer?.cancel();
-    _pollTimer = null;
+    _scheduleNextPoll();
   }
 
   // ============================================================
@@ -129,15 +144,19 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
       return;
     }
 
-    final fac = _facId;
-    final selectedMonth = _month;
+    if (!hasValidParams) {
+      _fetching = false;
+      _loading = false;
+      _refreshing = false;
 
-    if (fac == null ||
-        fac.isEmpty ||
-        selectedMonth == null ||
-        selectedMonth.isEmpty) {
+      _error = 'Missing facId or invalid month format yyyyMM';
+
+      _safeNotify();
       return;
     }
+
+    final requestFac = _facId!;
+    final requestMonth = _month!;
 
     final token = ++_requestToken;
 
@@ -145,34 +164,49 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
     _error = null;
 
     if (silent && hasData) {
+      // Giữ UI cũ khi polling.
       _refreshing = true;
-    } else if (!hasData) {
+      _loading = false;
+    } else {
       _loading = true;
+      _refreshing = false;
     }
 
     _safeNotify();
 
     try {
-      final data = await api.getMonthlySummary(
-        facId: fac,
-        month: selectedMonth,
-      );
+      final data = await api
+          .getMonthlySummary(facId: requestFac, month: requestMonth)
+          .timeout(requestTimeout);
 
-      if (!_isValid(token)) return;
+      if (!_isValid(token)) {
+        return;
+      }
 
+      // Tạo list mới để Selector nhận ra dữ liệu thay đổi.
       _rows = List<EnergyMonthlySummary>.unmodifiable(data);
 
       _error = null;
-    } on TimeoutException catch (exception) {
-      _handleError(token, exception, '[MONTHLY GET TIMEOUT]');
-    } on DioException catch (exception) {
-      _handleError(token, exception, '[MONTHLY GET DIO ${exception.type}]');
-    } catch (exception, stackTrace) {
+    } on TimeoutException catch (error, stackTrace) {
       _handleError(
-        token,
-        exception,
-        '[MONTHLY GET ERROR]',
+        token: token,
+        error: error,
         stackTrace: stackTrace,
+        tag: '[MONTHLY GET TIMEOUT]',
+      );
+    } on DioException catch (error, stackTrace) {
+      _handleError(
+        token: token,
+        error: error,
+        stackTrace: stackTrace,
+        tag: '[MONTHLY GET DIO ${error.type}]',
+      );
+    } catch (error, stackTrace) {
+      _handleError(
+        token: token,
+        error: error,
+        stackTrace: stackTrace,
+        tag: '[MONTHLY GET ERROR]',
       );
     } finally {
       if (_isValid(token)) {
@@ -186,28 +220,43 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
   }
 
   // ============================================================
+  // NORMAL REFRESH
+  // ============================================================
+
+  Future<void> refresh() async {
+    if (_disposed || _fetching || _forceRefreshing) {
+      return;
+    }
+
+    // Người dùng refresh thì đếm lại chu kỳ 6 giờ.
+    _stopPolling();
+
+    await load(silent: hasData, force: false);
+
+    if (_disposed) return;
+
+    _scheduleNextPoll();
+  }
+
+  // ============================================================
   // FORCE REFRESH BACKEND CACHE
   // ============================================================
 
   Future<bool> forceRefresh() async {
-    if (_disposed || _forceRefreshing || _fetching) {
+    if (_disposed || _fetching || _forceRefreshing) {
       return false;
     }
 
-    final fac = _facId;
-    final selectedMonth = _month;
-
-    if (fac == null ||
-        fac.isEmpty ||
-        selectedMonth == null ||
-        selectedMonth.isEmpty) {
+    if (!hasValidParams) {
       return false;
     }
+
+    final requestFac = _facId!;
+    final requestMonth = _month!;
 
     final token = ++_requestToken;
 
-    _pollTimer?.cancel();
-    _pollTimer = null;
+    _stopPolling();
 
     _fetching = true;
     _forceRefreshing = true;
@@ -217,13 +266,10 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
 
     _safeNotify();
 
-    var success = false;
-
     try {
-      final data = await api.forceRefreshMonthlySummary(
-        facId: fac,
-        month: selectedMonth,
-      );
+      final data = await api
+          .forceRefreshMonthlySummary(facId: requestFac, month: requestMonth)
+          .timeout(forceRefreshTimeout);
 
       if (!_isValid(token)) {
         return false;
@@ -232,27 +278,32 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
       _rows = List<EnergyMonthlySummary>.unmodifiable(data);
 
       _error = null;
-      success = true;
 
       return true;
-    } on TimeoutException catch (exception) {
-      _handleError(token, exception, '[MONTHLY FORCE REFRESH TIMEOUT]');
-
-      return false;
-    } on DioException catch (exception) {
+    } on TimeoutException catch (error, stackTrace) {
       _handleError(
-        token,
-        exception,
-        '[MONTHLY FORCE REFRESH DIO ${exception.type}]',
+        token: token,
+        error: error,
+        stackTrace: stackTrace,
+        tag: '[MONTHLY FORCE REFRESH TIMEOUT]',
       );
 
       return false;
-    } catch (exception, stackTrace) {
+    } on DioException catch (error, stackTrace) {
       _handleError(
-        token,
-        exception,
-        '[MONTHLY FORCE REFRESH ERROR]',
+        token: token,
+        error: error,
         stackTrace: stackTrace,
+        tag: '[MONTHLY FORCE REFRESH DIO ${error.type}]',
+      );
+
+      return false;
+    } catch (error, stackTrace) {
+      _handleError(
+        token: token,
+        error: error,
+        stackTrace: stackTrace,
+        tag: '[MONTHLY FORCE REFRESH ERROR]',
       );
 
       return false;
@@ -266,10 +317,8 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
         _safeNotify();
 
         if (!_disposed) {
-          _startPollingTimer();
+          _scheduleNextPoll();
         }
-      } else if (!success && !_disposed) {
-        _startPollingTimer();
       }
     }
   }
@@ -278,8 +327,46 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
   // RETRY
   // ============================================================
 
-  Future<void> retry() {
-    return load(force: true);
+  Future<void> retry() async {
+    if (_disposed || _fetching || _forceRefreshing) {
+      return;
+    }
+
+    _stopPolling();
+
+    await load(silent: hasData, force: false);
+
+    if (_disposed) return;
+
+    _scheduleNextPoll();
+  }
+
+  // ============================================================
+  // POLLING
+  // ============================================================
+
+  void _scheduleNextPoll() {
+    if (_disposed || !hasValidParams) {
+      return;
+    }
+
+    _stopPolling();
+
+    _pollTimer = Timer(pollInterval, () async {
+      if (_disposed) return;
+
+      await load(silent: true, force: false);
+
+      if (_disposed) return;
+
+      // Request hoàn tất rồi mới đếm tiếp 6 giờ.
+      _scheduleNextPoll();
+    });
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
   }
 
   // ============================================================
@@ -290,14 +377,13 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
     if (_disposed) return;
 
     _invalidateCurrentRequest();
-
-    _pollTimer?.cancel();
-    _pollTimer = null;
+    _stopPolling();
 
     _facId = null;
     _month = null;
 
-    _rows = const [];
+    _rows = const <EnergyMonthlySummary>[];
+
     _error = null;
 
     _fetching = false;
@@ -309,16 +395,16 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
   }
 
   // ============================================================
-  // HELPERS
+  // CATEGORY HELPERS
   // ============================================================
 
   EnergyMonthlySummary? _findByCate(String keyword) {
     final normalizedKeyword = keyword.trim().toUpperCase();
 
     for (final item in _rows) {
-      final cate = item.cate.trim().toUpperCase();
+      final category = item.cate.trim().toUpperCase();
 
-      if (cate.contains(normalizedKeyword)) {
+      if (category.contains(normalizedKeyword)) {
         return item;
       }
     }
@@ -326,22 +412,30 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
     return null;
   }
 
-  void _handleError(
-    int token,
-    Object exception,
-    String tag, {
-    StackTrace? stackTrace,
+  // ============================================================
+  // ERROR
+  // ============================================================
+
+  void _handleError({
+    required int token,
+    required Object error,
+    required StackTrace stackTrace,
+    required String tag,
   }) {
-    if (!_isValid(token)) return;
-
-    _error = exception;
-
-    debugPrint('$tag $exception');
-
-    if (stackTrace != null) {
-      debugPrintStack(stackTrace: stackTrace);
+    if (!_isValid(token)) {
+      return;
     }
+
+    // Không xóa rows cũ nếu refresh lỗi.
+    _error = error;
+
+    debugPrint('$tag $error');
+    debugPrintStack(stackTrace: stackTrace);
   }
+
+  // ============================================================
+  // VALIDATION
+  // ============================================================
 
   String _normalizeFac(String facId) {
     final normalized = facId.trim();
@@ -352,18 +446,30 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
   String _normalizeMonth(String month) {
     final normalized = month.trim();
 
-    if (!RegExp(r'^\d{6}$').hasMatch(normalized)) {
-      throw ArgumentError.value(month, 'month', 'Month must use yyyyMM format');
-    }
-
-    final monthNumber = int.tryParse(normalized.substring(4, 6));
-
-    if (monthNumber == null || monthNumber < 1 || monthNumber > 12) {
-      throw ArgumentError.value(month, 'month', 'Invalid month value');
+    if (!_isValidMonth(normalized)) {
+      throw ArgumentError.value(
+        month,
+        'month',
+        'Month must use yyyyMM format, for example 202607',
+      );
     }
 
     return normalized;
   }
+
+  bool _isValidMonth(String value) {
+    if (!RegExp(r'^\d{6}$').hasMatch(value)) {
+      return false;
+    }
+
+    final monthNumber = int.tryParse(value.substring(4, 6));
+
+    return monthNumber != null && monthNumber >= 1 && monthNumber <= 12;
+  }
+
+  // ============================================================
+  // REQUEST TOKEN
+  // ============================================================
 
   void _invalidateCurrentRequest() {
     _requestToken++;
@@ -372,6 +478,10 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
   bool _isValid(int token) {
     return !_disposed && token == _requestToken;
   }
+
+  // ============================================================
+  // SAFE NOTIFY
+  // ============================================================
 
   void _safeNotify() {
     if (_disposed) return;
@@ -388,7 +498,9 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
       return;
     }
 
-    if (_notifyScheduled) return;
+    if (_notifyScheduled) {
+      return;
+    }
 
     _notifyScheduled = true;
 
@@ -410,9 +522,7 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
     _disposed = true;
 
     _invalidateCurrentRequest();
-
-    _pollTimer?.cancel();
-    _pollTimer = null;
+    _stopPolling();
 
     super.dispose();
   }

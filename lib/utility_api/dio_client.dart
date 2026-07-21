@@ -42,14 +42,26 @@ class DioClient {
     final client = Dio(
       BaseOptions(
         baseUrl: normalizedBaseUrl,
+
         connectTimeout: connectTimeout,
         receiveTimeout: receiveTimeout,
-        sendTimeout: sendTimeout,
+
+        /*
+         * Flutter Web không hỗ trợ sendTimeout tốt với GET
+         * vì GET không có request body.
+         */
+        sendTimeout: kIsWeb ? null : sendTimeout,
+
         contentType: Headers.jsonContentType,
         responseType: ResponseType.json,
+
         headers: <String, dynamic>{
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
+
+          /*
+           * Không nên ép Content-Type cho tất cả request.
+           * Dio sẽ tự chọn Content-Type phù hợp cho FormData upload.
+           */
           ...?headers,
         },
       ),
@@ -65,18 +77,36 @@ class DioClient {
   static InterceptorsWrapper _createLoggingInterceptor() {
     return InterceptorsWrapper(
       onRequest: (options, handler) {
-        debugPrint('[DIO REQUEST] ${options.method} ${options.uri}');
+        debugPrint(
+          '[DIO REQUEST] '
+          '${options.method} '
+          '${options.uri}',
+        );
 
         if (options.queryParameters.isNotEmpty) {
-          debugPrint('[DIO QUERY] ${options.queryParameters}');
+          debugPrint(
+            '[DIO QUERY] '
+            '${options.queryParameters}',
+          );
         }
 
         if (options.data != null) {
-          debugPrint('[DIO BODY] ${options.data}');
+          if (options.data is FormData) {
+            final formData = options.data as FormData;
+
+            debugPrint(
+              '[DIO FORM DATA] '
+              'fields=${formData.fields.length}, '
+              'files=${formData.files.length}',
+            );
+          } else {
+            debugPrint('[DIO BODY] ${options.data}');
+          }
         }
 
         handler.next(options);
       },
+
       onResponse: (response, handler) {
         debugPrint(
           '[DIO RESPONSE] '
@@ -86,6 +116,7 @@ class DioClient {
 
         handler.next(response);
       },
+
       onError: (error, handler) {
         debugPrint(
           '[DIO ERROR] '
@@ -94,9 +125,11 @@ class DioClient {
         );
 
         debugPrint('[DIO ERROR TYPE] ${error.type}');
+
         debugPrint('[DIO ERROR MESSAGE] ${error.message}');
 
         final statusCode = error.response?.statusCode;
+
         final responseData = error.response?.data;
 
         if (statusCode != null) {

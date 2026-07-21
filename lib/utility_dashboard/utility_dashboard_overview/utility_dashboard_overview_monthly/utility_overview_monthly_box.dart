@@ -5,10 +5,11 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../utility_models/utility_facade_service.dart';
+import '../../../utility_state/latest_provider.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
-import '../../utility_dashboard_fac_details/layout/utility_fac_layout_screen.dart';
+import '../../utility_dashboard_fac_details/screens/utility_fac_detail_screen.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/utility_glow_card.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
@@ -597,12 +598,18 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
   void _openFacilityDetail() {
     final service = context.read<UtilityFacadeService>();
+    final latestProvider = context.read<LatestProvider>();
 
-    Navigator.push(
-      context,
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) {
-          return UtilityFacDetailScreens(facId: widget.facId, svc: service);
+          return ChangeNotifierProvider<LatestProvider>.value(
+            value: latestProvider,
+            child: UtilityFacDetailScreen(
+              facId: widget.facId,
+              service: service,
+            ),
+          );
         },
       ),
     );
