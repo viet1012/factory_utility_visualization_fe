@@ -42,6 +42,10 @@ class LatestProvider extends ChangeNotifier {
 
   String? get activeCate => _activeCate;
 
+  int _dataVersion = 0;
+
+  int get dataVersion => _dataVersion;
+
   // ============================================================
   // INITIAL LOAD
   // ============================================================
@@ -61,6 +65,7 @@ class LatestProvider extends ChangeNotifier {
       if (_disposed) return;
 
       _items = List<LatestFacilityDto>.unmodifiable(result);
+      _dataVersion++;
       _error = null;
     } catch (error, stackTrace) {
       if (_disposed) return;
@@ -129,8 +134,8 @@ class LatestProvider extends ChangeNotifier {
       final result = await api.getLatestTree();
 
       if (_disposed) return;
-
       _items = List<LatestFacilityDto>.unmodifiable(result);
+      _dataVersion++;
       _error = null;
     } catch (error, stackTrace) {
       if (_disposed) return;
@@ -222,6 +227,7 @@ class LatestProvider extends ChangeNotifier {
     });
 
     _items = List<LatestFacilityDto>.unmodifiable(facilities);
+    _dataVersion++;
   }
 
   // ============================================================
@@ -326,6 +332,7 @@ class LatestProvider extends ChangeNotifier {
     );
 
     _items = List<LatestFacilityDto>.unmodifiable(facilities);
+    _dataVersion++;
   }
 
   // ============================================================

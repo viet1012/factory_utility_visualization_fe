@@ -10,6 +10,7 @@ import '../utility_dashboard_overview/utility_dashboard_overview_models/latest_t
 // ============================================================
 // SCREEN
 // ============================================================
+enum UtilityCatalogViewMode { monitor, tree }
 
 class UtilityCatalogTabsScreen extends StatefulWidget {
   const UtilityCatalogTabsScreen({super.key});
@@ -41,7 +42,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
   static const int _devicePageSize = 50;
 
-  List<LatestFacilityDto>? _cachedSource;
+  int _cachedDataVersion = -1;
   String _cachedFilterKey = '';
 
   List<_CatalogTableRow> _cachedRows = const [];
@@ -55,6 +56,8 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
       row.boxDeviceId,
     ].join('|');
   }
+
+  UtilityCatalogViewMode _viewMode = UtilityCatalogViewMode.monitor;
 
   @override
   void initState() {
@@ -127,7 +130,10 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     });
   }
 
-  List<_CatalogTableRow> _prepareRows(List<LatestFacilityDto> source) {
+  List<_CatalogTableRow> _prepareRows(
+    List<LatestFacilityDto> source,
+    int dataVersion,
+  ) {
     final filterKey = [
       _keyword,
       _selectedFacility ?? '',
@@ -137,14 +143,15 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
       _selectedStatus ?? '',
     ].join('|');
 
-    if (identical(source, _cachedSource) && filterKey == _cachedFilterKey) {
+    if (_cachedDataVersion == dataVersion && filterKey == _cachedFilterKey) {
       return _cachedRows;
     }
 
-    _cachedSource = source;
+    _cachedDataVersion = dataVersion;
     _cachedFilterKey = filterKey;
 
     final rows = <_CatalogTableRow>[];
+    final now = DateTime.now();
 
     for (final facility in source) {
       if (_selectedFacility != null && facility.fac != _selectedFacility) {
@@ -191,11 +198,11 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                 );
 
                 if (_selectedStatus != null &&
-                    row.statusLabel != _selectedStatus) {
+                    row.statusLabelAt(now) != _selectedStatus) {
                   continue;
                 }
 
-                if (!_matchesKeyword(row, _keyword)) {
+                if (!_matchesKeyword(row, _keyword, now)) {
                   continue;
                 }
 
@@ -214,12 +221,12 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     return _cachedRows;
   }
 
-  bool _matchesKeyword(_CatalogTableRow row, String keyword) {
+  bool _matchesKeyword(_CatalogTableRow row, String keyword, DateTime now) {
     if (keyword.isEmpty) {
       return true;
     }
 
-    return row.searchText.contains(keyword);
+    return row.searchTextAt(now).contains(keyword);
   }
 
   int _compareRows(_CatalogTableRow first, _CatalogTableRow second) {
@@ -463,38 +470,6 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     return result;
   }
 
-  void _ensureSelectedDevice(List<_CatalogDeviceGroup> groups) {
-    if (groups.isEmpty) {
-      if (_selectedDeviceKey != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-
-          setState(() {
-            _selectedDeviceKey = null;
-          });
-        });
-      }
-
-      return;
-    }
-
-    final selectedExists = groups.any(
-      (group) => group.key == _selectedDeviceKey,
-    );
-
-    if (selectedExists) {
-      return;
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      setState(() {
-        _selectedDeviceKey = groups.first.key;
-      });
-    });
-  }
-
   String _treeKey({required String scadaId, required String boxId}) {
     return '$scadaId|$boxId';
   }
@@ -677,13 +652,14 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
           refreshing: provider.refreshing,
           error: provider.error,
           items: provider.items,
+          dataVersion: provider.dataVersion,
         );
       },
       shouldRebuild: (previous, next) {
         return previous.loading != next.loading ||
             previous.refreshing != next.refreshing ||
             previous.error != next.error ||
-            !identical(previous.items, next.items);
+            previous.dataVersion != next.dataVersion;
       },
       builder: (context, vm, _) {
         if (vm.loading && vm.items.isEmpty) {
@@ -697,8 +673,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
           );
         }
 
-        final rows = _prepareRows(vm.items);
-
+        final rows = _prepareRows(vm.items, vm.dataVersion);
         final allDevices = _buildDeviceGroups(rows);
 
         final treeGroups = _buildTreeGroups(allDevices);
@@ -913,21 +888,31 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 // ============================================================
 // VIEW MODEL
 // ============================================================
+// ============================================================
+// VIEW MODEL
+// ============================================================
 
 class _CatalogVm {
   final bool loading;
   final bool refreshing;
   final Object? error;
+
   final List<LatestFacilityDto> items;
+
+  /*
+   * Tăng mỗi khi LatestProvider nhận data mới.
+   * Dùng để buộc cache của màn hình cập nhật.
+   */
+  final int dataVersion;
 
   const _CatalogVm({
     required this.loading,
     required this.refreshing,
     required this.error,
     required this.items,
+    required this.dataVersion,
   });
 }
-
 // ============================================================
 // FLATTENED TABLE ROW
 // ============================================================
@@ -949,41 +934,118 @@ class _CatalogTableRow {
   final String unit;
   final DateTime? recordedAt;
 
-  const _CatalogTableRow({
-    required this.facility,
-    required this.category,
-    required this.rawCategory,
-    required this.scadaId,
-    required this.boxId,
-    required this.boxDeviceId,
-    required this.plcAddress,
-    required this.cateId,
-    required this.signalName,
-    required this.value,
-    required this.unit,
-    required this.recordedAt,
-  });
+  /*
+   * Các giá trị đã chuẩn hóa.
+   * Không cần trim lại trong mỗi lần build.
+   */
+  final String normalizedFacility;
+  final String normalizedCategory;
+  final String normalizedRawCategory;
 
-  bool get isStale {
+  final String normalizedScadaId;
+  final String normalizedBoxId;
+  final String normalizedBoxDeviceId;
+
+  final String normalizedPlcAddress;
+  final String normalizedCateId;
+  final String normalizedSignalName;
+  final String normalizedUnit;
+
+  final String searchBaseText;
+
+  _CatalogTableRow({
+    required String facility,
+    required String category,
+    required String rawCategory,
+    required String scadaId,
+    required String boxId,
+    required String boxDeviceId,
+    required String plcAddress,
+    required String cateId,
+    required String signalName,
+    required this.value,
+    required String unit,
+    required this.recordedAt,
+  }) : facility = facility,
+       category = category,
+       rawCategory = rawCategory,
+       scadaId = scadaId,
+       boxId = boxId,
+       boxDeviceId = boxDeviceId,
+       plcAddress = plcAddress,
+       cateId = cateId,
+       signalName = signalName,
+       unit = unit,
+
+       normalizedFacility = facility.trim(),
+       normalizedCategory = category.trim(),
+       normalizedRawCategory = rawCategory.trim(),
+
+       normalizedScadaId = scadaId.trim(),
+       normalizedBoxId = boxId.trim(),
+       normalizedBoxDeviceId = boxDeviceId.trim(),
+
+       normalizedPlcAddress = plcAddress.trim(),
+       normalizedCateId = cateId.trim(),
+       normalizedSignalName = signalName.trim(),
+       normalizedUnit = unit.trim(),
+
+       searchBaseText = [
+         facility,
+         category,
+         rawCategory,
+         scadaId,
+         boxId,
+         boxDeviceId,
+         plcAddress,
+         cateId,
+         signalName,
+         unit,
+       ].join('|').toLowerCase();
+
+  // ============================================================
+  // STATUS
+  // ============================================================
+
+  bool isStaleAt(DateTime now) {
     final time = recordedAt;
 
-    if (time == null) return true;
+    if (time == null) {
+      return true;
+    }
 
-    return DateTime.now().difference(time.toLocal()) >
-        const Duration(minutes: 2);
+    final localTime = time.toLocal();
+
+    return now.difference(localTime) > const Duration(minutes: 2);
+  }
+
+  /*
+   * Dùng cho những chỗ không truyền now.
+   * Trong vòng lặp nhiều row nên ưu tiên isStaleAt(now).
+   */
+  bool get isStale {
+    return isStaleAt(DateTime.now());
+  }
+
+  String statusLabelAt(DateTime now) {
+    return isStaleAt(now) ? 'Stale' : 'Online';
   }
 
   String get statusLabel {
     return isStale ? 'Stale' : 'Online';
   }
 
+  // ============================================================
+  // DISPLAY
+  // ============================================================
+
   String get displaySignalName {
-    if (signalName.trim().isNotEmpty) {
-      return signalName.trim();
+    if (normalizedSignalName.isNotEmpty) {
+      return normalizedSignalName;
     }
 
-    if (cateId.trim().isNotEmpty) {
-      return cateId.trim();
+    if (normalizedCateId.isNotEmpty) {
+      return normalizedCateId;
     }
 
     return '--';
@@ -992,7 +1054,7 @@ class _CatalogTableRow {
   String get displayValue {
     final currentValue = value;
 
-    if (currentValue == null) {
+    if (currentValue == null || !currentValue.isFinite) {
       return '--';
     }
 
@@ -1000,9 +1062,11 @@ class _CatalogTableRow {
         ? currentValue.toStringAsFixed(1)
         : currentValue.toStringAsFixed(2);
 
-    final normalizedUnit = unit.trim();
+    if (normalizedUnit.isEmpty) {
+      return valueText;
+    }
 
-    return normalizedUnit.isEmpty ? valueText : '$valueText $normalizedUnit';
+    return '$valueText $normalizedUnit';
   }
 
   String get displayTime {
@@ -1014,33 +1078,30 @@ class _CatalogTableRow {
 
     final local = time.toLocal();
 
-    String two(int value) {
-      return value.toString().padLeft(2, '0');
-    }
-
-    return '${two(local.day)}/'
-        '${two(local.month)}/'
+    return '${_two(local.day)}/'
+        '${_two(local.month)}/'
         '${local.year} '
-        '${two(local.hour)}:'
-        '${two(local.minute)}:'
-        '${two(local.second)}';
+        '${_two(local.hour)}:'
+        '${_two(local.minute)}:'
+        '${_two(local.second)}';
+  }
+
+  // ============================================================
+  // SEARCH
+  // ============================================================
+
+  String searchTextAt(DateTime now) {
+    return '$searchBaseText|'
+        '${displayValue.toLowerCase()}|'
+        '${statusLabelAt(now).toLowerCase()}';
   }
 
   String get searchText {
-    return [
-      facility,
-      category,
-      rawCategory,
-      scadaId,
-      boxId,
-      boxDeviceId,
-      plcAddress,
-      cateId,
-      signalName,
-      unit,
-      displayValue,
-      statusLabel,
-    ].join('|').toLowerCase();
+    return searchTextAt(DateTime.now());
+  }
+
+  static String _two(int value) {
+    return value.toString().padLeft(2, '0');
   }
 }
 
@@ -1823,7 +1884,7 @@ class _DeviceListTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Color(0xFF71869F),
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1832,7 +1893,7 @@ class _DeviceListTile extends StatelessWidget {
                         'Updated ${_formatDeviceTime(device.lastUpdated)}',
                         style: const TextStyle(
                           color: Color(0xFF60758D),
-                          fontSize: 12,
+                          fontSize: 13,
                         ),
                       ),
                     ],
