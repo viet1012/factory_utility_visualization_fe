@@ -22,6 +22,7 @@ import '../utility_models/utility_facade_service.dart';
 import '../utility_state/chart_catalog_provider.dart';
 import '../utility_state/latest_provider.dart';
 import '../utility_state/minute_series_provider.dart';
+import '../utility_state/utility_daily_dashboard_provider.dart';
 import 'utility_dashboard_overview/utility_dashboard_overview.dart';
 
 class UtilityDashboardScreen extends StatefulWidget {
@@ -33,9 +34,9 @@ class UtilityDashboardScreen extends StatefulWidget {
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin {
-  static const String _baseUrl = 'http://192.168.122.16:9093';
+  // static const String _baseUrl = 'http://192.168.122.16:9093';
 
-  // static const _baseUrl = 'http://localhost:9999';
+  static const _baseUrl = 'http://localhost:9999';
 
   static const int _tabCount = 5;
 
@@ -70,6 +71,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityHourlyDashboardProvider hourlyDashboardProvider;
   late final UtilityDailyDashboardProvider dailyDashboardProvider;
   late final UtilityMonthlySummaryProvider monthlySummaryProvider;
+
+  late final UtilityDailySignalProvider dailySignalProvider;
 
   late final TabController _tabController;
 
@@ -124,6 +127,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
       window: const Duration(minutes: 60),
       requestTimeout: const Duration(seconds: 15),
     )..startPolling();
+
+    dailySignalProvider = UtilityDailySignalProvider(api: api);
 
     chartCatalogProvider = ChartCatalogProvider(api);
 
@@ -197,6 +202,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
         ChangeNotifierProvider<MinuteSeriesProvider>.value(
           value: minuteSeriesProvider,
+        ),
+
+        ChangeNotifierProvider<UtilityDailySignalProvider>.value(
+          value: dailySignalProvider,
         ),
 
         ChangeNotifierProvider<ChartCatalogProvider>.value(
@@ -331,6 +340,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     minuteSeriesProvider.dispose();
     chartCatalogProvider.dispose();
     latestProvider.dispose();
+    dailySignalProvider.dispose();
 
     signalHealthController.dispose();
 

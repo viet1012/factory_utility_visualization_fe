@@ -2,10 +2,10 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_all_fact
 import 'package:flutter/material.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
+import '../tabs/utility_chart_tab_body.dart';
 import '../tabs/utility_chart_view.dart';
 import '../utility_all_factories_controller.dart';
 import 'utility_chart_filters.dart';
-import 'utility_chart_tab_body.dart';
 
 class UtilityAllFactoriesContent extends StatelessWidget {
   final UtilityAllFactoriesController controller;
@@ -156,11 +156,19 @@ class UtilityAllFactoriesContent extends StatelessWidget {
         const SizedBox(height: 6),
 
         Expanded(
-          child: UtilityChartTabBody(
-            controller: controller,
-            selectedScada: selectedScada,
-            selectedBox: selectedBoxDisplay,
-          ),
+          child:
+              // UtilityChartTabBody(
+              //   controller: controller,
+              //   selectedScada: selectedScada,
+              //   selectedBox: selectedBoxDisplay,
+              // ),
+              UtilityChartTabBody(
+                controller: controller,
+                selectedScada: selectedScada,
+                selectedBoxId: selectedBoxId,
+                selectedBoxDeviceId: selectedDevice,
+                boxDeviceIds: List<String>.from(catalog.boxDeviceIds),
+              ),
         ),
       ],
     );

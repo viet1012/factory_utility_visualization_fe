@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../utility_dashboard/utility_all_factory_chart/utility_daily_models.dart';
 import '../utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_models/latest_tree_response.dart';
 import '../utility_models/f2_utility_parameter_master.dart';
 import '../utility_models/f2_utility_scada_channel.dart';
@@ -240,6 +241,34 @@ class UtilityApi {
       debugPrint('ERROR: $e');
       rethrow;
     }
+  }
+
+  Future<UtilityDailyDashboardResponse> getDailySignals({
+    required String boxDeviceId,
+    required String month,
+  }) async {
+    final normalizedBox = boxDeviceId.trim();
+
+    if (normalizedBox.isEmpty) {
+      throw ArgumentError('boxDeviceId must not be empty');
+    }
+
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/api/utility/daily-signals',
+      queryParameters: {'boxDeviceId': normalizedBox, 'month': month},
+      options: Options(
+        receiveTimeout: const Duration(seconds: 90),
+        sendTimeout: const Duration(seconds: 30),
+      ),
+    );
+
+    final data = response.data;
+
+    if (data == null) {
+      throw StateError('Daily API returned empty response');
+    }
+
+    return UtilityDailyDashboardResponse.fromJson(data);
   }
 
   Future<List<LatestFacilityDto>> getLatestTree({

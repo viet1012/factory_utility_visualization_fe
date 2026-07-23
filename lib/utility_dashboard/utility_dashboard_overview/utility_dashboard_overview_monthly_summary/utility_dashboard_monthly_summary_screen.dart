@@ -653,20 +653,32 @@ class _MainValue extends StatelessWidget {
       height: 42,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              maxLines: 2,
-              style: TextStyle(
-                color: color,
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
+          // Flexible cho FittedBox 1 chiều rộng tối đa cụ thể (= phần còn
+          // lại sau khi trừ SizedBox + unit) để nó thực sự co khi `value`
+          // dài, thay vì lấy kích thước tự nhiên rồi làm cả Row tràn ra.
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 26,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ),
           const SizedBox(width: 3),
+
+          // unit không cần Flexible vì luôn ngắn (kWh, USD...), nhưng vẫn
+          // giữ overflow: ellipsis làm lớp bảo hiểm cuối cùng phòng khi
+          // unit bất ngờ dài hơn dự kiến.
           Text(
             unit,
             maxLines: 1,

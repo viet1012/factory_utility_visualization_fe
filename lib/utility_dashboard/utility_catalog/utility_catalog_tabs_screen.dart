@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/utility_catalog_tree_view.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
@@ -728,8 +729,15 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                 summary: summary,
                 lastUpdated: _latestTime(rows),
                 onRefresh: _refresh,
-              ),
+                viewMode: _viewMode,
+                onViewModeChanged: (value) {
+                  if (_viewMode == value) return;
 
+                  setState(() {
+                    _viewMode = value;
+                  });
+                },
+              ),
               _SignalMonitorFilters(
                 searchController: _searchController,
                 facilityOptions: facilityOptions,
@@ -795,88 +803,94 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
               ),
 
               Expanded(
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 230,
-                      child: _ScadaBoxTreePanel(
-                        groups: treeGroups,
-                        selectedKey: _selectedTreeKey,
-                        onSelected: (key) {
+                child: _viewMode == UtilityCatalogViewMode.monitor
+                    ? Row(
+                        children: [
+                          SizedBox(
+                            width: 230,
+                            child: _ScadaBoxTreePanel(
+                              groups: treeGroups,
+                              selectedKey: _selectedTreeKey,
+                              onSelected: (key) {
+                                setState(() {
+                                  _selectedTreeKey = key;
+                                  _selectedDeviceKey = null;
+                                  _devicePage = 0;
+                                });
+                              },
+                            ),
+                          ),
+
+                          const VerticalDivider(
+                            width: 1,
+                            thickness: 1,
+                            color: Color(0xFF20344D),
+                          ),
+
+                          SizedBox(
+                            width: 310,
+                            child: _DeviceListPanel(
+                              devices: pagedDevices,
+                              selectedDeviceKey: _selectedDeviceKey,
+                              totalDevices: devicesForTree.length,
+                              currentPage: _devicePage,
+                              pageSize: _devicePageSize,
+                              onSelected: (key) {
+                                setState(() {
+                                  _selectedDeviceKey = key;
+                                });
+                              },
+                            ),
+                          ),
+
+                          const VerticalDivider(
+                            width: 1,
+                            thickness: 1,
+                            color: Color(0xFF20344D),
+                          ),
+
+                          Expanded(
+                            child: _DeviceSignalDetail(
+                              device: selectedDevice,
+                              dataSource: dataSource,
+                            ),
+                          ),
+                        ],
+                      )
+                    : UtilityCatalogTreeView(
+                        items: vm.items,
+                        dataVersion: vm.dataVersion,
+                      ),
+              ),
+
+              if (_viewMode == UtilityCatalogViewMode.monitor)
+                _DevicePaginationBar(
+                  totalItems: devicesForTree.length,
+                  currentPage: _devicePage,
+                  pageSize: _devicePageSize,
+                  onPrevious: _devicePage <= 0
+                      ? null
+                      : () {
                           setState(() {
-                            _selectedTreeKey = key;
+                            _devicePage--;
                             _selectedDeviceKey = null;
-                            _devicePage = 0;
                           });
                         },
-                      ),
-                    ),
-
-                    const VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: Color(0xFF20344D),
-                    ),
-
-                    SizedBox(
-                      width: 310,
-                      child: _DeviceListPanel(
-                        devices: pagedDevices,
-                        selectedDeviceKey: _selectedDeviceKey,
-                        totalDevices: devicesForTree.length,
-                        currentPage: _devicePage,
-                        pageSize: _devicePageSize,
-                        onSelected: (key) {
+                  onNext: _devicePage >= _pageCount(devicesForTree.length) - 1
+                      ? null
+                      : () {
                           setState(() {
-                            _selectedDeviceKey = key;
+                            _devicePage++;
+                            _selectedDeviceKey = null;
                           });
                         },
-                      ),
-                    ),
-
-                    const VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: Color(0xFF20344D),
-                    ),
-
-                    Expanded(
-                      child: _DeviceSignalDetail(
-                        device: selectedDevice,
-                        dataSource: dataSource,
-                      ),
-                    ),
-                  ],
+                  onPageSelected: (page) {
+                    setState(() {
+                      _devicePage = page;
+                      _selectedDeviceKey = null;
+                    });
+                  },
                 ),
-              ),
-
-              _DevicePaginationBar(
-                totalItems: devicesForTree.length,
-                currentPage: _devicePage,
-                pageSize: _devicePageSize,
-                onPrevious: _devicePage <= 0
-                    ? null
-                    : () {
-                        setState(() {
-                          _devicePage--;
-                          _selectedDeviceKey = null;
-                        });
-                      },
-                onNext: _devicePage >= _pageCount(devicesForTree.length) - 1
-                    ? null
-                    : () {
-                        setState(() {
-                          _devicePage++;
-                          _selectedDeviceKey = null;
-                        });
-                      },
-                onPageSelected: (page) {
-                  setState(() {
-                    _devicePage = page;
-                    _selectedDeviceKey = null;
-                  });
-                },
-              ),
             ],
           ),
         );
@@ -1247,13 +1261,96 @@ class _CatalogSummary {
 
 // ============================================================
 // HEADER / FILTERS
-// ============================================================\
+// ============================================================
+class _UtilityCatalogViewSwitcher extends StatelessWidget {
+  final UtilityCatalogViewMode value;
+  final ValueChanged<UtilityCatalogViewMode> onChanged;
+
+  const _UtilityCatalogViewSwitcher({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFF07111F),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withOpacity(.08)),
+      ),
+      child: Row(
+        children: [
+          _ViewModeButton(
+            icon: Icons.view_column_rounded,
+            tooltip: 'Monitor view',
+            selected: value == UtilityCatalogViewMode.monitor,
+            onTap: () {
+              onChanged(UtilityCatalogViewMode.monitor);
+            },
+          ),
+          _ViewModeButton(
+            icon: Icons.account_tree_rounded,
+            tooltip: 'Tree view',
+            selected: value == UtilityCatalogViewMode.tree,
+            onTap: () {
+              onChanged(UtilityCatalogViewMode.tree);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ViewModeButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ViewModeButton({
+    required this.icon,
+    required this.tooltip,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(7),
+        child: Container(
+          width: 34,
+          height: 32,
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF155E75) : Colors.transparent,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: selected ? Colors.white : const Color(0xFF71869F),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SignalMonitorTopBar extends StatelessWidget {
   final bool refreshing;
   final Object? error;
   final _CatalogSummary summary;
   final DateTime? lastUpdated;
   final Future<void> Function() onRefresh;
+  final UtilityCatalogViewMode viewMode;
+  final ValueChanged<UtilityCatalogViewMode> onViewModeChanged;
 
   const _SignalMonitorTopBar({
     required this.refreshing,
@@ -1261,6 +1358,8 @@ class _SignalMonitorTopBar extends StatelessWidget {
     required this.summary,
     required this.lastUpdated,
     required this.onRefresh,
+    required this.viewMode,
+    required this.onViewModeChanged,
   });
 
   @override
@@ -1336,6 +1435,12 @@ class _SignalMonitorTopBar extends StatelessWidget {
             color: Colors.orangeAccent,
           ),
           const SizedBox(width: 16),
+          _UtilityCatalogViewSwitcher(
+            value: viewMode,
+            onChanged: onViewModeChanged,
+          ),
+
+          const SizedBox(width: 14),
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,
