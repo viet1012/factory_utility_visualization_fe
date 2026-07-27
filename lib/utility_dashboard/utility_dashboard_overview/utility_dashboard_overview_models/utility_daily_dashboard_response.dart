@@ -1,19 +1,32 @@
 class UtilityDailyPoint {
   final DateTime date;
   final double value;
+  final double? costUsd;
 
-  const UtilityDailyPoint({required this.date, required this.value});
+  const UtilityDailyPoint({
+    required this.date,
+    required this.value,
+    this.costUsd,
+  });
 
   factory UtilityDailyPoint.fromJson(Map<String, dynamic> json) {
-    final rawDate = (json['date'] ?? '').toString().trim();
-    final rawValue = json['value'];
-
     return UtilityDailyPoint(
-      date: DateTime.tryParse(rawDate) ?? DateTime(1970),
-      value: rawValue is num
-          ? rawValue.toDouble()
-          : double.tryParse(rawValue?.toString() ?? '') ?? 0,
+      date: DateTime.parse(json['date']?.toString() ?? ''),
+      value: _toDouble(json['value']) ?? 0,
+      costUsd: _toDouble(json['costUsd']),
     );
+  }
+
+  static double? _toDouble(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value.toString());
   }
 }
 

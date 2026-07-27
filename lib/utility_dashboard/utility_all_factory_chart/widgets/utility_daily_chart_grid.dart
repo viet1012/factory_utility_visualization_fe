@@ -263,8 +263,6 @@ class _DailySignalChartCard extends StatelessWidget {
                       ),
                     ),
             ),
-
-            _DailyChartFooter(series: series, summary: summary),
           ],
         ),
       ),
@@ -421,7 +419,9 @@ class _DailyLatestInfoBar extends StatelessWidget {
                 border: Border.all(color: color.withOpacity(.22)),
               ),
               child: Text(
-                DateFormat('dd/MM').format(latestPoint!.recordDate),
+                // DateFormat('dd/MM').format(latestPoint!.recordDate),
+                DateFormat('dd/MMM', 'en_US').format(latestPoint!.recordDate),
+
                 style: TextStyle(
                   color: color,
                   fontSize: 9,
@@ -582,7 +582,7 @@ class _DailyChartState extends State<_DailyChart> {
               ),
               labelStyle: const TextStyle(
                 color: Color(0xFF94A3B8),
-                fontSize: 8.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -600,7 +600,7 @@ class _DailyChartState extends State<_DailyChart> {
               ),
               labelStyle: const TextStyle(
                 color: Color(0xFF71869F),
-                fontSize: 8.5,
+                fontSize: 12,
               ),
               axisLabelFormatter: (AxisLabelRenderDetails details) {
                 return ChartAxisLabel(
@@ -744,36 +744,46 @@ class _DailySelectedPointPanel extends StatelessWidget {
 
     if (selectedPoint == null) {
       return Container(
-        height: 58,
+        height: 52,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           color: Colors.white.withOpacity(.035),
           border: Border.all(color: Colors.white.withOpacity(.07)),
         ),
-        child: Text(
-          'Tap a point to view daily values',
-          style: TextStyle(
-            color: Colors.white.withOpacity(.42),
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-          ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.touch_app_rounded,
+              size: 16,
+              color: Colors.white.withOpacity(.42),
+            ),
+            const SizedBox(width: 7),
+            Text(
+              'Tap a chart point to view details',
+              style: TextStyle(
+                color: Colors.white.withOpacity(.48),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       );
     }
 
     return Container(
-      constraints: const BoxConstraints(minHeight: 64),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(.09)),
+        border: Border.all(color: color.withOpacity(.30), width: 1),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(.085),
-            color.withOpacity(.045),
+            color.withOpacity(.10),
+            Colors.white.withOpacity(.055),
             Colors.white.withOpacity(.025),
           ],
         ),
@@ -784,84 +794,119 @@ class _DailySelectedPointPanel extends StatelessWidget {
             offset: const Offset(0, 6),
           ),
           BoxShadow(
-            color: color.withOpacity(.055),
-            blurRadius: 16,
+            color: color.withOpacity(.08),
+            blurRadius: 18,
             spreadRadius: -5,
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SelectedDateBadge(point: selectedPoint, color: color),
-
-          const SizedBox(width: 10),
-
-          Container(
-            width: 1,
-            height: 34,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              color: Colors.white.withOpacity(.10),
-            ),
+          // Nhãn giúp người dùng biết đây là dữ liệu vừa chọn.
+          Row(
+            children: [
+              Icon(Icons.touch_app_rounded, size: 13, color: color),
+              const SizedBox(width: 5),
+              Text(
+                'SELECTED CHART POINT',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .7,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Tap another point to change',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(.34),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
 
-          const SizedBox(width: 10),
+          const SizedBox(height: 8),
 
-          if (energy)
-            Expanded(
-              child: _SelectedMetric(
-                label: 'Consumption',
-                value: selectedPoint.consumption,
-                unit: unit,
-                color: color,
-                centered: false,
+          Row(
+            children: [
+              _SelectedDateBadge(point: selectedPoint, color: color),
+
+              const SizedBox(width: 10),
+
+              Container(
+                width: 1,
+                height: 34,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  color: Colors.white.withOpacity(.16),
+                ),
               ),
-            )
-          else
-            Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _SelectedMetric(
-                      label: 'Average',
-                      value: selectedPoint.avgValue ?? selectedPoint.lastValue,
-                      unit: unit,
-                      color: color,
-                    ),
+
+              const SizedBox(width: 10),
+
+              if (energy)
+                Expanded(
+                  child: _SelectedMetric(
+                    label: 'Consumption',
+                    value: selectedPoint.consumption,
+                    unit: unit,
+                    color: color,
+                    centered: false,
                   ),
+                )
+              else
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _SelectedMetric(
+                          label: 'AVG',
+                          value:
+                              selectedPoint.avgValue ?? selectedPoint.lastValue,
+                          unit: unit,
+                          color: color,
+                        ),
+                      ),
 
-                  _IosMetricDivider(),
+                      _IosMetricDivider(),
 
-                  Expanded(
-                    child: _SelectedMetric(
-                      label: 'Minimum',
-                      value: selectedPoint.minValue,
-                      unit: unit,
-                    ),
+                      Expanded(
+                        child: _SelectedMetric(
+                          label: 'MIN',
+                          value: selectedPoint.minValue,
+                          unit: unit,
+                        ),
+                      ),
+
+                      _IosMetricDivider(),
+
+                      Expanded(
+                        child: _SelectedMetric(
+                          label: 'MAX',
+                          value: selectedPoint.maxValue,
+                          unit: unit,
+                        ),
+                      ),
+
+                      _IosMetricDivider(),
+
+                      Expanded(
+                        child: _SelectedMetric(
+                          label: 'LATEST',
+                          value: selectedPoint.lastValue,
+                          unit: unit,
+                        ),
+                      ),
+                    ],
                   ),
-
-                  _IosMetricDivider(),
-
-                  Expanded(
-                    child: _SelectedMetric(
-                      label: 'Maximum',
-                      value: selectedPoint.maxValue,
-                      unit: unit,
-                    ),
-                  ),
-
-                  _IosMetricDivider(),
-
-                  Expanded(
-                    child: _SelectedMetric(
-                      label: 'Latest',
-                      value: selectedPoint.lastValue,
-                      unit: unit,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -892,8 +937,8 @@ class _SelectedDateBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 76),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      constraints: const BoxConstraints(minWidth: 82),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(13),
         border: Border.all(color: color.withOpacity(.22)),
@@ -903,35 +948,18 @@ class _SelectedDateBadge extends StatelessWidget {
           colors: [color.withOpacity(.16), Colors.white.withOpacity(.055)],
         ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            DateFormat('dd').format(point.recordDate),
-            style: TextStyle(
-              color: color,
-              fontSize: 18,
-              height: 1,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -.3,
-            ),
-          ),
-
-          const SizedBox(height: 4),
-
-          Text(
-            DateFormat('MMM yyyy').format(point.recordDate),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white.withOpacity(.58),
-              fontSize: 8.5,
-              height: 1,
-              fontWeight: FontWeight.w600,
-              letterSpacing: .2,
-            ),
-          ),
-        ],
+      alignment: Alignment.center,
+      child: Text(
+        DateFormat('dd/MMM', 'en_US').format(point.recordDate),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 16,
+          height: 1,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -.2,
+        ),
       ),
     );
   }
@@ -967,7 +995,7 @@ class _SelectedMetric extends StatelessWidget {
           textAlign: centered ? TextAlign.center : TextAlign.left,
           style: TextStyle(
             color: Colors.white.withOpacity(.42),
-            fontSize: 8.5,
+            fontSize: 12,
             height: 1,
             fontWeight: FontWeight.w600,
           ),
@@ -986,7 +1014,7 @@ class _SelectedMetric extends StatelessWidget {
                 maxLines: 1,
                 style: TextStyle(
                   color: color ?? Colors.white.withOpacity(.90),
-                  fontSize: 14,
+                  fontSize: 16,
                   height: 1,
                   fontWeight: FontWeight.w700,
                   letterSpacing: -.15,
@@ -1001,7 +1029,7 @@ class _SelectedMetric extends StatelessWidget {
                   maxLines: 1,
                   style: TextStyle(
                     color: Colors.white.withOpacity(.38),
-                    fontSize: 8.5,
+                    fontSize: 12,
                     height: 1,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1090,132 +1118,6 @@ class _DailyChartBounds {
 // ============================================================
 // FOOTER
 // ============================================================
-
-class _DailyChartFooter extends StatelessWidget {
-  final UtilityDailySeries series;
-  final _DailySeriesSummary summary;
-
-  const _DailyChartFooter({required this.series, required this.summary});
-
-  @override
-  Widget build(BuildContext context) {
-    final energy = series.isEnergyConsumption;
-
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        color: Color(0xFF091523),
-        border: Border(top: BorderSide(color: Color(0xFF20344D))),
-      ),
-      child: energy
-          ? Row(
-              children: [
-                _DailyMetric(
-                  label: 'TOTAL',
-                  value: _formatNumber(summary.totalValue),
-                  unit: series.unit,
-                ),
-
-                const Spacer(),
-
-                _DailyMetric(
-                  label: 'AVG/DAY',
-                  value: _formatNumber(summary.averageValue),
-                  unit: series.unit,
-                ),
-
-                const Spacer(),
-
-                _DailyMetric(
-                  label: 'MAX DAY',
-                  value: _formatNumber(summary.maxValue),
-                  unit: series.unit,
-                ),
-              ],
-            )
-          : Row(
-              children: [
-                _DailyMetric(
-                  label: 'MIN',
-                  value: _formatNumber(summary.minValue),
-                  unit: series.unit,
-                ),
-
-                const Spacer(),
-
-                _DailyMetric(
-                  label: 'AVG',
-                  value: _formatNumber(summary.averageValue),
-                  unit: series.unit,
-                ),
-
-                const Spacer(),
-
-                _DailyMetric(
-                  label: 'MAX',
-                  value: _formatNumber(summary.maxValue),
-                  unit: series.unit,
-                ),
-              ],
-            ),
-    );
-  }
-}
-
-class _DailyMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  final String unit;
-
-  const _DailyMetric({
-    required this.label,
-    required this.value,
-    required this.unit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF64748B),
-            fontSize: 8,
-            fontWeight: FontWeight.w900,
-            letterSpacing: .35,
-          ),
-        ),
-
-        const SizedBox(width: 5),
-
-        Text(
-          value,
-          style: const TextStyle(
-            color: Color(0xFFD2DEEC),
-            fontSize: 10.5,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-
-        if (unit.trim().isNotEmpty) ...[
-          const SizedBox(width: 3),
-
-          Text(
-            unit.trim(),
-            style: const TextStyle(
-              color: Color(0xFF71869F),
-              fontSize: 8.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
 
 // ============================================================
 // SUMMARY
@@ -1445,25 +1347,7 @@ String _formatDailyValue(double? value) {
     return '--';
   }
 
-  final absolute = value.abs();
-
-  if (absolute >= 1000000) {
-    return NumberFormat('#,##0').format(value);
-  }
-
-  if (absolute >= 1000) {
-    return NumberFormat('#,##0.00').format(value);
-  }
-
-  if (absolute >= 100) {
-    return value.toStringAsFixed(2);
-  }
-
-  if (absolute >= 10) {
-    return value.toStringAsFixed(3);
-  }
-
-  return value.toStringAsFixed(4);
+  return NumberFormat('#,##0.0').format(value);
 }
 
 String _compactAxisNumber(num value) {
@@ -1478,15 +1362,7 @@ String _compactAxisNumber(num value) {
     return '${(number / 1000).toStringAsFixed(1)}K';
   }
 
-  if (absolute >= 100) {
-    return number.toStringAsFixed(0);
-  }
-
-  if (absolute >= 10) {
-    return number.toStringAsFixed(1);
-  }
-
-  return number.toStringAsFixed(2);
+  return number.toStringAsFixed(1);
 }
 
 String _formatNumber(double? value) {
@@ -1497,22 +1373,14 @@ String _formatNumber(double? value) {
   final absolute = value.abs();
 
   if (absolute >= 1000000) {
-    return '${(value / 1000000).toStringAsFixed(2)}M';
+    return '${(value / 1000000).toStringAsFixed(1)}M';
   }
 
   if (absolute >= 1000) {
-    return '${(value / 1000).toStringAsFixed(2)}K';
+    return '${(value / 1000).toStringAsFixed(1)}K';
   }
 
-  if (absolute >= 100) {
-    return value.toStringAsFixed(1);
-  }
-
-  if (absolute >= 10) {
-    return value.toStringAsFixed(2);
-  }
-
-  return value.toStringAsFixed(3);
+  return NumberFormat('#,##0.0').format(value);
 }
 
 // ============================================================

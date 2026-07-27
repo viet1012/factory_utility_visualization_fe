@@ -560,14 +560,11 @@ class _TempLineChart extends StatelessWidget {
           textStyle: TextStyle(
             color: Colors.white.withOpacity(.76),
             fontWeight: FontWeight.w600,
-            fontSize: 12,
+            fontSize: 13,
           ),
         ),
         axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
-        labelStyle: TextStyle(
-          color: Colors.white.withOpacity(.48),
-          fontSize: 10,
-        ),
+        labelStyle: TextStyle(color: Colors.white70, fontSize: 14),
       ),
       tooltipBehavior: TooltipBehavior(
         enable: true,

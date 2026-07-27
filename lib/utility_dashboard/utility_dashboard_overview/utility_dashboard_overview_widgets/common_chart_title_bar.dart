@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../utility_dashboard_common/data_health.dart';
 import 'health_indicator.dart';
@@ -25,23 +26,40 @@ class CommonChartTitleBar extends StatelessWidget {
     this.backgroundColor,
   });
 
+  String? get _formattedValueTs {
+    final raw = valueTs?.trim();
+
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+
+    try {
+      final parsed = DateTime.parse(raw);
+      return DateFormat('dd/MMM', 'en_US').format(parsed);
+    } catch (_) {
+      // Nếu không phải chuỗi ngày hợp lệ thì giữ nguyên.
+      return raw;
+    }
+  }
+
   bool get _hasValue =>
       value != null &&
       value!.trim().isNotEmpty &&
-      valueTs != null &&
-      valueTs!.trim().isNotEmpty;
+      _formattedValueTs != null &&
+      _formattedValueTs!.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
     final label = valueLabel ?? 'Last';
+    final formattedTs = _formattedValueTs;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       decoration: BoxDecoration(
-        color: backgroundColor ?? Colors.white.withOpacity(0.05),
+        color: backgroundColor ?? Colors.white.withOpacity(.05),
         border: Border(
           bottom: BorderSide(
-            color: borderColor ?? Colors.white.withOpacity(0.10),
+            color: borderColor ?? Colors.white.withOpacity(.10),
           ),
         ),
       ),
@@ -56,10 +74,11 @@ class CommonChartTitleBar extends StatelessWidget {
                 color: Colors.white,
                 fontWeight: FontWeight.w900,
                 fontSize: 13,
-                letterSpacing: 0.6,
+                letterSpacing: .6,
               ),
             ),
           ),
+
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -69,10 +88,12 @@ class CommonChartTitleBar extends StatelessWidget {
                 showLabel: false,
                 enableTooltip: true,
               ),
+
               if (_hasValue) ...[
                 const SizedBox(width: 12),
+
                 Text(
-                  '$label: $value • $valueTs',
+                  '$label: $value • $formattedTs',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.right,

@@ -64,16 +64,16 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
   }
 
   void _startWeatherMonitoring() {
-    if (widget.weatherService is MockWeatherService) {
-      final mockService = widget.weatherService as MockWeatherService;
-      _mockWeatherSub = mockService.weatherStream().listen((weather) {
-        if (!mounted) return;
-        setState(() {
-          _applyWeather(weather);
-        });
-      });
-      return;
-    }
+    // if (widget.weatherService is MockWeatherService) {
+    //   final mockService = widget.weatherService as MockWeatherService;
+    //   _mockWeatherSub = mockService.weatherStream().listen((weather) {
+    //     if (!mounted) return;
+    //     setState(() {
+    //       _applyWeather(weather);
+    //     });
+    //   });
+    //   return;
+    // }
 
     _fetchWeather();
     _weatherTimer = Timer.periodic(const Duration(minutes: 45), (_) {
@@ -109,7 +109,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
     }
 
     _rainIntensity = weather.rainIntensity;
-    _rainDropCount = (50 + (_rainIntensity * 150)).toInt();
+    _rainDropCount = (30 + (_rainIntensity * 70)).toInt().clamp(0, 100);
     _initializeRainDrops();
   }
 
@@ -131,17 +131,29 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
       );
   }
 
-  void _updateSplashes() {
-    _splashes.removeWhere((s) => s.age > 1.0);
+  DateTime? _lastSplashSpawn;
 
-    if (_isRaining && _random.nextDouble() < 0.3) {
+  void _updateSplashes() {
+    // Duyệt ngược, remove tại chỗ — không tạo list mới mỗi lần
+    for (int i = _splashes.length - 1; i >= 0; i--) {
+      _splashes[i].age += 0.05;
+      if (_splashes[i].age > 1.0) {
+        _splashes.removeAt(i);
+      }
+    }
+
+    // Giới hạn tốc độ sinh splash theo thời gian thực, không phải theo % mỗi frame
+    final now = DateTime.now();
+    final canSpawn =
+        _lastSplashSpawn == null ||
+        now.difference(_lastSplashSpawn!) > const Duration(milliseconds: 120);
+
+    // Giới hạn tổng số splash cùng lúc để tránh phình list
+    if (_isRaining && canSpawn && _splashes.length < 40) {
       _splashes.add(
         RainSplash(x: _random.nextDouble(), y: _random.nextDouble(), age: 0),
       );
-    }
-
-    for (final splash in _splashes) {
-      splash.age += 0.05;
+      _lastSplashSpawn = now;
     }
   }
 
@@ -218,26 +230,37 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
     return Positioned.fill(child: ColoredBox(color: overlayColor));
   }
 
+  int _frameSkip = 0;
+
   Widget _buildRainLayer() {
     return Positioned.fill(
-      child: AnimatedBuilder(
-        animation: _rainController,
-        builder: (context, child) {
-          for (final drop in _rainDrops) {
-            drop.update(_rainIntensity, _splashes);
-          }
-          _updateSplashes();
+      child: RepaintBoundary(
+        // cô lập layer mưa khỏi phần còn lại của Stack
+        child: AnimatedBuilder(
+          animation: _rainController,
+          builder: (context, child) {
+            _frameSkip++;
+            if (_frameSkip % 2 == 0) {
+              // chỉ update vật lý mỗi 2 frame ≈ 30fps
+              for (final drop in _rainDrops) {
+                drop.update(_rainIntensity, _splashes);
+              }
+              _updateSplashes();
+            }
 
-          return CustomPaint(
-            painter: ApiRainPainter(
-              splashes: _splashes,
-              rainDrops: _rainDrops,
-              intensity: _rainIntensity,
-              windSpeed: _currentWeather?.windSpeed ?? 0,
-              isDay: _isDay,
-            ),
-          );
-        },
+            return CustomPaint(
+              isComplex: true, // gợi ý engine cache layer tốt hơn
+              willChange: true, // báo layer này thay đổi liên tục
+              painter: ApiRainPainter(
+                splashes: _splashes,
+                rainDrops: _rainDrops,
+                intensity: _rainIntensity,
+                windSpeed: _currentWeather?.windSpeed ?? 0,
+                isDay: _isDay,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -506,49 +529,50 @@ class _WeatherInfoBadge extends StatelessWidget {
   }
 }
 
-class MockWeatherService extends WeatherApiService {
-  @override
-  Stream<WeatherData> weatherStream() async* {
-    while (true) {
-      yield WeatherData(
-        condition: 'rain',
-        rainIntensity: 0.9,
-        temperature: 24,
-        humidity: 220,
-        windSpeed: 4,
-        isDaytime: true,
-      );
-      await Future.delayed(const Duration(seconds: 10));
-
-      yield WeatherData(
-        condition: 'rain',
-        rainIntensity: 0.3,
-        temperature: 24,
-        humidity: 200,
-        windSpeed: 4,
-        isDaytime: true,
-      );
-      await Future.delayed(const Duration(seconds: 15));
-
-      yield WeatherData(
-        condition: 'rain',
-        rainIntensity: 0.3,
-        temperature: 22,
-        humidity: 190,
-        windSpeed: 3,
-        isDaytime: false,
-      );
-      await Future.delayed(const Duration(seconds: 45));
-
-      yield WeatherData(
-        condition: 'clear',
-        rainIntensity: 0.0,
-        temperature: 22,
-        humidity: 180,
-        windSpeed: 2,
-        isDaytime: false,
-      );
-      await Future.delayed(const Duration(seconds: 15));
-    }
-  }
-}
+//
+// class MockWeatherService extends WeatherApiService {
+//   @override
+//   Stream<WeatherData> weatherStream() async* {
+//     while (true) {
+//       yield WeatherData(
+//         condition: 'rain',
+//         rainIntensity: 0.9,
+//         temperature: 24,
+//         humidity: 220,
+//         windSpeed: 4,
+//         isDaytime: true,
+//       );
+//       await Future.delayed(const Duration(seconds: 10));
+//
+//       yield WeatherData(
+//         condition: 'rain',
+//         rainIntensity: 0.3,
+//         temperature: 24,
+//         humidity: 200,
+//         windSpeed: 4,
+//         isDaytime: true,
+//       );
+//       await Future.delayed(const Duration(seconds: 15));
+//
+//       yield WeatherData(
+//         condition: 'rain',
+//         rainIntensity: 0.3,
+//         temperature: 22,
+//         humidity: 190,
+//         windSpeed: 3,
+//         isDaytime: false,
+//       );
+//       await Future.delayed(const Duration(seconds: 45));
+//
+//       yield WeatherData(
+//         condition: 'clear',
+//         rainIntensity: 0.0,
+//         temperature: 22,
+//         humidity: 180,
+//         windSpeed: 2,
+//         isDaytime: false,
+//       );
+//       await Future.delayed(const Duration(seconds: 15));
+//     }
+//   }
+// }

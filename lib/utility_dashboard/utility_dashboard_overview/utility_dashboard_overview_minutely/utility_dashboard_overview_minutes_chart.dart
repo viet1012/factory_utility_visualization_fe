@@ -734,7 +734,7 @@ class _MainMinuteChart extends StatelessWidget {
         axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
         labelStyle: TextStyle(
           color: Colors.white.withOpacity(.55),
-          fontSize: 13,
+          fontSize: 14,
         ),
         title: AxisTitle(
           text: theme.unit,
@@ -742,7 +742,7 @@ class _MainMinuteChart extends StatelessWidget {
           textStyle: TextStyle(
             color: Colors.white.withOpacity(.80),
             fontWeight: FontWeight.w600,
-            fontSize: 12,
+            fontSize: 13,
           ),
         ),
       ),
@@ -1024,7 +1024,7 @@ class _WaterMinuteChart extends StatelessWidget {
         axisLine: AxisLine(color: Colors.white.withOpacity(.08)),
         labelStyle: TextStyle(
           color: Colors.white.withOpacity(.55),
-          fontSize: 11,
+          fontSize: 13,
         ),
         title: AxisTitle(
           text: theme.unit,

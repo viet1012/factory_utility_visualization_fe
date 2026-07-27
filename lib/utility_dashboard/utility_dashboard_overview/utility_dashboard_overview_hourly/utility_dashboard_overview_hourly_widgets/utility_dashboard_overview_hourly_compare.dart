@@ -492,7 +492,7 @@ class _HourlyChart extends StatelessWidget {
         axisLabelFormatter: (args) {
           return ChartAxisLabel(
             args.value.toStringAsFixed(0),
-            const TextStyle(color: Colors.white54, fontSize: 11),
+            const TextStyle(color: Colors.white70, fontSize: 14),
           );
         },
         majorGridLines: MajorGridLines(
@@ -509,10 +509,6 @@ class _HourlyChart extends StatelessWidget {
           ),
         ),
         axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
-        labelStyle: TextStyle(
-          color: Colors.white.withOpacity(0.55),
-          fontSize: 11,
-        ),
       ),
       axes: <ChartAxis>[
         NumericAxis(
@@ -524,7 +520,7 @@ class _HourlyChart extends StatelessWidget {
           axisLabelFormatter: (args) {
             return ChartAxisLabel(
               args.value.toStringAsFixed(0),
-              TextStyle(color: theme.usdLine.withOpacity(0.9), fontSize: 11),
+              TextStyle(color: theme.usdLine.withOpacity(0.9), fontSize: 14),
             );
           },
           majorGridLines: const MajorGridLines(width: 0),
