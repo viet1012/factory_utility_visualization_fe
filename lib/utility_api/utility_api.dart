@@ -8,7 +8,6 @@ import '../utility_models/f2_utility_scada_channel.dart';
 import '../utility_models/response/chart_catalog_response.dart';
 import '../utility_models/response/latest_record.dart';
 import '../utility_models/response/minute_point.dart';
-import '../utility_models/response/tree_series_response.dart';
 import 'dio_client.dart';
 
 class UtilityApi {
@@ -49,20 +48,9 @@ class UtilityApi {
     return data.cast<dynamic>();
   }
 
-  Map<String, dynamic> _asMap(dynamic data, String path) {
-    if (data is! Map) {
-      throw DioException(
-        requestOptions: RequestOptions(path: path),
-        message: '$path: expected Map but got ${data.runtimeType}',
-        type: DioExceptionType.badResponse,
-      );
-    }
-    return data.cast<String, dynamic>();
-  }
-
-  void _log(Response res) {
-    debugPrint('[GET] ${res.realUri}');
-  }
+  // void _log(Response res) {
+  //   debugPrint('[GET] ${res.realUri}');
+  // }
 
   String _toIsoNoZ(DateTime dt) {
     final d = dt.toLocal();
@@ -107,34 +95,6 @@ class UtilityApi {
     );
   }
 
-  // ---------- TREE SERIES ----------
-  Future<TreeSeriesResponse> getTreeSeries({
-    required String fac,
-    required String boxDeviceId,
-    required String plcAddress,
-    String? range,
-    int? year,
-    int? month,
-  }) async {
-    const path = '/api/utility/chart/tree-series';
-
-    final res = await _dio.get(
-      path,
-      queryParameters: _qp({
-        'fac': _clean(fac),
-        'boxDeviceId': _clean(boxDeviceId),
-        'plcAddress': _clean(plcAddress),
-        'range': _clean(range),
-        'year': year,
-        'month': month,
-      }),
-    );
-
-    _log(res);
-
-    return TreeSeriesResponse.fromJson(_asMap(res.data, path));
-  }
-
   // ---------- CHANNELS ----------
   Future<List<ScadaChannelDto>> getChannels({
     String? facId,
@@ -171,7 +131,7 @@ class UtilityApi {
       }),
     );
 
-    _log(res);
+    // _log(res);
 
     return _asList(
       res.data,
@@ -201,7 +161,7 @@ class UtilityApi {
       }),
     );
 
-    _log(res);
+    // _log(res);
 
     return _asList(res.data, path)
         .map((e) => LatestRecordDto.fromJson(Map<String, dynamic>.from(e)))
@@ -230,7 +190,7 @@ class UtilityApi {
     try {
       final res = await _dio.get(path, queryParameters: qp);
 
-      _log(res);
+      // _log(res);
 
       return _asList(res.data, path)
           .map((e) => MinutePointDto.fromJson(Map<String, dynamic>.from(e)))

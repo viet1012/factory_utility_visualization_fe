@@ -107,12 +107,15 @@
 //     );
 //   }
 // }
+import 'dart:async';
+
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/SignalHealthHeader.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_daily/utility_daily_dashboard_section.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_map_category/UtilityMapWithCategoryTabs.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutes_hourly/utility_realtime_tab_panel.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly_summary/utility_dashboard_monthly_summary_screen.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_solar/solar_summary_card.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -137,6 +140,8 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
   String selectedFac = 'KVH';
   DateTime selectedMonth = DateTime.now();
 
+  Timer? _monthChangeTimer;
+
   late AnimationController _alarmController;
   late Animation<double> _blinkAnimation;
 
@@ -147,23 +152,69 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
   void initState() {
     super.initState();
 
+    final now = DateTime.now();
+
+    selectedMonth = DateTime(now.year, now.month, 1);
+
     _alarmController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 250), // nhanh hơn
+      duration: const Duration(milliseconds: 250),
     );
 
-    _blinkAnimation =
-        Tween<double>(
-          begin: 0.15,
-          end: 0.9, // đậm hơn nhiều
-        ).animate(
-          CurvedAnimation(parent: _alarmController, curve: Curves.easeInOut),
-        );
+    _blinkAnimation = Tween<double>(begin: 0.15, end: 0.9).animate(
+      CurvedAnimation(parent: _alarmController, curve: Curves.easeInOut),
+    );
+
+    _startMonthWatcher();
+  }
+
+  void _startMonthWatcher() {
+    _monthChangeTimer?.cancel();
+
+    _monthChangeTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!mounted) return;
+
+      _checkAndUpdateCurrentMonth();
+    });
+
+    // Kiểm tra ngay khi bắt đầu, không cần chờ 1 phút.
+    _checkAndUpdateCurrentMonth();
+  }
+
+  void _checkAndUpdateCurrentMonth() {
+    if (!mounted) return;
+
+    final now = DateTime.now();
+
+    final currentMonth = DateTime(now.year, now.month, 1);
+
+    final monthChanged =
+        selectedMonth.year != currentMonth.year ||
+        selectedMonth.month != currentMonth.month;
+
+    if (!monthChanged) {
+      return;
+    }
+
+    setState(() {
+      selectedMonth = currentMonth;
+    });
+
+    debugPrint(
+      '[MONTH WATCHER] Changed to '
+      '${currentMonth.year}-'
+      '${currentMonth.month.toString().padLeft(2, '0')}',
+    );
   }
 
   @override
   void dispose() {
+    _monthChangeTimer?.cancel();
+    _monthChangeTimer = null;
+
     _alarmController.dispose();
+    _activeVoltageAlarms.dispose();
+
     super.dispose();
   }
 
@@ -280,18 +331,37 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                               children: [
                                 /// LEFT CHART
                                 Expanded(
-                                  child: Column(
-                                    children: [
-                                      SizedBox(
-                                        height: 270,
-                                        child: MonthlySummaryScreen(
-                                          facId: selectedFac,
-                                          month: monthKey,
-                                        ),
-                                      ),
-
-                                      Flexible(child: SignalHealthKpiScreen()),
-                                    ],
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(right: 4),
+                                    child: LayoutBuilder(
+                                      builder: (context, cc) {
+                                        final h = cc.maxHeight;
+                                        return Column(
+                                          children: [
+                                            Expanded(
+                                              flex: 270,
+                                              child: MonthlySummaryScreen(
+                                                facId: selectedFac,
+                                                month: monthKey,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Expanded(
+                                              flex: 185,
+                                              child: SolarSummaryCard(
+                                                facId: selectedFac,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Expanded(
+                                              flex: 138,
+                                              child:
+                                                  const SignalHealthKpiScreen(),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
                                   ),
                                 ),
 

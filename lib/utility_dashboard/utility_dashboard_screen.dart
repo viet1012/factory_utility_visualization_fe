@@ -36,7 +36,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin {
   // static const String _baseUrl = 'http://192.168.122.16:9093';
 
-  //
   static const _baseUrl = 'http://localhost:9999';
 
   static const int _tabCount = 5;

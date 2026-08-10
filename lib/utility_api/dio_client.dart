@@ -84,10 +84,10 @@ class DioClient {
         );
 
         if (options.queryParameters.isNotEmpty) {
-          debugPrint(
-            '[DIO QUERY] '
-            '${options.queryParameters}',
-          );
+          // debugPrint(
+          //   '[DIO QUERY] '
+          //   '${options.queryParameters}',
+          // );
         }
 
         if (options.data != null) {
@@ -108,11 +108,11 @@ class DioClient {
       },
 
       onResponse: (response, handler) {
-        debugPrint(
-          '[DIO RESPONSE] '
-          '${response.statusCode} '
-          '${response.requestOptions.uri}',
-        );
+        // debugPrint(
+        //   '[DIO RESPONSE] '
+        //   '${response.statusCode} '
+        //   '${response.requestOptions.uri}',
+        // );
 
         handler.next(response);
       },

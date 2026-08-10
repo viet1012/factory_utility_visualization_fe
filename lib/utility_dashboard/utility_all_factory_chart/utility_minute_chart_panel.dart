@@ -202,7 +202,8 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     );
 
     _refreshRequestKey();
-    _scheduleRegisterAndFetch();
+
+    // Không gọi API ở đây.
   }
 
   @override
@@ -217,7 +218,8 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     _preparedSeries = _PreparedSeries.empty;
 
     _refreshRequestKey();
-    _scheduleRegisterAndFetch();
+
+    // Không gọi API.
   }
 
   // ============================================================
@@ -232,8 +234,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         oldWidget.scadaId != newWidget.scadaId ||
         oldWidget.cate != newWidget.cate ||
         oldWidget.boxDeviceId != newWidget.boxDeviceId ||
-        oldWidget.plcAddress != newWidget.plcAddress ||
-        !_sameStringList(oldWidget.cateIds, newWidget.cateIds);
+        oldWidget.plcAddress != newWidget.plcAddress;
   }
 
   bool _sameStringList(List<String>? first, List<String>? second) {
@@ -262,47 +263,14 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     _requestKey = provider.buildKey(
       facId: widget.facId,
       scadaId: widget.scadaId,
-      cate: widget.cate,
       boxDeviceId: widget.boxDeviceId,
-      cateIds: widget.cateIds,
     );
   }
 
-  void _scheduleRegisterAndFetch() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _registerAndFetch();
-    });
-  }
-
-  void _registerAndFetch() {
+  Future<void> _retryCurrentBox() async {
     final provider = context.read<MinuteSeriesProvider>();
-    final requestKey = _requestKey;
 
-    provider.upsertRequest(
-      key: requestKey,
-      facId: widget.facId,
-      scadaId: widget.scadaId,
-      cate: widget.cate,
-      boxDeviceId: widget.boxDeviceId,
-      cateIds: widget.cateIds,
-    );
-
-    if (!_canFetch) return;
-
-    // Nhiều PLC panel của cùng một device dùng chung request key.
-    // Chỉ panel đầu tiên được gọi API.
-    if (!_fetchingRequestKeys.add(requestKey)) {
-      return;
-    }
-
-    unawaited(
-      Future<void>.sync(() {
-        return provider.fetchKeyNow(requestKey);
-      }).whenComplete(() {
-        _fetchingRequestKeys.remove(requestKey);
-      }),
-    );
+    await provider.refreshKey(_requestKey);
   }
 
   // ============================================================
@@ -509,7 +477,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     }
 
     if (hasError && vm.rows.isEmpty) {
-      return ChartApiErrorState(color: _theme.line, onRetry: _registerAndFetch);
+      return ChartApiErrorState(color: _theme.line, onRetry: _retryCurrentBox);
     }
 
     if (vm.rows.isEmpty) {

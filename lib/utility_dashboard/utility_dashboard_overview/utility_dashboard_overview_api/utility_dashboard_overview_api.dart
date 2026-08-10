@@ -5,7 +5,6 @@ import '../../../utility_models/response/minute_point.dart';
 import '../utility_dashboard_overview_models/utility_daily_dashboard_response.dart';
 import '../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
 import '../utility_dashboard_overview_models/utility_minute_dashboard_response.dart';
-import '../utility_dashboard_overview_monthly/monthly_utility_usage_panel.dart';
 import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
 import '../utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
 
@@ -24,16 +23,12 @@ class UtilityDashboardOverviewApi {
 
   static const String _hourlyDashboardPath = '/api/utility/hourly-dashboard';
 
-  static const String _energyHourlyPath = '/api/utility/energy/hourly';
-
   static const String _energyDailyPath = '/api/utility/energy-daily';
 
   static const String _monthlySummaryPath = '/api/utility/monthly-summary';
 
   static const String _monthlySummaryRefreshPath =
       '/api/utility/monthly-summary/refresh';
-
-  static const String _monthlyUsagePath = '/api/utility/monthly-usage';
 
   static const String _voltageStatusPath = '/api/utility/voltage/status';
 
@@ -126,27 +121,6 @@ class UtilityDashboardOverviewApi {
     );
   }
 
-  Future<List<Map<String, dynamic>>> getEnergyHourly({
-    required String facId,
-    required int hours,
-    String? nameEn,
-  }) async {
-    final normalizedFac = _requiredText(facId, fieldName: 'facId');
-
-    final safeHours = _safeRange(hours, fallback: 48, min: 1, max: 24 * 31);
-
-    final query = <String, dynamic>{'facId': normalizedFac, 'hours': safeHours};
-
-    _putOptionalText(query, key: 'nameEn', value: nameEn);
-
-    final response = await _get(_energyHourlyPath, queryParameters: query);
-
-    return _parseMapList(
-      response.data,
-      errorMessage: 'Invalid energy hourly response',
-    );
-  }
-
   // ============================================================
   // DAILY
   // ============================================================
@@ -233,39 +207,6 @@ class UtilityDashboardOverviewApi {
   // ============================================================
   // MONTHLY USAGE
   // ============================================================
-
-  Future<List<MonthlyUtilityUsage>> getMonthlyUtilityUsage({
-    required String facId,
-    required int year,
-    required int month,
-    String nameEn = 'Total Energy Consumption',
-  }) async {
-    final normalizedFac = _requiredText(facId, fieldName: 'facId');
-
-    if (year < 2000 || year > 9999) {
-      throw ArgumentError.value(year, 'year', 'Invalid year');
-    }
-
-    if (month < 1 || month > 12) {
-      throw ArgumentError.value(month, 'month', 'Month must be from 1 to 12');
-    }
-
-    final response = await _get(
-      _monthlyUsagePath,
-      queryParameters: {
-        'fac': normalizedFac,
-        'year': year,
-        'month': month,
-        'nameEn': nameEn.trim(),
-      },
-    );
-
-    return _parseList(
-      response.data,
-      MonthlyUtilityUsage.fromJson,
-      errorMessage: 'Invalid monthly usage response',
-    );
-  }
 
   // ============================================================
   // VOLTAGE

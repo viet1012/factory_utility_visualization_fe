@@ -1,40 +1,8 @@
-class UtilityDailyPoint {
-  final DateTime date;
-  final double value;
-  final double? costUsd;
-
-  const UtilityDailyPoint({
-    required this.date,
-    required this.value,
-    this.costUsd,
-  });
-
-  factory UtilityDailyPoint.fromJson(Map<String, dynamic> json) {
-    return UtilityDailyPoint(
-      date: DateTime.parse(json['date']?.toString() ?? ''),
-      value: _toDouble(json['value']) ?? 0,
-      costUsd: _toDouble(json['costUsd']),
-    );
-  }
-
-  static double? _toDouble(dynamic value) {
-    if (value == null) {
-      return null;
-    }
-
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(value.toString());
-  }
-}
-
 class UtilityDailyDashboardResponse {
   final String facId;
   final String month;
 
-  final List<UtilityDailyPoint> electricity;
+  final List<UtilityDailyElectricityPoint> electricity;
   final List<UtilityDailyPoint> water;
   final List<UtilityDailyPoint> air;
 
@@ -47,30 +15,81 @@ class UtilityDailyDashboardResponse {
   });
 
   factory UtilityDailyDashboardResponse.fromJson(Map<String, dynamic> json) {
-    List<UtilityDailyPoint> parsePoints(dynamic raw) {
-      if (raw is! List) {
-        return const [];
-      }
-
-      final result =
-          raw
-              .whereType<Map>()
-              .map(
-                (item) =>
-                    UtilityDailyPoint.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .toList()
-            ..sort((a, b) => a.date.compareTo(b.date));
-
-      return List<UtilityDailyPoint>.unmodifiable(result);
-    }
-
     return UtilityDailyDashboardResponse(
-      facId: (json['facId'] ?? '').toString().trim(),
-      month: (json['month'] ?? '').toString().trim(),
-      electricity: parsePoints(json['electricity']),
-      water: parsePoints(json['water']),
-      air: parsePoints(json['air']),
+      facId: json['facId']?.toString() ?? '',
+      month: json['month']?.toString() ?? '',
+
+      electricity: (json['electricity'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(UtilityDailyElectricityPoint.fromJson)
+          .toList(growable: false),
+
+      water: (json['water'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(UtilityDailyPoint.fromJson)
+          .toList(growable: false),
+
+      air: (json['air'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(UtilityDailyPoint.fromJson)
+          .toList(growable: false),
     );
   }
+}
+
+class UtilityDailyElectricityPoint {
+  final DateTime date;
+
+  /// Điện lưới thực tế
+  final double gridKwh;
+
+  /// Điện Solar
+  final double solarKwh;
+
+  /// Grid + Solar
+  final double totalKwh;
+
+  const UtilityDailyElectricityPoint({
+    required this.date,
+    required this.gridKwh,
+    required this.solarKwh,
+    required this.totalKwh,
+  });
+
+  factory UtilityDailyElectricityPoint.fromJson(Map<String, dynamic> json) {
+    return UtilityDailyElectricityPoint(
+      date: DateTime.parse(
+        json['date']?.toString() ?? json['recordDate']?.toString() ?? '',
+      ),
+      gridKwh: _toDouble(json['gridKwh']),
+      solarKwh: _toDouble(json['solarKwh']),
+      totalKwh: _toDouble(json['totalKwh']),
+    );
+  }
+}
+
+class UtilityDailyPoint {
+  final DateTime date;
+  final double value;
+
+  const UtilityDailyPoint({required this.date, required this.value});
+
+  factory UtilityDailyPoint.fromJson(Map<String, dynamic> json) {
+    return UtilityDailyPoint(
+      date: DateTime.parse(
+        json['date']?.toString() ?? json['recordDate']?.toString() ?? '',
+      ),
+      value: _toDouble(json['value']),
+    );
+  }
+}
+
+double _toDouble(dynamic value) {
+  if (value == null) return 0;
+
+  if (value is num) {
+    return value.toDouble();
+  }
+
+  return double.tryParse(value.toString()) ?? 0;
 }

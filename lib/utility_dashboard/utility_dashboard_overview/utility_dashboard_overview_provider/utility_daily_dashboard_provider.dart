@@ -30,7 +30,8 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
   String? _facId;
   String? _month;
 
-  List<UtilityDailyPoint> _electricity = const <UtilityDailyPoint>[];
+  List<UtilityDailyElectricityPoint> _electricity =
+      const <UtilityDailyElectricityPoint>[];
 
   List<UtilityDailyPoint> _water = const <UtilityDailyPoint>[];
 
@@ -52,29 +53,28 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
 
   String? get month => _month;
 
-  List<UtilityDailyPoint> get electricity => _electricity;
+  List<UtilityDailyElectricityPoint> get electricity => _electricity;
 
   List<UtilityDailyPoint> get water => _water;
 
   List<UtilityDailyPoint> get air => _air;
 
-  bool get hasData {
-    return _electricity.isNotEmpty || _water.isNotEmpty || _air.isNotEmpty;
-  }
+  bool get hasData =>
+      _electricity.isNotEmpty || _water.isNotEmpty || _air.isNotEmpty;
 
   bool get hasValidParams {
-    final currentFac = _facId;
-    final currentMonth = _month;
+    final fac = _facId;
+    final month = _month;
 
-    if (currentFac == null || currentFac.trim().isEmpty) {
+    if (fac == null || fac.trim().isEmpty) {
       return false;
     }
 
-    if (currentMonth == null) {
+    if (month == null) {
       return false;
     }
 
-    return _isValidMonth(currentMonth);
+    return _isValidMonth(month);
   }
 
   // ============================================================
@@ -89,23 +89,18 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
 
     final changed = normalizedFac != _facId || normalizedMonth != _month;
 
-    /*
-     * Khi start lại, luôn hủy lịch polling cũ.
-     * Polling mới chỉ được tạo sau khi request hiện tại hoàn tất.
-     */
     _stopPolling();
 
     if (changed) {
-      /*
-       * Request cũ nếu còn chạy sẽ không được phép cập nhật state.
-       */
       _invalidateCurrentRequest();
 
       _facId = normalizedFac;
       _month = normalizedMonth;
 
-      _electricity = const <UtilityDailyPoint>[];
+      _electricity = const <UtilityDailyElectricityPoint>[];
+
       _water = const <UtilityDailyPoint>[];
+
       _air = const <UtilityDailyPoint>[];
 
       _error = null;
@@ -134,12 +129,6 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
   Future<void> load({bool silent = false, bool force = false}) async {
     if (_disposed) return;
 
-    /*
-     * Polling hoặc refresh thủ công không được chạy chồng.
-     *
-     * force chỉ dùng khi đổi facility/tháng, vì request cũ đã được
-     * invalidate bằng request token.
-     */
     if (_fetching && !force) {
       return;
     }
@@ -164,9 +153,6 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
     _error = null;
 
     if (silent && hasData) {
-      /*
-       * Silent refresh giữ nguyên dữ liệu cũ trên màn hình.
-       */
       _refreshing = true;
       _loading = false;
     } else {
@@ -185,10 +171,9 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
         return;
       }
 
-      /*
-       * Luôn tạo list mới để Selector/Consumer nhận ra dữ liệu đổi.
-       */
-      _electricity = List<UtilityDailyPoint>.unmodifiable(response.electricity);
+      _electricity = List<UtilityDailyElectricityPoint>.unmodifiable(
+        response.electricity,
+      );
 
       _water = List<UtilityDailyPoint>.unmodifiable(response.water);
 
@@ -226,10 +211,6 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
       return;
     }
 
-    /*
-     * Người dùng vừa refresh thủ công thì đếm lại chu kỳ 1 giờ
-     * từ thời điểm refresh hoàn tất.
-     */
     _stopPolling();
 
     await load(silent: hasData, force: false);
@@ -257,9 +238,6 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
 
       if (_disposed) return;
 
-      /*
-         * Request hoàn tất rồi mới bắt đầu đếm tiếp 1 giờ.
-         */
       _scheduleNextPoll();
     });
   }
@@ -282,8 +260,10 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
     _facId = null;
     _month = null;
 
-    _electricity = const <UtilityDailyPoint>[];
+    _electricity = const <UtilityDailyElectricityPoint>[];
+
     _water = const <UtilityDailyPoint>[];
+
     _air = const <UtilityDailyPoint>[];
 
     _error = null;
@@ -309,13 +289,10 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
       return;
     }
 
-    /*
-     * Chỉ lưu error, không xóa dữ liệu cũ.
-     * Vì vậy silent refresh lỗi thì biểu đồ vẫn còn dữ liệu.
-     */
     _error = error;
 
     debugPrint('$tag $error');
+
     debugPrintStack(stackTrace: stackTrace);
   }
 
@@ -326,9 +303,6 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
   String _normalizeFac(String facId) {
     final normalized = facId.trim();
 
-    /*
-     * Có thể đổi thành KVH nếu màn hình của bạn cho phép fac rỗng.
-     */
     return normalized.isEmpty ? 'KVH' : normalized;
   }
 
@@ -339,7 +313,8 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
       throw ArgumentError.value(
         month,
         'month',
-        'Month must use yyyyMM format, for example 202607',
+        'Month must use yyyyMM format, '
+            'for example 202608',
       );
     }
 
@@ -376,6 +351,7 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
     if (_disposed) return;
 
     final binding = WidgetsBinding.instance;
+
     final phase = binding.schedulerPhase;
 
     final isBuilding =
@@ -401,10 +377,6 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
       notifyListeners();
     });
   }
-
-  // ============================================================
-  // DISPOSE
-  // ============================================================
 
   @override
   void dispose() {

@@ -3,51 +3,145 @@ import 'package:provider/provider.dart';
 
 import 'SignalHealthMatrixController.dart';
 
-const kBg = Color(0xff07111f);
-const kCard = Color(0xff101827);
-const kText = Color(0xfff8fafc);
-const kSubText = Color(0xff94a3b8);
-const kBlue = Color(0xff38bdf8);
-const kRed = Color(0xffef4444);
+const Color kSignalBg = Color(0xff07111f);
+const Color kSignalText = Color(0xfff8fafc);
+const Color kSignalBlue = Color(0xff38bdf8);
 
 class SignalHealthKpiScreen extends StatelessWidget {
-  const SignalHealthKpiScreen({super.key});
+  /// Chiều cao cố định của toàn bộ khu vực KPI.
+  final double height;
+
+  const SignalHealthKpiScreen({super.key, this.height = 116});
 
   @override
   Widget build(BuildContext context) {
-    return Selector<SignalHealthMatrixController, ({bool loading, List data})>(
-      selector: (_, c) => (loading: c.loading, data: c.data),
+    /*
+     * Selector chỉ trả về 5 giá trị nhỏ.
+     *
+     * Widget chỉ rebuild khi:
+     * - loading thay đổi
+     * - một trong 4 tổng KPI thay đổi
+     *
+     * Không rebuild chỉ vì List data đổi instance.
+     */
+    return Selector<SignalHealthMatrixController, _SignalHealthState>(
+      selector: (_, controller) {
+        final rows = controller.data;
+
+        var totalRegister = 0;
+        var totalNgRegister = 0;
+
+        final facilities = <String>{};
+
+        for (final item in rows) {
+          final fac = item['fac']?.toString().trim();
+
+          if (fac != null && fac.isNotEmpty) {
+            facilities.add(fac);
+          }
+
+          totalRegister += _toInt(item['totalRegisters']);
+          totalNgRegister += _toInt(item['ngRegisters']);
+        }
+
+        return _SignalHealthState(
+          loading: controller.loading,
+          totalFac: facilities.length,
+          totalBoxDevice: rows.length,
+          totalRegister: totalRegister,
+          totalNgRegister: totalNgRegister,
+        );
+      },
       builder: (context, state, _) {
-        if (state.loading && state.data.isEmpty) {
-          return const Center(
-            child: CircularProgressIndicator(color: kBlue, strokeWidth: 2.5),
+        if (state.loading && state.totalBoxDevice == 0) {
+          return SizedBox(
+            height: height,
+            width: double.infinity,
+            child: const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: kSignalBlue,
+                  strokeWidth: 2,
+                ),
+              ),
+            ),
           );
         }
 
-        final rows = state.data;
+        final items = <_SignalKpiItem>[
+          _SignalKpiItem(
+            title: 'FACILITY',
+            value: state.totalFac,
+            icon: Icons.factory_rounded,
+            color: const Color(0xff3b82f6),
+            pattern: _PatternType.factory,
+          ),
+          _SignalKpiItem(
+            title: 'BOX DEVICE',
+            value: state.totalBoxDevice,
+            icon: Icons.memory_rounded,
+            color: const Color(0xff8b5cf6),
+            pattern: _PatternType.device,
+          ),
+          _SignalKpiItem(
+            title: 'REGISTER',
+            value: state.totalRegister,
+            icon: Icons.menu_book_rounded,
+            color: const Color(0xfff97316),
+            pattern: _PatternType.chart,
+          ),
+          _SignalKpiItem(
+            title: 'NG REGISTER',
+            value: state.totalNgRegister,
+            icon: Icons.warning_amber_rounded,
+            color: const Color(0xffef4444),
+            pattern: _PatternType.warning,
+          ),
+        ];
 
-        final totalFac = rows.map((e) => e['fac']).toSet().length;
-        final totalBoxDevice = rows.length;
-
-        final totalRegister = rows.fold<int>(
-          0,
-          (sum, e) => sum + _toInt(e['totalRegisters']),
-        );
-
-        final totalNgRegister = rows.fold<int>(
-          0,
-          (sum, e) => sum + _toInt(e['ngRegisters']),
-        );
-
-        return Container(
-          color: kBg,
-          padding: const EdgeInsets.all(12),
-          child: RepaintBoundary(
-            child: SignalHealthKpiRow(
-              totalFac: totalFac,
-              totalBoxDevice: totalBoxDevice,
-              totalRegister: totalRegister,
-              totalNgRegister: totalNgRegister,
+        return SizedBox(
+          height: height,
+          width: double.infinity,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: kSignalBg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _SignalHealthCompactCard(item: items[0]),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: _SignalHealthCompactCard(item: items[1]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _SignalHealthCompactCard(item: items[2]),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: _SignalHealthCompactCard(item: items[3]),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -55,21 +149,140 @@ class SignalHealthKpiScreen extends StatelessWidget {
     );
   }
 
-  static int _toInt(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toInt();
-    return int.tryParse(v.toString()) ?? 0;
+  static int _toInt(dynamic value) {
+    if (value == null) {
+      return 0;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(value.toString()) ?? 0;
   }
 }
 
-class SignalHealthKpiRow extends StatelessWidget {
+class _SignalHealthCompactCard extends StatelessWidget {
+  final _SignalKpiItem item;
+
+  const _SignalHealthCompactCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = item.color;
+
+    return RepaintBoundary(
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(color: color.withOpacity(0.30), width: 0.8),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xff151d2d), Color(0xff101827), Color(0xff0f172a)],
+          ),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            /*
+             * Painter được cache trong một RepaintBoundary riêng.
+             * willChange=false vì hình nền không animate.
+             */
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _KpiPatternPainter(
+                    color: color.withOpacity(0.30),
+                    type: item.pattern,
+                  ),
+                  isComplex: true,
+                  willChange: false,
+                ),
+              ),
+            ),
+
+            Positioned(
+              right: -4,
+              bottom: -7,
+              child: Icon(item.icon, size: 39, color: color.withOpacity(0.045)),
+            ),
+
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color.withOpacity(0.13),
+                    border: Border.all(
+                      color: color.withOpacity(0.48),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Icon(item.icon, size: 22, color: color),
+                ),
+
+                const SizedBox(width: 6),
+
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 14,
+                          height: 1,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+
+                      const SizedBox(height: 3),
+
+                      FittedBox(
+                        alignment: Alignment.centerLeft,
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '${item.value}',
+                          maxLines: 1,
+                          style: const TextStyle(
+                            color: kSignalText,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SignalHealthState {
+  final bool loading;
   final int totalFac;
   final int totalBoxDevice;
   final int totalRegister;
   final int totalNgRegister;
 
-  const SignalHealthKpiRow({
-    super.key,
+  const _SignalHealthState({
+    required this.loading,
     required this.totalFac,
     required this.totalBoxDevice,
     required this.totalRegister,
@@ -77,250 +290,42 @@ class SignalHealthKpiRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final cards = [
-      _KpiModel(
-        title: 'FACILITY',
-        value: totalFac,
-        subtitle: 'Tổng số FAC',
-        icon: Icons.factory_rounded,
-        color: const Color(0xff3b82f6),
-        pattern: _PatternType.factory,
-      ),
-      _KpiModel(
-        title: 'BOX DEVICE',
-        value: totalBoxDevice,
-        subtitle: 'Tổng số BoxDevice',
-        icon: Icons.memory_rounded,
-        color: const Color(0xff8b5cf6),
-        pattern: _PatternType.device,
-      ),
-      _KpiModel(
-        title: 'REGISTER',
-        value: totalRegister,
-        subtitle: 'Tổng số Register',
-        icon: Icons.menu_book_rounded,
-        color: const Color(0xfff97316),
-        pattern: _PatternType.chart,
-      ),
-      _KpiModel(
-        title: 'NG REGISTER',
-        value: totalNgRegister,
-        subtitle: 'Tổng số Register lỗi',
-        icon: Icons.warning_amber_rounded,
-        color: const Color(0xffef4444),
-        danger: true,
-        pattern: _PatternType.warning,
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 720;
-
-        if (isNarrow) {
-          return Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(child: SignalHealthKpiCard(model: cards[0])),
-                  const SizedBox(width: 14),
-                  Expanded(child: SignalHealthKpiCard(model: cards[1])),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(child: SignalHealthKpiCard(model: cards[2])),
-                  const SizedBox(width: 14),
-                  Expanded(child: SignalHealthKpiCard(model: cards[3])),
-                ],
-              ),
-            ],
-          );
-        }
-
-        return Row(
-          children: [
-            for (int i = 0; i < cards.length; i++) ...[
-              Expanded(child: SignalHealthKpiCard(model: cards[i])),
-              if (i != cards.length - 1) const SizedBox(width: 16),
-            ],
-          ],
-        );
-      },
-    );
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is _SignalHealthState &&
+            runtimeType == other.runtimeType &&
+            loading == other.loading &&
+            totalFac == other.totalFac &&
+            totalBoxDevice == other.totalBoxDevice &&
+            totalRegister == other.totalRegister &&
+            totalNgRegister == other.totalNgRegister;
   }
-}
-
-class SignalHealthKpiCard extends StatelessWidget {
-  final _KpiModel model;
-
-  const SignalHealthKpiCard({required this.model});
 
   @override
-  Widget build(BuildContext context) {
-    final color = model.color;
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 420),
-      curve: Curves.easeOutCubic,
-      builder: (context, t, child) {
-        return Opacity(
-          opacity: t,
-          child: Transform.translate(
-            offset: Offset(0, (1 - t) * 8),
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        // height: 118,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xff081e50), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(.22),
-              blurRadius: 22,
-              spreadRadius: -10,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xff151d2d),
-                      const Color(0xff111827),
-                      const Color(0xff0f172a),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _KpiPatternPainter(
-                  color: color.withOpacity(.4),
-                  type: model.pattern,
-                ),
-              ),
-            ),
-
-            Positioned(
-              right: -6,
-              bottom: -16,
-              child: Icon(model.icon, size: 96, color: color.withOpacity(.055)),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 66,
-                    height: 66,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          color.withOpacity(.34),
-                          color.withOpacity(.12),
-                        ],
-                      ),
-                      border: Border.all(color: color.withOpacity(.55)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withOpacity(.24),
-                          blurRadius: 18,
-                          spreadRadius: -6,
-                        ),
-                      ],
-                    ),
-                    child: Icon(model.icon, color: color, size: 32),
-                  ),
-                  const SizedBox(width: 22),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          model.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: .3,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            '${model.value}',
-                            style: const TextStyle(
-                              color: kText,
-                              fontSize: 34,
-                              height: 1,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                        // const SizedBox(height: 5),
-                        // Text(
-                        //   model.subtitle,
-                        //   maxLines: 1,
-                        //   overflow: TextOverflow.ellipsis,
-                        //   style: const TextStyle(
-                        //     color: kSubText,
-                        //     fontSize: 13,
-                        //     fontWeight: FontWeight.w600,
-                        //   ),
-                        // ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+  int get hashCode {
+    return Object.hash(
+      loading,
+      totalFac,
+      totalBoxDevice,
+      totalRegister,
+      totalNgRegister,
     );
   }
 }
 
-class _KpiModel {
+class _SignalKpiItem {
   final String title;
   final int value;
-  final String subtitle;
   final IconData icon;
   final Color color;
-  final bool danger;
   final _PatternType pattern;
 
-  const _KpiModel({
+  const _SignalKpiItem({
     required this.title,
     required this.value,
-    required this.subtitle,
     required this.icon,
     required this.color,
     required this.pattern,
-    this.danger = false,
   });
 }
 
@@ -330,25 +335,33 @@ class _KpiPatternPainter extends CustomPainter {
   final Color color;
   final _PatternType type;
 
-  _KpiPatternPainter({required this.color, required this.type});
+  const _KpiPatternPainter({required this.color, required this.type});
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) {
+      return;
+    }
+
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
+      ..strokeWidth = 0.8
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = true;
 
     switch (type) {
       case _PatternType.factory:
         _drawFactory(canvas, size, paint);
         break;
+
       case _PatternType.device:
         _drawDevice(canvas, size, paint);
         break;
+
       case _PatternType.chart:
         _drawChart(canvas, size, paint);
         break;
+
       case _PatternType.warning:
         _drawWarning(canvas, size, paint);
         break;
@@ -356,110 +369,147 @@ class _KpiPatternPainter extends CustomPainter {
   }
 
   void _drawFactory(Canvas canvas, Size size, Paint paint) {
-    final baseY = size.height * .72;
-    final startX = size.width * .58;
+    final width = size.width;
+    final height = size.height;
+
+    final baseY = height * 0.80;
+    final startX = width * 0.58;
 
     final path = Path()
       ..moveTo(startX, baseY)
-      ..lineTo(startX, baseY - 28)
-      ..lineTo(startX + 20, baseY - 16)
-      ..lineTo(startX + 20, baseY - 34)
-      ..lineTo(startX + 42, baseY - 20)
-      ..lineTo(startX + 42, baseY)
+      ..lineTo(startX, height * 0.44)
+      ..lineTo(width * 0.68, height * 0.58)
+      ..lineTo(width * 0.68, height * 0.40)
+      ..lineTo(width * 0.79, height * 0.56)
+      ..lineTo(width * 0.79, baseY)
       ..close();
 
     canvas.drawPath(path, paint);
 
-    for (int i = 0; i < 4; i++) {
+    for (var index = 0; index < 3; index++) {
+      final left = width * 0.62 + index * width * 0.055;
+
       canvas.drawRect(
-        Rect.fromLTWH(startX + 8 + i * 10, baseY - 10, 5, 5),
+        Rect.fromLTWH(left, height * 0.68, width * 0.025, height * 0.08),
         paint,
       );
     }
 
-    for (int i = 0; i < 3; i++) {
-      final x = startX + 65 + i * 18;
-      canvas.drawLine(Offset(x, baseY), Offset(x, baseY - 46), paint);
-      canvas.drawCircle(Offset(x, baseY - 50), 5, paint);
+    for (var index = 0; index < 2; index++) {
+      final x = width * 0.84 + index * width * 0.07;
+
+      canvas.drawLine(Offset(x, baseY), Offset(x, height * 0.30), paint);
+
+      canvas.drawCircle(Offset(x, height * 0.25), height * 0.06, paint);
     }
   }
 
   void _drawDevice(Canvas canvas, Size size, Paint paint) {
-    final rect = Rect.fromLTWH(size.width * .68, size.height * .28, 58, 48);
+    final rect = Rect.fromLTWH(
+      size.width * 0.68,
+      size.height * 0.25,
+      size.width * 0.24,
+      size.height * 0.52,
+    );
 
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+      RRect.fromRectAndRadius(rect, Radius.circular(size.height * 0.08)),
       paint,
     );
 
-    for (int i = 0; i < 5; i++) {
-      final x = rect.left + 8 + i * 10;
-      canvas.drawLine(Offset(x, rect.top - 8), Offset(x, rect.top), paint);
+    for (var index = 0; index < 4; index++) {
+      final x = rect.left + rect.width * (0.18 + index * 0.20);
+
+      canvas.drawLine(
+        Offset(x, rect.top - size.height * 0.08),
+        Offset(x, rect.top),
+        paint,
+      );
+
       canvas.drawLine(
         Offset(x, rect.bottom),
-        Offset(x, rect.bottom + 8),
+        Offset(x, rect.bottom + size.height * 0.08),
         paint,
       );
     }
 
     canvas.drawRect(
-      Rect.fromCenter(center: rect.center, width: 22, height: 18),
+      Rect.fromCenter(
+        center: rect.center,
+        width: rect.width * 0.42,
+        height: rect.height * 0.35,
+      ),
       paint,
     );
   }
 
   void _drawChart(Canvas canvas, Size size, Paint paint) {
-    final baseY = size.height * .76;
-    final startX = size.width * .62;
+    final baseY = size.height * 0.82;
+    final startX = size.width * 0.60;
 
-    for (int i = 0; i < 5; i++) {
-      final h = 18.0 + i * 9;
+    for (var index = 0; index < 5; index++) {
+      final barWidth = size.width * 0.035;
+      final barHeight = size.height * (0.18 + index * 0.10);
+
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(startX + i * 18, baseY - h, 11, h),
-          const Radius.circular(3),
+          Rect.fromLTWH(
+            startX + index * size.width * 0.065,
+            baseY - barHeight,
+            barWidth,
+            barHeight,
+          ),
+          const Radius.circular(2),
         ),
         paint,
       );
     }
 
     final path = Path()
-      ..moveTo(startX - 8, baseY - 22)
+      ..moveTo(size.width * 0.57, size.height * 0.64)
       ..cubicTo(
-        startX + 18,
-        baseY - 54,
-        startX + 48,
-        baseY - 12,
-        startX + 86,
-        baseY - 68,
+        size.width * 0.67,
+        size.height * 0.28,
+        size.width * 0.78,
+        size.height * 0.72,
+        size.width * 0.94,
+        size.height * 0.18,
       );
 
     canvas.drawPath(path, paint);
   }
 
   void _drawWarning(Canvas canvas, Size size, Paint paint) {
-    final center = Offset(size.width * .76, size.height * .55);
-    final r = 42.0;
+    final center = Offset(size.width * 0.79, size.height * 0.54);
+
+    final radius = size.height * 0.34;
 
     final path = Path()
-      ..moveTo(center.dx, center.dy - r)
-      ..lineTo(center.dx - r * .95, center.dy + r * .75)
-      ..lineTo(center.dx + r * .95, center.dy + r * .75)
+      ..moveTo(center.dx, center.dy - radius)
+      ..lineTo(center.dx - radius * 0.85, center.dy + radius * 0.72)
+      ..lineTo(center.dx + radius * 0.85, center.dy + radius * 0.72)
       ..close();
 
     canvas.drawPath(path, paint);
 
-    final p = Paint()
-      ..color = color.withOpacity(.16)
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
+    final warningPaint = Paint()
+      ..color = color.withOpacity(0.55)
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = true;
 
     canvas.drawLine(
-      Offset(center.dx, center.dy - 14),
-      Offset(center.dx, center.dy + 14),
-      p,
+      Offset(center.dx, center.dy - radius * 0.35),
+      Offset(center.dx, center.dy + radius * 0.22),
+      warningPaint,
     );
-    canvas.drawCircle(Offset(center.dx, center.dy + 29), 3, p);
+
+    canvas.drawCircle(
+      Offset(center.dx, center.dy + radius * 0.45),
+      1.4,
+      warningPaint,
+    );
   }
 
   @override

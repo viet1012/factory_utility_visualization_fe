@@ -17,23 +17,11 @@ import '../utility_dashboard_overview_widgets/'
     'scada_chart_panel.dart';
 
 // ============================================================
-// CHART POINT
-// Water / Air
-// ============================================================
-
-class _DailyBarPoint {
-  final DateTime ts;
-  final double value;
-
-  const _DailyBarPoint({required this.ts, required this.value});
-}
-
-// ============================================================
 // PREPARED DATA
 // ============================================================
 
-class _DailyChartData {
-  final List<_DailyBarPoint> points;
+class _ElectricityChartData {
+  final List<UtilityDailyElectricityPoint> points;
 
   final DateTime minX;
   final DateTime maxX;
@@ -41,7 +29,7 @@ class _DailyChartData {
   final double maxY;
   final double yInterval;
 
-  const _DailyChartData({
+  const _ElectricityChartData({
     required this.points,
     required this.minX,
     required this.maxX,
@@ -49,19 +37,12 @@ class _DailyChartData {
     required this.yInterval,
   });
 
-  factory _DailyChartData.from({
-    required List<UtilityDailyPoint> rows,
+  factory _ElectricityChartData.from({
+    required List<UtilityDailyElectricityPoint> rows,
     required String month,
   }) {
-    final points =
-        rows
-            .map(
-              (item) =>
-                  _DailyBarPoint(ts: item.date.toLocal(), value: item.value),
-            )
-            .where((point) => point.value.isFinite)
-            .toList(growable: true)
-          ..sort((a, b) => a.ts.compareTo(b.ts));
+    final points = List<UtilityDailyElectricityPoint>.from(rows)
+      ..sort((a, b) => a.date.compareTo(b.date));
 
     final year = int.parse(month.substring(0, 4));
 
@@ -75,22 +56,31 @@ class _DailyChartData {
       1,
     ).subtract(const Duration(days: 1));
 
-    double maxDataValue = 0;
+    double maxValue = 0;
 
     for (final point in points) {
-      if (point.value > maxDataValue) {
-        maxDataValue = point.value;
+      /*
+       * Chiều cao toàn cột =
+       *
+       * Grid + Solar
+       *
+       * Dùng totalKwh nếu API đã tính sẵn.
+       */
+      final total = point.totalKwh;
+
+      if (total.isFinite && total > maxValue) {
+        maxValue = total;
       }
     }
 
-    final rawMaxY = maxDataValue <= 0 ? 1.0 : maxDataValue * 1.15;
+    final rawMaxY = maxValue <= 0 ? 1.0 : maxValue * 1.15;
 
     final yInterval = _niceStep(rawMaxY / 5);
 
     final maxY = _niceCeil(rawMaxY, yInterval);
 
-    return _DailyChartData(
-      points: List<_DailyBarPoint>.unmodifiable(points),
+    return _ElectricityChartData(
+      points: List<UtilityDailyElectricityPoint>.unmodifiable(points),
       minX: firstDay.subtract(const Duration(hours: 12)),
       maxX: lastDay.add(const Duration(hours: 12)),
       maxY: maxY,
@@ -134,12 +124,11 @@ class _DailyChartData {
 }
 
 // ============================================================
-// MAIN WIDGET
-// WATER + AIR
+// MAIN
 // ============================================================
 
-class UtilityDashboardOverviewDailyChart extends StatefulWidget {
-  final List<UtilityDailyPoint> rows;
+class UtilityDashboardOverviewDailyElectricityChart extends StatefulWidget {
+  final List<UtilityDailyElectricityPoint> rows;
 
   final String facId;
   final String month;
@@ -156,7 +145,7 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
 
   final VoidCallback? onRetry;
 
-  const UtilityDashboardOverviewDailyChart({
+  const UtilityDashboardOverviewDailyElectricityChart({
     super.key,
     required this.rows,
     required this.facId,
@@ -171,26 +160,28 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
   });
 
   @override
-  State<UtilityDashboardOverviewDailyChart> createState() =>
-      _UtilityDashboardOverviewDailyChartState();
+  State<UtilityDashboardOverviewDailyElectricityChart> createState() =>
+      _UtilityDashboardOverviewDailyElectricityChartState();
 }
 
-class _UtilityDashboardOverviewDailyChartState
-    extends State<UtilityDashboardOverviewDailyChart>
+class _UtilityDashboardOverviewDailyElectricityChartState
+    extends State<UtilityDashboardOverviewDailyElectricityChart>
     with TickerProviderStateMixin {
   late final UtilityInfoBoxFx fx;
 
-  List<UtilityDailyPoint>? _cachedRowsReference;
+  List<UtilityDailyElectricityPoint>? _cachedRowsReference;
 
-  _DailyChartData? _cachedChartData;
+  _ElectricityChartData? _cachedChartData;
 
   DataHealthResult? _cachedHealth;
 
   String _lastValue = '--';
+
   String _lastTimestamp = '--';
 
   bool get _hasRequired {
     final fac = widget.facId.trim();
+
     final month = widget.month.trim();
 
     return fac.isNotEmpty && RegExp(r'^\d{6}$').hasMatch(month);
@@ -206,7 +197,9 @@ class _UtilityDashboardOverviewDailyChartState
   }
 
   @override
-  void didUpdateWidget(covariant UtilityDashboardOverviewDailyChart oldWidget) {
+  void didUpdateWidget(
+    covariant UtilityDashboardOverviewDailyElectricityChart oldWidget,
+  ) {
     super.didUpdateWidget(oldWidget);
 
     final rowsChanged = !identical(oldWidget.rows, widget.rows);
@@ -236,57 +229,64 @@ class _UtilityDashboardOverviewDailyChartState
 
     _cachedHealth = DataHealthAnalyzer.analyze(
       key:
-          'Daily_'
-          '${widget.facId}_'
-          '${widget.theme.title}',
+          'Daily_Electricity_'
+          '${widget.facId}',
+
       loading: widget.loading,
+
       error: widget.error,
+
       values: rows
-          .map((item) => item.value)
+          .map((item) => item.totalKwh)
           .where((value) => value.isFinite)
           .toList(growable: false),
     );
 
     if (rows.isEmpty || !_hasRequired) {
       _cachedChartData = null;
+
       _lastValue = '--';
+
       _lastTimestamp = '--';
 
       return;
     }
 
-    _cachedChartData = _DailyChartData.from(rows: rows, month: widget.month);
+    _cachedChartData = _ElectricityChartData.from(
+      rows: rows,
+      month: widget.month,
+    );
 
     final latest = _resolveLatestPoint(rows);
 
     _lastValue =
-        '${_formatUtilityValue(latest.value)} '
+        '${_formatUtilityValue(latest.totalKwh)} '
         '${widget.theme.unit}';
 
     _lastTimestamp = DateFormat('yyyy-MM-dd').format(latest.date.toLocal());
   }
 
-  UtilityDailyPoint _resolveLatestPoint(List<UtilityDailyPoint> rows) {
-    final sorted = List<UtilityDailyPoint>.from(rows)
+  UtilityDailyElectricityPoint _resolveLatestPoint(
+    List<UtilityDailyElectricityPoint> rows,
+  ) {
+    final sorted = List<UtilityDailyElectricityPoint>.from(rows)
       ..sort((a, b) => a.date.compareTo(b.date));
 
     final now = DateTime.now();
 
-    final isCurrentMonth = DateFormat('yyyyMM').format(now) == widget.month;
+    final currentMonth = DateFormat('yyyyMM').format(now);
 
-    if (!isCurrentMonth) {
+    if (currentMonth != widget.month) {
       return sorted.last;
     }
 
     for (var i = sorted.length - 1; i >= 0; i--) {
-      final item = sorted[i];
-
-      final date = item.date.toLocal();
+      final date = sorted[i].date.toLocal();
 
       if (date.year == now.year &&
           date.month == now.month &&
           date.day == now.day) {
-        return item;
+        return sorted[i];
       }
     }
 
@@ -306,9 +306,8 @@ class _UtilityDashboardOverviewDailyChartState
         _cachedHealth ??
         DataHealthAnalyzer.analyze(
           key:
-              'Daily_'
-              '${widget.facId}_'
-              '${widget.theme.title}',
+              'Daily_Electricity_'
+              '${widget.facId}',
           loading: widget.loading,
           error: widget.error,
           values: const <double>[],
@@ -316,18 +315,26 @@ class _UtilityDashboardOverviewDailyChartState
 
     return SlideTransition(
       position: fx.slide,
+
       child: MouseRegion(
         onEnter: (_) => fx.onHover(true),
+
         onExit: (_) => fx.onHover(false),
+
         child: AnimatedBuilder(
           animation: fx.listenable,
+
           builder: (context, child) {
             return Transform.scale(scale: fx.scale.value, child: child);
           },
+
           child: _DailyChartShell(
             width: widget.width,
+
             height: widget.height ?? 320,
+
             facilityColor: widget.theme.line,
+
             child: _buildBody(health),
           ),
         ),
@@ -367,16 +374,28 @@ class _UtilityDashboardOverviewDailyChartState
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+
       children: [
         if (widget.showHeader) ...[
           CommonChartTitleBar(
             title: widget.theme.title,
+
             health: health,
+
+            /*
+             * Header = tổng điện
+             * Grid + Solar.
+             */
+            valueLabel: 'Total Electricity',
             value: _lastValue,
+
             valueTs: _lastTimestamp,
+
             backgroundColor: Colors.transparent,
+
             borderColor: widget.theme.line.withOpacity(.44),
           ),
+
           const SizedBox(height: 6),
         ],
 
@@ -385,17 +404,23 @@ class _UtilityDashboardOverviewDailyChartState
               ? const EmptyChartState(
                   title: 'No Daily Data',
                   message:
-                      'No utility data available '
-                      'for this month.',
+                      'No electricity data '
+                      'available for this month.',
                 )
               : DecoratedBox(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
+
                     border: Border.all(color: Colors.white.withOpacity(.06)),
+
                     color: Colors.black.withOpacity(.05),
                   ),
+
                   child: RepaintBoundary(
-                    child: _DailyBarChart(theme: widget.theme, data: chartData),
+                    child: _ElectricityStackedChart(
+                      theme: widget.theme,
+                      data: chartData,
+                    ),
                   ),
                 ),
         ),
@@ -434,15 +459,14 @@ class _DailyChartShell extends StatelessWidget {
 }
 
 // ============================================================
-// NORMAL COLUMN CHART
-// WATER + AIR
+// ELECTRICITY STACKED COLUMN
 // ============================================================
 
-class _DailyBarChart extends StatelessWidget {
+class _ElectricityStackedChart extends StatelessWidget {
   final ChartTheme theme;
-  final _DailyChartData data;
+  final _ElectricityChartData data;
 
-  const _DailyBarChart({required this.theme, required this.data});
+  const _ElectricityStackedChart({required this.theme, required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -453,59 +477,107 @@ class _DailyBarChart extends StatelessWidget {
 
       plotAreaBorderColor: Colors.white.withOpacity(.12),
 
-      legend: const Legend(isVisible: false),
+      legend: Legend(
+        isVisible: true,
+
+        position: LegendPosition.top,
+
+        alignment: ChartAlignment.far,
+
+        overflowMode: LegendItemOverflowMode.wrap,
+
+        iconHeight: 12,
+
+        iconWidth: 12,
+
+        textStyle: TextStyle(
+          color: Colors.white.withOpacity(.72),
+
+          fontSize: 14,
+
+          fontWeight: FontWeight.w700,
+        ),
+      ),
 
       tooltipBehavior: TooltipBehavior(
         enable: true,
+
+        shared: true,
+
+        canShowMarker: true,
+
         header: '',
-        canShowMarker: false,
+
         textStyle: const TextStyle(
           color: Colors.white,
+
           fontSize: 11,
+
           fontWeight: FontWeight.w700,
         ),
       ),
 
       primaryXAxis: DateTimeAxis(
         minimum: data.minX,
+
         maximum: data.maxX,
+
         intervalType: DateTimeIntervalType.days,
+
         interval: 1,
+
         labelRotation: 45,
+
         dateFormat: DateFormat('dd'),
+
         majorGridLines: MajorGridLines(
           width: 1,
+
           color: Colors.white.withOpacity(.07),
         ),
+
         axisLine: AxisLine(color: Colors.white.withOpacity(.15), width: 1),
+
         majorTickLines: const MajorTickLines(size: 3),
+
         labelStyle: TextStyle(
           color: Colors.white.withOpacity(.70),
-          fontSize: 11,
+
+          fontSize: 14,
+
           fontWeight: FontWeight.w600,
         ),
+
         edgeLabelPlacement: EdgeLabelPlacement.hide,
       ),
 
       primaryYAxis: NumericAxis(
         minimum: 0,
+
         maximum: data.maxY,
+
         interval: data.yInterval,
 
         numberFormat: NumberFormat.compact(),
 
         majorGridLines: MajorGridLines(
           width: 1,
+
           color: Colors.white.withOpacity(.075),
+
           dashArray: const <double>[4, 4],
         ),
 
         title: AxisTitle(
-          text: theme.unit,
+          text: theme.unit.trim().isEmpty ? 'kWh' : theme.unit,
+
           alignment: ChartAlignment.center,
+
           textStyle: TextStyle(
             color: Colors.white.withOpacity(.72),
+
             fontWeight: FontWeight.w600,
+
             fontSize: 13,
           ),
         ),
@@ -517,20 +589,30 @@ class _DailyBarChart extends StatelessWidget {
         labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
       ),
 
-      series: <CartesianSeries<_DailyBarPoint, DateTime>>[
-        ColumnSeries<_DailyBarPoint, DateTime>(
-          name: theme.title,
-          dataSource: data.points,
-          xValueMapper: (point, _) => point.ts,
-          yValueMapper: (point, _) => point.value,
-          animationDuration: 450,
-          width: .9,
-          spacing: .15,
+      series: <CartesianSeries<UtilityDailyElectricityPoint, DateTime>>[
+        // ======================================================
+        // GRID
+        // ======================================================
+        StackedColumnSeries<UtilityDailyElectricityPoint, DateTime>(
+          name: 'Electricity',
 
-          // borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+          dataSource: data.points,
+
+          xValueMapper: (point, _) => point.date,
+
+          yValueMapper: (point, _) => point.gridKwh,
+
+          animationDuration: 450,
+
+          width: .95,
+
+          spacing: .14,
+
           gradient: LinearGradient(
             begin: Alignment.topCenter,
+
             end: Alignment.bottomCenter,
+
             colors: [theme.fillTop, theme.fillBottom],
           ),
 
@@ -540,13 +622,40 @@ class _DailyBarChart extends StatelessWidget {
 
           enableTooltip: true,
         ),
+
+        // ======================================================
+        // SOLAR
+        // ======================================================
+        StackedColumnSeries<UtilityDailyElectricityPoint, DateTime>(
+          name: 'Solar',
+
+          dataSource: data.points,
+
+          xValueMapper: (point, _) => point.date,
+
+          yValueMapper: (point, _) => point.solarKwh,
+
+          animationDuration: 450,
+
+          width: .95,
+
+          spacing: .14,
+
+          // color: const Color(0xFFFFAB00),
+          color: const Color(0xFF76FF03),
+          borderColor: Color(0xFFFFC857).withOpacity(.2),
+
+          // borderWidth: .8,
+          // borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+          enableTooltip: true,
+        ),
       ],
     );
   }
 }
 
 // ============================================================
-// FORMATTER
+// FORMAT
 // ============================================================
 
 final NumberFormat _compactValueFormat = NumberFormat.compact(locale: 'en_US');

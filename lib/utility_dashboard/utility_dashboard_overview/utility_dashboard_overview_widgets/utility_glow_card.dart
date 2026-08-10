@@ -30,7 +30,7 @@ class UtilityGlowCard extends StatelessWidget {
   const UtilityGlowCard.water({
     super.key,
     required this.child,
-    this.color = const Color(0xff22d3ee),
+    this.color = const Color(0xFF006DFF),
   }) : type = UtilityGlowType.water;
 
   /// Purple/violet card with swirling airflow lines, like the AIR row.

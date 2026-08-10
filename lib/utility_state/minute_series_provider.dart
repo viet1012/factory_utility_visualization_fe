@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
@@ -12,17 +11,13 @@ class _MinuteReq {
   final String key;
   final String? facId;
   final String? scadaId;
-  final String? cate;
   final String? boxDeviceId;
-  final List<String>? cateIds;
 
   const _MinuteReq({
     required this.key,
     this.facId,
     this.scadaId,
-    this.cate,
     this.boxDeviceId,
-    this.cateIds,
   });
 }
 
@@ -82,22 +77,12 @@ class MinuteSeriesProvider extends ChangeNotifier {
 
   // ============================================================
   // KEY
-  // ============================================================
+  // ===============================================  =============
 
-  String buildKey({
-    String? facId,
-    String? scadaId,
-    String? cate,
-    String? boxDeviceId,
-    List<String>? cateIds,
-  }) {
-    final ids = _normalizeCateIds(cateIds) ?? const <String>[];
-
+  String buildKey({String? facId, String? scadaId, String? boxDeviceId}) {
     return 'fac=${_normalizeText(facId)}'
         '|scada=${_normalizeText(scadaId)}'
-        '|cate=${_normalizeText(cate)}'
-        '|dev=${_normalizeText(boxDeviceId)}'
-        '|cateIds=${ids.join(',')}';
+        '|dev=${_normalizeText(boxDeviceId)}';
   }
 
   // ============================================================
@@ -108,25 +93,19 @@ class MinuteSeriesProvider extends ChangeNotifier {
     required String key,
     String? facId,
     String? scadaId,
-    String? cate,
     String? boxDeviceId,
-    List<String>? cateIds,
   }) {
     if (_disposed) return;
 
     final normalizedKey = key.trim();
 
-    if (normalizedKey.isEmpty) {
-      return;
-    }
+    if (normalizedKey.isEmpty) return;
 
     final newRequest = _MinuteReq(
       key: normalizedKey,
       facId: _normalizeNullableText(facId),
       scadaId: _normalizeNullableText(scadaId),
-      cate: _normalizeNullableText(cate),
       boxDeviceId: _normalizeNullableText(boxDeviceId),
-      cateIds: _normalizeCateIds(cateIds),
     );
 
     final oldRequest = _reqs[normalizedKey];
@@ -135,9 +114,7 @@ class MinuteSeriesProvider extends ChangeNotifier {
         oldRequest == null ||
         oldRequest.facId != newRequest.facId ||
         oldRequest.scadaId != newRequest.scadaId ||
-        oldRequest.cate != newRequest.cate ||
-        oldRequest.boxDeviceId != newRequest.boxDeviceId ||
-        !listEquals(oldRequest.cateIds, newRequest.cateIds);
+        oldRequest.boxDeviceId != newRequest.boxDeviceId;
 
     _reqs[normalizedKey] = newRequest;
 
@@ -152,10 +129,6 @@ class MinuteSeriesProvider extends ChangeNotifier {
     _versions.putIfAbsent(normalizedKey, () => 0);
 
     if (changed && oldRequest != null) {
-      /*
-       * Cùng key nhưng tham số đã đổi:
-       * vô hiệu response cũ và reset dữ liệu của key.
-       */
       _invalidateKey(normalizedKey);
 
       _rows[normalizedKey] = const <MinutePointDto>[];
@@ -167,14 +140,6 @@ class MinuteSeriesProvider extends ChangeNotifier {
       _lastErrAt[normalizedKey] = null;
 
       _safeNotify();
-    }
-
-    /*
-     * Nếu polling đang chạy và đây là request mới,
-     * gọi ngay thay vì chờ vòng tiếp theo.
-     */
-    if (_polling && changed && _hasRequired(newRequest)) {
-      unawaited(fetchKeyNow(normalizedKey));
     }
   }
 
@@ -448,7 +413,7 @@ class MinuteSeriesProvider extends ChangeNotifier {
             to: to,
             boxDeviceId: request.boxDeviceId!.trim(),
             plcAddress: null,
-            cateIds: request.cateIds,
+            cateIds: null,
           )
           .timeout(requestTimeout);
 
@@ -537,7 +502,7 @@ class MinuteSeriesProvider extends ChangeNotifier {
             to: to,
             boxDeviceId: request.boxDeviceId!.trim(),
             plcAddress: null,
-            cateIds: request.cateIds,
+            cateIds: null,
           )
           .timeout(requestTimeout);
 

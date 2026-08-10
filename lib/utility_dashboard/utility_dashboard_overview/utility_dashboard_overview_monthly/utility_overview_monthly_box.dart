@@ -239,21 +239,6 @@ String _formatMoney(double value) {
   return _moneyFmt.format(value);
 }
 
-String _formatCost(double? value, String unit) {
-  if (value == null) {
-    return '--';
-  }
-
-  final formattedValue = _formatMoney(value);
-  final normalizedUnit = unit.trim();
-
-  if (normalizedUnit.isEmpty) {
-    return formattedValue;
-  }
-
-  return '$formattedValue $normalizedUnit';
-}
-
 bool _isElectricityItem(EnergyMonthlySummary item) {
   return item.cate.trim().toUpperCase().contains('ELECTRIC');
 }
@@ -276,61 +261,6 @@ String _resolveUnit(EnergyMonthlySummary item, ChartTheme theme) {
   }
 
   return theme.unit.trim();
-}
-
-String _formatUtilityValue(
-  EnergyMonthlySummary item,
-  double? value,
-  String unit,
-) {
-  if (value == null) {
-    return '--';
-  }
-
-  final formatted = _isElectricityItem(item)
-      ? _formatInteger(value)
-      : _formatDecimal(value);
-
-  if (unit.trim().isEmpty) {
-    return formatted;
-  }
-
-  return '$formatted ${unit.trim()}';
-}
-
-String _monthlyPeriodLabel(EnergyMonthlySummary item) {
-  final isAverage = _isWaterItem(item) || _isAirItem(item);
-  final suffix = isAverage ? 'AVG' : 'MTD';
-
-  final raw = item.month.trim();
-
-  if (!RegExp(r'^\d{6}$').hasMatch(raw)) {
-    return 'MONTHLY $suffix';
-  }
-
-  final year = raw.substring(0, 4);
-  final monthNumber = int.tryParse(raw.substring(4, 6));
-
-  if (monthNumber == null || monthNumber < 1 || monthNumber > 12) {
-    return 'MONTHLY $suffix';
-  }
-
-  const months = [
-    'JAN',
-    'FEB',
-    'MAR',
-    'APR',
-    'MAY',
-    'JUN',
-    'JUL',
-    'AUG',
-    'SEP',
-    'OCT',
-    'NOV',
-    'DEC',
-  ];
-
-  return '${months[monthNumber - 1]} $year $suffix';
 }
 
 // ============================================================
@@ -687,10 +617,22 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
                 child: Transform.scale(scale: _fx.scale.value, child: child),
               );
             },
-            child: SizedBox(
+            child: Container(
               width: widget.width,
               height: widget.height,
               // facColor: facColor,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1), // nền đậm hơn
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.6),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1334,7 +1276,7 @@ class _WaterCompactRow extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _MetricHeader(title: _displayName(), colors: theme.line),
+        _MetricHeader(title: _displayName(), colors: theme.accent),
 
         const SizedBox(height: 10),
 
@@ -1352,76 +1294,6 @@ class _WaterCompactRow extends StatelessWidget {
           currentColor: color,
         ),
       ],
-    );
-  }
-}
-// ============================================================
-// MINI METRIC
-// ============================================================
-
-// ============================================================
-// MONEY METRIC
-// ============================================================
-
-class _MoneyMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-  final double fontSize;
-
-  const _MoneyMetric({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-    required this.fontSize,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.12),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(.07)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 12, color: color.withOpacity(.80)),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(.50),
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: fontSize,
-              height: 1,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
