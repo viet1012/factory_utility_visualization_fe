@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
 import '../utility_dashboard_overview_provider/utility_monthly_summary_provider.dart';
+import '../utility_dashboard_overview_widgets/month_label_badge.dart';
 
 class MonthlySummaryScreen extends StatefulWidget {
   final String facId;
@@ -339,33 +340,7 @@ class _Header extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          Container(
-            height: 26,
-            padding: const EdgeInsets.symmetric(horizontal: 7),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.04),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white.withOpacity(.12)),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.calendar_month_rounded,
-                  color: Colors.white70,
-                  size: 13,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  monthLabel,
-                  style: const TextStyle(
-                    color: Color(0xff22d3ee),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          MonthLabelBadge(monthLabel: monthLabel),
           const SizedBox(width: 4),
           Tooltip(
             message: 'Clear cache and reload database',

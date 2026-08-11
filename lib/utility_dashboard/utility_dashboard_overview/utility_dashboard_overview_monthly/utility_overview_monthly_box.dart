@@ -299,7 +299,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     with TickerProviderStateMixin {
   /// Monthly summary không cần refresh mỗi 30 giây.
   /// GET sẽ dùng cache backend.
-  static const Duration _refreshInterval = Duration(hours: 6);
+  static const Duration _refreshInterval = Duration(hours: 1);
 
   static const Duration _requestTimeout = Duration(seconds: 30);
 

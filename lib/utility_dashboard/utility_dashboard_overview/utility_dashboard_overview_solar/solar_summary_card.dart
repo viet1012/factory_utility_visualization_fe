@@ -5,6 +5,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../../utility_api/dio_client.dart';
+import '../utility_dashboard_overview_widgets/month_label_badge.dart';
+import 'solar_detail_screen.dart';
 
 /// Toàn bộ chuyển động "idle" (xoay tia nắng, đung đưa lá/cây, thở nền,
 /// thở status dot, mũi tên chảy) dùng CHUNG một chu kỳ 120 giây, chạy trên
@@ -23,12 +25,17 @@ double _wave(double elapsedSeconds, double periodSeconds) {
 class SolarSummaryCard extends StatefulWidget {
   final String facId;
 
+  /// yyyyMM
+  /// Ví dụ: 202608
+  final String month;
+
   /// Tự động tải lại dữ liệu sau khoảng thời gian này.
   final Duration refreshInterval;
 
   const SolarSummaryCard({
     super.key,
     required this.facId,
+    required this.month,
     this.refreshInterval = const Duration(minutes: 1),
   });
 
@@ -61,7 +68,7 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
 
     _timeController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 120),
+      duration: const Duration(hours: 1),
     )..repeat();
 
     _loadData();
@@ -72,7 +79,11 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
   void didUpdateWidget(covariant SolarSummaryCard oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.facId != widget.facId) {
+    final facChanged = oldWidget.facId != widget.facId;
+
+    final monthChanged = oldWidget.month != widget.month;
+
+    if (facChanged || monthChanged) {
       _loadData(showMainLoading: true);
     }
 
@@ -106,12 +117,10 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
     if (!mounted) return;
 
     /*
-   * Refresh định kỳ không tạo request mới nếu request cũ
-   * vẫn đang chạy.
+   * Refresh định kỳ không tạo request mới
+   * nếu request cũ vẫn đang chạy.
    *
-   * Riêng khi đổi FAC và showMainLoading = true,
-   * vẫn cho phép request mới và dùng requestVersion
-   * để bỏ response cũ.
+   * Khi đổi FAC hoặc MONTH thì cho phép request mới.
    */
     if (_requestRunning && !showMainLoading) {
       return;
@@ -119,9 +128,34 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
 
     final requestVersion = ++_requestVersion;
 
+    // ============================================================
+    // FAC
+    // ============================================================
+
     final requestedFac = widget.facId.trim().isEmpty
         ? 'KVH'
         : widget.facId.trim();
+
+    // ============================================================
+    // MONTH
+    //
+    // yyyyMM
+    // Ví dụ: 202608
+    // ============================================================
+
+    final requestedMonth = widget.month.trim();
+
+    if (requestedMonth.isEmpty) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _isRefreshing = false;
+        _errorMessage = 'Month is required';
+      });
+
+      return;
+    }
 
     _requestRunning = true;
 
@@ -136,9 +170,13 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
     });
 
     try {
+      // ==========================================================
+      // API MONTHLY SOLAR
+      // ==========================================================
+
       final response = await _dio.get<dynamic>(
-        '/api/solar/dashboard',
-        queryParameters: {'facId': requestedFac},
+        '/api/solar/monthly',
+        queryParameters: {'facId': requestedFac, 'month': requestedMonth},
       );
 
       if (response.data is! Map) {
@@ -149,17 +187,30 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
         Map<String, dynamic>.from(response.data as Map),
       );
 
+      // ==========================================================
+      // BỎ RESPONSE CŨ
+      //
+      // Ví dụ:
+      // request FAC_A/202607 chưa xong
+      // user chuyển FAC_A/202608
+      //
+      // response 202607 về sau -> bỏ.
+      // ==========================================================
+
       if (!mounted ||
           requestVersion != _requestVersion ||
           requestedFac !=
-              (widget.facId.trim().isEmpty ? 'KVH' : widget.facId.trim())) {
+              (widget.facId.trim().isEmpty ? 'KVH' : widget.facId.trim()) ||
+          requestedMonth != widget.month.trim()) {
         return;
       }
 
       setState(() {
         _data = result;
+
         _isLoading = false;
         _isRefreshing = false;
+
         _errorMessage = null;
       });
     } on DioException catch (error) {
@@ -170,9 +221,10 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
       setState(() {
         _isLoading = false;
         _isRefreshing = false;
+
         _errorMessage = _dioErrorMessage(error);
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted || requestVersion != _requestVersion) {
         return;
       }
@@ -180,6 +232,7 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
       setState(() {
         _isLoading = false;
         _isRefreshing = false;
+
         _errorMessage = 'Cannot load solar data';
       });
     } finally {
@@ -205,62 +258,102 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
     return 'Cannot load solar data';
   }
 
+  String get monthLabel {
+    final raw = widget.month.trim();
+
+    if (raw.length != 6) return raw;
+
+    final year = raw.substring(0, 4);
+    final monthNumber = int.tryParse(raw.substring(4, 6));
+
+    if (monthNumber == null || monthNumber < 1 || monthNumber > 12) {
+      return raw;
+    }
+
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    return '${months[monthNumber - 1]} $year';
+  }
+
   @override
   Widget build(BuildContext context) {
     return RepaintBoundary(
-      child: Container(
-        // clipBehavior: Clip.antiAlias,
-        // decoration: BoxDecoration(
-        //   borderRadius: BorderRadius.circular(14),
-        //   border: Border.all(color: const Color(0xff1c5478), width: 1),
-        // ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            /// Ambient background không dùng Positioned.
-            RepaintBoundary(
-              child: AnimatedBuilder(
-                animation: _timeController,
-                builder: (context, _) {
-                  return CustomPaint(
-                    painter: SolarIsometricSystemPainter(),
-                    isComplex: false,
-                    willChange: true,
-                  );
-                },
-              ),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  SolarDetailScreen(facId: widget.facId, month: widget.month),
             ),
+          );
+        },
+        child: Container(
+          // clipBehavior: Clip.antiAlias,
+          // decoration: BoxDecoration(
+          //   borderRadius: BorderRadius.circular(14),
+          //   border: Border.all(color: const Color(0xff1c5478), width: 1),
+          // ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              /// Ambient background không dùng Positioned.
+              RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: _timeController,
+                  builder: (context, _) {
+                    return CustomPaint(
+                      painter: SolarIsometricSystemPainter(),
+                      isComplex: false,
+                      willChange: true,
+                    );
+                  },
+                ),
+              ),
 
-            /// Nội dung chính.
-            Column(
-              children: [
-                _buildHeader(),
+              /// Nội dung chính.
+              Column(
+                children: [
+                  _buildHeader(),
 
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    transitionBuilder: (child, animation) {
-                      return FadeTransition(opacity: animation, child: child);
-                    },
-                    child: _buildBody(),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(opacity: animation, child: child);
+                      },
+                      child: _buildBody(),
+                    ),
+                  ),
+                ],
+              ),
+
+              /// Loading bar có thể bỏ Positioned bằng Align.
+              if (_isRefreshing)
+                const Align(
+                  alignment: Alignment.topCenter,
+                  child: LinearProgressIndicator(
+                    minHeight: 1.5,
+                    backgroundColor: Colors.transparent,
+                    color: Color(0xff25d8ff),
                   ),
                 ),
-              ],
-            ),
-
-            /// Loading bar có thể bỏ Positioned bằng Align.
-            if (_isRefreshing)
-              const Align(
-                alignment: Alignment.topCenter,
-                child: LinearProgressIndicator(
-                  minHeight: 1.5,
-                  backgroundColor: Colors.transparent,
-                  color: Color(0xff25d8ff),
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -282,12 +375,13 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: Color(0xFFFFB400),
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.4,
                 ),
               ),
             ),
+            MonthLabelBadge(monthLabel: monthLabel),
 
             _StatusDot(isOnline: isOnline, time: _timeController),
 
@@ -306,7 +400,7 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
                 widget.facId.toUpperCase(),
                 style: const TextStyle(
                   color: Color(0xff55d7ff),
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1570,786 +1664,6 @@ class _ProfessionalTreePainter extends CustomPainter {
   }
 }
 
-class _SolarSystemBackgroundPainter extends CustomPainter {
-  final double elapsedSeconds;
-
-  const _SolarSystemBackgroundPainter({required this.elapsedSeconds});
-
-  static const Color _solarColor = Color(0xffffc21a);
-
-  static const Color _energyColor = Color(0xffffc21a);
-
-  static const Color _gridColor = Color(0xffd1d7ea);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-
-    final width = size.width;
-    final height = size.height;
-
-    _drawBaseBackground(canvas, size);
-
-    /*
-     * Toàn bộ sơ đồ đặt ở nửa dưới và phía sau nội dung.
-     * Opacity thấp để không cạnh tranh với KPI.
-     */
-    final systemY = height * 0.3;
-
-    final sunCenter = Offset(width * 0.09, height * 0.12);
-
-    final panelCenter = Offset(width * 0.29, systemY);
-
-    final inverterCenter = Offset(width * 0.55, systemY);
-
-    final factoryCenter = Offset(width * 0.82, systemY);
-
-    _drawSun(canvas, center: sunCenter);
-
-    _drawSunRaysToPanel(canvas, from: sunCenter, to: panelCenter);
-
-    _drawSolarPanel(
-      canvas,
-      center: panelCenter,
-      width: width * 0.18,
-      height: height * 0.20,
-    );
-
-    _drawInverter(
-      canvas,
-      center: inverterCenter,
-      width: width * 0.10,
-      height: height * 0.20,
-    );
-
-    _drawFactory(
-      canvas,
-      center: factoryCenter,
-      width: width * 0.20,
-      height: height * 0.22,
-    );
-
-    _drawEnergyFlow(
-      canvas,
-      start: Offset(panelCenter.dx + width * 0.10, systemY),
-      end: Offset(inverterCenter.dx - width * 0.06, systemY),
-      startColor: _solarColor,
-      endColor: _energyColor,
-    );
-
-    _drawEnergyFlow(
-      canvas,
-      start: Offset(inverterCenter.dx + width * 0.06, systemY),
-      end: Offset(factoryCenter.dx - width * 0.11, systemY),
-      startColor: _energyColor,
-      endColor: _gridColor,
-    );
-
-    _drawGroundLine(canvas, size, systemY + height * 0.12);
-  }
-
-  void _drawBaseBackground(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-
-    final backgroundPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xff0a1f34), Color(0xff071729), Color(0xff040e1a)],
-      ).createShader(rect);
-
-    canvas.drawRect(rect, backgroundPaint);
-
-    final gridPaint = Paint()
-      ..color = const Color(0xff4bcfff).withOpacity(0.025)
-      ..strokeWidth = 0.8
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    const spacing = 24.0;
-
-    for (double x = 0; x <= size.width; x += spacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-
-    for (double y = 0; y <= size.height; y += spacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-  }
-
-  void _drawSun(Canvas canvas, {required Offset center}) {
-    final pulse = 0.5 + 0.5 * math.sin(elapsedSeconds * math.pi / 2.5);
-
-    /// Hào quang ngoài: vẫn nhẹ, nhưng nhìn rõ hơn.
-    final glowPaint = Paint()
-      ..color = _solarColor.withOpacity(0.045 + pulse * 0.035)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    canvas.drawCircle(center, 29 + pulse * 3, glowPaint);
-
-    /// Lõi mặt trời.
-    final corePaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          Colors.white.withOpacity(0.42),
-          _solarColor.withOpacity(0.48),
-          _solarColor.withOpacity(0.12),
-        ],
-        stops: const [0.0, 0.58, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: 17))
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    canvas.drawCircle(center, 12.5, corePaint);
-
-    /// Viền lõi nhẹ để mặt trời sắc nét hơn.
-    final coreBorderPaint = Paint()
-      ..color = _solarColor.withOpacity(0.42)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    canvas.drawCircle(center, 12.5, coreBorderPaint);
-
-    /// Tia nắng.
-    final rayPaint = Paint()
-      ..color = _solarColor.withOpacity(0.30)
-      ..strokeWidth = 1.25
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    const rayCount = 10;
-
-    for (var index = 0; index < rayCount; index++) {
-      final angle = index * (2 * math.pi / rayCount) + elapsedSeconds * 0.035;
-
-      final direction = Offset(math.cos(angle), math.sin(angle));
-
-      canvas.drawLine(
-        center + direction * 16,
-        center + direction * 25,
-        rayPaint,
-      );
-    }
-  }
-
-  void _drawSunRaysToPanel(
-    Canvas canvas, {
-    required Offset from,
-    required Offset to,
-  }) {
-    final pulse = 0.5 + 0.5 * math.sin(elapsedSeconds * math.pi / 2.5);
-
-    final paint = Paint()
-      ..color = _solarColor.withOpacity(0.10 + pulse * 0.045)
-      ..strokeWidth = 1
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    for (var index = -1; index <= 1; index++) {
-      canvas.drawLine(
-        Offset(from.dx + index * 5, from.dy + 16),
-        Offset(to.dx + index * 9, to.dy - 17),
-        paint,
-      );
-    }
-  }
-
-  void _drawSolarPanel(
-    Canvas canvas, {
-    required Offset center,
-    required double width,
-    required double height,
-  }) {
-    final panelRect = Rect.fromCenter(
-      center: center,
-      width: width,
-      height: height,
-    );
-
-    canvas.save();
-
-    canvas.translate(center.dx, center.dy);
-    canvas.skew(-0.18, 0);
-    canvas.translate(-center.dx, -center.dy);
-
-    /// ===== Panel =====
-
-    final panelPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          const Color(0xff4fd7ff).withOpacity(0.22),
-          const Color(0xff1d6ea6).withOpacity(0.30),
-          const Color(0xff0b2f4d).withOpacity(0.18),
-        ],
-      ).createShader(panelRect)
-      ..isAntiAlias = true;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(panelRect, const Radius.circular(4)),
-      panelPaint,
-    );
-
-    /// ===== Border =====
-
-    final borderPaint = Paint()
-      ..color = _energyColor.withOpacity(0.40)
-      ..strokeWidth = 1.3
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(panelRect, const Radius.circular(4)),
-      borderPaint,
-    );
-
-    /// ===== Glass Highlight =====
-
-    final glassPaint = Paint()
-      ..shader =
-          LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withOpacity(0.22),
-              Colors.white.withOpacity(0.02),
-            ],
-          ).createShader(
-            Rect.fromLTWH(
-              panelRect.left,
-              panelRect.top,
-              panelRect.width * 0.55,
-              panelRect.height,
-            ),
-          );
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          panelRect.left + 2,
-          panelRect.top + 2,
-          panelRect.width * 0.48,
-          panelRect.height - 4,
-        ),
-        const Radius.circular(3),
-      ),
-      glassPaint,
-    );
-
-    /// ===== Cell =====
-
-    final cellPaint = Paint()
-      ..color = _energyColor.withOpacity(0.22)
-      ..strokeWidth = 0.9
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    const columns = 5;
-    const rows = 3;
-
-    for (int c = 1; c < columns; c++) {
-      final x = panelRect.left + panelRect.width * c / columns;
-
-      canvas.drawLine(
-        Offset(x, panelRect.top),
-        Offset(x, panelRect.bottom),
-        cellPaint,
-      );
-    }
-
-    for (int r = 1; r < rows; r++) {
-      final y = panelRect.top + panelRect.height * r / rows;
-
-      canvas.drawLine(
-        Offset(panelRect.left, y),
-        Offset(panelRect.right, y),
-        cellPaint,
-      );
-    }
-
-    canvas.restore();
-
-    /// ===== Support =====
-
-    final supportPaint = Paint()
-      ..color = const Color(0xff95c9e8).withOpacity(0.25)
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    canvas.drawLine(
-      Offset(center.dx - width * 0.20, center.dy + height * 0.50),
-      Offset(center.dx - width * 0.12, center.dy + height * 0.72),
-      supportPaint,
-    );
-
-    canvas.drawLine(
-      Offset(center.dx + width * 0.20, center.dy + height * 0.50),
-      Offset(center.dx + width * 0.12, center.dy + height * 0.72),
-      supportPaint,
-    );
-
-    /// ===== Glow =====
-
-    final glowPaint = Paint()
-      ..color = _energyColor.withOpacity(0.08)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(panelRect.inflate(2), const Radius.circular(5)),
-      glowPaint,
-    );
-  }
-
-  void _drawInverter(
-    Canvas canvas, {
-    required Offset center,
-    required double width,
-    required double height,
-  }) {
-    if (width <= 0 || height <= 0) return;
-
-    final rect = Rect.fromCenter(center: center, width: width, height: height);
-
-    final rRect = RRect.fromRectAndRadius(rect, Radius.circular(width * 0.10));
-
-    // ===== BODY FILL =====
-    final bodyPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          const Color(0xff4fd7ff).withOpacity(0.20),
-          const Color(0xff17618c).withOpacity(0.26),
-          const Color(0xff0a2a41).withOpacity(0.20),
-        ],
-        stops: const [0.0, 0.55, 1.0],
-      ).createShader(rect)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    canvas.drawRRect(rRect, bodyPaint);
-
-    // ===== BODY BORDER =====
-    final borderPaint = Paint()
-      ..color = _energyColor.withOpacity(0.42)
-      ..strokeWidth = 1.25
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    canvas.drawRRect(rRect, borderPaint);
-
-    // ===== INNER HIGHLIGHT =====
-    final innerBorderPaint = Paint()
-      ..color = Colors.white.withOpacity(0.08)
-      ..strokeWidth = 0.7
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect.deflate(2), Radius.circular(width * 0.075)),
-      innerBorderPaint,
-    );
-
-    // ===== TOP SCREEN =====
-    final screenRect = Rect.fromCenter(
-      center: Offset(center.dx, center.dy - height * 0.20),
-      width: width * 0.58,
-      height: height * 0.20,
-    );
-
-    final screenPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [_gridColor.withOpacity(0.28), _energyColor.withOpacity(0.16)],
-      ).createShader(screenRect)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(screenRect, Radius.circular(width * 0.035)),
-      screenPaint,
-    );
-
-    final screenBorderPaint = Paint()
-      ..color = _gridColor.withOpacity(0.38)
-      ..strokeWidth = 0.8
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(screenRect, Radius.circular(width * 0.035)),
-      screenBorderPaint,
-    );
-
-    // ===== SCREEN WAVE =====
-    final wavePaint = Paint()
-      ..color = Colors.white.withOpacity(0.38)
-      ..strokeWidth = 0.9
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    final wavePath = Path()
-      ..moveTo(screenRect.left + screenRect.width * 0.12, screenRect.center.dy)
-      ..quadraticBezierTo(
-        screenRect.left + screenRect.width * 0.28,
-        screenRect.top + screenRect.height * 0.20,
-        screenRect.left + screenRect.width * 0.44,
-        screenRect.center.dy,
-      )
-      ..quadraticBezierTo(
-        screenRect.left + screenRect.width * 0.60,
-        screenRect.bottom - screenRect.height * 0.20,
-        screenRect.left + screenRect.width * 0.78,
-        screenRect.center.dy,
-      )
-      ..lineTo(screenRect.left + screenRect.width * 0.88, screenRect.center.dy);
-
-    canvas.drawPath(wavePath, wavePaint);
-
-    // ===== STATUS LIGHTS =====
-    final greenLight = Paint()
-      ..color = _gridColor.withOpacity(0.75)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    final blueLight = Paint()
-      ..color = _energyColor.withOpacity(0.70)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    canvas.drawCircle(
-      Offset(center.dx - width * 0.15, center.dy + height * 0.08),
-      width * 0.027,
-      greenLight,
-    );
-
-    canvas.drawCircle(
-      Offset(center.dx - width * 0.07, center.dy + height * 0.08),
-      width * 0.027,
-      blueLight,
-    );
-
-    // ===== DC → AC SYMBOL =====
-    final symbolPaint = Paint()
-      ..color = _energyColor.withOpacity(0.46)
-      ..strokeWidth = 1.15
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    final symbolY = center.dy + height * 0.26;
-
-    canvas.drawLine(
-      Offset(center.dx - width * 0.22, symbolY),
-      Offset(center.dx - width * 0.08, symbolY),
-      symbolPaint,
-    );
-
-    final acPath = Path()
-      ..moveTo(center.dx, symbolY)
-      ..quadraticBezierTo(
-        center.dx + width * 0.07,
-        symbolY - height * 0.08,
-        center.dx + width * 0.14,
-        symbolY,
-      )
-      ..quadraticBezierTo(
-        center.dx + width * 0.20,
-        symbolY + height * 0.08,
-        center.dx + width * 0.27,
-        symbolY,
-      );
-
-    canvas.drawPath(acPath, symbolPaint);
-
-    // ===== BOTTOM VENT =====
-    final ventPaint = Paint()
-      ..color = const Color(0xff8bcfe9).withOpacity(0.20)
-      ..strokeWidth = 0.8
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    for (var index = 0; index < 3; index++) {
-      final y = rect.bottom - height * (0.08 + index * 0.055);
-
-      canvas.drawLine(
-        Offset(rect.left + width * 0.25, y),
-        Offset(rect.right - width * 0.25, y),
-        ventPaint,
-      );
-    }
-  }
-
-  void _drawFactory(
-    Canvas canvas, {
-    required Offset center,
-    required double width,
-    required double height,
-  }) {
-    if (width <= 0 || height <= 0) return;
-
-    final left = center.dx - width / 2;
-    final right = center.dx + width / 2;
-    final top = center.dy - height / 2;
-    final bottom = center.dy + height / 2;
-
-    // ===== FACTORY SHAPE =====
-    final factoryPath = Path()
-      ..moveTo(left, bottom)
-      ..lineTo(left, top + height * 0.30)
-      ..lineTo(left + width * 0.20, top + height * 0.43)
-      ..lineTo(left + width * 0.20, top + height * 0.22)
-      ..lineTo(left + width * 0.43, top + height * 0.40)
-      ..lineTo(left + width * 0.43, top + height * 0.18)
-      ..lineTo(left + width * 0.68, top + height * 0.38)
-      ..lineTo(left + width * 0.68, top + height * 0.16)
-      ..lineTo(right, top + height * 0.43)
-      ..lineTo(right, bottom)
-      ..close();
-
-    // ===== FILL =====
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          _gridColor.withOpacity(0.14),
-          const Color(0xff114839).withOpacity(0.18),
-          const Color(0xff071e25).withOpacity(0.12),
-        ],
-      ).createShader(Rect.fromLTRB(left, top, right, bottom))
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    canvas.drawPath(factoryPath, fillPaint);
-
-    // ===== OUTLINE =====
-    final outlinePaint = Paint()
-      ..color = _gridColor.withOpacity(0.42)
-      ..strokeWidth = 1.25
-      ..style = PaintingStyle.stroke
-      ..strokeJoin = StrokeJoin.round
-      ..strokeCap = StrokeCap.round
-      ..isAntiAlias = true;
-
-    canvas.drawPath(factoryPath, outlinePaint);
-
-    // ===== INNER ROOF HIGHLIGHT =====
-    final roofHighlightPaint = Paint()
-      ..color = Colors.white.withOpacity(0.08)
-      ..strokeWidth = 0.7
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    final roofPath = Path()
-      ..moveTo(left + width * 0.02, top + height * 0.31)
-      ..lineTo(left + width * 0.20, top + height * 0.43)
-      ..lineTo(left + width * 0.20, top + height * 0.22)
-      ..lineTo(left + width * 0.43, top + height * 0.40)
-      ..lineTo(left + width * 0.43, top + height * 0.18)
-      ..lineTo(left + width * 0.68, top + height * 0.38);
-
-    canvas.drawPath(roofPath, roofHighlightPaint);
-
-    // ===== WINDOWS =====
-    final windowFillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [_gridColor.withOpacity(0.34), _energyColor.withOpacity(0.18)],
-      ).createShader(Rect.fromLTRB(left, top, right, bottom))
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    final windowBorderPaint = Paint()
-      ..color = _gridColor.withOpacity(0.36)
-      ..strokeWidth = 0.65
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    for (var index = 0; index < 3; index++) {
-      final windowRect = Rect.fromLTWH(
-        left + width * (0.15 + index * 0.24),
-        bottom - height * 0.30,
-        width * 0.12,
-        height * 0.15,
-      );
-
-      final windowRRect = RRect.fromRectAndRadius(
-        windowRect,
-        Radius.circular(width * 0.015),
-      );
-
-      canvas.drawRRect(windowRRect, windowFillPaint);
-      canvas.drawRRect(windowRRect, windowBorderPaint);
-    }
-
-    // ===== MAIN DOOR =====
-    final doorRect = Rect.fromLTWH(
-      right - width * 0.22,
-      bottom - height * 0.31,
-      width * 0.13,
-      height * 0.31,
-    );
-
-    final doorPaint = Paint()
-      ..color = const Color(0xff0d3b38).withOpacity(0.30)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    final doorBorderPaint = Paint()
-      ..color = _gridColor.withOpacity(0.30)
-      ..strokeWidth = 0.75
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(doorRect, Radius.circular(width * 0.015)),
-      doorPaint,
-    );
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(doorRect, Radius.circular(width * 0.015)),
-      doorBorderPaint,
-    );
-
-    // ===== CHIMNEY =====
-    final chimneyRect = Rect.fromLTWH(
-      right - width * 0.17,
-      top - height * 0.02,
-      width * 0.055,
-      height * 0.34,
-    );
-
-    final chimneyPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          _gridColor.withOpacity(0.26),
-          const Color(0xff0a332d).withOpacity(0.18),
-        ],
-      ).createShader(chimneyRect)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    final chimneyBorderPaint = Paint()
-      ..color = _gridColor.withOpacity(0.40)
-      ..strokeWidth = 0.9
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(chimneyRect, Radius.circular(width * 0.012)),
-      chimneyPaint,
-    );
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(chimneyRect, Radius.circular(width * 0.012)),
-      chimneyBorderPaint,
-    );
-
-    // ===== GROUND BASE =====
-    final basePaint = Paint()
-      ..color = _gridColor.withOpacity(0.18)
-      ..strokeWidth = 1
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    canvas.drawLine(
-      Offset(left - width * 0.04, bottom),
-      Offset(right + width * 0.04, bottom),
-      basePaint,
-    );
-  }
-
-  void _drawEnergyFlow(
-    Canvas canvas, {
-    required Offset start,
-    required Offset end,
-    required Color startColor,
-    required Color endColor,
-  }) {
-    final rect = Rect.fromPoints(
-      Offset(start.dx, start.dy - 1),
-      Offset(end.dx, end.dy + 1),
-    );
-
-    final linePaint = Paint()
-      ..shader = LinearGradient(
-        colors: [startColor.withOpacity(0.08), endColor.withOpacity(0.14)],
-      ).createShader(rect)
-      ..strokeWidth = 1
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = true;
-
-    canvas.drawLine(start, end, linePaint);
-
-    final arrowPaint = Paint()
-      ..color = endColor.withOpacity(0.16)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    final arrowPath = Path()
-      ..moveTo(end.dx - 5, end.dy - 3)
-      ..lineTo(end.dx, end.dy)
-      ..lineTo(end.dx - 5, end.dy + 3)
-      ..close();
-
-    canvas.drawPath(arrowPath, arrowPaint);
-  }
-
-  void _drawGroundLine(Canvas canvas, Size size, double y) {
-    final paint = Paint()
-      ..shader = const LinearGradient(
-        colors: [
-          Colors.transparent,
-          Color(0x1835d5ff),
-          Color(0x1842df82),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromLTWH(0, y, size.width, 1))
-      ..strokeWidth = 0.8
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-  }
-
-  double _flowProgress(double elapsed, double period) {
-    final raw = (elapsed % period) / period;
-
-    /*
-     * Hạt chạy trong 82% chu kỳ.
-     * Phần cuối biến mất để tránh giật khi reset.
-     */
-    if (raw <= 0.82) {
-      return raw / 0.82;
-    }
-
-    return 0;
-  }
-
-  @override
-  bool shouldRepaint(covariant _SolarSystemBackgroundPainter oldDelegate) {
-    return oldDelegate.elapsedSeconds != elapsedSeconds;
-  }
-}
-
 class SolarIsometricSystemPainter extends CustomPainter {
   const SolarIsometricSystemPainter();
 
@@ -3589,62 +2903,6 @@ class SolarIsometricSystemPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant SolarIsometricSystemPainter oldDelegate) {
-    return false;
-  }
-}
-
-class _SolarCardBackgroundPainter extends CustomPainter {
-  const _SolarCardBackgroundPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-
-    final rect = Offset.zero & size;
-
-    final bgPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xff071b2c), Color(0xff061523), Color(0xff040d17)],
-      ).createShader(rect);
-
-    canvas.drawRect(rect, bgPaint);
-
-    final grid = Paint()
-      ..color = const Color(0xff3fcfff).withOpacity(.025)
-      ..strokeWidth = .7;
-
-    const spacing = 24.0;
-
-    for (double x = 0; x < size.width; x += spacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
-    }
-
-    for (double y = 0; y < size.height; y += spacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
-    }
-
-    // Solar ambient glow ở góc trái
-    final glow = Paint()
-      ..shader =
-          RadialGradient(
-            colors: [
-              const Color(0xffffc43d).withOpacity(.07),
-              Colors.transparent,
-            ],
-          ).createShader(
-            Rect.fromCircle(
-              center: Offset(size.width * .18, size.height * .38),
-              radius: size.width * .28,
-            ),
-          );
-
-    canvas.drawRect(rect, glow);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SolarCardBackgroundPainter oldDelegate) {
     return false;
   }
 }

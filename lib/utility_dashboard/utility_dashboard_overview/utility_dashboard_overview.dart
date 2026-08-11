@@ -350,6 +350,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
                                               flex: 185,
                                               child: SolarSummaryCard(
                                                 facId: selectedFac,
+                                                month: monthKey,
                                               ),
                                             ),
                                             const SizedBox(height: 6),

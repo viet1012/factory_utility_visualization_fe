@@ -342,7 +342,8 @@ class _SummaryBar extends StatelessWidget {
             TextSpan(
               children: [
                 TextSpan(
-                  text: 'Today ${s.sumToday.toStringAsFixed(0)} / ',
+                  text:
+                      'Today ${s.sumToday.toStringAsFixed(0)} ${theme.unit}/ ',
                   style: TextStyle(
                     color: const Color(0xFF5CFF7A).withOpacity(0.9),
                     fontWeight: FontWeight.w900,
