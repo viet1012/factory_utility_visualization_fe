@@ -642,8 +642,14 @@ class _ElectricityStackedChart extends StatelessWidget {
           spacing: .14,
 
           // color: const Color(0xFFFFAB00),
-          color: const Color(0xFF76FF03),
-          borderColor: Color(0xFFFFC857).withOpacity(.2),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xA176FF03), Color(0x10B981)],
+          ),
+
+          borderColor: const Color(0xB276FF03).withOpacity(.95),
+          borderWidth: .8,
 
           // borderWidth: .8,
           // borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),

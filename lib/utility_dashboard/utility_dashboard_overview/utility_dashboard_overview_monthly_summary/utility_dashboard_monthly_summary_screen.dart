@@ -660,7 +660,7 @@ class _MainValue extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: color.withOpacity(.9),
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),

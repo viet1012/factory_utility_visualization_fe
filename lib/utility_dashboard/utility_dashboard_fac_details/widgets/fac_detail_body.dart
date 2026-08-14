@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../utility_api/dio_client.dart';
 import '../../../utility_state/latest_provider.dart';
 import '../controllers/fac_detail_edit_controller.dart';
 import '../helpers/fac_detail_formatters.dart';
@@ -10,6 +11,8 @@ import '../layout/scada_style.dart';
 import '../mappers/fac_box_group_mapper.dart';
 import '../mappers/latest_tree_device_mapper.dart';
 import '../models/group_frame_types.dart';
+import '../period/utility_period_overview_panel.dart';
+import '../utility_period_api.dart';
 import '../widgets/color_picker_dialog.dart';
 import '../widgets/edit_actions.dart';
 import '../widgets/scada_gradient.dart';
@@ -272,65 +275,170 @@ class _FacDetailBodyState extends State<FacDetailBody> {
         ],
       ),
 
+      // body: ScadaGradient(
+      //   child: SafeArea(
+      //     child: Padding(
+      //       padding: const EdgeInsets.symmetric(horizontal: 8),
+      //       child: FacOverlayMap(
+      //         facId: widget.facId,
+      //
+      //         /*
+      //          * Danh sách Box ID.
+      //          */
+      //         boxIds: boxIds,
+      //
+      //         /*
+      //          * Mỗi phần tử chứa toàn bộ signal của
+      //          * các boxDeviceId cùng Box ID.
+      //          */
+      //         boxesById: boxesById,
+      //
+      //         /*
+      //          * Layout, direction và color đều sử dụng
+      //          * Box ID làm key.
+      //          */
+      //         groupLayout: groupLayout,
+      //         directions: directions,
+      //         colors: groupColors,
+      //
+      //         editMode: editController.editMode,
+      //
+      //         /*
+      //          * Controller vẫn có tên editingBoxDeviceId,
+      //          * nhưng giá trị bên trong là Box ID.
+      //          */
+      //         editingBoxId: editingBoxId,
+      //
+      //         onPickEditingBox: (boxId) {
+      //           editController.selectDevice(boxId);
+      //         },
+      //
+      //         onUpdateDirection: ({required boxDeviceId, required direction}) {
+      //           /*
+      //            * Tên callback cũ là boxDeviceId.
+      //            * Giá trị thực tế là boxId.
+      //            */
+      //           return _saveDirection(boxId: boxDeviceId, direction: direction);
+      //         },
+      //
+      //         onUpdateGroupPosition:
+      //             ({required boxDeviceId, required position}) {
+      //               final boxId = boxDeviceId.trim();
+      //
+      //               final direction = directions[boxId] ?? ArrowDirection.right;
+      //
+      //               return _savePosition(
+      //                 boxId: boxId,
+      //                 position: position,
+      //                 direction: direction,
+      //               );
+      //             },
+      //       ),
+      //     ),
+      //   ),
+      // ),
       body: ScadaGradient(
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: FacOverlayMap(
-              facId: widget.facId,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // ====================================================
+              // LEFT / RIGHT WIDTH
+              // ====================================================
 
-              /*
-               * Danh sách Box ID.
-               */
-              boxIds: boxIds,
+              final width = constraints.maxWidth;
 
-              /*
-               * Mỗi phần tử chứa toàn bộ signal của
-               * các boxDeviceId cùng Box ID.
-               */
-              boxesById: boxesById,
+              // Map khoảng 51%
+              final mapWidth = width * .51;
 
-              /*
-               * Layout, direction và color đều sử dụng
-               * Box ID làm key.
-               */
-              groupLayout: groupLayout,
-              directions: directions,
-              colors: groupColors,
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
 
-              editMode: editController.editMode,
+                children: [
+                  // =================================================
+                  // LEFT
+                  // FACTORY LAYOUT
+                  // =================================================
+                  SizedBox(
+                    width: mapWidth,
 
-              /*
-               * Controller vẫn có tên editingBoxDeviceId,
-               * nhưng giá trị bên trong là Box ID.
-               */
-              editingBoxId: editingBoxId,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(.10),
 
-              onPickEditingBox: (boxId) {
-                editController.selectDevice(boxId);
-              },
+                        borderRadius: BorderRadius.circular(14),
 
-              onUpdateDirection: ({required boxDeviceId, required direction}) {
-                /*
-                 * Tên callback cũ là boxDeviceId.
-                 * Giá trị thực tế là boxId.
-                 */
-                return _saveDirection(boxId: boxDeviceId, direction: direction);
-              },
+                        border: Border.all(
+                          color: Colors.white.withOpacity(.08),
+                        ),
+                      ),
 
-              onUpdateGroupPosition:
-                  ({required boxDeviceId, required position}) {
-                    final boxId = boxDeviceId.trim();
+                      clipBehavior: Clip.antiAlias,
 
-                    final direction = directions[boxId] ?? ArrowDirection.right;
+                      child: FacOverlayMap(
+                        facId: widget.facId,
 
-                    return _savePosition(
-                      boxId: boxId,
-                      position: position,
-                      direction: direction,
-                    );
-                  },
-            ),
+                        boxIds: boxIds,
+
+                        boxesById: boxesById,
+
+                        groupLayout: groupLayout,
+
+                        directions: directions,
+
+                        colors: groupColors,
+
+                        editMode: editController.editMode,
+
+                        editingBoxId: editingBoxId,
+
+                        onPickEditingBox: (boxId) {
+                          editController.selectDevice(boxId);
+                        },
+
+                        onUpdateDirection:
+                            ({required boxDeviceId, required direction}) {
+                              return _saveDirection(
+                                boxId: boxDeviceId,
+
+                                direction: direction,
+                              );
+                            },
+
+                        onUpdateGroupPosition:
+                            ({required boxDeviceId, required position}) {
+                              final boxId = boxDeviceId.trim();
+
+                              final direction =
+                                  directions[boxId] ?? ArrowDirection.right;
+
+                              return _savePosition(
+                                boxId: boxId,
+
+                                position: position,
+
+                                direction: direction,
+                              );
+                            },
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  // =================================================
+                  // RIGHT
+                  // UTILITY OVERVIEW
+                  // =================================================
+                  Expanded(
+                    child: UtilityPeriodOverviewPanel(
+                      facId: widget.facId,
+
+                      api: UtilityPeriodApi(DioClient.dio),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

@@ -508,8 +508,6 @@ class _SolarImpactDonutLayout extends StatelessWidget {
 
   const _SolarImpactDonutLayout({required this.data});
 
-  static const solarColor = Color(0xFF76FF03);
-  static const mainsColor = Color(0xFFFFB300);
   static const greenColor = Color(0xff43d17a);
 
   static const double _middleGap = 21;

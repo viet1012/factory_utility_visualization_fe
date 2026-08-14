@@ -16,9 +16,9 @@ class UtilityStandardValues {
   const UtilityStandardValues._();
 
   // Thay lại theo tiêu chuẩn thực tế của nhà máy.
-  static const double electricity = 100.0;
-  static const double water = 35.0;
-  static const double compressedAir = 6.0;
+  static const double electricity = 50.0;
+  static const double water = 31.0;
+  static const double compressedAir = 5.0;
 
   static double byUtilityType(String utilityType) {
     final normalized = utilityType.trim().toUpperCase();

@@ -1431,10 +1431,6 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
     return NumberFormat('#,##0.00').format(value);
   }
 
-  String _vnd(double value) {
-    return NumberFormat('#,##0').format(value);
-  }
-
   String _compact(double value) {
     if (value >= 1000) {
       return '${(value / 1000).toStringAsFixed(1)}K';
