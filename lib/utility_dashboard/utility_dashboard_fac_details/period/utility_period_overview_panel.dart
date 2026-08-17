@@ -269,7 +269,7 @@ class _UtilityPeriodOverviewPanelState
 
             const SizedBox(width: 16),
 
-            _periodButton(value: _week, title: 'WEEK'),
+            _periodButton(value: _week, title: '7 DAYS'),
 
             const SizedBox(width: 6),
 
@@ -415,6 +415,26 @@ class _UtilityPeriodOverviewPanelState
   // ============================================================
   // PERIOD SELECTOR
   // ============================================================
+  bool get _canGoNext {
+    if (_isMonth) {
+      final now = DateTime.now();
+
+      return _selectedDate.year < now.year ||
+          (_selectedDate.year == now.year && _selectedDate.month < now.month);
+    }
+
+    final now = DateTime.now();
+
+    final today = DateTime(now.year, now.month, now.day);
+
+    final selected = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+    );
+
+    return selected.isBefore(today);
+  }
 
   Widget _buildPeriodSelector() {
     return Container(
@@ -433,7 +453,7 @@ class _UtilityPeriodOverviewPanelState
           ),
 
           Container(
-            constraints: const BoxConstraints(minWidth: 105),
+            constraints: const BoxConstraints(minWidth: 120),
             alignment: Alignment.center,
             child: Text(
               _periodLabel(),
@@ -445,19 +465,28 @@ class _UtilityPeriodOverviewPanelState
             ),
           ),
 
-          _periodArrow(icon: Icons.chevron_right_rounded, onTap: _nextPeriod),
+          _periodArrow(
+            icon: Icons.chevron_right_rounded,
+            onTap: _canGoNext ? _nextPeriod : null,
+          ),
         ],
       ),
     );
   }
 
-  Widget _periodArrow({required IconData icon, required VoidCallback onTap}) {
+  Widget _periodArrow({required IconData icon, required VoidCallback? onTap}) {
+    final enabled = onTap != null;
+
     return InkWell(
       onTap: onTap,
       child: SizedBox(
         width: 30,
         height: 32,
-        child: Icon(icon, color: Colors.white70, size: 18),
+        child: Icon(
+          icon,
+          color: enabled ? Colors.white70 : Colors.white24,
+          size: 18,
+        ),
       ),
     );
   }
@@ -465,19 +494,34 @@ class _UtilityPeriodOverviewPanelState
   String _periodLabel() {
     final data = _data;
 
-    if (data == null) {
-      return _isMonth
-          ? DateFormat('MM/yyyy').format(_selectedDate)
-          : DateFormat('dd/MM/yyyy').format(_selectedDate);
+    // ============================================================
+    // DATA TỪ API
+    // ============================================================
+
+    if (data != null) {
+      if (_isMonth) {
+        return DateFormat('MM/yyyy').format(data.fromDate);
+      }
+
+      return '${DateFormat('dd/MM').format(data.fromDate)}'
+          ' - '
+          '${DateFormat('dd/MM').format(data.toDate)}';
     }
+
+    // ============================================================
+    // CHƯA CÓ DATA
+    // ============================================================
 
     if (_isMonth) {
-      return DateFormat('MM/yyyy').format(data.fromDate);
+      return DateFormat('MM/yyyy').format(_selectedDate);
     }
 
-    return '${DateFormat('dd/MM').format(data.fromDate)}'
+    // selectedDate = ngày cuối
+    final fromDate = _selectedDate.subtract(const Duration(days: 6));
+
+    return '${DateFormat('dd/MM').format(fromDate)}'
         ' - '
-        '${DateFormat('dd/MM').format(data.toDate)}';
+        '${DateFormat('dd/MM').format(_selectedDate)}';
   }
 
   // ============================================================
@@ -768,7 +812,7 @@ class _UtilityPeriodOverviewPanelState
           const SizedBox(width: 5),
 
           Text(
-            _isMonth ? 'Daily Trend' : 'Weekly Trend',
+            _isMonth ? 'Daily Trend' : '7-Day Trend',
             style: const TextStyle(
               color: Colors.white60,
               fontSize: 12,

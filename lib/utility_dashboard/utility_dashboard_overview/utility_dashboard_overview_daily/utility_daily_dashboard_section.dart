@@ -34,9 +34,18 @@ class UtilityDailyDashboardSection extends StatefulWidget {
 
 class _UtilityDailyDashboardSectionState
     extends State<UtilityDailyDashboardSection> {
+  // ============================================================
+  // PROVIDER
+  // ============================================================
+
   late final UtilityDailyDashboardProvider _provider;
 
-  int _scheduleToken = 0;
+  // Dùng để vô hiệu hóa callback cũ nếu FAC/month đổi liên tục.
+  int _startGeneration = 0;
+
+  // ============================================================
+  // LIFECYCLE
+  // ============================================================
 
   @override
   void initState() {
@@ -44,198 +53,236 @@ class _UtilityDailyDashboardSectionState
 
     _provider = context.read<UtilityDailyDashboardProvider>();
 
-    _scheduleStart(facId: widget.facId, month: widget.month);
+    _queueStart();
   }
 
   @override
   void didUpdateWidget(covariant UtilityDailyDashboardSection oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final oldFacId = oldWidget.facId.trim();
-
-    final newFacId = widget.facId.trim();
-
-    final oldMonth = oldWidget.month.trim();
-
-    final newMonth = widget.month.trim();
-
-    final changed = oldFacId != newFacId || oldMonth != newMonth;
-
-    if (!changed) {
+    if (!_sourceChanged(oldWidget)) {
       return;
     }
 
-    _scheduleStart(facId: widget.facId, month: widget.month);
+    _queueStart();
   }
 
-  void _scheduleStart({required String facId, required String month}) {
-    final token = ++_scheduleToken;
+  bool _sourceChanged(UtilityDailyDashboardSection oldWidget) {
+    return oldWidget.facId.trim() != widget.facId.trim() ||
+        oldWidget.month.trim() != widget.month.trim();
+  }
 
-    final nextFacId = facId.trim();
+  // ============================================================
+  // VALIDATION
+  // ============================================================
 
-    final nextMonth = month.trim();
+  bool get _hasValidSource {
+    final facId = widget.facId.trim();
+    final month = widget.month.trim();
+
+    return facId.isNotEmpty && RegExp(r'^\d{6}$').hasMatch(month);
+  }
+
+  // ============================================================
+  // START PROVIDER
+  // ============================================================
+
+  void _queueStart() {
+    final generation = ++_startGeneration;
+
+    final facId = widget.facId.trim();
+    final month = widget.month.trim();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
 
-      /*
-         * Nếu FAC / month đổi nhiều lần
-         * trong cùng frame thì chỉ request
-         * mới nhất được chạy.
-         */
-      if (token != _scheduleToken) {
+      // Có FAC/month mới hơn đang chờ.
+      if (generation != _startGeneration) {
         return;
       }
 
-      unawaited(_provider.start(facId: nextFacId, month: nextMonth));
+      if (facId.isEmpty || !RegExp(r'^\d{6}$').hasMatch(month)) {
+        return;
+      }
+
+      unawaited(_provider.start(facId: facId, month: month));
     });
   }
 
+  // ============================================================
+  // RETRY
+  // ============================================================
+
   void _retry() {
+    if (!_hasValidSource) {
+      return;
+    }
+
     unawaited(_provider.load());
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
+    if (!_hasValidSource) {
+      return const Center(
+        child: Text(
+          'Invalid FAC or month.',
+          style: TextStyle(color: Colors.white54),
+        ),
+      );
+    }
+
     return Selector<UtilityDailyDashboardProvider, _DailyDashboardVm>(
       selector: (_, provider) {
-        return _DailyDashboardVm(
-          loading: provider.loading,
-
-          refreshing: provider.refreshing,
-
-          error: provider.error,
-
-          electricity: provider.electricity,
-
-          water: provider.water,
-
-          air: provider.air,
-        );
+        return _DailyDashboardVm.fromProvider(provider);
       },
 
       shouldRebuild: (previous, next) {
-        return previous.loading != next.loading ||
-            previous.refreshing != next.refreshing ||
-            previous.error != next.error ||
-            !identical(previous.electricity, next.electricity) ||
-            !identical(previous.water, next.water) ||
-            !identical(previous.air, next.air);
+        return previous.shouldRebuild(next);
       },
 
-      builder: (context, vm, _) {
-        final hasData =
-            vm.electricity.isNotEmpty ||
-            vm.water.isNotEmpty ||
-            vm.air.isNotEmpty;
-
-        if (vm.loading && !hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (vm.error != null && !hasData) {
-          return ChartApiErrorState(onRetry: _retry);
-        }
-
-        return Stack(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-
-              children: [
-                // =================================================
-                // ELECTRICITY
-                // GRID + SOLAR
-                // =================================================
-                Expanded(
-                  child: UtilityDashboardOverviewDailyElectricityChart(
-                    facId: widget.facId,
-
-                    month: widget.month,
-
-                    rows: vm.electricity,
-
-                    loading: vm.loading,
-
-                    error: vm.error,
-
-                    onRetry: _retry,
-
-                    theme: ChartThemes.power,
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                // =================================================
-                // WATER
-                // =================================================
-                Expanded(
-                  child: UtilityDashboardOverviewDailyChart(
-                    facId: widget.facId,
-
-                    month: widget.month,
-
-                    rows: vm.water,
-
-                    loading: vm.loading,
-
-                    error: vm.error,
-
-                    onRetry: _retry,
-
-                    theme: ChartThemes.water,
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                // =================================================
-                // AIR
-                // =================================================
-                Expanded(
-                  child: UtilityDashboardOverviewDailyChart(
-                    facId: widget.facId,
-
-                    month: widget.month,
-
-                    rows: vm.air,
-
-                    loading: vm.loading,
-
-                    error: vm.error,
-
-                    onRetry: _retry,
-
-                    theme: ChartThemes.air,
-                  ),
-                ),
-              ],
-            ),
-
-            // =====================================================
-            // SILENT REFRESH
-            // =====================================================
-            if (vm.refreshing)
-              Positioned(
-                top: 0,
-
-                left: 8,
-
-                right: 8,
-
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-
-                  child: const LinearProgressIndicator(minHeight: 2),
-                ),
-              ),
-          ],
-        );
+      builder: (_, vm, __) {
+        return _buildDashboard(vm);
       },
     );
+  }
+
+  // ============================================================
+  // DASHBOARD STATE
+  // ============================================================
+
+  Widget _buildDashboard(_DailyDashboardVm vm) {
+    // First loading
+    if (vm.isInitialLoading) {
+      return const Center(
+        child: SizedBox.square(
+          dimension: 24,
+          child: CircularProgressIndicator(strokeWidth: 2.2),
+        ),
+      );
+    }
+
+    // Không có data và API lỗi.
+    if (vm.hasBlockingError) {
+      return ChartApiErrorState(onRetry: _retry);
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(child: _buildCharts(vm)),
+
+        if (vm.refreshing) _buildRefreshIndicator(),
+      ],
+    );
+  }
+
+  // ============================================================
+  // CHARTS
+  // ============================================================
+
+  Widget _buildCharts(_DailyDashboardVm vm) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ======================================================
+        // ELECTRICITY
+        // GRID + SOLAR
+        // ======================================================
+        Expanded(
+          child: UtilityDashboardOverviewDailyElectricityChart(
+            facId: widget.facId,
+            month: widget.month,
+
+            rows: vm.electricity,
+
+            loading: vm.loading,
+            error: vm.error,
+
+            onRetry: _retry,
+
+            theme: ChartThemes.power,
+          ),
+        ),
+
+        const SizedBox(width: 8),
+
+        // ======================================================
+        // WATER
+        // ======================================================
+        Expanded(
+          child: UtilityDashboardOverviewDailyChart(
+            facId: widget.facId,
+            month: widget.month,
+
+            rows: vm.water,
+
+            loading: vm.loading,
+            error: vm.error,
+
+            onRetry: _retry,
+
+            theme: ChartThemes.water,
+          ),
+        ),
+
+        const SizedBox(width: 8),
+
+        // ======================================================
+        // AIR
+        // ======================================================
+        Expanded(
+          child: UtilityDashboardOverviewDailyChart(
+            facId: widget.facId,
+            month: widget.month,
+
+            rows: vm.air,
+
+            loading: vm.loading,
+            error: vm.error,
+
+            onRetry: _retry,
+
+            theme: ChartThemes.air,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // SILENT REFRESH
+  // ============================================================
+
+  Widget _buildRefreshIndicator() {
+    return Positioned(
+      top: 0,
+      left: 8,
+      right: 8,
+      child: IgnorePointer(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: const LinearProgressIndicator(minHeight: 2),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
+  @override
+  void dispose() {
+    // Vô hiệu callback post-frame chưa chạy.
+    _startGeneration++;
+
+    super.dispose();
   }
 }
 
@@ -245,28 +292,11 @@ class _UtilityDailyDashboardSectionState
 
 class _DailyDashboardVm {
   final bool loading;
-
   final bool refreshing;
 
   final Object? error;
 
-  // =========================================================
-  // Electricity có model riêng:
-  //
-  // date
-  // gridKwh
-  // solarKwh
-  // totalKwh
-  // =========================================================
-
   final List<UtilityDailyElectricityPoint> electricity;
-
-  // =========================================================
-  // Water / Air:
-  //
-  // date
-  // value
-  // =========================================================
 
   final List<UtilityDailyPoint> water;
 
@@ -280,4 +310,47 @@ class _DailyDashboardVm {
     required this.water,
     required this.air,
   });
+
+  factory _DailyDashboardVm.fromProvider(
+    UtilityDailyDashboardProvider provider,
+  ) {
+    return _DailyDashboardVm(
+      loading: provider.loading,
+      refreshing: provider.refreshing,
+      error: provider.error,
+
+      electricity: provider.electricity,
+      water: provider.water,
+      air: provider.air,
+    );
+  }
+
+  // ============================================================
+  // DERIVED STATE
+  // ============================================================
+
+  bool get hasData {
+    return electricity.isNotEmpty || water.isNotEmpty || air.isNotEmpty;
+  }
+
+  bool get isInitialLoading {
+    return loading && !hasData;
+  }
+
+  bool get hasBlockingError {
+    return error != null && !hasData;
+  }
+
+  // ============================================================
+  // SELECTOR COMPARISON
+  // ============================================================
+
+  bool shouldRebuild(_DailyDashboardVm next) {
+    return loading != next.loading ||
+        refreshing != next.refreshing ||
+        error != next.error ||
+        !identical(electricity, next.electricity) ||
+        !identical(water, next.water) ||
+        !identical(air, next.air);
+  }
 }

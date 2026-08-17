@@ -1,141 +1,60 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
-import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../utility_dashboard_overview_models/'
     'utility_daily_dashboard_response.dart';
-import '../utility_dashboard_overview_widgets/'
-    'chart_state_widgets.dart';
-import '../utility_dashboard_overview_widgets/'
-    'common_chart_title_bar.dart';
-import '../utility_dashboard_overview_widgets/'
-    'scada_chart_panel.dart';
+import 'daily_chart_common.dart';
 
 // ============================================================
-// CHART POINT
-// Water / Air
+// POINT
 // ============================================================
 
 class _DailyBarPoint {
-  final DateTime ts;
+  final DateTime date;
   final double value;
 
-  const _DailyBarPoint({required this.ts, required this.value});
+  const _DailyBarPoint({required this.date, required this.value});
 }
 
 // ============================================================
 // PREPARED DATA
 // ============================================================
 
-class _DailyChartData {
+class _DailyBarData {
   final List<_DailyBarPoint> points;
 
-  final DateTime minX;
-  final DateTime maxX;
+  final DailyChartRange range;
 
-  final double maxY;
-  final double yInterval;
+  const _DailyBarData({required this.points, required this.range});
 
-  const _DailyChartData({
-    required this.points,
-    required this.minX,
-    required this.maxX,
-    required this.maxY,
-    required this.yInterval,
-  });
-
-  factory _DailyChartData.from({
+  factory _DailyBarData.from({
     required List<UtilityDailyPoint> rows,
     required String month,
   }) {
     final points =
         rows
+            .where((item) => item.value.isFinite)
             .map(
               (item) =>
-                  _DailyBarPoint(ts: item.date.toLocal(), value: item.value),
+                  _DailyBarPoint(date: item.date.toLocal(), value: item.value),
             )
-            .where((point) => point.value.isFinite)
             .toList(growable: true)
-          ..sort((a, b) => a.ts.compareTo(b.ts));
+          ..sort((a, b) => a.date.compareTo(b.date));
 
-    final year = int.parse(month.substring(0, 4));
-
-    final monthNumber = int.parse(month.substring(4, 6));
-
-    final firstDay = DateTime(year, monthNumber, 1);
-
-    final lastDay = DateTime(
-      year,
-      monthNumber + 1,
-      1,
-    ).subtract(const Duration(days: 1));
-
-    double maxDataValue = 0;
-
-    for (final point in points) {
-      if (point.value > maxDataValue) {
-        maxDataValue = point.value;
-      }
-    }
-
-    final rawMaxY = maxDataValue <= 0 ? 1.0 : maxDataValue * 1.15;
-
-    final yInterval = _niceStep(rawMaxY / 5);
-
-    final maxY = _niceCeil(rawMaxY, yInterval);
-
-    return _DailyChartData(
-      points: List<_DailyBarPoint>.unmodifiable(points),
-      minX: firstDay.subtract(const Duration(hours: 12)),
-      maxX: lastDay.add(const Duration(hours: 12)),
-      maxY: maxY,
-      yInterval: yInterval,
+    final range = DailyChartUtils.calculateRange(
+      month: month,
+      values: points.map((item) => item.value),
     );
-  }
 
-  static double _niceStep(double rawStep) {
-    if (rawStep <= 0 || !rawStep.isFinite) {
-      return 1;
-    }
-
-    final exponent = (log(rawStep) / ln10).floor();
-
-    final base = pow(10, exponent).toDouble();
-
-    final fraction = rawStep / base;
-
-    if (fraction <= 1) {
-      return base;
-    }
-
-    if (fraction <= 2) {
-      return 2 * base;
-    }
-
-    if (fraction <= 5) {
-      return 5 * base;
-    }
-
-    return 10 * base;
-  }
-
-  static double _niceCeil(double value, double step) {
-    if (step <= 0 || !step.isFinite) {
-      return value;
-    }
-
-    return (value / step).ceil() * step;
+    return _DailyBarData(points: List.unmodifiable(points), range: range);
   }
 }
 
 // ============================================================
-// MAIN WIDGET
-// WATER + AIR
+// WIDGET
 // ============================================================
 
 class UtilityDashboardOverviewDailyChart extends StatefulWidget {
@@ -176,34 +95,37 @@ class UtilityDashboardOverviewDailyChart extends StatefulWidget {
 }
 
 class _UtilityDashboardOverviewDailyChartState
-    extends State<UtilityDashboardOverviewDailyChart>
-    with TickerProviderStateMixin {
-  late final UtilityInfoBoxFx fx;
+    extends State<UtilityDashboardOverviewDailyChart> {
+  List<UtilityDailyPoint>? _rowsReference;
 
-  List<UtilityDailyPoint>? _cachedRowsReference;
+  _DailyBarData? _chartData;
 
-  _DailyChartData? _cachedChartData;
+  DataHealthResult? _health;
 
-  DataHealthResult? _cachedHealth;
-
-  String _lastValue = '--';
-  String _lastTimestamp = '--';
+  String _latestValue = '--';
+  String _latestTimestamp = '--';
 
   bool get _hasRequired {
-    final fac = widget.facId.trim();
-    final month = widget.month.trim();
-
-    return fac.isNotEmpty && RegExp(r'^\d{6}$').hasMatch(month);
+    return DailyChartUtils.isValidSource(
+      facId: widget.facId,
+      month: widget.month,
+    );
   }
+
+  // ============================================================
+  // INIT
+  // ============================================================
 
   @override
   void initState() {
     super.initState();
 
-    fx = UtilityInfoBoxFx(this)..init();
-
-    _prepareData();
+    _prepareAll();
   }
+
+  // ============================================================
+  // UPDATE
+  // ============================================================
 
   @override
   void didUpdateWidget(covariant UtilityDashboardOverviewDailyChart oldWidget) {
@@ -217,230 +139,138 @@ class _UtilityDashboardOverviewDailyChartState
         oldWidget.theme.title != widget.theme.title ||
         oldWidget.theme.unit != widget.theme.unit;
 
-    final stateChanged =
-        oldWidget.loading != widget.loading || oldWidget.error != widget.error;
+    final healthChanged =
+        rowsChanged ||
+        oldWidget.loading != widget.loading ||
+        oldWidget.error != widget.error;
 
-    if (rowsChanged || configChanged || stateChanged) {
-      _prepareData(force: true);
+    if (rowsChanged || configChanged) {
+      _prepareChartData();
+      _prepareLatest();
+    }
+
+    if (healthChanged || configChanged) {
+      _prepareHealth();
     }
   }
 
-  void _prepareData({bool force = false}) {
-    if (!force && identical(_cachedRowsReference, widget.rows)) {
+  // ============================================================
+  // PREPARE
+  // ============================================================
+
+  void _prepareAll() {
+    _prepareChartData();
+    _prepareLatest();
+    _prepareHealth();
+  }
+
+  void _prepareChartData() {
+    _rowsReference = widget.rows;
+
+    if (widget.rows.isEmpty || !_hasRequired) {
+      _chartData = null;
       return;
     }
 
-    _cachedRowsReference = widget.rows;
+    _chartData = _DailyBarData.from(rows: widget.rows, month: widget.month);
+  }
 
-    final rows = widget.rows;
+  void _prepareHealth() {
+    _health = DataHealthAnalyzer.analyze(
+      key: 'Daily_${widget.facId}_${widget.theme.title}',
 
-    _cachedHealth = DataHealthAnalyzer.analyze(
-      key:
-          'Daily_'
-          '${widget.facId}_'
-          '${widget.theme.title}',
       loading: widget.loading,
+
       error: widget.error,
-      values: rows
+
+      values: widget.rows
           .map((item) => item.value)
           .where((value) => value.isFinite)
           .toList(growable: false),
     );
+  }
 
-    if (rows.isEmpty || !_hasRequired) {
-      _cachedChartData = null;
-      _lastValue = '--';
-      _lastTimestamp = '--';
-
+  void _prepareLatest() {
+    if (widget.rows.isEmpty || !_hasRequired) {
+      _latestValue = '--';
+      _latestTimestamp = '--';
       return;
     }
 
-    _cachedChartData = _DailyChartData.from(rows: rows, month: widget.month);
+    final latest = DailyChartUtils.resolveLatest<UtilityDailyPoint>(
+      rows: widget.rows,
+      month: widget.month,
+      dateOf: (item) => item.date,
+    );
 
-    final latest = _resolveLatestPoint(rows);
-
-    _lastValue =
-        '${_formatUtilityValue(latest.value)} '
+    _latestValue =
+        '${DailyChartUtils.formatValue(latest.value)} '
         '${widget.theme.unit}';
 
-    _lastTimestamp = DateFormat('yyyy-MM-dd').format(latest.date.toLocal());
+    _latestTimestamp = DateFormat('yyyy-MM-dd').format(latest.date.toLocal());
   }
 
-  UtilityDailyPoint _resolveLatestPoint(List<UtilityDailyPoint> rows) {
-    final sorted = List<UtilityDailyPoint>.from(rows)
-      ..sort((a, b) => a.date.compareTo(b.date));
-
-    final now = DateTime.now();
-
-    final isCurrentMonth = DateFormat('yyyyMM').format(now) == widget.month;
-
-    if (!isCurrentMonth) {
-      return sorted.last;
-    }
-
-    for (var i = sorted.length - 1; i >= 0; i--) {
-      final item = sorted[i];
-
-      final date = item.date.toLocal();
-
-      if (date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day) {
-        return item;
-      }
-    }
-
-    return sorted.last;
-  }
-
-  @override
-  void dispose() {
-    fx.dispose();
-
-    super.dispose();
-  }
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     final health =
-        _cachedHealth ??
+        _health ??
         DataHealthAnalyzer.analyze(
-          key:
-              'Daily_'
-              '${widget.facId}_'
-              '${widget.theme.title}',
+          key: 'Daily_${widget.facId}_${widget.theme.title}',
           loading: widget.loading,
           error: widget.error,
           values: const <double>[],
         );
 
-    return SlideTransition(
-      position: fx.slide,
-      child: MouseRegion(
-        onEnter: (_) => fx.onHover(true),
-        onExit: (_) => fx.onHover(false),
-        child: AnimatedBuilder(
-          animation: fx.listenable,
-          builder: (context, child) {
-            return Transform.scale(scale: fx.scale.value, child: child);
-          },
-          child: _DailyChartShell(
-            width: widget.width,
-            height: widget.height ?? 320,
-            facilityColor: widget.theme.line,
-            child: _buildBody(health),
-          ),
-        ),
-      ),
-    );
-  }
+    return DailyChartFrame(
+      facId: widget.facId,
 
-  Widget _buildBody(DataHealthResult health) {
-    if (!_hasRequired) {
-      return const EmptyChartState(
-        icon: Icons.warning_amber_rounded,
-        title: 'Invalid Parameters',
-        message: 'Missing facId or invalid month format.',
-      );
-    }
+      month: widget.month,
 
-    if (widget.loading && widget.rows.isEmpty) {
-      return Center(
-        child: SizedBox.square(
-          dimension: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.2,
-            color: widget.theme.line,
-          ),
-        ),
-      );
-    }
+      theme: widget.theme,
 
-    if (widget.error != null && widget.rows.isEmpty) {
-      return ChartApiErrorState(
-        color: widget.theme.line,
-        onRetry: widget.onRetry ?? () {},
-      );
-    }
+      loading: widget.loading,
 
-    final chartData = _cachedChartData;
+      error: widget.error,
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (widget.showHeader) ...[
-          CommonChartTitleBar(
-            title: widget.theme.title,
-            health: health,
-            value: _lastValue,
-            valueTs: _lastTimestamp,
-            backgroundColor: Colors.transparent,
-            borderColor: widget.theme.line.withOpacity(.44),
-          ),
-          const SizedBox(height: 6),
-        ],
+      hasData: widget.rows.isNotEmpty && _chartData != null,
 
-        Expanded(
-          child: widget.rows.isEmpty || chartData == null
-              ? const EmptyChartState(
-                  title: 'No Daily Data',
-                  message:
-                      'No utility data available '
-                      'for this month.',
-                )
-              : DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white.withOpacity(.06)),
-                    color: Colors.black.withOpacity(.05),
-                  ),
-                  child: RepaintBoundary(
-                    child: _DailyBarChart(theme: widget.theme, data: chartData),
-                  ),
-                ),
-        ),
-      ],
+      health: health,
+
+      value: _latestValue,
+
+      valueTimestamp: _latestTimestamp,
+
+      width: widget.width,
+
+      height: widget.height ?? 320,
+
+      showHeader: widget.showHeader,
+
+      onRetry: widget.onRetry,
+
+      emptyTitle: 'No Daily Data',
+
+      emptyMessage: 'No utility data available for this month.',
+
+      chart: _chartData == null
+          ? null
+          : _DailyBarChart(theme: widget.theme, data: _chartData!),
     );
   }
 }
 
 // ============================================================
-// SHELL
-// ============================================================
-
-class _DailyChartShell extends StatelessWidget {
-  final double width;
-  final double height;
-
-  final Color facilityColor;
-  final Widget child;
-
-  const _DailyChartShell({
-    required this.width,
-    required this.height,
-    required this.facilityColor,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ScadaChartPanel(
-      width: width,
-      height: height,
-      color: facilityColor,
-      child: Padding(padding: const EdgeInsets.all(8), child: child),
-    );
-  }
-}
-
-// ============================================================
-// NORMAL COLUMN CHART
-// WATER + AIR
+// CHART
 // ============================================================
 
 class _DailyBarChart extends StatelessWidget {
   final ChartTheme theme;
-  final _DailyChartData data;
+
+  final _DailyBarData data;
 
   const _DailyBarChart({required this.theme, required this.data});
 
@@ -467,42 +297,56 @@ class _DailyBarChart extends StatelessWidget {
       ),
 
       primaryXAxis: DateTimeAxis(
-        minimum: data.minX,
-        maximum: data.maxX,
+        minimum: data.range.minX,
+
+        maximum: data.range.maxX,
+
         intervalType: DateTimeIntervalType.days,
+
         interval: 1,
+
         labelRotation: 45,
+
         dateFormat: DateFormat('dd'),
+
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(.07),
         ),
+
         axisLine: AxisLine(color: Colors.white.withOpacity(.15), width: 1),
+
         majorTickLines: const MajorTickLines(size: 3),
+
         labelStyle: TextStyle(
           color: Colors.white.withOpacity(.70),
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
+
         edgeLabelPlacement: EdgeLabelPlacement.hide,
       ),
 
       primaryYAxis: NumericAxis(
         minimum: 0,
-        maximum: data.maxY,
-        interval: data.yInterval,
+
+        maximum: data.range.maxY,
+
+        interval: data.range.yInterval,
 
         numberFormat: NumberFormat.compact(),
 
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withOpacity(.075),
-          dashArray: const <double>[4, 4],
+          dashArray: const [4, 4],
         ),
 
         title: AxisTitle(
           text: theme.unit,
+
           alignment: ChartAlignment.center,
+
           textStyle: TextStyle(
             color: Colors.white.withOpacity(.72),
             fontWeight: FontWeight.w600,
@@ -517,17 +361,22 @@ class _DailyBarChart extends StatelessWidget {
         labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
       ),
 
-      series: <CartesianSeries<_DailyBarPoint, DateTime>>[
+      series: [
         ColumnSeries<_DailyBarPoint, DateTime>(
           name: theme.title,
+
           dataSource: data.points,
-          xValueMapper: (point, _) => point.ts,
+
+          xValueMapper: (point, _) => point.date,
+
           yValueMapper: (point, _) => point.value,
+
           animationDuration: 450,
+
           width: .9,
+
           spacing: .15,
 
-          // borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -543,32 +392,4 @@ class _DailyBarChart extends StatelessWidget {
       ],
     );
   }
-}
-
-// ============================================================
-// FORMATTER
-// ============================================================
-
-final NumberFormat _compactValueFormat = NumberFormat.compact(locale: 'en_US');
-
-String _formatUtilityValue(double value) {
-  if (!value.isFinite) {
-    return '--';
-  }
-
-  final absolute = value.abs();
-
-  if (absolute >= 1000) {
-    return _compactValueFormat.format(value);
-  }
-
-  if (absolute >= 100) {
-    return value.toStringAsFixed(1);
-  }
-
-  if (absolute >= 10) {
-    return value.toStringAsFixed(2);
-  }
-
-  return value.toStringAsFixed(3);
 }

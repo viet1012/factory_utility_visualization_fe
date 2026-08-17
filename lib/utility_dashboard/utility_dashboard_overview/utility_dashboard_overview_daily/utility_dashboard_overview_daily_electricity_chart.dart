@@ -1,20 +1,12 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
-import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../utility_dashboard_overview_models/'
     'utility_daily_dashboard_response.dart';
-import '../utility_dashboard_overview_widgets/'
-    'chart_state_widgets.dart';
-import '../utility_dashboard_overview_widgets/'
-    'common_chart_title_bar.dart';
-import '../utility_dashboard_overview_widgets/'
-    'scada_chart_panel.dart';
+import 'daily_chart_common.dart';
 
 // ============================================================
 // PREPARED DATA
@@ -23,19 +15,9 @@ import '../utility_dashboard_overview_widgets/'
 class _ElectricityChartData {
   final List<UtilityDailyElectricityPoint> points;
 
-  final DateTime minX;
-  final DateTime maxX;
+  final DailyChartRange range;
 
-  final double maxY;
-  final double yInterval;
-
-  const _ElectricityChartData({
-    required this.points,
-    required this.minX,
-    required this.maxX,
-    required this.maxY,
-    required this.yInterval,
-  });
+  const _ElectricityChartData({required this.points, required this.range});
 
   factory _ElectricityChartData.from({
     required List<UtilityDailyElectricityPoint> rows,
@@ -44,87 +26,25 @@ class _ElectricityChartData {
     final points = List<UtilityDailyElectricityPoint>.from(rows)
       ..sort((a, b) => a.date.compareTo(b.date));
 
-    final year = int.parse(month.substring(0, 4));
+    final range = DailyChartUtils.calculateRange(
+      month: month,
 
-    final monthNumber = int.parse(month.substring(4, 6));
-
-    final firstDay = DateTime(year, monthNumber, 1);
-
-    final lastDay = DateTime(
-      year,
-      monthNumber + 1,
-      1,
-    ).subtract(const Duration(days: 1));
-
-    double maxValue = 0;
-
-    for (final point in points) {
-      /*
-       * Chiều cao toàn cột =
-       *
-       * Grid + Solar
-       *
-       * Dùng totalKwh nếu API đã tính sẵn.
-       */
-      final total = point.totalKwh;
-
-      if (total.isFinite && total > maxValue) {
-        maxValue = total;
-      }
-    }
-
-    final rawMaxY = maxValue <= 0 ? 1.0 : maxValue * 1.15;
-
-    final yInterval = _niceStep(rawMaxY / 5);
-
-    final maxY = _niceCeil(rawMaxY, yInterval);
+      // Tổng chiều cao =
+      // Grid + Solar
+      // API trả totalKwh sẵn.
+      values: points.map((point) => point.totalKwh),
+    );
 
     return _ElectricityChartData(
-      points: List<UtilityDailyElectricityPoint>.unmodifiable(points),
-      minX: firstDay.subtract(const Duration(hours: 12)),
-      maxX: lastDay.add(const Duration(hours: 12)),
-      maxY: maxY,
-      yInterval: yInterval,
+      points: List.unmodifiable(points),
+
+      range: range,
     );
-  }
-
-  static double _niceStep(double rawStep) {
-    if (rawStep <= 0 || !rawStep.isFinite) {
-      return 1;
-    }
-
-    final exponent = (log(rawStep) / ln10).floor();
-
-    final base = pow(10, exponent).toDouble();
-
-    final fraction = rawStep / base;
-
-    if (fraction <= 1) {
-      return base;
-    }
-
-    if (fraction <= 2) {
-      return 2 * base;
-    }
-
-    if (fraction <= 5) {
-      return 5 * base;
-    }
-
-    return 10 * base;
-  }
-
-  static double _niceCeil(double value, double step) {
-    if (step <= 0 || !step.isFinite) {
-      return value;
-    }
-
-    return (value / step).ceil() * step;
   }
 }
 
 // ============================================================
-// MAIN
+// WIDGET
 // ============================================================
 
 class UtilityDashboardOverviewDailyElectricityChart extends StatefulWidget {
@@ -165,36 +85,36 @@ class UtilityDashboardOverviewDailyElectricityChart extends StatefulWidget {
 }
 
 class _UtilityDashboardOverviewDailyElectricityChartState
-    extends State<UtilityDashboardOverviewDailyElectricityChart>
-    with TickerProviderStateMixin {
-  late final UtilityInfoBoxFx fx;
+    extends State<UtilityDashboardOverviewDailyElectricityChart> {
+  _ElectricityChartData? _chartData;
 
-  List<UtilityDailyElectricityPoint>? _cachedRowsReference;
+  DataHealthResult? _health;
 
-  _ElectricityChartData? _cachedChartData;
+  String _latestValue = '--';
 
-  DataHealthResult? _cachedHealth;
-
-  String _lastValue = '--';
-
-  String _lastTimestamp = '--';
+  String _latestTimestamp = '--';
 
   bool get _hasRequired {
-    final fac = widget.facId.trim();
-
-    final month = widget.month.trim();
-
-    return fac.isNotEmpty && RegExp(r'^\d{6}$').hasMatch(month);
+    return DailyChartUtils.isValidSource(
+      facId: widget.facId,
+      month: widget.month,
+    );
   }
+
+  // ============================================================
+  // INIT
+  // ============================================================
 
   @override
   void initState() {
     super.initState();
 
-    fx = UtilityInfoBoxFx(this)..init();
-
-    _prepareData();
+    _prepareAll();
   }
+
+  // ============================================================
+  // UPDATE
+  // ============================================================
 
   @override
   void didUpdateWidget(
@@ -210,260 +130,144 @@ class _UtilityDashboardOverviewDailyElectricityChartState
         oldWidget.theme.title != widget.theme.title ||
         oldWidget.theme.unit != widget.theme.unit;
 
-    final stateChanged =
-        oldWidget.loading != widget.loading || oldWidget.error != widget.error;
+    final healthChanged =
+        rowsChanged ||
+        oldWidget.loading != widget.loading ||
+        oldWidget.error != widget.error;
 
-    if (rowsChanged || configChanged || stateChanged) {
-      _prepareData(force: true);
+    if (rowsChanged || configChanged) {
+      _prepareChartData();
+      _prepareLatest();
+    }
+
+    if (healthChanged || configChanged) {
+      _prepareHealth();
     }
   }
 
-  void _prepareData({bool force = false}) {
-    if (!force && identical(_cachedRowsReference, widget.rows)) {
+  // ============================================================
+  // PREPARE
+  // ============================================================
+
+  void _prepareAll() {
+    _prepareChartData();
+    _prepareLatest();
+    _prepareHealth();
+  }
+
+  void _prepareChartData() {
+    if (widget.rows.isEmpty || !_hasRequired) {
+      _chartData = null;
       return;
     }
 
-    _cachedRowsReference = widget.rows;
+    _chartData = _ElectricityChartData.from(
+      rows: widget.rows,
+      month: widget.month,
+    );
+  }
 
-    final rows = widget.rows;
-
-    _cachedHealth = DataHealthAnalyzer.analyze(
-      key:
-          'Daily_Electricity_'
-          '${widget.facId}',
+  void _prepareHealth() {
+    _health = DataHealthAnalyzer.analyze(
+      key: 'Daily_Electricity_${widget.facId}',
 
       loading: widget.loading,
 
       error: widget.error,
 
-      values: rows
+      values: widget.rows
           .map((item) => item.totalKwh)
           .where((value) => value.isFinite)
           .toList(growable: false),
     );
+  }
 
-    if (rows.isEmpty || !_hasRequired) {
-      _cachedChartData = null;
+  void _prepareLatest() {
+    if (widget.rows.isEmpty || !_hasRequired) {
+      _latestValue = '--';
 
-      _lastValue = '--';
-
-      _lastTimestamp = '--';
+      _latestTimestamp = '--';
 
       return;
     }
 
-    _cachedChartData = _ElectricityChartData.from(
-      rows: rows,
+    final latest = DailyChartUtils.resolveLatest<UtilityDailyElectricityPoint>(
+      rows: widget.rows,
+
       month: widget.month,
+
+      dateOf: (item) => item.date,
     );
 
-    final latest = _resolveLatestPoint(rows);
-
-    _lastValue =
-        '${_formatUtilityValue(latest.totalKwh)} '
+    _latestValue =
+        '${DailyChartUtils.formatValue(latest.totalKwh)} '
         '${widget.theme.unit}';
 
-    _lastTimestamp = DateFormat('yyyy-MM-dd').format(latest.date.toLocal());
+    _latestTimestamp = DateFormat('yyyy-MM-dd').format(latest.date.toLocal());
   }
 
-  UtilityDailyElectricityPoint _resolveLatestPoint(
-    List<UtilityDailyElectricityPoint> rows,
-  ) {
-    final sorted = List<UtilityDailyElectricityPoint>.from(rows)
-      ..sort((a, b) => a.date.compareTo(b.date));
-
-    final now = DateTime.now();
-
-    final currentMonth = DateFormat('yyyyMM').format(now);
-
-    if (currentMonth != widget.month) {
-      return sorted.last;
-    }
-
-    for (var i = sorted.length - 1; i >= 0; i--) {
-      final date = sorted[i].date.toLocal();
-
-      if (date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day) {
-        return sorted[i];
-      }
-    }
-
-    return sorted.last;
-  }
-
-  @override
-  void dispose() {
-    fx.dispose();
-
-    super.dispose();
-  }
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     final health =
-        _cachedHealth ??
+        _health ??
         DataHealthAnalyzer.analyze(
-          key:
-              'Daily_Electricity_'
-              '${widget.facId}',
+          key: 'Daily_Electricity_${widget.facId}',
           loading: widget.loading,
           error: widget.error,
           values: const <double>[],
         );
 
-    return SlideTransition(
-      position: fx.slide,
+    return DailyChartFrame(
+      facId: widget.facId,
 
-      child: MouseRegion(
-        onEnter: (_) => fx.onHover(true),
+      month: widget.month,
 
-        onExit: (_) => fx.onHover(false),
+      theme: widget.theme,
 
-        child: AnimatedBuilder(
-          animation: fx.listenable,
+      loading: widget.loading,
 
-          builder: (context, child) {
-            return Transform.scale(scale: fx.scale.value, child: child);
-          },
+      error: widget.error,
 
-          child: _DailyChartShell(
-            width: widget.width,
+      hasData: widget.rows.isNotEmpty && _chartData != null,
 
-            height: widget.height ?? 320,
+      health: health,
 
-            facilityColor: widget.theme.line,
+      valueLabel: 'Total Electricity',
 
-            child: _buildBody(health),
-          ),
-        ),
-      ),
-    );
-  }
+      value: _latestValue,
 
-  Widget _buildBody(DataHealthResult health) {
-    if (!_hasRequired) {
-      return const EmptyChartState(
-        icon: Icons.warning_amber_rounded,
-        title: 'Invalid Parameters',
-        message: 'Missing facId or invalid month format.',
-      );
-    }
+      valueTimestamp: _latestTimestamp,
 
-    if (widget.loading && widget.rows.isEmpty) {
-      return Center(
-        child: SizedBox.square(
-          dimension: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.2,
-            color: widget.theme.line,
-          ),
-        ),
-      );
-    }
+      width: widget.width,
 
-    if (widget.error != null && widget.rows.isEmpty) {
-      return ChartApiErrorState(
-        color: widget.theme.line,
-        onRetry: widget.onRetry ?? () {},
-      );
-    }
+      height: widget.height ?? 320,
 
-    final chartData = _cachedChartData;
+      showHeader: widget.showHeader,
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      onRetry: widget.onRetry,
 
-      children: [
-        if (widget.showHeader) ...[
-          CommonChartTitleBar(
-            title: widget.theme.title,
+      emptyTitle: 'No Daily Data',
 
-            health: health,
+      emptyMessage: 'No electricity data available for this month.',
 
-            /*
-             * Header = tổng điện
-             * Grid + Solar.
-             */
-            valueLabel: 'Total Electricity',
-            value: _lastValue,
-
-            valueTs: _lastTimestamp,
-
-            backgroundColor: Colors.transparent,
-
-            borderColor: widget.theme.line.withOpacity(.44),
-          ),
-
-          const SizedBox(height: 6),
-        ],
-
-        Expanded(
-          child: widget.rows.isEmpty || chartData == null
-              ? const EmptyChartState(
-                  title: 'No Daily Data',
-                  message:
-                      'No electricity data '
-                      'available for this month.',
-                )
-              : DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-
-                    border: Border.all(color: Colors.white.withOpacity(.06)),
-
-                    color: Colors.black.withOpacity(.05),
-                  ),
-
-                  child: RepaintBoundary(
-                    child: _ElectricityStackedChart(
-                      theme: widget.theme,
-                      data: chartData,
-                    ),
-                  ),
-                ),
-        ),
-      ],
+      chart: _chartData == null
+          ? null
+          : _ElectricityStackedChart(theme: widget.theme, data: _chartData!),
     );
   }
 }
 
 // ============================================================
-// SHELL
-// ============================================================
-
-class _DailyChartShell extends StatelessWidget {
-  final double width;
-  final double height;
-
-  final Color facilityColor;
-  final Widget child;
-
-  const _DailyChartShell({
-    required this.width,
-    required this.height,
-    required this.facilityColor,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ScadaChartPanel(
-      width: width,
-      height: height,
-      color: facilityColor,
-      child: Padding(padding: const EdgeInsets.all(8), child: child),
-    );
-  }
-}
-
-// ============================================================
-// ELECTRICITY STACKED COLUMN
+// ELECTRICITY STACKED CHART
 // ============================================================
 
 class _ElectricityStackedChart extends StatelessWidget {
   final ChartTheme theme;
+
   final _ElectricityChartData data;
 
   const _ElectricityStackedChart({required this.theme, required this.data});
@@ -477,6 +281,9 @@ class _ElectricityStackedChart extends StatelessWidget {
 
       plotAreaBorderColor: Colors.white.withOpacity(.12),
 
+      // ========================================================
+      // LEGEND
+      // ========================================================
       legend: Legend(
         isVisible: true,
 
@@ -492,13 +299,14 @@ class _ElectricityStackedChart extends StatelessWidget {
 
         textStyle: TextStyle(
           color: Colors.white.withOpacity(.72),
-
           fontSize: 14,
-
           fontWeight: FontWeight.w700,
         ),
       ),
 
+      // ========================================================
+      // TOOLTIP
+      // ========================================================
       tooltipBehavior: TooltipBehavior(
         enable: true,
 
@@ -510,17 +318,18 @@ class _ElectricityStackedChart extends StatelessWidget {
 
         textStyle: const TextStyle(
           color: Colors.white,
-
           fontSize: 11,
-
           fontWeight: FontWeight.w700,
         ),
       ),
 
+      // ========================================================
+      // X
+      // ========================================================
       primaryXAxis: DateTimeAxis(
-        minimum: data.minX,
+        minimum: data.range.minX,
 
-        maximum: data.maxX,
+        maximum: data.range.maxX,
 
         intervalType: DateTimeIntervalType.days,
 
@@ -551,12 +360,15 @@ class _ElectricityStackedChart extends StatelessWidget {
         edgeLabelPlacement: EdgeLabelPlacement.hide,
       ),
 
+      // ========================================================
+      // Y
+      // ========================================================
       primaryYAxis: NumericAxis(
         minimum: 0,
 
-        maximum: data.maxY,
+        maximum: data.range.maxY,
 
-        interval: data.yInterval,
+        interval: data.range.yInterval,
 
         numberFormat: NumberFormat.compact(),
 
@@ -565,7 +377,7 @@ class _ElectricityStackedChart extends StatelessWidget {
 
           color: Colors.white.withOpacity(.075),
 
-          dashArray: const <double>[4, 4],
+          dashArray: const [4, 4],
         ),
 
         title: AxisTitle(
@@ -575,9 +387,7 @@ class _ElectricityStackedChart extends StatelessWidget {
 
           textStyle: TextStyle(
             color: Colors.white.withOpacity(.72),
-
             fontWeight: FontWeight.w600,
-
             fontSize: 13,
           ),
         ),
@@ -589,7 +399,10 @@ class _ElectricityStackedChart extends StatelessWidget {
         labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
       ),
 
-      series: <CartesianSeries<UtilityDailyElectricityPoint, DateTime>>[
+      // ========================================================
+      // SERIES
+      // ========================================================
+      series: [
         // ======================================================
         // GRID
         // ======================================================
@@ -641,49 +454,21 @@ class _ElectricityStackedChart extends StatelessWidget {
 
           spacing: .14,
 
-          // color: const Color(0xFFFFAB00),
           gradient: const LinearGradient(
             begin: Alignment.topCenter,
+
             end: Alignment.bottomCenter,
-            colors: [Color(0xA176FF03), Color(0x10B981)],
+
+            colors: [Color(0xA176FF03), Color(0x0010B981)],
           ),
 
-          borderColor: const Color(0xB276FF03).withOpacity(.95),
+          borderColor: const Color(0xB276FF03),
+
           borderWidth: .8,
 
-          // borderWidth: .8,
-          // borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
           enableTooltip: true,
         ),
       ],
     );
   }
-}
-
-// ============================================================
-// FORMAT
-// ============================================================
-
-final NumberFormat _compactValueFormat = NumberFormat.compact(locale: 'en_US');
-
-String _formatUtilityValue(double value) {
-  if (!value.isFinite) {
-    return '--';
-  }
-
-  final absolute = value.abs();
-
-  if (absolute >= 1000) {
-    return _compactValueFormat.format(value);
-  }
-
-  if (absolute >= 100) {
-    return value.toStringAsFixed(1);
-  }
-
-  if (absolute >= 10) {
-    return value.toStringAsFixed(2);
-  }
-
-  return value.toStringAsFixed(3);
 }
