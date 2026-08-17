@@ -1,7 +1,8 @@
 import 'dart:async';
 
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/monthly_metric_widgets.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/monthly_water_card.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../utility_models/utility_facade_service.dart';
@@ -11,257 +12,9 @@ import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_fac_details/screens/utility_fac_detail_screen.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import '../utility_dashboard_overview_models/energy_monthly_summary.dart';
 import '../utility_dashboard_overview_widgets/utility_glow_card.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
-
-// ============================================================
-// MODEL
-// ============================================================
-
-class EnergyMonthlySummary {
-  final String cate;
-  final String name;
-  final String month;
-
-  final double? minValue;
-  final double? maxValue;
-  final double? prevMinValue;
-  final double? prevMaxValue;
-
-  final double? value;
-  final double? avgValue;
-
-  final double? vndCost;
-  final double? usdCost;
-
-  final double? prevValue;
-  final double? prevAvgValue;
-
-  final double? prevVndCost;
-  final double? prevUsdCost;
-
-  final double? deltaValue;
-  final double? deltaPercent;
-
-  final String unit;
-
-  final DateTime? pickAt;
-  final DateTime? generatedAt;
-
-  const EnergyMonthlySummary({
-    required this.cate,
-    required this.name,
-    required this.month,
-    required this.minValue,
-    required this.maxValue,
-    required this.prevMinValue,
-    required this.prevMaxValue,
-    required this.value,
-    required this.avgValue,
-    required this.vndCost,
-    required this.usdCost,
-    required this.prevValue,
-    required this.prevAvgValue,
-    required this.prevVndCost,
-    required this.prevUsdCost,
-    required this.deltaValue,
-    required this.deltaPercent,
-    required this.unit,
-    required this.pickAt,
-    required this.generatedAt,
-  });
-
-  factory EnergyMonthlySummary.fromJson(Map<String, dynamic> json) {
-    return EnergyMonthlySummary(
-      cate: _readString(json['cate']),
-      name: _readString(json['name']),
-      month: _readString(json['month']),
-
-      minValue: _readDouble(json['minValue']),
-      maxValue: _readDouble(json['maxValue']),
-      prevMinValue: _readDouble(json['prevMinValue']),
-      prevMaxValue: _readDouble(json['prevMaxValue']),
-
-      value: _readDouble(json['value']),
-      avgValue: _readDouble(json['avgValue']),
-
-      vndCost: _readDouble(json['vndCost']),
-      usdCost: _readDouble(json['usdCost']),
-
-      prevValue: _readDouble(json['prevValue']),
-      prevAvgValue: _readDouble(json['prevAvgValue']),
-
-      prevVndCost: _readDouble(json['prevVndCost']),
-      prevUsdCost: _readDouble(json['prevUsdCost']),
-
-      deltaValue: _readDouble(json['deltaValue']),
-      deltaPercent: _readDouble(json['deltaPercent']),
-
-      unit: _readString(json['unit']),
-
-      pickAt: _readDateTime(json['pickAt'] ?? json['timestamp']),
-
-      generatedAt: _readDateTime(json['generatedAt']),
-    );
-  }
-
-  static String _readString(dynamic value) {
-    return value?.toString().trim() ?? '';
-  }
-
-  static double? _readDouble(dynamic value) {
-    if (value == null) return null;
-
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    final raw = value.toString().trim();
-
-    if (raw.isEmpty) return null;
-
-    return double.tryParse(raw.replaceAll(',', ''));
-  }
-
-  static DateTime? _readDateTime(dynamic value) {
-    if (value == null) return null;
-
-    final raw = value.toString().trim();
-
-    if (raw.isEmpty) return null;
-
-    return DateTime.tryParse(raw)?.toLocal();
-  }
-
-  double get displayValue {
-    return value ?? avgValue ?? 0;
-  }
-
-  double? get previousDisplayValue {
-    return prevValue ?? prevAvgValue;
-  }
-
-  double? get currentCost {
-    if (usdCost != null) return usdCost;
-    if (vndCost != null) return vndCost;
-
-    return null;
-  }
-
-  double? get previousCost {
-    // Chỉ lấy previous tương ứng với loại tiền hiện tại.
-    if (usdCost != null) return prevUsdCost;
-    if (vndCost != null) return prevVndCost;
-
-    return null;
-  }
-
-  String get currentCostUnit {
-    if (usdCost != null) return 'USD';
-    if (vndCost != null) return 'VND';
-
-    return '';
-  }
-
-  String get previousCostUnit {
-    // Unit previous phải đi theo loại tiền current.
-    if (usdCost != null && prevUsdCost != null) return 'USD';
-    if (vndCost != null && prevVndCost != null) return 'VND';
-
-    return '';
-  }
-
-  bool get hasComparableCost {
-    final current = currentCost;
-    final previous = previousCost;
-
-    return current != null &&
-        previous != null &&
-        currentCostUnit.isNotEmpty &&
-        currentCostUnit == previousCostUnit;
-  }
-
-  /// Current cost - previous cost.
-  double? get costDeltaValue {
-    if (!hasComparableCost) return null;
-
-    return currentCost! - previousCost!;
-  }
-
-  /// Phần trăm thay đổi chi phí so với tháng trước.
-  double? get costDeltaPercent {
-    if (!hasComparableCost) return null;
-
-    final previous = previousCost!;
-
-    if (previous == 0) return null;
-
-    return ((currentCost! - previous) / previous) * 100;
-  }
-}
-
-// ============================================================
-// FORMATTERS
-// ============================================================
-
-final NumberFormat _integerFmt = NumberFormat('#,##0');
-final NumberFormat _decimalFmt = NumberFormat('#,##0.0');
-final NumberFormat _moneyFmt = NumberFormat('#,##0');
-
-const EdgeInsets _metricCardPadding = EdgeInsets.symmetric(
-  horizontal: 2,
-  vertical: 5,
-);
-
-String _formatUtilityNumber(EnergyMonthlySummary item, double? value) {
-  if (value == null) {
-    return '--';
-  }
-
-  return _isElectricityItem(item)
-      ? _formatInteger(value)
-      : _formatDecimal(value);
-}
-
-String _metricModeLabel(EnergyMonthlySummary item) {
-  return _isElectricityItem(item) ? 'MTD' : 'AVG';
-}
-
-String _formatInteger(double value) {
-  return _integerFmt.format(value);
-}
-
-String _formatDecimal(double value) {
-  return _decimalFmt.format(value);
-}
-
-String _formatMoney(double value) {
-  return _moneyFmt.format(value);
-}
-
-bool _isElectricityItem(EnergyMonthlySummary item) {
-  return item.cate.trim().toUpperCase().contains('ELECTRIC');
-}
-
-bool _isWaterItem(EnergyMonthlySummary item) {
-  return item.cate.trim().toUpperCase().contains('WATER');
-}
-
-bool _isAirItem(EnergyMonthlySummary item) {
-  final cate = item.cate.trim().toUpperCase();
-
-  return cate.contains('AIR') || cate.contains('COMPRESSED');
-}
-
-String _resolveUnit(EnergyMonthlySummary item, ChartTheme theme) {
-  final apiUnit = item.unit.trim();
-
-  if (apiUnit.isNotEmpty) {
-    return apiUnit;
-  }
-
-  return theme.unit.trim();
-}
 
 // ============================================================
 // MONTHLY BOX
@@ -276,6 +29,7 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
   final String headerTitle;
 
   final bool isHighlighted;
+
   final String? filterCate;
 
   const UtilityOverviewMonthlyBox({
@@ -295,63 +49,106 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
   }
 }
 
+// ============================================================
+// STATE
+// ============================================================
+
 class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     with TickerProviderStateMixin {
-  /// Monthly summary không cần refresh mỗi 30 giây.
-  /// GET sẽ dùng cache backend.
+  // ============================================================
+  // CONFIG
+  // ============================================================
+
   static const Duration _refreshInterval = Duration(hours: 1);
 
   static const Duration _requestTimeout = Duration(seconds: 30);
 
+  // ============================================================
+  // ANIMATION
+  // ============================================================
+
   late final UtilityInfoBoxFx _fx;
 
   late final AnimationController _highlightController;
-  late final Animation<double> _opacityAnimation;
+
+  late final Animation<double> _highlightOpacity;
+
+  // ============================================================
+  // STATE
+  // ============================================================
 
   Timer? _refreshTimer;
 
-  bool _disposed = false;
   bool _screenActive = true;
 
   bool _loading = true;
   bool _fetching = false;
 
-  int _requestToken = 0;
+  int _requestId = 0;
 
   Object? _error;
-  DataHealthResult? _cachedHealth;
+
+  DataHealthResult? _health;
 
   List<EnergyMonthlySummary> _items = const [];
 
+  // ============================================================
+  // GETTERS
+  // ============================================================
+
   bool get _canUpdate {
-    return mounted && !_disposed && _screenActive;
+    return mounted && _screenActive;
   }
+
+  bool get _hasValidSource {
+    return widget.facId.trim().isNotEmpty && widget.month.trim().isNotEmpty;
+  }
+
+  // ============================================================
+  // INIT
+  // ============================================================
 
   @override
   void initState() {
     super.initState();
 
+    _initializeAnimation();
+
+    _scheduleInitialLoad();
+
+    _startRefreshTimer();
+  }
+
+  void _initializeAnimation() {
     _fx = UtilityInfoBoxFx(this)..init();
 
     _highlightController = AnimationController(
       vsync: this,
+
       duration: const Duration(milliseconds: 280),
-      value: widget.isHighlighted ? 1 : 0.55,
+
+      value: widget.isHighlighted ? 1 : .55,
     );
 
-    _opacityAnimation = CurvedAnimation(
+    _highlightOpacity = CurvedAnimation(
       parent: _highlightController,
       curve: Curves.easeInOut,
     );
+  }
 
+  void _scheduleInitialLoad() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_canUpdate) return;
+      if (!_canUpdate) {
+        return;
+      }
 
       unawaited(_load());
     });
-
-    _startRefreshTimer();
   }
+
+  // ============================================================
+  // LIFECYCLE
+  // ============================================================
 
   @override
   void activate() {
@@ -371,42 +168,70 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   void didUpdateWidget(covariant UtilityOverviewMonthlyBox oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.isHighlighted != widget.isHighlighted) {
-      if (widget.isHighlighted) {
-        _highlightController.forward();
-      } else {
-        _highlightController.reverse();
-      }
+    _handleHighlightChange(oldWidget);
+
+    _handleSourceChange(oldWidget);
+  }
+
+  // ============================================================
+  // HIGHLIGHT
+  // ============================================================
+
+  void _handleHighlightChange(UtilityOverviewMonthlyBox oldWidget) {
+    if (oldWidget.isHighlighted == widget.isHighlighted) {
+      return;
     }
 
+    if (widget.isHighlighted) {
+      _highlightController.forward();
+    } else {
+      _highlightController.reverse();
+    }
+  }
+
+  // ============================================================
+  // SOURCE CHANGE
+  // ============================================================
+
+  void _handleSourceChange(UtilityOverviewMonthlyBox oldWidget) {
     final oldFac = oldWidget.facId.trim();
+
     final newFac = widget.facId.trim();
 
     final oldMonth = oldWidget.month.trim();
+
     final newMonth = widget.month.trim();
 
-    final sourceChanged = oldFac != newFac || oldMonth != newMonth;
+    final changed = oldFac != newFac || oldMonth != newMonth;
 
-    if (!sourceChanged) return;
+    if (!changed) {
+      return;
+    }
 
-    /// Vô hiệu hóa response cũ.
-    _requestToken++;
-
-    _fetching = false;
-    _cachedHealth = null;
+    _invalidateRequests();
 
     setState(() {
-      _loading = true;
-      _error = null;
       _items = const [];
+
+      _health = null;
+
+      _loading = true;
+
+      _error = null;
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_canUpdate) return;
+      if (!_canUpdate) {
+        return;
+      }
 
       unawaited(_load(force: true));
     });
   }
+
+  // ============================================================
+  // TIMER
+  // ============================================================
 
   void _startRefreshTimer() {
     _refreshTimer?.cancel();
@@ -420,8 +245,13 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     });
   }
 
+  // ============================================================
+  // LOAD
+  // ============================================================
   Future<void> _load({bool silent = false, bool force = false}) async {
-    if (!_canUpdate) return;
+    if (!_canUpdate || !_hasValidSource) {
+      return;
+    }
 
     if (_fetching && !force) {
       return;
@@ -430,11 +260,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     final facId = widget.facId.trim();
     final month = widget.month.trim();
 
-    if (facId.isEmpty || month.isEmpty) {
-      return;
-    }
-
-    final requestToken = ++_requestToken;
+    final requestId = ++_requestId;
 
     _fetching = true;
 
@@ -448,62 +274,78 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     try {
       final api = context.read<UtilityDashboardOverviewApi>();
 
-      /// getMonthlySummary đã trả trực tiếp:
-      /// List<EnergyMonthlySummary>
-      ///
-      /// Không parse Map lần thứ hai.
       final result = await api
           .getMonthlySummary(facId: facId, month: month)
           .timeout(_requestTimeout);
 
-      if (!_isValidRequest(requestToken)) {
+      if (!_isCurrentRequest(requestId)) {
         return;
       }
 
       final nextItems = List<EnergyMonthlySummary>.unmodifiable(result);
 
-      final healthValues = nextItems
-          .map((item) => item.displayValue)
-          .where((value) => value.isFinite && value != 0)
-          .toList(growable: false);
-
-      final nextHealth = DataHealthAnalyzer.analyze(
-        key: 'Monthly_${widget.facId}_${widget.headerTitle}',
-        loading: false,
-        error: null,
-        values: healthValues,
-      );
+      final nextHealth = _buildHealth(nextItems);
 
       setState(() {
         _items = nextItems;
-        _cachedHealth = nextHealth;
+        _health = nextHealth;
 
         _loading = false;
         _error = null;
       });
-    } on TimeoutException catch (exception) {
-      _handleLoadError(requestToken, exception, '[MONTHLY TIMEOUT]');
+    } on TimeoutException catch (exception, stackTrace) {
+      _handleLoadError(
+        requestId,
+        exception,
+        '[MONTHLY TIMEOUT]',
+        stackTrace: stackTrace,
+      );
     } catch (exception, stackTrace) {
       _handleLoadError(
-        requestToken,
+        requestId,
         exception,
         '[MONTHLY ERROR]',
         stackTrace: stackTrace,
       );
     } finally {
-      if (_isValidRequest(requestToken)) {
+      if (_isCurrentRequest(requestId)) {
         _fetching = false;
       }
     }
   }
 
+  // ============================================================
+  // HEALTH
+  // ============================================================
+
+  DataHealthResult _buildHealth(List<EnergyMonthlySummary> items) {
+    final values = items
+        .map((item) => item.displayValue)
+        .where((value) => value.isFinite && value != 0)
+        .toList(growable: false);
+
+    return DataHealthAnalyzer.analyze(
+      key: 'Monthly_${widget.facId}_${widget.headerTitle}',
+
+      loading: false,
+
+      error: null,
+
+      values: values,
+    );
+  }
+
+  // ============================================================
+  // ERROR
+  // ============================================================
+
   void _handleLoadError(
-    int requestToken,
+    int requestId,
     Object exception,
     String tag, {
     StackTrace? stackTrace,
   }) {
-    if (!_isValidRequest(requestToken)) {
+    if (!_isCurrentRequest(requestId)) {
       return;
     }
 
@@ -516,34 +358,25 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     setState(() {
       _loading = false;
 
-      /// Nếu đã có dữ liệu cũ thì tiếp tục hiển thị.
-      /// Chỉ hiện lỗi khi chưa có dữ liệu.
+      // Nếu đã có data cũ thì
+      // vẫn giữ lại để hiển thị.
       _error = _items.isEmpty ? exception : null;
     });
   }
 
-  bool _isValidRequest(int requestToken) {
-    return _canUpdate && requestToken == _requestToken;
+  bool _isCurrentRequest(int requestId) {
+    return _canUpdate && requestId == _requestId;
   }
 
-  void _openFacilityDetail() {
-    final service = context.read<UtilityFacadeService>();
-    final latestProvider = context.read<LatestProvider>();
+  void _invalidateRequests() {
+    _requestId++;
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) {
-          return ChangeNotifierProvider<LatestProvider>.value(
-            value: latestProvider,
-            child: UtilityFacDetailScreen(
-              facId: widget.facId,
-              service: service,
-            ),
-          );
-        },
-      ),
-    );
+    _fetching = false;
   }
+
+  // ============================================================
+  // FILTER
+  // ============================================================
 
   List<EnergyMonthlySummary> _filteredItems() {
     final filter = widget.filterCate?.trim().toUpperCase();
@@ -554,30 +387,32 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
     return _items
         .where((item) {
-          final cate = item.cate.trim().toUpperCase();
+          switch (filter) {
+            case 'ELECTRICITY':
+              return item.isElectricity;
 
-          if (filter == 'ELECTRICITY') {
-            return cate.contains('ELECTRIC');
+            case 'WATER':
+              return item.isWater;
+
+            case 'AIR':
+              return item.isAir;
+
+            default:
+              return item.cate.trim().toUpperCase().contains(filter);
           }
-
-          if (filter == 'WATER') {
-            return cate.contains('WATER');
-          }
-
-          if (filter == 'AIR') {
-            return cate.contains('AIR') || cate.contains('COMPRESSED');
-          }
-
-          return cate.contains(filter);
         })
         .toList(growable: false);
   }
 
-  ChartTheme _resolveCurrentTheme(List<EnergyMonthlySummary> displayItems) {
-    final filterCate = widget.filterCate?.trim();
+  // ============================================================
+  // THEME
+  // ============================================================
 
-    if (filterCate != null && filterCate.isNotEmpty) {
-      return ChartThemeResolver.theme(filterCate);
+  ChartTheme _resolveTheme(List<EnergyMonthlySummary> displayItems) {
+    final filter = widget.filterCate?.trim();
+
+    if (filter != null && filter.isNotEmpty) {
+      return ChartThemeResolver.theme(filter);
     }
 
     if (displayItems.isNotEmpty) {
@@ -587,68 +422,91 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     return ChartThemes.power;
   }
 
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+
+  void _openFacilityDetail() {
+    final service = context.read<UtilityFacadeService>();
+
+    final latestProvider = context.read<LatestProvider>();
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) {
+          return ChangeNotifierProvider<LatestProvider>.value(
+            value: latestProvider,
+
+            child: UtilityFacDetailScreen(
+              facId: widget.facId,
+
+              service: service,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     final displayItems = _filteredItems();
 
-    final currentTheme = _resolveCurrentTheme(displayItems);
+    final theme = _resolveTheme(displayItems);
 
-    final headerColor = currentTheme.iconColor;
-
-    final healthResult =
-        _cachedHealth ??
+    final health =
+        _health ??
         DataHealthAnalyzer.analyze(
           key: 'Monthly_${widget.facId}_${widget.headerTitle}',
+
           loading: _loading,
+
           error: _error,
+
           values: const [],
         );
 
     return GestureDetector(
       onTap: _openFacilityDetail,
+
       child: RepaintBoundary(
         child: SlideTransition(
           position: _fx.slide,
+
           child: AnimatedBuilder(
-            animation: Listenable.merge([_fx.listenable, _opacityAnimation]),
+            animation: Listenable.merge([_fx.listenable, _highlightOpacity]),
+
             builder: (_, child) {
               return Opacity(
-                opacity: _opacityAnimation.value,
+                opacity: _highlightOpacity.value,
+
                 child: Transform.scale(scale: _fx.scale.value, child: child),
               );
             },
-            child: Container(
+
+            child: _MonthlyContainer(
               width: widget.width,
+
               height: widget.height,
-              // facColor: facColor,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1), // nền đậm hơn
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.08)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.6),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  UtilityInfoBoxHeader.header(
-                    facilityColor: headerColor.withOpacity(.3),
-                    facTitle: widget.headerTitle,
-                    healthResult: healthResult,
-                  ),
-                  _MonthlyBody(
-                    loading: _loading,
-                    error: _error,
-                    items: displayItems,
-                    onRetry: _load,
-                  ),
-                ],
+
+              title: widget.headerTitle,
+
+              headerColor: theme.iconColor,
+
+              health: health,
+
+              child: _MonthlyBody(
+                loading: _loading,
+
+                error: _error,
+
+                items: displayItems,
+
+                onRetry: _load,
               ),
             ),
           ),
@@ -657,17 +515,22 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     );
   }
 
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
   @override
   void dispose() {
-    _disposed = true;
     _screenActive = false;
 
-    _requestToken++;
+    _requestId++;
 
     _refreshTimer?.cancel();
+
     _refreshTimer = null;
 
     _fx.dispose();
+
     _highlightController.dispose();
 
     super.dispose();
@@ -675,13 +538,87 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 }
 
 // ============================================================
-// MONTHLY BODY
+// CONTAINER
+// ============================================================
+
+class _MonthlyContainer extends StatelessWidget {
+  final double width;
+  final double? height;
+
+  final String title;
+
+  final Color headerColor;
+
+  final DataHealthResult health;
+
+  final Widget child;
+
+  const _MonthlyContainer({
+    required this.width,
+    required this.height,
+    required this.title,
+    required this.headerColor,
+    required this.health,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+
+      height: height,
+
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.1),
+
+        borderRadius: BorderRadius.circular(16),
+
+        border: Border.all(color: Colors.white.withOpacity(.08)),
+
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.6),
+
+            blurRadius: 16,
+
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+
+        children: [
+          UtilityInfoBoxHeader.header(
+            facilityColor: headerColor.withOpacity(.3),
+
+            facTitle: title,
+
+            healthResult: health,
+          ),
+
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// BODY
 // ============================================================
 
 class _MonthlyBody extends StatelessWidget {
   final bool loading;
+
   final Object? error;
+
   final List<EnergyMonthlySummary> items;
+
   final Future<void> Function() onRetry;
 
   const _MonthlyBody({
@@ -693,425 +630,115 @@ class _MonthlyBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ==========================================================
+    // LOADING
+    // ==========================================================
+
     if (loading && items.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(24),
+
         child: Center(
           child: SizedBox.square(
             dimension: 18,
+
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
       );
     }
 
+    // ==========================================================
+    // ERROR
+    // ==========================================================
+
     if (error != null && items.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(20),
-        child: _InlineState(
+
+        child: MonthlyInlineState(
           icon: Icons.cloud_off_rounded,
+
           title: 'API Error',
+
           message: 'Tap to retry',
+
           onTap: onRetry,
         ),
       );
     }
 
+    // ==========================================================
+    // EMPTY
+    // ==========================================================
+
     if (items.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(20),
-        child: _InlineState(
+
+        child: MonthlyInlineState(
           icon: Icons.dataset_outlined,
+
           title: 'No Data',
+
           message: 'No monthly utility data.',
         ),
       );
     }
 
-    final waterItems = items.where(_isWaterItem).toList(growable: false);
+    // ==========================================================
+    // SPLIT
+    // ==========================================================
 
-    final otherItems = items
-        .where((item) => !_isWaterItem(item))
-        .toList(growable: false);
+    final waterItems = <EnergyMonthlySummary>[];
+
+    final standardItems = <EnergyMonthlySummary>[];
+
+    for (final item in items) {
+      if (item.isWater) {
+        waterItems.add(item);
+      } else {
+        standardItems.add(item);
+      }
+    }
+
+    // ==========================================================
+    // CONTENT
+    // ==========================================================
 
     return Column(
       mainAxisSize: MainAxisSize.min,
+
       children: [
-        for (var index = 0; index < otherItems.length; index++) ...[
-          RepaintBoundary(child: _EnergyRow(item: otherItems[index])),
-          if (index < otherItems.length - 1 || waterItems.isNotEmpty)
+        for (var index = 0; index < standardItems.length; index++) ...[
+          RepaintBoundary(child: _MonthlyEnergyRow(item: standardItems[index])),
+
+          if (index < standardItems.length - 1 || waterItems.isNotEmpty)
             const SizedBox(height: 8),
         ],
 
         if (waterItems.isNotEmpty)
-          RepaintBoundary(child: _WaterGroupCard(items: waterItems)),
+          RepaintBoundary(child: MonthlyWaterCard(items: waterItems)),
       ],
     );
   }
 }
 
 // ============================================================
-// INLINE STATE
+// ELECTRICITY / AIR
 // ============================================================
 
-class _InlineState extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-
-  final Future<void> Function()? onTap;
-
-  const _InlineState({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: Colors.white.withOpacity(.55), size: 22),
-        const SizedBox(height: 6),
-        Text(
-          title,
-          style: TextStyle(
-            color: Colors.white.withOpacity(.84),
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          message,
-          style: TextStyle(
-            color: Colors.white.withOpacity(.52),
-            fontSize: 10.5,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-
-    if (onTap == null) {
-      return Center(child: content);
-    }
-
-    return Center(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          unawaited(onTap!());
-        },
-        child: Padding(padding: const EdgeInsets.all(10), child: content),
-      ),
-    );
-  }
-}
-// ============================================================
-// COMMON METRIC UI
-// ============================================================
-
-class _MetricDeltaBadge extends StatelessWidget {
-  final double? delta;
-
-  const _MetricDeltaBadge({required this.delta});
-
-  @override
-  Widget build(BuildContext context) {
-    final value = delta;
-
-    if (value == null) {
-      return Text(
-        '--',
-        style: TextStyle(
-          color: Colors.white.withOpacity(.35),
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-        ),
-      );
-    }
-
-    final isUp = value > 0;
-    final isDown = value < 0;
-
-    final color = value == 0
-        ? Colors.white54
-        : isUp
-        ? Colors.redAccent
-        : Colors.greenAccent;
-
-    final icon = isUp
-        ? Icons.arrow_upward_rounded
-        : isDown
-        ? Icons.arrow_downward_rounded
-        : Icons.remove_rounded;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 1),
-        Text(
-          '${value.abs().toStringAsFixed(1)}%',
-          style: TextStyle(
-            color: color,
-            fontSize: 16,
-            height: 1,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MetricHeader extends StatelessWidget {
-  final String title;
-  final Color colors;
-
-  const _MetricHeader({required this.title, required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: colors,
-        fontSize: 14,
-        height: 1,
-        fontWeight: FontWeight.w900,
-        letterSpacing: .15,
-      ),
-    );
-  }
-}
-
-class _MetricValueText extends StatelessWidget {
-  final String value;
-  final String unit;
-  final Color color;
-
-  final String? badge;
-  final bool emphasized;
-  final TextAlign textAlign;
-
-  const _MetricValueText({
-    required this.value,
-    required this.unit,
-    required this.color,
-    this.badge,
-    this.emphasized = false,
-    this.textAlign = TextAlign.left,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final normalizedUnit = unit.trim();
-    final normalizedBadge = badge?.trim().toUpperCase() ?? '';
-
-    final alignment = textAlign == TextAlign.right
-        ? Alignment.centerRight
-        : Alignment.centerLeft;
-
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      alignment: alignment,
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: value,
-              style: TextStyle(
-                color: color,
-                fontSize: 22,
-                height: 1,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -.30,
-              ),
-            ),
-
-            if (normalizedUnit.isNotEmpty)
-              TextSpan(
-                text: ' $normalizedUnit',
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  height: 1,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-
-            if (normalizedBadge.isNotEmpty)
-              TextSpan(
-                text: ' ($normalizedBadge)',
-                style: TextStyle(
-                  color: color.withOpacity(.9),
-                  fontSize: 12.5,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: .15,
-                ),
-              ),
-          ],
-        ),
-        maxLines: 1,
-        textAlign: textAlign,
-      ),
-    );
-  }
-}
-
-class _MetricComparisonRow extends StatelessWidget {
-  final String currentValue;
-  final String currentUnit;
-
-  final String previousValue;
-  final String previousUnit;
-
-  final String mode;
-  final double? delta;
-
-  final Color currentColor;
-
-  const _MetricComparisonRow({
-    required this.currentValue,
-    required this.currentUnit,
-    required this.previousValue,
-    required this.previousUnit,
-    required this.mode,
-    required this.delta,
-    required this.currentColor,
-  });
-
-  bool get _hasPrevious {
-    final value = previousValue.trim();
-
-    return value.isNotEmpty && value != '--';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 28,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // CURRENT
-          Expanded(
-            flex: 11,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: _MetricValueText(
-                value: currentValue,
-                unit: currentUnit,
-                badge: mode,
-                color: currentColor,
-                emphasized: true,
-                textAlign: TextAlign.left,
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // PRE MONTH
-          Expanded(
-            flex: 9,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: _hasPrevious
-                  ? _MetricValueText(
-                      value: previousValue,
-                      unit: previousUnit,
-                      color: Colors.white,
-                      emphasized: false,
-                      textAlign: TextAlign.left,
-                    )
-                  : Text(
-                      '--',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(.35),
-                        fontSize: 17,
-                        height: 1,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // DIFF
-          SizedBox(
-            width: 60,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: _MetricDeltaBadge(delta: delta),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MetricColumnsHeader extends StatelessWidget {
-  const _MetricColumnsHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final style = TextStyle(
-      color: Colors.white,
-      fontSize: 12.5,
-      height: 1,
-      fontWeight: FontWeight.w900,
-      letterSpacing: .45,
-    );
-
-    return Row(
-      children: [
-        Expanded(
-          flex: 11,
-          child: Text('CURRENT', textAlign: TextAlign.left, style: style),
-        ),
-
-        const SizedBox(width: 8),
-
-        Expanded(
-          flex: 9,
-          child: Text('PRE MONTH', textAlign: TextAlign.left, style: style),
-        ),
-
-        const SizedBox(width: 8),
-
-        SizedBox(
-          width: 60,
-          child: Text('DIFF', textAlign: TextAlign.right, style: style),
-        ),
-      ],
-    );
-  }
-}
-// ============================================================
-// ELECTRICITY / AIR ROW
-// ============================================================
-
-class _EnergyRow extends StatelessWidget {
+class _MonthlyEnergyRow extends StatelessWidget {
   final EnergyMonthlySummary item;
 
-  const _EnergyRow({required this.item});
+  const _MonthlyEnergyRow({required this.item});
 
-  String _title() {
-    if (_isElectricityItem(item)) {
+  String get _title {
+    if (item.isElectricity) {
       return 'Total Energy';
     }
 
-    if (_isAirItem(item)) {
+    if (item.isAir) {
       return 'Compressed Air';
     }
 
@@ -1123,177 +750,140 @@ class _EnergyRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ChartThemes.byCate(item.cate);
+
     final color = theme.iconColor;
 
-    final isElectricity = _isElectricityItem(item);
-    final isAir = _isAirItem(item);
-
-    final utilityUnit = _resolveUnit(item, theme);
-    final mode = _metricModeLabel(item);
+    final unit = MonthlyMetricFormat.unit(item, theme);
 
     final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
+
       child: Column(
         mainAxisSize: MainAxisSize.min,
+
         crossAxisAlignment: CrossAxisAlignment.stretch,
+
         children: [
-          _MetricHeader(title: _title(), colors: theme.line),
+          MonthlyMetricHeader(title: _title, color: theme.line),
 
           const SizedBox(height: 10),
 
-          const _MetricColumnsHeader(),
+          const MonthlyMetricColumnsHeader(),
 
           const SizedBox(height: 4),
 
-          // Điện có thêm một hàng chi phí.
-          if (isElectricity) ...[
-            _MetricComparisonRow(
-              currentValue: item.currentCost == null
-                  ? '--'
-                  : _formatMoney(item.currentCost!),
-              currentUnit: item.currentCostUnit,
-              previousValue: item.previousCost == null
-                  ? '--'
-                  : _formatMoney(item.previousCost!),
-              previousUnit: item.previousCostUnit,
-              mode: mode,
-              delta: item.costDeltaPercent,
-              currentColor: color,
-            ),
+          // ====================================================
+          // ELECTRICITY COST
+          // ====================================================
+          if (item.isElectricity) ...[
+            _MonthlyCostRow(item: item, color: color),
 
             const SizedBox(height: 3),
+
             Divider(
               height: 1,
+
               thickness: .5,
+
               color: Colors.white.withOpacity(.7),
             ),
 
             const SizedBox(height: 3),
           ],
 
-          TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0, end: item.displayValue),
-            duration: const Duration(milliseconds: 650),
-            curve: Curves.easeOutCubic,
-            builder: (_, animatedValue, __) {
-              return _MetricComparisonRow(
-                currentValue: _formatUtilityNumber(item, animatedValue),
-                currentUnit: utilityUnit,
-                previousValue: _formatUtilityNumber(
-                  item,
-                  item.previousDisplayValue,
-                ),
-                previousUnit: utilityUnit,
-                mode: mode,
-                delta: item.deltaPercent,
-                currentColor: color,
-              );
-            },
-          ),
+          // ====================================================
+          // VALUE
+          // ====================================================
+          _MonthlyUtilityValueRow(item: item, color: color, unit: unit),
         ],
       ),
     );
 
-    if (isElectricity) {
-      return UtilityGlowCard.electricity(color: color, child: content);
-    }
-
-    if (isAir) {
+    if (item.isAir) {
       return UtilityGlowCard.air(color: color, child: content);
     }
 
     return UtilityGlowCard.electricity(color: color, child: content);
   }
 }
+
 // ============================================================
-// WATER GROUP
+// COST ROW
 // ============================================================
 
-class _WaterGroupCard extends StatelessWidget {
-  final List<EnergyMonthlySummary> items;
+class _MonthlyCostRow extends StatelessWidget {
+  final EnergyMonthlySummary item;
 
-  const _WaterGroupCard({required this.items});
+  final Color color;
+
+  const _MonthlyCostRow({required this.item, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    final color = ChartThemes.water.iconColor;
+    return MonthlyMetricComparisonRow(
+      currentValue: MonthlyMetricFormat.money(item.currentCost),
 
-    return UtilityGlowCard.water(
-      color: color,
-      child: Padding(
-        padding: _metricCardPadding,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var index = 0; index < items.length; index++) ...[
-              _WaterCompactRow(item: items[index], color: color),
+      currentUnit: item.currentCostUnit,
 
-              if (index < items.length - 1) ...[
-                const SizedBox(height: 3),
-                Divider(
-                  height: 1,
-                  thickness: .5,
-                  color: Colors.white.withOpacity(.5),
-                ),
-                const SizedBox(height: 3),
-              ],
-            ],
-          ],
-        ),
-      ),
+      previousValue: MonthlyMetricFormat.money(item.previousCost),
+
+      previousUnit: item.previousCostUnit,
+
+      mode: MonthlyMetricFormat.mode(item),
+
+      delta: item.costDeltaPercent,
+
+      currentColor: color,
     );
   }
 }
 
-class _WaterCompactRow extends StatelessWidget {
+// ============================================================
+// UTILITY VALUE ROW
+// ============================================================
+
+class _MonthlyUtilityValueRow extends StatelessWidget {
   final EnergyMonthlySummary item;
+
   final Color color;
 
-  const _WaterCompactRow({required this.item, required this.color});
+  final String unit;
 
-  String _displayName() {
-    final name = item.name.trim();
-    final normalized = name.toUpperCase();
-
-    if (normalized.contains('COOLING TANK')) {
-      return 'Cooling Tank Temperature';
-    }
-
-    if (normalized.contains('PIPELINE PRESSURE')) {
-      return 'Pipeline Pressure';
-    }
-
-    return name.isNotEmpty ? name : 'Water Metric';
-  }
+  const _MonthlyUtilityValueRow({
+    required this.item,
+    required this.color,
+    required this.unit,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = ChartThemes.water;
-    final unit = _resolveUnit(item, theme);
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: item.displayValue),
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _MetricHeader(title: _displayName(), colors: theme.accent),
+      duration: const Duration(milliseconds: 650),
 
-        const SizedBox(height: 10),
+      curve: Curves.easeOutCubic,
 
-        const _MetricColumnsHeader(),
+      builder: (_, animatedValue, __) {
+        return MonthlyMetricComparisonRow(
+          currentValue: MonthlyMetricFormat.utility(item, animatedValue),
 
-        const SizedBox(height: 4),
-
-        _MetricComparisonRow(
-          currentValue: _formatUtilityNumber(item, item.displayValue),
           currentUnit: unit,
-          previousValue: _formatUtilityNumber(item, item.previousDisplayValue),
+
+          previousValue: MonthlyMetricFormat.utility(
+            item,
+            item.previousDisplayValue,
+          ),
+
           previousUnit: unit,
-          mode: 'AVG',
+
+          mode: MonthlyMetricFormat.mode(item),
+
           delta: item.deltaPercent,
+
           currentColor: color,
-        ),
-      ],
+        );
+      },
     );
   }
 }

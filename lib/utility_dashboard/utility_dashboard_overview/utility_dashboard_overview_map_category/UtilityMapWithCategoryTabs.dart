@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
-import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
+import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_alert_widgets/voltage_card.dart';
 import '../utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
 import '../utility_dashboard_overview_widgets/factory_map_with_rain.dart';
 import '../utility_dashboard_overview_widgets/monitoring_mascot.dart';

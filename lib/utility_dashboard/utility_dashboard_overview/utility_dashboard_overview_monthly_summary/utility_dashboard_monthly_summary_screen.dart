@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
+import '../utility_dashboard_overview_models/energy_monthly_summary.dart';
 import '../utility_dashboard_overview_provider/utility_monthly_summary_provider.dart';
 import '../utility_dashboard_overview_widgets/month_label_badge.dart';
 

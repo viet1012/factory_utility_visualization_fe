@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_card.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_detail_chart.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_alert_widgets/voltage_card.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_alert_widgets/voltage_detail_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -1351,59 +1351,6 @@ class _EnergyRow extends StatelessWidget {
     //     ],
     //   ),
     // );
-  }
-}
-
-class _MetricIcon extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final Animation<double> animation;
-
-  const _MetricIcon({
-    required this.icon,
-    required this.color,
-    required this.animation,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (_, __) {
-        final glow = 0.25 + (animation.value * 0.25);
-
-        return Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                color.withOpacity(.30),
-                color.withOpacity(.08),
-                Colors.black.withOpacity(.10),
-              ],
-            ),
-            border: Border.all(color: color.withOpacity(.55)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(glow),
-                blurRadius: 14,
-                spreadRadius: -2,
-              ),
-            ],
-          ),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: 20,
-            shadows: [Shadow(color: color.withOpacity(.7), blurRadius: 10)],
-          ),
-        );
-      },
-    );
   }
 }
 

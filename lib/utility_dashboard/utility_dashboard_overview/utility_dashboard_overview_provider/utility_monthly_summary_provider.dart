@@ -5,7 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
-import '../utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
+import '../utility_dashboard_overview_models/energy_monthly_summary.dart';
 
 class UtilityMonthlySummaryProvider extends ChangeNotifier {
   final UtilityDashboardOverviewApi api;

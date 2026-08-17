@@ -1,6 +1,6 @@
 // voltage_card.dart
 
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/voltage_detail_chart.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_alert_widgets/voltage_detail_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
