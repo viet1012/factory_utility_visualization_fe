@@ -787,6 +787,9 @@ class _UtilityPeriodOverviewPanelState
   Widget _buildByBoxPanel(UtilityPeriodDashboard data) {
     final ChartTheme theme = _theme;
 
+    final sortedBoxes = [...data.byBox]
+      ..sort((a, b) => b.total.compareTo(a.total));
+
     return _panelBox(
       title: '${theme.title} CONSUMPTION BY PANEL (${data.unit})',
       child: SfCartesianChart(
@@ -794,12 +797,16 @@ class _UtilityPeriodOverviewPanelState
         plotAreaBorderWidth: 0,
 
         primaryXAxis: CategoryAxis(
+          isInversed: true,
+
           labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
 
         primaryYAxis: NumericAxis(
           numberFormat: NumberFormat.compact(),
+
           labelStyle: const TextStyle(color: Colors.white54, fontSize: 12),
+
           majorGridLines: MajorGridLines(color: Colors.white.withOpacity(.05)),
         ),
 
@@ -813,7 +820,8 @@ class _UtilityPeriodOverviewPanelState
           BarSeries<UtilityPeriodBox, String>(
             name: theme.title,
 
-            dataSource: data.byBox,
+            // ✅ PHẢI dùng list đã sort
+            dataSource: sortedBoxes,
 
             xValueMapper: (item, _) => item.boxId,
 
