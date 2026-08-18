@@ -11,11 +11,13 @@ import '../utility_period_api.dart';
 class UtilityPeriodOverviewPanel extends StatefulWidget {
   final String facId;
   final UtilityPeriodApi api;
+  final String utilityType;
 
   const UtilityPeriodOverviewPanel({
     super.key,
     required this.facId,
     required this.api,
+    required this.utilityType,
   });
 
   @override
@@ -32,10 +34,6 @@ class _UtilityPeriodOverviewPanelState
   static const String _week = 'WEEK';
   static const String _month = 'MONTH';
 
-  static const String _electricity = 'ELECTRICITY';
-  static const String _water = 'WATER';
-  static const String _air = 'AIR';
-
   static const Color _background = Color(0xFF06111F);
   static const Color _panel = Color(0xFF0A1B2D);
   static const Color _border = Color(0xFF17354B);
@@ -50,7 +48,6 @@ class _UtilityPeriodOverviewPanelState
   // ============================================================
 
   String _period = _week;
-  String _utilityType = _electricity;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -68,7 +65,7 @@ class _UtilityPeriodOverviewPanelState
   // ============================================================
 
   ChartTheme get _theme {
-    return ChartThemes.byCate(_utilityType);
+    return ChartThemes.byCate(widget.utilityType);
   }
 
   bool get _isMonth {
@@ -96,6 +93,12 @@ class _UtilityPeriodOverviewPanelState
 
     if (oldWidget.facId != widget.facId) {
       unawaited(_load(mainLoading: true));
+      return;
+    }
+
+    // reload khi FacDetailBody đổi utilityType
+    if (oldWidget.utilityType != widget.utilityType) {
+      unawaited(_load());
     }
   }
 
@@ -105,20 +108,17 @@ class _UtilityPeriodOverviewPanelState
 
   Future<void> _load({bool mainLoading = false}) async {
     final int requestToken = ++_requestToken;
-
     _beginLoading(mainLoading: mainLoading);
 
     try {
       final UtilityPeriodDashboard result = await widget.api.getDashboard(
         facId: widget.facId,
-        type: _utilityType,
+        type: widget.utilityType, // <-- đổi từ _utilityType
         period: _period,
         date: _selectedDate,
       );
 
-      if (!_isRequestValid(requestToken)) {
-        return;
-      }
+      if (!_isRequestValid(requestToken)) return;
 
       setState(() {
         _data = result;
@@ -128,20 +128,14 @@ class _UtilityPeriodOverviewPanelState
       });
     } catch (error, stackTrace) {
       debugPrint('[UTILITY PERIOD] load failed: $error');
-
       debugPrintStack(stackTrace: stackTrace);
 
-      if (!_isRequestValid(requestToken)) {
-        return;
-      }
+      if (!_isRequestValid(requestToken)) return;
 
       setState(() {
         _loading = false;
         _refreshing = false;
-
-        if (_data == null) {
-          _error = error.toString();
-        }
+        if (_data == null) _error = error.toString();
       });
     }
   }
@@ -178,22 +172,6 @@ class _UtilityPeriodOverviewPanelState
 
     setState(() {
       _period = value;
-    });
-
-    unawaited(_load());
-  }
-
-  // ============================================================
-  // UTILITY
-  // ============================================================
-
-  void _setUtility(String value) {
-    if (_utilityType == value) {
-      return;
-    }
-
-    setState(() {
-      _utilityType = value;
     });
 
     unawaited(_load());
@@ -254,78 +232,65 @@ class _UtilityPeriodOverviewPanelState
   // ============================================================
 
   Widget _buildHeader() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            const Text(
-              'UTILITY OVERVIEW',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-
-            const SizedBox(width: 16),
-
-            _periodButton(value: _week, title: '7 DAYS'),
-
-            const SizedBox(width: 6),
-
-            _periodButton(value: _month, title: 'MONTH'),
-
-            const Spacer(),
-
-            _buildPeriodSelector(),
-
-            const SizedBox(width: 6),
-
-            if (_refreshing) ...[
-              SizedBox.square(
-                dimension: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: _theme.line,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Text(
+                'UTILITY OVERVIEW',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
+
+              const SizedBox(width: 16),
+
+              _periodButton(value: _week, title: '7 DAYS'),
 
               const SizedBox(width: 6),
-            ],
 
-            SizedBox(
-              width: 34,
-              height: 34,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                tooltip: 'Refresh',
-                onPressed: _refreshing ? null : () => _load(),
-                icon: const Icon(
-                  Icons.refresh_rounded,
-                  color: Colors.white70,
-                  size: 18,
+              _periodButton(value: _month, title: 'MONTH'),
+
+              const Spacer(),
+
+              _buildPeriodSelector(),
+
+              const SizedBox(width: 6),
+
+              if (_refreshing) ...[
+                SizedBox.square(
+                  dimension: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _theme.line,
+                  ),
+                ),
+
+                const SizedBox(width: 6),
+              ],
+
+              SizedBox(
+                width: 34,
+                height: 34,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Refresh',
+                  onPressed: _refreshing ? null : () => _load(),
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    color: Colors.white70,
+                    size: 18,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 6),
-
-        Row(
-          children: [
-            Expanded(child: _utilityButton(type: _electricity)),
-
-            const SizedBox(width: 6),
-
-            Expanded(child: _utilityButton(type: _water)),
-
-            const SizedBox(width: 6),
-
-            Expanded(child: _utilityButton(type: _air)),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -359,54 +324,9 @@ class _UtilityPeriodOverviewPanelState
           title,
           style: TextStyle(
             color: selected ? accent : Colors.white60,
-            fontSize: 11,
+            fontSize: 14,
             fontWeight: FontWeight.w800,
           ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // UTILITY BUTTON
-  // ============================================================
-
-  Widget _utilityButton({required String type}) {
-    final bool selected = _utilityType == type;
-
-    final ChartTheme theme = ChartThemes.byCate(type);
-
-    return InkWell(
-      onTap: () => _setUtility(type),
-      borderRadius: BorderRadius.circular(8),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        height: 42,
-        decoration: BoxDecoration(
-          color: selected ? theme.line.withOpacity(.08) : _panel,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: selected ? theme.line : _border),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(theme.icon, color: theme.iconColor, size: 19),
-
-            const SizedBox(width: 6),
-
-            Flexible(
-              child: Text(
-                '${theme.title} (${theme.unit})',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: selected ? Colors.white : Colors.white70,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -459,7 +379,7 @@ class _UtilityPeriodOverviewPanelState
               _periodLabel(),
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 11,
+                fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -485,7 +405,7 @@ class _UtilityPeriodOverviewPanelState
         child: Icon(
           icon,
           color: enabled ? Colors.white70 : Colors.white24,
-          size: 18,
+          size: 20,
         ),
       ),
     );
@@ -1146,7 +1066,7 @@ class _UtilityPeriodOverviewPanelState
     Widget? trailing,
   }) {
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: _panel,
         borderRadius: BorderRadius.circular(_panelRadius),
