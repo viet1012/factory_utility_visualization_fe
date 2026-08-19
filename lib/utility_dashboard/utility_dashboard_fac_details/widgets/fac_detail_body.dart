@@ -14,6 +14,8 @@ import '../mappers/fac_box_group_mapper.dart';
 import '../mappers/latest_tree_device_mapper.dart';
 import '../models/fac_box_view_data.dart';
 import '../models/group_frame_types.dart';
+import '../models/panel_rank_info.dart';
+import '../models/period/utility_period_dashboard.dart';
 import '../period/utility_period_overview_panel.dart';
 import '../utility_period_api.dart';
 import '../widgets/color_picker_dialog.dart';
@@ -69,9 +71,52 @@ class _FacDetailBodyState extends State<FacDetailBody> {
     return context.read<FacDetailEditController>();
   }
 
+  UtilityPeriodDashboard? _periodDashboard;
+
   // ============================================================
   // INIT
   // ============================================================
+
+  void _onPeriodDashboardChanged(UtilityPeriodDashboard? data) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _periodDashboard = data;
+    });
+  }
+
+  Map<String, PanelRankInfo> _buildPanelRanks(UtilityPeriodDashboard? data) {
+    if (data == null || data.byBox.isEmpty) {
+      return const {};
+    }
+
+    final sorted = [...data.byBox]
+      ..removeWhere((item) => item.boxId.trim().isEmpty || item.total <= 0)
+      ..sort((a, b) => b.total.compareTo(a.total));
+
+    final result = <String, PanelRankInfo>{};
+
+    for (var index = 0; index < sorted.length; index++) {
+      final item = sorted[index];
+
+      final key = _normalizeBoxId(item.boxId);
+
+      result[key] = PanelRankInfo(
+        rank: index + 1,
+        boxId: item.boxId.trim(),
+        value: item.total,
+        unit: data.unit,
+      );
+    }
+
+    return result;
+  }
+
+  String _normalizeBoxId(String? value) {
+    return value?.trim().toUpperCase() ?? '';
+  }
 
   @override
   void initState() {
@@ -133,9 +178,11 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
     setState(() {
       _utilityType = value;
+
+      // Không cho data utility cũ hiện tạm
+      _periodDashboard = null;
     });
 
-    // Clear box utility cũ.
     _editController.clearSelection();
   }
 
@@ -162,12 +209,6 @@ class _FacDetailBodyState extends State<FacDetailBody> {
     return (box.primaryCategory ?? '').trim().toUpperCase() ==
         utilityType.trim().toUpperCase();
   }
-
-  // ============================================================
-  // APP BAR UTILITY BUTTON
-  //
-  // Compact để không chiếm quá nhiều width.
-  // ============================================================
 
   // ============================================================
   // COLOR
@@ -280,6 +321,7 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
     final editController = context.watch<FacDetailEditController>();
 
+    final panelRanks = _buildPanelRanks(_periodDashboard);
     // ==========================================================
     // LATEST FACILITY
     // ==========================================================
@@ -461,6 +503,9 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
                         boxesById: boxesById,
 
+                        // ✅ thêm
+                        panelRanks: panelRanks,
+
                         groupLayout: groupLayout,
 
                         directions: directions,
@@ -471,28 +516,18 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
                         editingBoxId: editingBoxId,
 
-                        // =====================================
-                        // PICK BOX
-                        // =====================================
                         onPickEditingBox: (boxId) {
                           editController.selectDevice(boxId);
                         },
 
-                        // =====================================
-                        // DIRECTION
-                        // =====================================
                         onUpdateDirection:
                             ({required boxDeviceId, required direction}) {
                               return _saveDirection(
                                 boxId: boxDeviceId,
-
                                 direction: direction,
                               );
                             },
 
-                        // =====================================
-                        // POSITION
-                        // =====================================
                         onUpdateGroupPosition:
                             ({required boxDeviceId, required position}) {
                               final boxId = boxDeviceId.trim();
@@ -502,9 +537,7 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
                               return _savePosition(
                                 boxId: boxId,
-
                                 position: position,
-
                                 direction: direction,
                               );
                             },
@@ -529,6 +562,7 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
                       // Không tạo API mới mỗi build.
                       api: _periodApi,
+                      onDataChanged: _onPeriodDashboardChanged,
                     ),
                   ),
                 ],

@@ -19,8 +19,13 @@ class GroupFrame extends StatefulWidget {
   final LabelOrientation orientation;
   final VoidCallback? onTap;
   final Future<void> Function(Offset)? onDragGroup01;
+  final int? rank;
+  final double? value;
+  final String? unit;
 
   const GroupFrame({
+    super.key,
+
     required this.boxDeviceId,
     required this.groupPos01,
     required this.parentSize,
@@ -29,6 +34,11 @@ class GroupFrame extends StatefulWidget {
     required this.onTap,
     required this.onDragGroup01,
     required this.direction,
+
+    this.rank,
+    this.value,
+    this.unit,
+
     this.scadaText,
     this.boxColor,
     this.hasAlarm = false,
@@ -234,9 +244,21 @@ class _GroupFrameState extends State<GroupFrame> with TickerProviderStateMixin {
                     effectValue: _effectController.value,
                     child: FrameContent(
                       boxDeviceId: widget.boxDeviceId,
+
                       scadaText: widget.scadaText,
+
                       orientation: widget.orientation,
+
                       hasAlarm: widget.hasAlarm,
+
+                      // ✅
+                      rank: widget.rank,
+
+                      value: widget.value,
+
+                      unit: widget.unit,
+
+                      editMode: widget.editMode,
                     ),
                   ),
                 ),

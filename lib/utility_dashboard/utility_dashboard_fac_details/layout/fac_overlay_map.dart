@@ -7,6 +7,7 @@ import '../helpers/map_geometry_helper.dart';
 import '../models/fac_box_view_data.dart';
 import '../models/fac_detail_callbacks.dart';
 import '../models/group_frame_types.dart';
+import '../models/panel_rank_info.dart';
 import '../widgets/group_frame.dart';
 import '../widgets/hover_box_panel.dart';
 import 'scada_style.dart';
@@ -14,26 +15,27 @@ import 'scada_style.dart';
 class FacOverlayMap extends StatefulWidget {
   final String facId;
 
-  /// Danh sách Box ID, không còn là Box Device ID.
   final List<String> boxIds;
 
-  /// Dữ liệu đã gom theo Box ID.
   final Map<String, FacBoxViewData> boxesById;
 
-  /// Các map này cũng dùng Box ID làm key.
+  // ✅ thêm
+  final Map<String, PanelRankInfo> panelRanks;
+
   final Map<String, Offset> groupLayout;
+
   final Map<String, ArrowDirection> directions;
+
   final Map<String, Color> colors;
 
   final bool editMode;
 
-  /// Dù controller bên ngoài còn tên cũ,
-  /// giá trị truyền vào đây là Box ID.
   final String? editingBoxId;
 
   final ValueChanged<String?> onPickEditingBox;
 
   final UpdateGroupPosition onUpdateGroupPosition;
+
   final UpdateGroupDirection onUpdateDirection;
 
   const FacOverlayMap({
@@ -41,6 +43,10 @@ class FacOverlayMap extends StatefulWidget {
     required this.facId,
     required this.boxIds,
     required this.boxesById,
+
+    // ✅
+    required this.panelRanks,
+
     required this.groupLayout,
     required this.directions,
     required this.colors,
@@ -470,6 +476,10 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
     );
   }
 
+  PanelRankInfo? _rankOf(String boxId) {
+    return widget.panelRanks[boxId.trim().toUpperCase()];
+  }
+
   // ============================================================
   // BOX FRAME
   // ============================================================
@@ -485,28 +495,44 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
 
     final isTableSelected = _selectedBoxId == boxId;
 
+    // ============================================================
+    // RANK TỪ CÙNG DATA VỚI BAR CHART
+    // ============================================================
+
+    final rankInfo = _rankOf(boxId);
+
     return Positioned(
       left: position.dx * imageRect.width,
+
       top: position.dy * imageRect.height,
+
       child: MouseRegion(
         cursor: widget.editMode
             ? SystemMouseCursors.move
             : SystemMouseCursors.click,
+
         child: GroupFrame(
-          /*
-           * GroupFrame còn tên property cũ,
-           * nhưng nội dung hiển thị là Box ID.
-           */
           boxDeviceId: box.boxId,
 
           scadaText: box.scadaText,
+
           cate: box.primaryCategory,
+
+          // ================================================
+          // RANK
+          // ================================================
+          rank: rankInfo?.rank,
+
+          value: rankInfo?.value,
+
+          unit: rankInfo?.unit,
 
           boxColor: widget.colors[boxId],
 
           hasAlarm: false,
 
           groupPos01: position,
+
           parentSize: imageRect.size,
 
           editMode: widget.editMode,
@@ -532,11 +558,8 @@ class _FacOverlayMapState extends State<FacOverlayMap> {
           onDragGroup01: widget.editMode
               ? (newPosition) {
                   return widget.onUpdateGroupPosition(
-                    /*
-                     * Tên parameter cũ,
-                     * giá trị thực tế là Box ID.
-                     */
                     boxDeviceId: boxId,
+
                     position: newPosition,
                   );
                 }

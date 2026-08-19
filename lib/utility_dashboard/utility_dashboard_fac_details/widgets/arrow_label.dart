@@ -37,8 +37,8 @@ class ArrowLabel extends StatelessWidget {
     final opacity = hasAlarm
         ? blinkValue
         : selected
-        ? 0.88
-        : 0.58;
+        ? 0.90
+        : 0.68;
 
     final glowColor = hasAlarm ? Colors.redAccent : color;
 
@@ -46,34 +46,35 @@ class ArrowLabel extends StatelessWidget {
         ? const Color(0xFFFF5252)
         : selected
         ? Colors.amberAccent
-        : Colors.black.withOpacity(0.85);
+        : Colors.black.withOpacity(.78);
 
     final activeEffectColor = hasAlarm ? const Color(0xFFFF7043) : effectColor;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 160),
       curve: Curves.easeOut,
+
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
             color: glowColor.withOpacity(
               hasAlarm
-                  ? 0.75 * blinkValue
+                  ? .55 * blinkValue
                   : selected
-                  ? 0.45
-                  : 0.22,
+                  ? .28
+                  : .10,
             ),
+
+            // giảm glow để frame nhìn ốm hơn
             blurRadius: hasAlarm
-                ? 28
+                ? 14
                 : selected
-                ? 16
-                : 10,
-            spreadRadius: hasAlarm
-                ? 3
-                : selected
-                ? 1
-                : 0,
-            offset: const Offset(0, 3),
+                ? 8
+                : 4,
+
+            spreadRadius: hasAlarm ? 1 : 0,
+
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -94,7 +95,9 @@ class ArrowLabel extends StatelessWidget {
 
         child: Container(
           padding: padding,
+
           constraints: constraints,
+
           child: IntrinsicWidth(child: child),
         ),
       ),

@@ -8,16 +8,50 @@ import '../../utility_dashboard_common/chart_theme.dart';
 import '../models/period/utility_period_dashboard.dart';
 import '../utility_period_api.dart';
 
+class _RankedUtilityBox {
+  final int rank;
+
+  final UtilityPeriodBox box;
+
+  const _RankedUtilityBox({required this.rank, required this.box});
+}
+
+String _formatCompactValue(double value) {
+  if (value >= 1000000) {
+    final n = value / 1000000;
+
+    return '${_trimNumber(n, 2)}M';
+  }
+
+  if (value >= 1000) {
+    final n = value / 1000;
+
+    return '${_trimNumber(n, 2)}K';
+  }
+
+  return _trimNumber(value, 1);
+}
+
+String _trimNumber(double value, int decimals) {
+  var text = value.toStringAsFixed(decimals);
+
+  text = text.replaceFirst(RegExp(r'\.?0+$'), '');
+
+  return text;
+}
+
 class UtilityPeriodOverviewPanel extends StatefulWidget {
   final String facId;
   final UtilityPeriodApi api;
   final String utilityType;
+  final ValueChanged<UtilityPeriodDashboard?>? onDataChanged;
 
   const UtilityPeriodOverviewPanel({
     super.key,
     required this.facId,
     required this.api,
     required this.utilityType,
+    this.onDataChanged,
   });
 
   @override
@@ -126,6 +160,12 @@ class _UtilityPeriodOverviewPanelState
         _refreshing = false;
         _error = null;
       });
+
+      // ============================================================
+      // ĐẨY ĐÚNG DASHBOARD ĐANG HIỂN THỊ LÊN PARENT
+      // ============================================================
+
+      widget.onDataChanged?.call(result);
     } catch (error, stackTrace) {
       debugPrint('[UTILITY PERIOD] load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -469,16 +509,16 @@ class _UtilityPeriodOverviewPanelState
           flex: 4,
           child: Row(
             children: [
-              Expanded(child: _buildTrendPanel(data)),
-
-              const SizedBox(width: 8),
-
               Expanded(child: _buildByBoxPanel(data)),
+
+              const SizedBox(width: 4),
+
+              Expanded(child: _buildTrendPanel(data)),
             ],
           ),
         ),
 
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
 
         Expanded(flex: 5, child: _buildHeatmap(data)),
       ],
@@ -751,21 +791,49 @@ class _UtilityPeriodOverviewPanelState
   Widget _buildByBoxPanel(UtilityPeriodDashboard data) {
     final ChartTheme theme = _theme;
 
+    // ============================================================
+    // SORT DESC
+    // ============================================================
+
     final sortedBoxes = [...data.byBox]
       ..sort((a, b) => b.total.compareTo(a.total));
 
+    // ============================================================
+    // WRAP DATA WITH RANK
+    // ============================================================
+
+    final rankedBoxes = List<_RankedUtilityBox>.generate(sortedBoxes.length, (
+      index,
+    ) {
+      final item = sortedBoxes[index];
+
+      return _RankedUtilityBox(rank: index + 1, box: item);
+    }, growable: false);
+
     return _panelBox(
       title: '${theme.title} CONSUMPTION BY PANEL (${data.unit})',
+
       child: SfCartesianChart(
         margin: EdgeInsets.zero,
+
         plotAreaBorderWidth: 0,
 
+        // ========================================================
+        // CATEGORY AXIS
+        // ========================================================
         primaryXAxis: CategoryAxis(
           isInversed: true,
 
           labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+
+          majorGridLines: const MajorGridLines(width: 0),
+
+          majorTickLines: const MajorTickLines(width: 0),
         ),
 
+        // ========================================================
+        // VALUE AXIS
+        // ========================================================
         primaryYAxis: NumericAxis(
           numberFormat: NumberFormat.compact(),
 
@@ -774,22 +842,33 @@ class _UtilityPeriodOverviewPanelState
           majorGridLines: MajorGridLines(color: Colors.white.withOpacity(.05)),
         ),
 
+        // ========================================================
+        // TOOLTIP
+        // ========================================================
         tooltipBehavior: TooltipBehavior(
           enable: true,
           header: '',
           format: 'point.x : point.y ${data.unit}',
         ),
 
+        // ========================================================
+        // SERIES
+        // ========================================================
         series: [
-          BarSeries<UtilityPeriodBox, String>(
+          BarSeries<_RankedUtilityBox, String>(
             name: theme.title,
 
-            // ✅ PHẢI dùng list đã sort
-            dataSource: sortedBoxes,
+            dataSource: rankedBoxes,
 
-            xValueMapper: (item, _) => item.boxId,
+            // ====================================================
+            // HIỆN RANK TRƯỚC BOX ID
+            //
+            // 1  DP-P8
+            // 2  DPA-AC1
+            // ====================================================
+            xValueMapper: (item, _) => '${item.rank}  ${item.box.boxId}',
 
-            yValueMapper: (item, _) => item.total,
+            yValueMapper: (item, _) => item.box.total,
 
             color: theme.line,
 
@@ -797,9 +876,23 @@ class _UtilityPeriodOverviewPanelState
               right: Radius.circular(3),
             ),
 
+            // ====================================================
+            // VALUE TRÊN BAR
+            // ====================================================
+            dataLabelMapper: (item, _) => _formatCompactValue(item.box.total),
+
             dataLabelSettings: const DataLabelSettings(
               isVisible: true,
-              textStyle: TextStyle(color: Colors.white, fontSize: 12),
+
+              labelAlignment: ChartDataLabelAlignment.outer,
+
+              textStyle: TextStyle(
+                color: Colors.white,
+
+                fontSize: 11,
+
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
