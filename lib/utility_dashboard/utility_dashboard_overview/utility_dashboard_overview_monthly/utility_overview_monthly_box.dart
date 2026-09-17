@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/monthly_air_card.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/monthly_electricity_card.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/monthly_metric_widgets.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/monthly_water_card.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +15,6 @@ import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_fac_details/screens/utility_fac_detail_screen.dart';
 import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_models/energy_monthly_summary.dart';
-import '../utility_dashboard_overview_widgets/utility_glow_card.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
 // ============================================================
@@ -690,15 +691,17 @@ class _MonthlyBody extends StatelessWidget {
     // SPLIT
     // ==========================================================
 
+    final electricityItems = <EnergyMonthlySummary>[];
     final waterItems = <EnergyMonthlySummary>[];
-
-    final standardItems = <EnergyMonthlySummary>[];
+    final airItems = <EnergyMonthlySummary>[];
 
     for (final item in items) {
-      if (item.isWater) {
+      if (item.isElectricity) {
+        electricityItems.add(item);
+      } else if (item.isWater) {
         waterItems.add(item);
-      } else {
-        standardItems.add(item);
+      } else if (item.isAir) {
+        airItems.add(item);
       }
     }
 
@@ -708,182 +711,25 @@ class _MonthlyBody extends StatelessWidget {
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-
       children: [
-        for (var index = 0; index < standardItems.length; index++) ...[
-          RepaintBoundary(child: _MonthlyEnergyRow(item: standardItems[index])),
-
-          if (index < standardItems.length - 1 || waterItems.isNotEmpty)
+        for (var index = 0; index < electricityItems.length; index++) ...[
+          RepaintBoundary(
+            child: MonthlyElectricityCard(item: electricityItems[index]),
+          ),
+          if (index < electricityItems.length - 1 ||
+              waterItems.isNotEmpty ||
+              airItems.isNotEmpty)
             const SizedBox(height: 8),
         ],
-
-        if (waterItems.isNotEmpty)
+        if (waterItems.isNotEmpty) ...[
           RepaintBoundary(child: MonthlyWaterCard(items: waterItems)),
-      ],
-    );
-  }
-}
-
-// ============================================================
-// ELECTRICITY / AIR
-// ============================================================
-
-class _MonthlyEnergyRow extends StatelessWidget {
-  final EnergyMonthlySummary item;
-
-  const _MonthlyEnergyRow({required this.item});
-
-  String get _title {
-    if (item.isElectricity) {
-      return 'Total Energy';
-    }
-
-    if (item.isAir) {
-      return 'Compressed Air';
-    }
-
-    final name = item.name.trim();
-
-    return name.isNotEmpty ? name : item.cate;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ChartThemes.byCate(item.cate);
-
-    final color = theme.iconColor;
-
-    final unit = MonthlyMetricFormat.unit(item, theme);
-
-    final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
-
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-
-        children: [
-          MonthlyMetricHeader(title: _title, color: theme.line),
-
-          const SizedBox(height: 10),
-
-          const MonthlyMetricColumnsHeader(),
-
-          const SizedBox(height: 4),
-
-          // ====================================================
-          // ELECTRICITY COST
-          // ====================================================
-          if (item.isElectricity) ...[
-            _MonthlyCostRow(item: item, color: color),
-
-            const SizedBox(height: 3),
-
-            Divider(
-              height: 1,
-
-              thickness: .5,
-
-              color: Colors.white.withOpacity(.7),
-            ),
-
-            const SizedBox(height: 3),
-          ],
-
-          // ====================================================
-          // VALUE
-          // ====================================================
-          _MonthlyUtilityValueRow(item: item, color: color, unit: unit),
+          if (airItems.isNotEmpty) const SizedBox(height: 8),
         ],
-      ),
-    );
-
-    if (item.isAir) {
-      return UtilityGlowCard.air(color: color, child: content);
-    }
-
-    return UtilityGlowCard.electricity(color: color, child: content);
-  }
-}
-
-// ============================================================
-// COST ROW
-// ============================================================
-
-class _MonthlyCostRow extends StatelessWidget {
-  final EnergyMonthlySummary item;
-
-  final Color color;
-
-  const _MonthlyCostRow({required this.item, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return MonthlyMetricComparisonRow(
-      currentValue: MonthlyMetricFormat.money(item.currentCost),
-
-      currentUnit: item.currentCostUnit,
-
-      previousValue: MonthlyMetricFormat.money(item.previousCost),
-
-      previousUnit: item.previousCostUnit,
-
-      mode: MonthlyMetricFormat.mode(item),
-
-      delta: item.costDeltaPercent,
-
-      currentColor: color,
-    );
-  }
-}
-
-// ============================================================
-// UTILITY VALUE ROW
-// ============================================================
-
-class _MonthlyUtilityValueRow extends StatelessWidget {
-  final EnergyMonthlySummary item;
-
-  final Color color;
-
-  final String unit;
-
-  const _MonthlyUtilityValueRow({
-    required this.item,
-    required this.color,
-    required this.unit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: item.displayValue),
-
-      duration: const Duration(milliseconds: 650),
-
-      curve: Curves.easeOutCubic,
-
-      builder: (_, animatedValue, __) {
-        return MonthlyMetricComparisonRow(
-          currentValue: MonthlyMetricFormat.utility(item, animatedValue),
-
-          currentUnit: unit,
-
-          previousValue: MonthlyMetricFormat.utility(
-            item,
-            item.previousDisplayValue,
-          ),
-
-          previousUnit: unit,
-
-          mode: MonthlyMetricFormat.mode(item),
-
-          delta: item.deltaPercent,
-
-          currentColor: color,
-        );
-      },
+        for (var index = 0; index < airItems.length; index++) ...[
+          RepaintBoundary(child: MonthlyAirCard(item: airItems[index])),
+          if (index < airItems.length - 1) const SizedBox(height: 8),
+        ],
+      ],
     );
   }
 }

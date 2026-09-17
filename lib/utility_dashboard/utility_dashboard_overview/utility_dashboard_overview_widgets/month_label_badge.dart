@@ -3,22 +3,12 @@ import 'package:flutter/material.dart';
 class MonthLabelBadge extends StatelessWidget {
   final String monthLabel;
 
-  final double height;
-  final double fontSize;
-  final double iconSize;
-
-  const MonthLabelBadge({
-    super.key,
-    required this.monthLabel,
-    this.height = 26,
-    this.fontSize = 14,
-    this.iconSize = 13,
-  });
+  const MonthLabelBadge({super.key, required this.monthLabel});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: height,
+      height: 26,
       padding: const EdgeInsets.symmetric(horizontal: 7),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(.04),
@@ -31,7 +21,7 @@ class MonthLabelBadge extends StatelessWidget {
           Icon(
             Icons.calendar_month_rounded,
             color: Colors.white70,
-            size: iconSize,
+            size: 13,
           ),
 
           const SizedBox(width: 4),
@@ -40,7 +30,7 @@ class MonthLabelBadge extends StatelessWidget {
             monthLabel,
             style: TextStyle(
               color: const Color(0xff22d3ee),
-              fontSize: fontSize,
+              fontSize: 14,
               fontWeight: FontWeight.w900,
             ),
           ),

@@ -2,75 +2,44 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 
 class UtilityDashboardTopBar extends StatelessWidget {
-  final String title;
   final String selectedFac;
   final ValueChanged<String> onFacChanged;
   final DateTime selectedMonth;
   final ValueChanged<DateTime> onMonthChanged;
-  final bool hasAlarm;
-  final Animation<double>? blinkAnimation;
 
   const UtilityDashboardTopBar({
     super.key,
-    this.title = 'Utility Control System',
     required this.selectedFac,
     required this.onFacChanged,
     required this.selectedMonth,
     required this.onMonthChanged,
-    required this.hasAlarm,
-    this.blinkAnimation,
   });
 
   @override
   Widget build(BuildContext context) {
-    final animation = blinkAnimation ?? const AlwaysStoppedAnimation<double>(0);
-
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, _) {
-        final t = animation.value;
-
-        final bgColor = hasAlarm
-            ? Color.lerp(
-                UtilityTopBarStyle.background,
-                Colors.red.withOpacity(0.6), // 🔥 màu alarm
-                t,
-              )
-            : UtilityTopBarStyle.background;
-
-        return Container(
-          height: 52,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: bgColor, // ✅ đã animate
-            border: Border(
-              bottom: BorderSide(
-                color: hasAlarm
-                    ? Colors.redAccent.withOpacity(0.7)
-                    : Colors.white.withOpacity(0.08),
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              _AlarmTitlePill(
-                title: title,
-                hasAlarm: hasAlarm,
-                blinkAnimation: blinkAnimation,
-              ),
-              const SizedBox(width: 14),
-              _FacToggleBar(selected: selectedFac, onChanged: onFacChanged),
-              const Spacer(),
-              _MonthPickerPill(month: selectedMonth, onChanged: onMonthChanged),
-            ],
-          ),
-        );
-      },
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: _UtilityTopBarStyle.background,
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withOpacity(0.08)),
+        ),
+      ),
+      child: Row(
+        children: [
+          const _TitlePill(),
+          const SizedBox(width: 14),
+          _FacToggleBar(selected: selectedFac, onChanged: onFacChanged),
+          const Spacer(),
+          _MonthPickerPill(month: selectedMonth, onChanged: onMonthChanged),
+        ],
+      ),
     );
   }
 }
 
-class UtilityTopBarStyle {
+class _UtilityTopBarStyle {
   static const background = Color(0xFF0A1230);
   static const selectedColor = Color(0xFF00C2FF);
 
@@ -89,7 +58,7 @@ class UtilityTopBarStyle {
   }
 }
 
-class UtilityMonthLabel {
+class _UtilityMonthLabel {
   static const months = [
     'Jan',
     'Feb',
@@ -110,134 +79,54 @@ class UtilityMonthLabel {
   }
 }
 
-class _AlarmTitlePill extends StatelessWidget {
-  final String title;
-  final bool hasAlarm;
-  final Animation<double>? blinkAnimation;
-
-  const _AlarmTitlePill({
-    required this.title,
-    required this.hasAlarm,
-    required this.blinkAnimation,
-  });
+class _TitlePill extends StatelessWidget {
+  const _TitlePill();
 
   @override
   Widget build(BuildContext context) {
-    final animation = blinkAnimation ?? const AlwaysStoppedAnimation<double>(0);
-
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, _) {
-        final t = animation.value;
-        final bgOpacity = hasAlarm ? (0.18 + t * 0.35) : 0.08;
-        final glowOpacity = hasAlarm ? (0.25 + t * 0.55) : 0.25;
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: UtilityTopBarStyle.glassBox(
-            borderRadius: BorderRadius.circular(12),
-            color: hasAlarm
-                ? Colors.red.withOpacity(bgOpacity)
-                : Colors.white.withOpacity(0.08),
-            borderColor: hasAlarm
-                ? Colors.redAccent.withOpacity(0.95)
-                : Colors.white.withOpacity(0.12),
-            boxShadow: hasAlarm
-                ? [
-                    BoxShadow(
-                      color: Colors.red.withOpacity(glowOpacity),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: _UtilityTopBarStyle.glassBox(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white.withOpacity(0.08),
+        borderColor: Colors.white.withOpacity(0.12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          child: _AlarmSweepText(
-            enabled: hasAlarm,
-            progress: t,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.factory_outlined,
-                  size: 18,
-                  color: hasAlarm
-                      ? Colors.white
-                      : Colors.cyanAccent.withOpacity(0.9),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ],
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.factory_outlined,
+            size: 18,
+            color: Colors.cyanAccent.withOpacity(0.9),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Utility Control System',
+            style: const TextStyle(
+              fontSize: 18,
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
 
-class _AlarmSweepText extends StatelessWidget {
-  final bool enabled;
-  final double progress;
-  final Widget child;
-
-  const _AlarmSweepText({
-    required this.enabled,
-    required this.progress,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (!enabled) return child;
-
-    return ShaderMask(
-      blendMode: BlendMode.srcATop,
-      shaderCallback: (bounds) {
-        final h = bounds.height;
-        final sweepY = (-0.6 * h) + (progress * 2.2 * h);
-
-        return LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: const [
-            Colors.white,
-            Color(0xFFFFE082),
-            Colors.redAccent,
-            Colors.white,
-          ],
-          stops: [
-            ((sweepY - 18) / h).clamp(0.0, 1.0),
-            ((sweepY - 6) / h).clamp(0.0, 1.0),
-            ((sweepY + 6) / h).clamp(0.0, 1.0),
-            ((sweepY + 18) / h).clamp(0.0, 1.0),
-          ],
-        ).createShader(bounds);
-      },
-      child: child,
-    );
-  }
-}
-
-class FacilityTabItem {
+class _FacilityTabItem {
   final String label;
   final String value;
 
-  const FacilityTabItem(this.label, this.value);
+  const _FacilityTabItem(this.label, this.value);
 }
 
 class _FacToggleBar extends StatelessWidget {
@@ -245,10 +134,10 @@ class _FacToggleBar extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   static const items = [
-    FacilityTabItem('KVH', 'KVH'),
-    FacilityTabItem('FAC_A', 'Fac_A'),
-    FacilityTabItem('FAC_B', 'Fac_B'),
-    FacilityTabItem('FAC_C', 'Fac_C'),
+    _FacilityTabItem('KVH', 'KVH'),
+    _FacilityTabItem('FAC_A', 'Fac_A'),
+    _FacilityTabItem('FAC_B', 'Fac_B'),
+    _FacilityTabItem('FAC_C', 'Fac_C'),
   ];
 
   const _FacToggleBar({required this.selected, required this.onChanged});
@@ -261,11 +150,11 @@ class _FacToggleBar extends StatelessWidget {
         color: const Color(0xFF050B18).withOpacity(0.92),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: UtilityTopBarStyle.selectedColor.withOpacity(0.20),
+          color: _UtilityTopBarStyle.selectedColor.withOpacity(0.20),
         ),
         boxShadow: [
           BoxShadow(
-            color: UtilityTopBarStyle.selectedColor.withOpacity(0.10),
+            color: _UtilityTopBarStyle.selectedColor.withOpacity(0.10),
             blurRadius: 14,
           ),
         ],
@@ -306,70 +195,56 @@ class _MonthPickerPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ScadaMonthButton(
+    return _ScadaMonthButton(
       month: month,
-      color: UtilityTopBarStyle.selectedColor.withOpacity(.7),
+      color: _UtilityTopBarStyle.selectedColor.withOpacity(.7),
       onTap: () => _pick(context),
     );
   }
 
-  // @override
-  // Widget build(BuildContext context) {
-  //   return InkWell(
-  //     borderRadius: BorderRadius.circular(12),
-  //     onTap: () => _pick(context),
-  //     child: Container(
-  //       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-  //       decoration: UtilityTopBarStyle.glassBox(
-  //         borderRadius: BorderRadius.circular(12),
-  //         borderColor: Colors.white.withOpacity(0.12),
-  //       ),
-  //       child: Row(
-  //         children: [
-  //           Icon(
-  //             Icons.calendar_month_outlined,
-  //             size: 18,
-  //             color: Colors.white.withOpacity(0.78),
-  //           ),
-  //           const SizedBox(width: 10),
-  //           Text(
-  //             'Month:',
-  //             style: TextStyle(
-  //               color: Colors.white.withOpacity(0.72),
-  //               fontWeight: FontWeight.w700,
-  //             ),
-  //           ),
-  //           const SizedBox(width: 10),
-  //           Container(
-  //             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-  //             decoration: UtilityTopBarStyle.glassBox(
-  //               borderRadius: BorderRadius.circular(10),
-  //               color: Colors.white.withOpacity(0.08),
-  //             ),
-  //             child: Row(
-  //               children: [
-  //                 Text(
-  //                   UtilityMonthLabel.format(month),
-  //                   style: TextStyle(
-  //                     color: Colors.white.withOpacity(0.92),
-  //                     fontWeight: FontWeight.w900,
-  //                     letterSpacing: 0.2,
-  //                   ),
-  //                 ),
-  //                 const SizedBox(width: 6),
-  //                 Icon(
-  //                   Icons.expand_more,
-  //                   size: 18,
-  //                   color: Colors.white.withOpacity(0.75),
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
+}
+
+class _ScadaMonthButton extends StatelessWidget {
+  final DateTime month;
+  final VoidCallback onTap;
+  final Color color;
+
+  const _ScadaMonthButton({
+    required this.month,
+    required this.onTap,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: CustomPaint(
+        painter: ScadaTabPainter(color: color, selected: true),
+        child: Container(
+          height: 36,
+          constraints: const BoxConstraints(minWidth: 140),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.calendar_month, size: 16, color: color),
+              const SizedBox(width: 8),
+              Text(
+                _UtilityMonthLabel.format(month),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.expand_more, size: 16, color: Colors.white70),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _MonthPickerDialog extends StatefulWidget {
@@ -395,7 +270,7 @@ class _MonthPickerDialogState extends State<_MonthPickerDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: UtilityTopBarStyle.background,
+      backgroundColor: _UtilityTopBarStyle.background,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: 360,
@@ -433,20 +308,20 @@ class _MonthPickerDialogState extends State<_MonthPickerDialog> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: selected
-                          ? UtilityTopBarStyle.selectedColor.withOpacity(0.18)
+                          ? _UtilityTopBarStyle.selectedColor.withOpacity(0.18)
                           : Colors.white.withOpacity(0.06),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: selected
-                            ? UtilityTopBarStyle.selectedColor.withOpacity(0.55)
+                            ? _UtilityTopBarStyle.selectedColor.withOpacity(0.55)
                             : Colors.white.withOpacity(0.10),
                       ),
                     ),
                     child: Text(
-                      UtilityMonthLabel.months[i],
+                      _UtilityMonthLabel.months[i],
                       style: TextStyle(
                         color: selected
-                            ? UtilityTopBarStyle.selectedColor.withOpacity(0.95)
+                            ? _UtilityTopBarStyle.selectedColor.withOpacity(0.95)
                             : Colors.white.withOpacity(0.85),
                         fontWeight: FontWeight.w800,
                       ),
@@ -470,14 +345,14 @@ class _MonthPickerDialogState extends State<_MonthPickerDialog> {
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: UtilityTopBarStyle.selectedColor
+                      backgroundColor: _UtilityTopBarStyle.selectedColor
                           .withOpacity(0.22),
-                      foregroundColor: UtilityTopBarStyle.selectedColor,
+                      foregroundColor: _UtilityTopBarStyle.selectedColor,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
-                          color: UtilityTopBarStyle.selectedColor.withOpacity(
+                          color: _UtilityTopBarStyle.selectedColor.withOpacity(
                             0.55,
                           ),
                         ),

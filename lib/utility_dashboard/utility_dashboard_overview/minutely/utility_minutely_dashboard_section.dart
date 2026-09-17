@@ -7,25 +7,25 @@ import '../../utility_dashboard_common/chart_theme.dart';
 import '../utility_dashboard_overview_models/utility_minute_dashboard_response.dart';
 import '../utility_dashboard_overview_provider/utility_minute_dashboard_provider.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
-import 'utility_dashboard_overview_minutes_chart.dart';
+import 'utility_minutely_chart.dart';
 
-class UtilityMinuteDashboardSection extends StatefulWidget {
+class UtilityMinutelyDashboardSection extends StatefulWidget {
   final String facId;
   final int minutes;
 
-  const UtilityMinuteDashboardSection({
+  const UtilityMinutelyDashboardSection({
     super.key,
     required this.facId,
     this.minutes = 60,
   });
 
   @override
-  State<UtilityMinuteDashboardSection> createState() =>
-      _UtilityMinuteDashboardSectionState();
+  State<UtilityMinutelyDashboardSection> createState() =>
+      _UtilityMinutelyDashboardSectionState();
 }
 
-class _UtilityMinuteDashboardSectionState
-    extends State<UtilityMinuteDashboardSection> {
+class _UtilityMinutelyDashboardSectionState
+    extends State<UtilityMinutelyDashboardSection> {
   late final UtilityMinuteDashboardProvider _provider;
 
   @override
@@ -42,7 +42,7 @@ class _UtilityMinuteDashboardSectionState
   }
 
   @override
-  void didUpdateWidget(covariant UtilityMinuteDashboardSection oldWidget) {
+  void didUpdateWidget(covariant UtilityMinutelyDashboardSection oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     final changed =
@@ -106,7 +106,7 @@ class _UtilityMinuteDashboardSectionState
             Column(
               children: [
                 Expanded(
-                  child: UtilityDashboardOverviewMinutesChart(
+                  child: UtilityMinutelyChart(
                     facId: widget.facId,
                     rows: vm.electricity,
                     loading: vm.loading,
@@ -120,7 +120,7 @@ class _UtilityMinuteDashboardSectionState
                 ),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: UtilityDashboardOverviewMinutesChart(
+                  child: UtilityMinutelyChart(
                     facId: widget.facId,
                     rows: vm.water,
                     loading: vm.loading,
@@ -134,7 +134,7 @@ class _UtilityMinuteDashboardSectionState
                 ),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: UtilityDashboardOverviewMinutesChart(
+                  child: UtilityMinutelyChart(
                     facId: widget.facId,
                     rows: vm.air,
                     loading: vm.loading,

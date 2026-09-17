@@ -1,4 +1,3 @@
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
 import 'package:flutter/material.dart';
 
 class ScadaTabButton extends StatelessWidget {
@@ -6,7 +5,6 @@ class ScadaTabButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final Color color;
-  final double height;
   final double minWidth;
 
   const ScadaTabButton({
@@ -15,7 +13,6 @@ class ScadaTabButton extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.color = const Color(0xFF00C2FF),
-    this.height = 34,
     this.minWidth = 72,
   });
 
@@ -26,13 +23,13 @@ class ScadaTabButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: CustomPaint(
-          painter: _ScadaTabPainter(color: color, selected: selected),
+          painter: ScadaTabPainter(color: color, selected: selected),
           child: ConstrainedBox(
             constraints: BoxConstraints(
               minWidth: minWidth,
               maxWidth: 140,
-              minHeight: height,
-              maxHeight: height,
+              minHeight: 34,
+              maxHeight: 34,
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -60,59 +57,11 @@ class ScadaTabButton extends StatelessWidget {
   }
 }
 
-class ScadaMonthButton extends StatelessWidget {
-  final DateTime month;
-  final VoidCallback onTap;
-  final Color color;
-
-  const ScadaMonthButton({
-    super.key,
-    required this.month,
-    required this.onTap,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: CustomPaint(
-        painter: _ScadaTabPainter(color: color, selected: true),
-        child: Container(
-          height: 36,
-          constraints: const BoxConstraints(minWidth: 140),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.calendar_month, size: 16, color: color),
-
-              const SizedBox(width: 8),
-
-              Text(
-                UtilityMonthLabel.format(month),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-
-              const SizedBox(width: 4),
-
-              Icon(Icons.expand_more, size: 16, color: Colors.white70),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ScadaTabPainter extends CustomPainter {
+class ScadaTabPainter extends CustomPainter {
   final Color color;
   final bool selected;
 
-  const _ScadaTabPainter({required this.color, required this.selected});
+  const ScadaTabPainter({required this.color, required this.selected});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -183,7 +132,7 @@ class _ScadaTabPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ScadaTabPainter oldDelegate) {
+  bool shouldRepaint(covariant ScadaTabPainter oldDelegate) {
     return oldDelegate.selected != selected || oldDelegate.color != color;
   }
 }

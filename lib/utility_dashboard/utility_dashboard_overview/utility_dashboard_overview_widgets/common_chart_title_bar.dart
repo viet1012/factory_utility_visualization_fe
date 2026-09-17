@@ -85,8 +85,6 @@ class CommonChartTitleBar extends StatelessWidget {
               HealthIndicator(
                 result: health,
                 size: 10,
-                showLabel: false,
-                enableTooltip: true,
               ),
 
               if (_hasValue) ...[

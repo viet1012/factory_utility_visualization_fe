@@ -1,15 +1,14 @@
 import 'dart:async';
 
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/daily/utility_daily_header.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
 // Water + Air
-import '../utility_dashboard_overview_daily/'
-    'utility_dashboard_overview_daily_chart.dart';
+import 'utility_daily_chart.dart';
 // Electricity Grid + Solar
-import '../utility_dashboard_overview_daily/'
-    'utility_dashboard_overview_daily_electricity_chart.dart';
+import 'utility_daily_electricity_chart.dart';
 import '../utility_dashboard_overview_models/'
     'utility_daily_dashboard_response.dart';
 import '../utility_dashboard_overview_provider/'
@@ -129,6 +128,15 @@ class _UtilityDailyDashboardSectionState
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const UtilityDailyHeader(),
+        Expanded(child: _buildContent()),
+      ],
+    );
+  }
+
+  Widget _buildContent() {
     if (!_hasValidSource) {
       return const Center(
         child: Text(
@@ -142,11 +150,9 @@ class _UtilityDailyDashboardSectionState
       selector: (_, provider) {
         return _DailyDashboardVm.fromProvider(provider);
       },
-
       shouldRebuild: (previous, next) {
         return previous.shouldRebuild(next);
       },
-
       builder: (_, vm, __) {
         return _buildDashboard(vm);
       },
@@ -195,7 +201,7 @@ class _UtilityDailyDashboardSectionState
         // GRID + SOLAR
         // ======================================================
         Expanded(
-          child: UtilityDashboardOverviewDailyElectricityChart(
+          child: UtilityDailyElectricityChart(
             facId: widget.facId,
             month: widget.month,
 
@@ -216,7 +222,7 @@ class _UtilityDailyDashboardSectionState
         // WATER
         // ======================================================
         Expanded(
-          child: UtilityDashboardOverviewDailyChart(
+          child: UtilityDailyChart(
             facId: widget.facId,
             month: widget.month,
 
@@ -237,7 +243,7 @@ class _UtilityDailyDashboardSectionState
         // AIR
         // ======================================================
         Expanded(
-          child: UtilityDashboardOverviewDailyChart(
+          child: UtilityDailyChart(
             facId: widget.facId,
             month: widget.month,
 

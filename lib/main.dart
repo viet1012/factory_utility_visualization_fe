@@ -564,7 +564,6 @@ class MyApp extends StatelessWidget {
       title: 'Utility Dashboard',
       theme: ThemeData(primarySwatch: Colors.blue),
       home: UtilityDashboardScreen(),
-      // home: MockTablesPage(),
     );
   }
 }

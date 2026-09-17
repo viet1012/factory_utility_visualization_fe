@@ -1,119 +1,9 @@
-// import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_widgets/utility_facility_info_box_tree.dart';
-// import 'package:flutter/material.dart';
-//
-// import '../../weather_widgets/overview/factory_map_with_rain.dart';
-// import '../utility_all_factory_chart/utility_hourly_bar_panel.dart';
-// import '../utility_dashboard_widgets/utility_category_compare_view.dart';
-//
-// class UtilityDashboardOverview extends StatelessWidget {
-//   final String mainImageUrl;
-//
-//   const UtilityDashboardOverview({super.key, required this.mainImageUrl});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return LayoutBuilder(
-//       builder: (context, c) {
-//         return Container(
-//           decoration: BoxDecoration(
-//             borderRadius: BorderRadius.circular(16),
-//             boxShadow: [
-//               BoxShadow(
-//                 color: Colors.black.withOpacity(0.35),
-//                 spreadRadius: 2,
-//                 blurRadius: 10,
-//                 offset: const Offset(0, 5),
-//               ),
-//             ],
-//           ),
-//           child: Row(
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             children: [
-//               Expanded(
-//                 child: Align(
-//                   alignment: Alignment.topCenter,
-//                   child: UtilityHourlyBarChartPanel(
-//                     facId: 'KVH',
-//                     boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
-//                     plcAddress: 'D30',
-//                   ),
-//                 ),
-//               ),
-//               Expanded(
-//                 flex: 3,
-//                 child: ClipRRect(
-//                   borderRadius: BorderRadius.circular(16),
-//                   child: Stack(
-//                     children: [
-//                       FactoryMapWithRain(mainImageUrl: mainImageUrl),
-//
-//                       // overlay gradient
-//                       Container(
-//                         decoration: BoxDecoration(
-//                           gradient: LinearGradient(
-//                             begin: Alignment.topCenter,
-//                             end: Alignment.bottomCenter,
-//                             colors: [
-//                               Colors.black.withOpacity(0.1),
-//                               Colors.transparent,
-//                               Colors.black.withOpacity(0.15),
-//                             ],
-//                           ),
-//                         ),
-//                       ),
-//
-//                       /// ===== FAC A =====
-//                       Align(
-//                         alignment: const FractionalOffset(0.95, 0.04),
-//                         // child: const UtilityFacilityInfoBox(
-//                         //   facId: 'Fac_A',
-//                         //   cateIds: ['E_TTL_KW', 'E_Cur1'],
-//                         // ),
-//                       ),
-//
-//                       /// ===== FAC B =====
-//                       Align(
-//                         alignment: const FractionalOffset(0.95, 0.7),
-//                         // child: const UtilityFacilityInfoBox(
-//                         //   facId: 'Fac_B',
-//                         //   // boxDeviceId: '',
-//                         //   cateIds: ['E_EneCon'],
-//                         // ),
-//                         child: UtilityFacilityInfoBoxTree(
-//                           headerTitle: 'Fac B',
-//                           facIds: ['Fac_B'],
-//                           plcAddresses: ['D30', 'D24'],
-//                           boxDeviceId: 'DPB-L2-PANNEL_CB-80A',
-//                         ),
-//                       ),
-//
-//                       /// ===== FAC C =====
-//                       Align(
-//                         alignment: const FractionalOffset(0.1, 0.04),
-//                         // child: const UtilityFacilityInfoBox(
-//                         //   facId: 'Fac_C',
-//                         //   cateIds: ['E_TTL_KW', 'E_Cur1'],
-//                         // ),
-//                       ),
-//                     ],
-//                   ),
-//                 ),
-//               ),
-//               Expanded(child: UtilityCategoryCompareView()),
-//             ],
-//           ),
-//         );
-//       },
-//     );
-//   }
-// }
 import 'dart:async';
 
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/SignalHealthHeader.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_daily/utility_daily_dashboard_section.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_map_category/UtilityMapWithCategoryTabs.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_minutes_hourly/utility_realtime_tab_panel.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_alert_widgets/voltage_card.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/daily/utility_daily_dashboard_section.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/map_category/utility_map_with_category_tabs.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_realtime_tab_panel.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly_summary/utility_dashboard_monthly_summary_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_solar/solar_summary_card.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/utility_dashboard_top_bar.dart';
@@ -135,18 +25,11 @@ class UtilityDashboardOverview extends StatefulWidget {
       _UtilityDashboardOverviewState();
 }
 
-class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
-    with SingleTickerProviderStateMixin {
+class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
   String selectedFac = 'KVH';
   DateTime selectedMonth = DateTime.now();
 
   Timer? _monthChangeTimer;
-
-  late AnimationController _alarmController;
-  late Animation<double> _blinkAnimation;
-
-  final ValueNotifier<Map<String, VoltageStatus>> _activeVoltageAlarms =
-      ValueNotifier({});
 
   @override
   void initState() {
@@ -155,15 +38,6 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
     final now = DateTime.now();
 
     selectedMonth = DateTime(now.year, now.month, 1);
-
-    _alarmController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 250),
-    );
-
-    _blinkAnimation = Tween<double>(begin: 0.15, end: 0.9).animate(
-      CurvedAnimation(parent: _alarmController, curve: Curves.easeInOut),
-    );
 
     _startMonthWatcher();
   }
@@ -212,9 +86,6 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
     _monthChangeTimer?.cancel();
     _monthChangeTimer = null;
 
-    _alarmController.dispose();
-    _activeVoltageAlarms.dispose();
-
     super.dispose();
   }
 
@@ -227,25 +98,6 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
   }
 
   // 🔥 HANDLE ALARM (NO POPUP)
-  void _handleVoltageAlarmChanged(String facId, VoltageStatus? status) {
-    final next = Map<String, VoltageStatus>.from(_activeVoltageAlarms.value);
-
-    if (status == null || !status.isAlarm) {
-      next.remove(facId);
-    } else {
-      next[facId] = status;
-    }
-
-    _activeVoltageAlarms.value = next;
-
-    if (next.isEmpty) {
-      _alarmController.stop();
-      _alarmController.reset();
-    } else {
-      _alarmController.repeat(reverse: true);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final nowStr = DateFormat('d/M/yyyy').format(DateTime.now());
@@ -255,188 +107,112 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview>
 
     final monthKey = toYYYYMM(selectedMonth);
 
-    const Map<String, Alignment> facPositions = {
-      'Fac_A': Alignment(0.3, -0.70),
-      'Fac_B': Alignment(0.3, 0.72),
-      'idle': Alignment(0.8, 0.9),
-    };
-
-    return ValueListenableBuilder<Map<String, VoltageStatus>>(
-      valueListenable: _activeVoltageAlarms,
-      builder: (context, alarms, _) {
-        String targetFacId;
-
-        if (alarms.containsKey(selectedFac)) {
-          targetFacId = selectedFac;
-        } else if (alarms.isNotEmpty) {
-          targetFacId = alarms.keys.first;
-        } else {
-          targetFacId = 'idle';
-        }
-        final hasAlarm = alarms.isNotEmpty;
-        return AnimatedBuilder(
-          animation: _blinkAnimation,
-          builder: (context, child) {
-            // final hasAlarm =
-            //     _activeVoltageAlarms.value.isNotEmpty; // ✅ thêm dòng này
-
-            return Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: hasAlarm
-                        ? Colors.red.withOpacity(_blinkAnimation.value)
-                        : Colors.transparent,
-                  ),
-                  child: child,
+    return Column(
+      children: [
+        UtilityDashboardTopBar(
+          selectedFac: selectedFac,
+          selectedMonth: selectedMonth,
+          onFacChanged: (v) => setState(() => selectedFac = v),
+          onMonthChanged: (m) =>
+              setState(() => selectedMonth = DateTime(m.year, m.month, 1)),
+        ),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, c) {
+              return Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.35),
+                      spreadRadius: 2,
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
-              ],
-            );
-          },
 
-          child: Column(
-            children: [
-              UtilityDashboardTopBar(
-                selectedFac: selectedFac,
-                selectedMonth: selectedMonth,
-                onFacChanged: (v) => setState(() => selectedFac = v),
-                onMonthChanged: (m) => setState(
-                  () => selectedMonth = DateTime(m.year, m.month, 1),
-                ),
-                hasAlarm: hasAlarm,
-                blinkAnimation: _blinkAnimation, // 🔥 thêm luôn animation
-              ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, c) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.35),
-                            spreadRadius: 2,
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-
-                      child: Column(
+                child: Column(
+                  children: [
+                    /// ===== TOP =====
+                    Expanded(
+                      flex: 2,
+                      child: Row(
                         children: [
-                          /// ===== TOP =====
+                          /// LEFT CHART
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: LayoutBuilder(
+                                builder: (context, _) {
+                                  return Column(
+                                    children: [
+                                      Expanded(
+                                        flex: 270,
+                                        child: MonthlySummaryScreen(
+                                          facId: selectedFac,
+                                          month: monthKey,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Expanded(
+                                        flex: 185,
+                                        child: SolarSummaryCard(
+                                          facId: selectedFac,
+                                          month: monthKey,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Expanded(
+                                        flex: 138,
+                                        child: const SignalHealthKpiScreen(),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+
+                          /// MAP
                           Expanded(
                             flex: 2,
-                            child: Row(
-                              children: [
-                                /// LEFT CHART
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(right: 4),
-                                    child: LayoutBuilder(
-                                      builder: (context, cc) {
-                                        final h = cc.maxHeight;
-                                        return Column(
-                                          children: [
-                                            Expanded(
-                                              flex: 270,
-                                              child: MonthlySummaryScreen(
-                                                facId: selectedFac,
-                                                month: monthKey,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Expanded(
-                                              flex: 185,
-                                              child: SolarSummaryCard(
-                                                facId: selectedFac,
-                                                month: monthKey,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Expanded(
-                                              flex: 138,
-                                              child:
-                                                  const SignalHealthKpiScreen(),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-
-                                /// MAP
-                                Expanded(
-                                  flex: 2,
-                                  child: UtilityMapWithCategoryTabs(
-                                    mainImageUrl: widget.mainImageUrl,
-                                    monthKey: monthKey,
-                                    alarms: alarms,
-                                    targetFacId: targetFacId,
-                                    facPositions: facPositions,
-                                    shouldHighlight: shouldHighlight,
-                                    onVoltageAlarmChanged:
-                                        _handleVoltageAlarmChanged,
-                                    nightImageUrl: widget.nightImageUrl,
-                                  ),
-                                ),
-
-                                Expanded(
-                                  child: UtilityRealtimeTabPanel(
-                                    selectedFac: selectedFac,
-                                    nowStr: nowStr,
-                                    yStr: yStr,
-                                  ),
-                                ),
-                              ],
+                            child: UtilityMapWithCategoryTabs(
+                              mainImageUrl: widget.mainImageUrl,
+                              monthKey: monthKey,
+                              shouldHighlight: shouldHighlight,
+                              nightImageUrl: widget.nightImageUrl,
                             ),
                           ),
 
-                          /// ===== BOTTOM =====
                           Expanded(
-                            child: Column(
-                              children: [
-                                _title('DAILY'),
-                                Expanded(
-                                  child: UtilityDailyDashboardSection(
-                                    facId: selectedFac,
-                                    month: monthKey,
-                                  ),
-                                ),
-                              ],
+                            child: UtilityRealtimeTabPanel(
+                              selectedFac: selectedFac,
+                              nowStr: nowStr,
+                              yStr: yStr,
                             ),
                           ),
                         ],
                       ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+                    ),
 
-  Widget _title(String text) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Icon(
-          Icons.calendar_month_rounded,
-          size: 15,
-          color: Color(0xff5cff7a),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          text,
-          style: const TextStyle(
-            color: Color(0xff5cff7a),
-            fontSize: 13,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
+                    /// ===== BOTTOM =====
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: UtilityDailyDashboardSection(
+                              facId: selectedFac,
+                              month: monthKey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ],

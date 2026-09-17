@@ -140,7 +140,7 @@ class _SensorChartData {
   }
 }
 
-class CoolingTankTemperaturePanel extends StatefulWidget {
+class UtilityHourlySensorPanel extends StatefulWidget {
   final List<HourlySensorPoint> rows;
 
   final String facId;
@@ -152,7 +152,7 @@ class CoolingTankTemperaturePanel extends StatefulWidget {
 
   final VoidCallback? onRetry;
 
-  const CoolingTankTemperaturePanel({
+  const UtilityHourlySensorPanel({
     super.key,
     required this.rows,
     required this.facId,
@@ -164,12 +164,11 @@ class CoolingTankTemperaturePanel extends StatefulWidget {
   });
 
   @override
-  State<CoolingTankTemperaturePanel> createState() =>
-      _CoolingTankTemperaturePanelState();
+  State<UtilityHourlySensorPanel> createState() =>
+      _UtilityHourlySensorPanelState();
 }
 
-class _CoolingTankTemperaturePanelState
-    extends State<CoolingTankTemperaturePanel> {
+class _UtilityHourlySensorPanelState extends State<UtilityHourlySensorPanel> {
   List<HourlySensorPoint>? _cachedRows;
   String? _cachedFac;
   String? _cachedType;
@@ -187,7 +186,7 @@ class _CoolingTankTemperaturePanelState
   }
 
   @override
-  void didUpdateWidget(covariant CoolingTankTemperaturePanel oldWidget) {
+  void didUpdateWidget(covariant UtilityHourlySensorPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     final changed =
@@ -390,8 +389,6 @@ class _TemperatureTrendCard extends StatelessWidget {
               HealthIndicator(
                 result: health,
                 size: 8,
-                showLabel: false,
-                enableTooltip: true,
               ),
             ],
           ),

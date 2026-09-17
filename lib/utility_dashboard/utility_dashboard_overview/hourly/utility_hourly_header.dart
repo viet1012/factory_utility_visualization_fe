@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class UtilityDashboardOverviewHourlyHeader extends StatelessWidget {
+class UtilityHourlyHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
 
@@ -10,7 +10,7 @@ class UtilityDashboardOverviewHourlyHeader extends StatelessWidget {
   final Color backgroundColor;
   final bool showDivider;
 
-  const UtilityDashboardOverviewHourlyHeader({
+  const UtilityHourlyHeader({
     super.key,
     required this.title,
     this.subtitle,

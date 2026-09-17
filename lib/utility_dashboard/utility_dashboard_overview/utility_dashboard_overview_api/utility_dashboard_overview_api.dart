@@ -6,7 +6,6 @@ import '../utility_dashboard_overview_models/energy_monthly_summary.dart';
 import '../utility_dashboard_overview_models/utility_daily_dashboard_response.dart';
 import '../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
 import '../utility_dashboard_overview_models/utility_minute_dashboard_response.dart';
-import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_alert_widgets/voltage_card.dart';
 
 class UtilityDashboardOverviewApi {
   UtilityDashboardOverviewApi();
@@ -29,8 +28,6 @@ class UtilityDashboardOverviewApi {
 
   static const String _monthlySummaryRefreshPath =
       '/api/utility/monthly-summary/refresh';
-
-  static const String _voltageStatusPath = '/api/utility/voltage/status';
 
   static const String _voltageDetailPath = '/api/utility/voltage/detail';
 
@@ -207,25 +204,6 @@ class UtilityDashboardOverviewApi {
   // ============================================================
   // MONTHLY USAGE
   // ============================================================
-
-  // ============================================================
-  // VOLTAGE
-  // ============================================================
-
-  Future<List<VoltageStatus>> getVoltageStatus({required String facId}) async {
-    final normalizedFac = _requiredText(facId, fieldName: 'facId');
-
-    final response = await _get(
-      _voltageStatusPath,
-      queryParameters: {'facId': normalizedFac},
-    );
-
-    return _parseList(
-      response.data,
-      VoltageStatus.fromJson,
-      errorMessage: 'Invalid voltage status response',
-    );
-  }
 
   Future<List<dynamic>> getVoltageDetail({required String facId}) async {
     final normalizedFac = _requiredText(facId, fieldName: 'facId');

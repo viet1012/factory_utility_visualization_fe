@@ -8,9 +8,6 @@ class UtilityInfoBoxHeader {
     required Color facilityColor,
     required String facTitle,
     required DataHealthResult healthResult,
-    String? boxDeviceId,
-    String? plcAddress,
-    String? unit,
   }) {
     final themedResult = healthResult.health == DataHealth.ok
         ? DataHealthResult(DataHealth.ok)
@@ -23,19 +20,6 @@ class UtilityInfoBoxHeader {
     );
   }
 
-  static Widget emptyState({required bool hasError, required Object? err}) {
-    return Center(
-      child: Text(
-        hasError ? 'Error: $err' : 'No data',
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.65),
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
 }
 
 class _PremiumInfoBoxHeader extends StatefulWidget {
@@ -84,8 +68,7 @@ class _PremiumInfoBoxHeaderState extends State<_PremiumInfoBoxHeader>
         final shimmerX = -1.4 + (_controller.value * 2.8);
 
         return Container(
-          // height: 42,
-          padding: EdgeInsetsGeometry.all(4),
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -146,7 +129,6 @@ class _PremiumInfoBoxHeaderState extends State<_PremiumInfoBoxHeader>
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.96),
-                          // fontSize: 13,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.45,
                         ),
@@ -169,8 +151,6 @@ class _PremiumInfoBoxHeaderState extends State<_PremiumInfoBoxHeader>
                       child: HealthIndicator(
                         result: widget.healthResult,
                         size: 9,
-                        showLabel: false,
-                        enableTooltip: true,
                       ),
                     ),
                   ],

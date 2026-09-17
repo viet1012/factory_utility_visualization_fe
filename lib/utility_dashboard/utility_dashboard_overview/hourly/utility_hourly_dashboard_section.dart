@@ -4,124 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
-import '../utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/CoolingTankTemperaturePanel.dart';
-import '../utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_compare.dart';
-import '../utility_dashboard_overview_hourly/utility_dashboard_overview_hourly_widgets/utility_dashboard_overview_hourly_header.dart';
-import '../utility_dashboard_overview_minutely/utility_minute_dashboard_section.dart';
 import '../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
 import '../utility_dashboard_overview_provider/utility_hourly_dashboard_provider.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
-import '../utility_dashboard_overview_widgets/scada_tab_button.dart';
-
-class UtilityRealtimeTabPanel extends StatefulWidget {
-  final String selectedFac;
-  final String nowStr;
-  final String yStr;
-
-  const UtilityRealtimeTabPanel({
-    super.key,
-    required this.selectedFac,
-    required this.nowStr,
-    required this.yStr,
-  });
-
-  @override
-  State<UtilityRealtimeTabPanel> createState() =>
-      _UtilityRealtimeTabPanelState();
-}
-
-class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
-  int selectedTab = 0;
-
-  bool _builtMinutes = true;
-  bool _builtHourly = false;
-
-  void _selectTab(int index) {
-    if (selectedTab == index) return;
-
-    setState(() {
-      selectedTab = index;
-
-      if (index == 0) {
-        _builtMinutes = true;
-      } else {
-        _builtHourly = true;
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _tabHeader(),
-        const SizedBox(height: 6),
-        Expanded(
-          child: IndexedStack(
-            index: selectedTab,
-            children: [
-              TickerMode(
-                enabled: selectedTab == 0,
-                child: _builtMinutes ? _minutesView() : const SizedBox.shrink(),
-              ),
-              TickerMode(
-                enabled: selectedTab == 1,
-                child: _builtHourly ? _hourlyView() : const SizedBox.shrink(),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _tabHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        ScadaTabButton(
-          label: 'MINUTELY',
-          selected: selectedTab == 0,
-          onTap: () => _selectTab(0),
-        ),
-        const SizedBox(width: 8),
-        ScadaTabButton(
-          label: 'HOURLY',
-          selected: selectedTab == 1,
-          onTap: () => _selectTab(1),
-        ),
-      ],
-    );
-  }
-
-  Widget _minutesView() {
-    return UtilityMinuteDashboardSection(
-      key: const PageStorageKey<String>('minutes_view'),
-      facId: widget.selectedFac,
-      minutes: 60,
-    );
-  }
-
-  Widget _hourlyView() {
-    return Column(
-      key: const PageStorageKey<String>('hourly_view'),
-      children: [
-        UtilityDashboardOverviewHourlyHeader(
-          title: '[HOURLY COMPARE]',
-          subtitle: 'Today: ${widget.nowStr}  •  Prev: ${widget.yStr}',
-        ),
-        const SizedBox(height: 6),
-        Expanded(
-          child: UtilityHourlyDashboardSection(facId: widget.selectedFac),
-        ),
-      ],
-    );
-  }
-}
-
-// ============================================================
-// HOURLY DASHBOARD SECTION
-// ============================================================
+import 'utility_hourly_compare.dart';
+import 'widgets/utility_hourly_sensor_panel.dart';
 
 class UtilityHourlyDashboardSection extends StatefulWidget {
   final String facId;
@@ -142,9 +29,7 @@ class _UtilityHourlyDashboardSectionState
   @override
   void initState() {
     super.initState();
-
     _provider = context.read<UtilityHourlyDashboardProvider>();
-
     _scheduleStart(facId: widget.facId);
   }
 
@@ -154,7 +39,6 @@ class _UtilityHourlyDashboardSectionState
 
     final oldFacId = oldWidget.facId.trim();
     final newFacId = widget.facId.trim();
-
     if (oldFacId == newFacId) return;
 
     _scheduleStart(facId: widget.facId);
@@ -166,9 +50,6 @@ class _UtilityHourlyDashboardSectionState
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-
-      // Nếu FAC đổi nhiều lần trước khi frame hoàn thành,
-      // chỉ request mới nhất được phép chạy.
       if (token != _scheduleToken) return;
 
       unawaited(_provider.start(facId: nextFacId));
@@ -182,7 +63,6 @@ class _UtilityHourlyDashboardSectionState
   @override
   void dispose() {
     _scheduleToken++;
-
     super.dispose();
   }
 
@@ -237,7 +117,7 @@ class _UtilityHourlyDashboardSectionState
             Column(
               children: [
                 Expanded(
-                  child: UtilityDashboardOverviewHourlyCompare(
+                  child: UtilityHourlyCompare(
                     rows: vm.electricity,
                     facId: widget.facId,
                     title: 'Electricity Hourly',
@@ -249,7 +129,7 @@ class _UtilityHourlyDashboardSectionState
                 ),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: CoolingTankTemperaturePanel(
+                  child: UtilityHourlySensorPanel(
                     rows: vm.water,
                     facId: widget.facId,
                     theme: ChartThemes.water,
@@ -261,7 +141,7 @@ class _UtilityHourlyDashboardSectionState
                 ),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: CoolingTankTemperaturePanel(
+                  child: UtilityHourlySensorPanel(
                     rows: vm.air,
                     facId: widget.facId,
                     theme: ChartThemes.air,
@@ -295,10 +175,6 @@ class _UtilityHourlyDashboardSectionState
     );
   }
 }
-
-// ============================================================
-// VIEW MODEL
-// ============================================================
 
 class _HourlyDashboardVm {
   final bool loading;

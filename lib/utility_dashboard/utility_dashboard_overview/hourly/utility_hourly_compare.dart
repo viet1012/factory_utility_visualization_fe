@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-import '../../../utility_dashboard_common/chart_theme.dart';
-import '../../../utility_dashboard_common/data_health.dart';
-import '../../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
-import '../../utility_dashboard_overview_widgets/chart_state_widgets.dart';
-import '../../utility_dashboard_overview_widgets/health_indicator.dart';
-import '../../utility_dashboard_overview_widgets/scada_panel_frame.dart';
+import '../../utility_dashboard_common/chart_theme.dart';
+import '../../utility_dashboard_common/data_health.dart';
+import '../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
+import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../utility_dashboard_overview_widgets/health_indicator.dart';
+import '../utility_dashboard_overview_widgets/scada_panel_frame.dart';
 
 class _HourlyCompareDto {
   final int scaleHour;
@@ -195,7 +195,7 @@ class _SummaryData {
   }
 }
 
-class UtilityDashboardOverviewHourlyCompare extends StatelessWidget {
+class UtilityHourlyCompare extends StatelessWidget {
   final List<HourlyEnergyPoint> rows;
 
   final String facId;
@@ -207,7 +207,7 @@ class UtilityDashboardOverviewHourlyCompare extends StatelessWidget {
 
   final VoidCallback? onRetry;
 
-  const UtilityDashboardOverviewHourlyCompare({
+  const UtilityHourlyCompare({
     super.key,
     required this.rows,
     required this.facId,
@@ -392,8 +392,6 @@ class _SummaryBar extends StatelessWidget {
           HealthIndicator(
             result: health,
             size: 8,
-            showLabel: false,
-            enableTooltip: true,
           ),
         ],
       ),

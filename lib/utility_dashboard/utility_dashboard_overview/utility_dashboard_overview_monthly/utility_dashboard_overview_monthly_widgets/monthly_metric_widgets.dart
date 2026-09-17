@@ -66,12 +66,17 @@ class MonthlyMetricDeltaBadge extends StatelessWidget {
     final value = delta;
 
     if (value == null) {
-      return Text(
-        '--',
-        style: TextStyle(
-          color: Colors.white.withOpacity(.35),
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerRight,
+        child: Text(
+          '--',
+          maxLines: 1,
+          style: TextStyle(
+            color: Colors.white.withOpacity(.35),
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       );
     }
@@ -99,23 +104,26 @@ class MonthlyMetricDeltaBadge extends StatelessWidget {
       icon = Icons.remove_rounded;
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: color),
-
-        const SizedBox(width: 1),
-
-        Text(
-          '${value.abs().toStringAsFixed(1)}%',
-          style: TextStyle(
-            color: color,
-            fontSize: 16,
-            height: 1,
-            fontWeight: FontWeight.w900,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerRight,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 1),
+          Text(
+            '${value.abs().toStringAsFixed(1)}%',
+            maxLines: 1,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              height: 1,
+              fontWeight: FontWeight.w900,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -232,6 +240,40 @@ class MonthlyMetricValueText extends StatelessWidget {
   }
 }
 
+class MonthlyMetricAnimatedUtilityRow extends StatelessWidget {
+  final EnergyMonthlySummary item;
+  final Color color;
+  final String unit;
+
+  const MonthlyMetricAnimatedUtilityRow({
+    super.key,
+    required this.item,
+    required this.color,
+    required this.unit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: item.displayValue),
+      duration: const Duration(milliseconds: 650),
+      curve: Curves.easeOutCubic,
+      builder: (_, animatedValue, __) => MonthlyMetricComparisonRow(
+        currentValue: MonthlyMetricFormat.utility(item, animatedValue),
+        currentUnit: unit,
+        previousValue: MonthlyMetricFormat.utility(
+          item,
+          item.previousDisplayValue,
+        ),
+        previousUnit: unit,
+        mode: MonthlyMetricFormat.mode(item),
+        delta: item.deltaPercent,
+        currentColor: color,
+      ),
+    );
+  }
+}
+
 // ============================================================
 // COMPARISON ROW
 // ============================================================
@@ -268,70 +310,76 @@ class MonthlyMetricComparisonRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 28,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // ==================================================
-          // CURRENT
-          // ==================================================
-          Expanded(
-            flex: 11,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: MonthlyMetricValueText(
-                value: currentValue,
-                unit: currentUnit,
-                badge: mode,
-                color: currentColor,
-                textAlign: TextAlign.left,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final geometry = _MonthlyMetricColumnGeometry.from(constraints);
+
+        return SizedBox(
+          height: 28,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // ==================================================
+              // CURRENT
+              // ==================================================
+              Expanded(
+                flex: 11,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: MonthlyMetricValueText(
+                    value: currentValue,
+                    unit: currentUnit,
+                    badge: mode,
+                    color: currentColor,
+                    textAlign: TextAlign.left,
+                  ),
+                ),
               ),
-            ),
+
+              SizedBox(width: geometry.gap),
+
+              // ==================================================
+              // PREVIOUS MONTH
+              // ==================================================
+              Expanded(
+                flex: 9,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _hasPrevious
+                      ? MonthlyMetricValueText(
+                          value: previousValue,
+                          unit: previousUnit,
+                          color: Colors.white,
+                          textAlign: TextAlign.left,
+                        )
+                      : Text(
+                          '--',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(.35),
+                            fontSize: 17,
+                            height: 1,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                ),
+              ),
+
+              SizedBox(width: geometry.gap),
+
+              // ==================================================
+              // DIFF
+              // ==================================================
+              SizedBox(
+                width: geometry.diffWidth,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: MonthlyMetricDeltaBadge(delta: delta),
+                ),
+              ),
+            ],
           ),
-
-          const SizedBox(width: 8),
-
-          // ==================================================
-          // PREVIOUS MONTH
-          // ==================================================
-          Expanded(
-            flex: 9,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: _hasPrevious
-                  ? MonthlyMetricValueText(
-                      value: previousValue,
-                      unit: previousUnit,
-                      color: Colors.white,
-                      textAlign: TextAlign.left,
-                    )
-                  : Text(
-                      '--',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(.35),
-                        fontSize: 17,
-                        height: 1,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // ==================================================
-          // DIFF
-          // ==================================================
-          SizedBox(
-            width: 60,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: MonthlyMetricDeltaBadge(delta: delta),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -353,28 +401,63 @@ class MonthlyMetricColumnsHeader extends StatelessWidget {
       letterSpacing: .45,
     );
 
-    return const Row(
-      children: [
-        Expanded(
-          flex: 11,
-          child: Text('CURRENT', textAlign: TextAlign.left, style: style),
-        ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final geometry = _MonthlyMetricColumnGeometry.from(constraints);
 
-        SizedBox(width: 8),
+        Widget label(String text, TextAlign textAlign, Alignment alignment) {
+          return FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: alignment,
+            child: Text(text, maxLines: 1, textAlign: textAlign, style: style),
+          );
+        }
 
-        Expanded(
-          flex: 9,
-          child: Text('PRE MONTH', textAlign: TextAlign.left, style: style),
-        ),
-
-        SizedBox(width: 8),
-
-        SizedBox(
-          width: 60,
-          child: Text('DIFF', textAlign: TextAlign.right, style: style),
-        ),
-      ],
+        return Row(
+          children: [
+            Expanded(
+              flex: 11,
+              child: label('CURRENT', TextAlign.left, Alignment.centerLeft),
+            ),
+            SizedBox(width: geometry.gap),
+            Expanded(
+              flex: 9,
+              child: label('PRE MONTH', TextAlign.left, Alignment.centerLeft),
+            ),
+            SizedBox(width: geometry.gap),
+            SizedBox(
+              width: geometry.diffWidth,
+              child: label('DIFF', TextAlign.right, Alignment.centerRight),
+            ),
+          ],
+        );
+      },
     );
+  }
+}
+
+class _MonthlyMetricColumnGeometry {
+  final double gap;
+  final double diffWidth;
+
+  const _MonthlyMetricColumnGeometry({
+    required this.gap,
+    required this.diffWidth,
+  });
+
+  factory _MonthlyMetricColumnGeometry.from(BoxConstraints constraints) {
+    final width = constraints.hasBoundedWidth
+        ? constraints.maxWidth.clamp(0.0, double.maxFinite).toDouble()
+        : 300.0;
+    final gap = (width * .025).clamp(0.0, 8.0).toDouble();
+    final remaining = (width - gap * 2).clamp(0.0, width).toDouble();
+    final diffWidth = (width * .20)
+        .clamp(0.0, 60.0)
+        .toDouble()
+        .clamp(0.0, remaining * .45)
+        .toDouble();
+
+    return _MonthlyMetricColumnGeometry(gap: gap, diffWidth: diffWidth);
   }
 }
 

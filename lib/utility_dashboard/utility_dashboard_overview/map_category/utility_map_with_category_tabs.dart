@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
-import '../utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_alert_widgets/voltage_card.dart';
 import '../utility_dashboard_overview_monthly/utility_overview_monthly_box.dart';
 import '../utility_dashboard_overview_widgets/factory_map_with_rain.dart';
 import '../utility_dashboard_overview_widgets/monitoring_mascot.dart';
@@ -50,22 +49,13 @@ class UtilityMapWithCategoryTabs extends StatefulWidget {
   final String nightImageUrl;
 
   final String monthKey;
-  final Map<String, VoltageStatus> alarms;
-  final String targetFacId;
-  final Map<String, Alignment> facPositions;
   final bool Function(String facId) shouldHighlight;
-  final void Function(String facId, VoltageStatus? status)
-  onVoltageAlarmChanged;
 
   const UtilityMapWithCategoryTabs({
     super.key,
     required this.mainImageUrl,
     required this.monthKey,
-    required this.alarms,
-    required this.targetFacId,
-    required this.facPositions,
     required this.shouldHighlight,
-    required this.onVoltageAlarmChanged,
     required this.nightImageUrl,
   });
 
@@ -168,14 +158,7 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
             ),
           ),
 
-          MovingMascot(
-            alarmCount: widget.alarms.length,
-            size: 180,
-            targetAlignment:
-                widget.facPositions[widget.targetFacId] ??
-                const Alignment(-0.4, 0.3),
-            idleAlignment: widget.facPositions['idle']!,
-          ),
+          const MovingMascot(size: 180, idleAlignment: Alignment(0.8, 0.9)),
 
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 650),

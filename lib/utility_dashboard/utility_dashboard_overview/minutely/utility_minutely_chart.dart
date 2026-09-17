@@ -39,7 +39,7 @@ class UtilityStandardValues {
   }
 }
 
-class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
+class UtilityMinutelyChart extends StatefulWidget {
   final String facId;
   final String utilityType;
   final ChartTheme theme;
@@ -53,7 +53,7 @@ class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
   final double? height;
   final String? nameEn;
 
-  const UtilityDashboardOverviewMinutesChart({
+  const UtilityMinutelyChart({
     super.key,
     required this.facId,
     required this.utilityType,
@@ -67,12 +67,10 @@ class UtilityDashboardOverviewMinutesChart extends StatefulWidget {
   });
 
   @override
-  State<UtilityDashboardOverviewMinutesChart> createState() =>
-      _UtilityDashboardOverviewMinutesChartState();
+  State<UtilityMinutelyChart> createState() => _UtilityMinutelyChartState();
 }
 
-class _UtilityDashboardOverviewMinutesChartState
-    extends State<UtilityDashboardOverviewMinutesChart>
+class _UtilityMinutelyChartState extends State<UtilityMinutelyChart>
     with TickerProviderStateMixin {
   late final UtilityInfoBoxFx fx;
 
@@ -114,9 +112,7 @@ class _UtilityDashboardOverviewMinutesChartState
   }
 
   @override
-  void didUpdateWidget(
-    covariant UtilityDashboardOverviewMinutesChart oldWidget,
-  ) {
+  void didUpdateWidget(covariant UtilityMinutelyChart oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     final changed =

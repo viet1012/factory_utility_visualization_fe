@@ -157,11 +157,6 @@ class UtilityAllFactoriesContent extends StatelessWidget {
 
         Expanded(
           child:
-              // UtilityChartTabBody(
-              //   controller: controller,
-              //   selectedScada: selectedScada,
-              //   selectedBox: selectedBoxDisplay,
-              // ),
               UtilityChartTabBody(
                 controller: controller,
                 selectedScada: selectedScada,
