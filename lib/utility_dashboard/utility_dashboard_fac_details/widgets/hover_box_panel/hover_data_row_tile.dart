@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../utility_dashboard_overview/'
-    'utility_dashboard_overview_models/latest_tree_response.dart';
+import '../../../utility_catalog/models/latest_tree_response.dart';
 import '../hover_box_panel.dart';
 import 'hover_panel_style.dart';
 

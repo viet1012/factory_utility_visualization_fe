@@ -7,7 +7,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
-import '../utility_dashboard_overview_models/utility_minute_dashboard_response.dart';
+import '../models/utility_minute_dashboard_response.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import '../utility_dashboard_overview_widgets/common_chart_title_bar.dart';
 import '../utility_dashboard_overview_widgets/scada_chart_panel.dart';

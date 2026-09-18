@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
-import '../../utility_dashboard_overview/'
-    'utility_dashboard_overview_models/latest_tree_response.dart';
+import '../../utility_catalog/models/latest_tree_response.dart';
 import 'hover_box_panel/hover_data_row_tile.dart';
 import 'hover_box_panel/hover_panel_style.dart';
 import 'hover_box_panel/hover_table_header.dart';

@@ -9,9 +9,9 @@ import '../../utility_dashboard_common/chart_theme.dart';
 import 'utility_daily_chart.dart';
 // Electricity Grid + Solar
 import 'utility_daily_electricity_chart.dart';
-import '../utility_dashboard_overview_models/'
+import '../models/'
     'utility_daily_dashboard_response.dart';
-import '../utility_dashboard_overview_provider/'
+import '../providers/'
     'utility_daily_dashboard_provider.dart';
 import '../utility_dashboard_overview_widgets/'
     'chart_state_widgets.dart';

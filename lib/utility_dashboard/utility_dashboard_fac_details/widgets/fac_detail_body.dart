@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../utility_api/dio_client.dart';
-import '../../../utility_state/latest_provider.dart';
+import '../../utility_catalog/providers/latest_provider.dart';
+import '../api/utility_period_api.dart';
 import '../controllers/fac_detail_edit_controller.dart';
 import '../helpers/fac_detail_formatters.dart';
 import '../layout/fac_overlay_map.dart';
@@ -17,7 +18,6 @@ import '../models/group_frame_types.dart';
 import '../models/panel_rank_info.dart';
 import '../models/period/utility_period_dashboard.dart';
 import '../period/utility_period_overview_panel.dart';
-import '../utility_period_api.dart';
 import '../widgets/color_picker_dialog.dart';
 import '../widgets/scada_gradient.dart';
 import '../widgets/top_header.dart';
@@ -58,6 +58,7 @@ class _FacDetailBodyState extends State<FacDetailBody> {
   // ============================================================
 
   late final UtilityPeriodApi _periodApi;
+  late final LatestProvider _latestProvider;
 
   // ============================================================
   // STORE
@@ -72,6 +73,7 @@ class _FacDetailBodyState extends State<FacDetailBody> {
   }
 
   UtilityPeriodDashboard? _periodDashboard;
+  Future<void> _latestRefreshQueue = Future<void>.value();
 
   // ============================================================
   // INIT
@@ -123,6 +125,7 @@ class _FacDetailBodyState extends State<FacDetailBody> {
     super.initState();
 
     _periodApi = UtilityPeriodApi(DioClient.dio);
+    _latestProvider = context.read<LatestProvider>();
 
     _refreshFacility();
   }
@@ -153,18 +156,29 @@ class _FacDetailBodyState extends State<FacDetailBody> {
   // ============================================================
 
   void _refreshFacility() {
+    final facId = widget.facId;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
 
-      unawaited(
-        context.read<LatestProvider>().refreshFacility(
-          widget.facId,
-          silent: false,
-        ),
-      );
+      _latestRefreshQueue = _latestRefreshQueue.then((_) async {
+        if (!mounted || widget.facId != facId) return;
+
+        await _latestProvider.refreshFacility(facId, silent: false);
+
+        if (!mounted || widget.facId != facId) return;
+
+        _latestProvider.startFacilityPolling(facId);
+      });
     });
+  }
+
+  @override
+  void dispose() {
+    _latestProvider.stopPolling();
+    super.dispose();
   }
 
   // ============================================================

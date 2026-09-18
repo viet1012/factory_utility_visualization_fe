@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../utility_dashboard_overview/'
-    'utility_dashboard_overview_models/latest_tree_response.dart';
+import 'models/latest_tree_response.dart';
 
 class UtilityCatalogTreeView extends StatefulWidget {
   final List<LatestFacilityDto> items;

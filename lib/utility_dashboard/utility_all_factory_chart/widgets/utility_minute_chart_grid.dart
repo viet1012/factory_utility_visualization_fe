@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../utility_state/chart_catalog_provider.dart';
-import '../utility_minute_chart_panel.dart';
+import '../controllers/utility_chart_catalog_controller.dart';
+import 'utility_minute_chart_panel.dart';
 
 class UtilityMinuteChartGrid extends StatelessWidget {
   final List<SignalChartConfig> charts;

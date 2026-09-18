@@ -11,11 +11,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class UtilityDashboardOverview extends StatefulWidget {
+  final bool isActive;
   final String mainImageUrl;
   final String nightImageUrl;
 
   const UtilityDashboardOverview({
     super.key,
+    required this.isActive,
     required this.mainImageUrl,
     required this.nightImageUrl,
   });
@@ -158,6 +160,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                                       Expanded(
                                         flex: 185,
                                         child: SolarSummaryCard(
+                                          isActive: widget.isActive,
                                           facId: selectedFac,
                                           month: monthKey,
                                         ),
@@ -178,6 +181,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
                           Expanded(
                             flex: 2,
                             child: UtilityMapWithCategoryTabs(
+                              isActive: widget.isActive,
                               mainImageUrl: widget.mainImageUrl,
                               monthKey: monthKey,
                               shouldHighlight: shouldHighlight,

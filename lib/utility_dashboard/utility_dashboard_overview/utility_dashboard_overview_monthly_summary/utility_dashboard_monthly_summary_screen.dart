@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../utility_dashboard_overview_models/energy_monthly_summary.dart';
-import '../utility_dashboard_overview_provider/utility_monthly_summary_provider.dart';
+import '../models/energy_monthly_summary.dart';
+import '../providers/utility_monthly_summary_provider.dart';
 import '../utility_dashboard_overview_widgets/month_label_badge.dart';
 
 class MonthlySummaryScreen extends StatefulWidget {
@@ -831,16 +831,7 @@ class _SmallMetric extends StatelessWidget {
               fontWeight: FontWeight.w900,
             ),
           ),
-          // Text(
-          //   unit,
-          //   maxLines: 1,
-          //   overflow: TextOverflow.ellipsis,
-          //   style: TextStyle(
-          //     color: color.withOpacity(.8),
-          //     fontSize: 14,
-          //     fontWeight: FontWeight.w700,
-          //   ),
-          // ),
+        
         ],
       ),
     );

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../utility_dashboard_common/chart_theme.dart';
-import '../../utility_dashboard_overview_models/energy_monthly_summary.dart';
+import '../../models/energy_monthly_summary.dart';
 import '../../utility_dashboard_overview_widgets/utility_glow_card.dart';
 import 'monthly_metric_widgets.dart';
 

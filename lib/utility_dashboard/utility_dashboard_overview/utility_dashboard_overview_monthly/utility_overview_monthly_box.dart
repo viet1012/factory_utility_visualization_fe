@@ -7,14 +7,14 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../utility_models/utility_facade_service.dart';
-import '../../../utility_state/latest_provider.dart';
+import '../../utility_dashboard_fac_details/api/utility_facade_service.dart';
+import '../../utility_catalog/providers/latest_provider.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_fac_details/screens/utility_fac_detail_screen.dart';
-import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
-import '../utility_dashboard_overview_models/energy_monthly_summary.dart';
+import '../api/utility_dashboard_overview_api.dart';
+import '../models/energy_monthly_summary.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
 // ============================================================
@@ -22,6 +22,7 @@ import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 // ============================================================
 
 class UtilityOverviewMonthlyBox extends StatefulWidget {
+  final bool isActive;
   final double width;
   final double? height;
 
@@ -35,6 +36,7 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
 
   const UtilityOverviewMonthlyBox({
     super.key,
+    required this.isActive,
     required this.facId,
     required this.month,
     required this.headerTitle,
@@ -81,6 +83,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   Timer? _refreshTimer;
 
   bool _screenActive = true;
+  bool _loadOnActivation = false;
 
   bool _loading = true;
   bool _fetching = false;
@@ -98,7 +101,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   // ============================================================
 
   bool get _canUpdate {
-    return mounted && _screenActive;
+    return mounted && _screenActive && widget.isActive;
   }
 
   bool get _hasValidSource {
@@ -115,9 +118,12 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
     _initializeAnimation();
 
-    _scheduleInitialLoad();
-
-    _startRefreshTimer();
+    if (widget.isActive) {
+      _scheduleInitialLoad();
+      _startRefreshTimer();
+    } else {
+      _loadOnActivation = true;
+    }
   }
 
   void _initializeAnimation() {
@@ -171,7 +177,36 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
     _handleHighlightChange(oldWidget);
 
-    _handleSourceChange(oldWidget);
+    final sourceChanged = _handleSourceChange(oldWidget);
+
+    if (!widget.isActive) {
+      if (oldWidget.isActive) {
+        _loadOnActivation = _loadOnActivation || _fetching || _items.isEmpty;
+        _stopRefreshTimer();
+        _invalidateRequests();
+      }
+
+      if (sourceChanged) {
+        _loadOnActivation = true;
+      }
+
+      return;
+    }
+
+    if (!oldWidget.isActive) {
+      _startRefreshTimer();
+
+      if (_loadOnActivation || sourceChanged || _items.isEmpty) {
+        _loadOnActivation = false;
+        _scheduleLoad(force: sourceChanged);
+      }
+
+      return;
+    }
+
+    if (sourceChanged) {
+      _scheduleLoad(force: true);
+    }
   }
 
   // ============================================================
@@ -194,7 +229,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   // SOURCE CHANGE
   // ============================================================
 
-  void _handleSourceChange(UtilityOverviewMonthlyBox oldWidget) {
+  bool _handleSourceChange(UtilityOverviewMonthlyBox oldWidget) {
     final oldFac = oldWidget.facId.trim();
 
     final newFac = widget.facId.trim();
@@ -206,7 +241,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     final changed = oldFac != newFac || oldMonth != newMonth;
 
     if (!changed) {
-      return;
+      return false;
     }
 
     _invalidateRequests();
@@ -221,12 +256,16 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       _error = null;
     });
 
+    return true;
+  }
+
+  void _scheduleLoad({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_canUpdate) {
         return;
       }
 
-      unawaited(_load(force: true));
+      unawaited(_load(force: force));
     });
   }
 
@@ -235,15 +274,24 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   // ============================================================
 
   void _startRefreshTimer() {
-    _refreshTimer?.cancel();
+    _stopRefreshTimer();
+
+    if (!widget.isActive) {
+      return;
+    }
 
     _refreshTimer = Timer.periodic(_refreshInterval, (_) {
-      if (!_canUpdate || _fetching) {
+      if (!_canUpdate || !widget.isActive || _fetching) {
         return;
       }
 
       unawaited(_load(silent: true));
     });
+  }
+
+  void _stopRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
   }
 
   // ============================================================
@@ -526,9 +574,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
     _requestId++;
 
-    _refreshTimer?.cancel();
-
-    _refreshTimer = null;
+    _stopRefreshTimer();
 
     _fx.dispose();
 

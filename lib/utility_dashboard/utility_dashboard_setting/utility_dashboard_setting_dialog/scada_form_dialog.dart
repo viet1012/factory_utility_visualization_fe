@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../utility_dashboard_setting_models/utility_scada.dart';
+import '../scada/models/utility_scada.dart';
 import '../utility_dashboard_setting_widgets/form_field_config.dart';
 import 'base_setting_form_dialog.dart';
 

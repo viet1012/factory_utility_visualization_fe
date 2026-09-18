@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
-import '../../utility_state/latest_provider.dart';
-import '../utility_dashboard_overview/utility_dashboard_overview_models/latest_tree_response.dart';
+import 'models/latest_tree_response.dart';
+import 'providers/latest_provider.dart';
 
 // ============================================================
 // SCREEN
@@ -26,8 +26,6 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
   Timer? _searchDebounce;
   LatestProvider? _latestProvider;
-
-  bool _requestedInitialLoad = false;
 
   String _keyword = '';
   String? _selectedFacility;
@@ -66,26 +64,10 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
     _searchController.addListener(_handleSearchChanged);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || _requestedInitialLoad) {
-        return;
-      }
-
-      _requestedInitialLoad = true;
-
-      final provider = context.read<LatestProvider>();
-      _latestProvider = provider;
-
-      if (!provider.hasData && !provider.loading) {
-        await provider.loadInitial();
-      }
-
-      if (!mounted) return;
+    _latestProvider = context.read<LatestProvider>();
 
       // Nếu màn hình này tự quản lý polling thì mở dòng này.
       // Nếu dashboard cha đã startPolling thì bỏ dòng này.
-      provider.startPolling();
-    });
   }
 
   void _handleSearchChanged() {
@@ -639,7 +621,6 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     _searchController.dispose();
 
     // Chỉ stop nếu polling được start riêng tại screen.
-    _latestProvider?.stopPolling();
 
     super.dispose();
   }

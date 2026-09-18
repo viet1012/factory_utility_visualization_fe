@@ -10,6 +10,7 @@ import 'package:factory_utility_visualization/weather_widgets/weather/model/weat
 import 'package:flutter/material.dart';
 
 class ApiControlledRainImage extends StatefulWidget {
+  final bool isActive;
   final String imageUrl;
   final String? nightImageUrl;
   final BoxFit fit;
@@ -20,6 +21,7 @@ class ApiControlledRainImage extends StatefulWidget {
 
   const ApiControlledRainImage({
     super.key,
+    required this.isActive,
     required this.imageUrl,
     required this.weatherService,
     this.nightImageUrl,
@@ -43,6 +45,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
 
   Timer? _weatherTimer;
   StreamSubscription<WeatherData>? _mockWeatherSub;
+  bool _weatherRequestRunning = false;
 
   WeatherData? _currentWeather;
   bool _isRaining = false;
@@ -58,12 +61,30 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
     _rainController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 50),
-    )..repeat();
+    );
 
-    _startWeatherMonitoring();
+    if (widget.isActive) {
+      _rainController.repeat();
+      _startWeatherMonitoring(fetchImmediately: true);
+    }
   }
 
-  void _startWeatherMonitoring() {
+  @override
+  void didUpdateWidget(covariant ApiControlledRainImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.isActive == widget.isActive) return;
+
+    if (widget.isActive) {
+      _rainController.repeat();
+      _startWeatherMonitoring(fetchImmediately: _currentWeather == null);
+    } else {
+      _stopWeatherMonitoring();
+      _rainController.stop();
+    }
+  }
+
+  void _startWeatherMonitoring({required bool fetchImmediately}) {
     // if (widget.weatherService is MockWeatherService) {
     //   final mockService = widget.weatherService as MockWeatherService;
     //   _mockWeatherSub = mockService.weatherStream().listen((weather) {
@@ -75,19 +96,41 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
     //   return;
     // }
 
-    _fetchWeather();
-    _weatherTimer = Timer.periodic(const Duration(minutes: 45), (_) {
+    _weatherTimer?.cancel();
+
+    if (!widget.isActive) return;
+
+    if (fetchImmediately) {
       _fetchWeather();
+    }
+
+    _weatherTimer = Timer.periodic(const Duration(minutes: 45), (_) {
+      if (mounted && widget.isActive) {
+        _fetchWeather();
+      }
     });
   }
 
-  Future<void> _fetchWeather() async {
-    final weather = await widget.weatherService.fetchWeatherData();
-    if (!mounted || weather == null) return;
+  void _stopWeatherMonitoring() {
+    _weatherTimer?.cancel();
+    _weatherTimer = null;
+  }
 
-    setState(() {
-      _applyWeather(weather);
-    });
+  Future<void> _fetchWeather() async {
+    if (_weatherRequestRunning || !widget.isActive) return;
+
+    _weatherRequestRunning = true;
+
+    try {
+      final weather = await widget.weatherService.fetchWeatherData();
+      if (!mounted || !widget.isActive || weather == null) return;
+
+      setState(() {
+        _applyWeather(weather);
+      });
+    } finally {
+      _weatherRequestRunning = false;
+    }
   }
 
   void _applyWeather(WeatherData weather) {
@@ -159,7 +202,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
 
   @override
   void dispose() {
-    _weatherTimer?.cancel();
+    _stopWeatherMonitoring();
     _mockWeatherSub?.cancel();
     _rainController.dispose();
     super.dispose();

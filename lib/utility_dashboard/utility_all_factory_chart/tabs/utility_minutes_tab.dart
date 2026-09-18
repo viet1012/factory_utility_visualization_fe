@@ -7,14 +7,15 @@ import 'package:factory_utility_visualization/utility_dashboard/'
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../utility_state/chart_catalog_provider.dart';
-import '../../../utility_state/minute_series_provider.dart';
+import '../controllers/utility_chart_catalog_controller.dart';
+import '../controllers/utility_minute_chart_controller.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_overview/'
     'utility_dashboard_overview_widgets/chart_state_widgets.dart';
-import '../utility_all_factories_models.dart';
+import '../models/utility_chart_models.dart';
 
 class UtilityMinutesTab extends StatefulWidget {
+  final bool isActive;
   final String facId;
   final String cate;
   final String? scadaId;
@@ -27,6 +28,7 @@ class UtilityMinutesTab extends StatefulWidget {
 
   const UtilityMinutesTab({
     super.key,
+    required this.isActive,
     required this.facId,
     required this.cate,
     required this.scadaId,
@@ -54,6 +56,10 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
     if (sourceChanged) {
       _lastLoadSignature = '';
     }
+
+    if (!oldWidget.isActive && widget.isActive) {
+      _lastLoadSignature = '';
+    }
   }
 
   List<String> _resolveDeviceIds(List<SignalChartConfig> charts) {
@@ -77,6 +83,10 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
   }
 
   void _scheduleLoad(List<SignalChartConfig> charts) {
+    if (!widget.isActive) {
+      return;
+    }
+
     final deviceIds = _resolveDeviceIds(charts);
 
     if (deviceIds.isEmpty) {
@@ -97,7 +107,7 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
     _lastLoadSignature = signature;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || !widget.isActive) return;
 
       unawaited(_loadDevices(deviceIds));
     });
@@ -107,9 +117,9 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
     List<String> deviceIds, {
     bool forceRefresh = false,
   }) async {
-    if (deviceIds.isEmpty) return;
+    if (!widget.isActive || deviceIds.isEmpty) return;
 
-    final provider = context.read<MinuteSeriesProvider>();
+    final provider = context.read<UtilityMinuteChartController>();
 
     final futures = <Future<void>>[];
 
@@ -141,7 +151,7 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<ChartCatalogProvider, CatalogBodyVm>(
+    return Selector<UtilityChartCatalogController, CatalogBodyVm>(
       selector: (_, provider) {
         return CatalogBodyVm(
           loading: provider.loading,
@@ -163,7 +173,7 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
           return ChartApiErrorState(
             color: ChartThemes.byCate(widget.cate).line,
             onRetry: () {
-              context.read<ChartCatalogProvider>().loadCatalog(
+              context.read<UtilityChartCatalogController>().loadCatalog(
                 facId: widget.facId,
                 cate: widget.cate,
                 importantOnly: widget.importantOnly ? 1 : 0,

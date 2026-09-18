@@ -4,11 +4,13 @@ import '../../../weather_widgets/rain_effect_image_realtime.dart';
 import '../../../weather_widgets/weather/api/weather_api_service.dart';
 
 class FactoryMapWithRain extends StatelessWidget {
+  final bool isActive;
   final String mainImageUrl;
   final String nightImageUrl;
 
   const FactoryMapWithRain({
     super.key,
+    required this.isActive,
     required this.mainImageUrl,
     required this.nightImageUrl,
   });
@@ -33,6 +35,7 @@ class FactoryMapWithRain extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: ApiControlledRainImage(
+            isActive: isActive,
             imageUrl: mainImageUrl,
             nightImageUrl: nightImageUrl,
             weatherService: weatherService,

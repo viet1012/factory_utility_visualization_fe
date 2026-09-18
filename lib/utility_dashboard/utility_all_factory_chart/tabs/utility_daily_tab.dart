@@ -2,17 +2,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../utility_state/'
-    'utility_daily_dashboard_provider.dart';
+import '../controllers/utility_daily_signal_controller.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_overview/'
     'utility_dashboard_overview_widgets/'
     'chart_state_widgets.dart';
-import '../utility_daily_models.dart';
+import '../models/utility_daily_models.dart';
 import '../widgets/utility_chart_loading_state.dart';
 import '../widgets/utility_daily_chart_grid.dart';
 
 class UtilityDailyTab extends StatefulWidget {
+  final bool isActive;
   final String facId;
   final String cate;
   final String? scadaId;
@@ -25,6 +25,7 @@ class UtilityDailyTab extends StatefulWidget {
 
   const UtilityDailyTab({
     super.key,
+    required this.isActive,
     required this.facId,
     required this.cate,
     required this.scadaId,
@@ -82,7 +83,9 @@ class _UtilityDailyTabState extends State<UtilityDailyTab>
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _load();
+      if (widget.isActive) {
+        _load();
+      }
     });
   }
 
@@ -106,7 +109,9 @@ class _UtilityDailyTabState extends State<UtilityDailyTab>
         oldWidget.boxId != widget.boxId ||
         !listEquals(oldDevices, newDevices);
 
-    if (!requestChanged) {
+    final becameActive = !oldWidget.isActive && widget.isActive;
+
+    if (!widget.isActive || (!requestChanged && !becameActive)) {
       return;
     }
 
@@ -116,11 +121,11 @@ class _UtilityDailyTabState extends State<UtilityDailyTab>
   }
 
   Future<void> _load({bool forceRefresh = false}) async {
-    if (!mounted) {
+    if (!mounted || !widget.isActive) {
       return;
     }
 
-    final provider = context.read<UtilityDailySignalProvider>();
+    final provider = context.read<UtilityDailySignalController>();
 
     final deviceIds = _requestedDeviceIds;
 
@@ -154,7 +159,7 @@ class _UtilityDailyTabState extends State<UtilityDailyTab>
       );
     }
 
-    return Selector<UtilityDailySignalProvider, _DailyTabVm>(
+    return Selector<UtilityDailySignalController, _DailyTabVm>(
       selector: (_, provider) {
         return _DailyTabVm(
           loading: provider.loading,

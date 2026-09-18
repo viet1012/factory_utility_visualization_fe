@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../tabs/utility_daily_tab.dart';
 import '../tabs/utility_minutes_tab.dart';
-import '../utility_all_factories_controller.dart';
+import '../controllers/utility_chart_controller.dart';
+import 'utility_chart_view.dart';
 
 class UtilityChartTabBody extends StatelessWidget {
-  final UtilityAllFactoriesController controller;
+  final UtilityChartController controller;
+  final bool isActive;
 
   /// SCADA đang chọn, ví dụ A1.
   final String? selectedScada;
@@ -27,13 +29,14 @@ class UtilityChartTabBody extends StatelessWidget {
   const UtilityChartTabBody({
     super.key,
     required this.controller,
+    required this.isActive,
     required this.selectedScada,
     required this.selectedBoxId,
     required this.selectedBoxDeviceId,
     required this.boxDeviceIds,
   });
 
-  String _resolveSelectedDevice() {
+  String get _selectedDevice {
     final device = selectedBoxDeviceId?.trim();
 
     /*
@@ -51,31 +54,26 @@ class UtilityChartTabBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedDevice = _resolveSelectedDevice();
-
-    debugPrint(
-      '[CHART TAB BODY] '
-      'boxGroup=$selectedBoxId, '
-      'selectedDevice=$selectedDevice, '
-      'devices=$boxDeviceIds',
-    );
-
     return IndexedStack(
       index: controller.selectedView.index,
       children: [
         UtilityMinutesTab(
+          isActive:
+              isActive && controller.selectedView == UtilityChartView.minutes,
           facId: controller.selectedFac,
           cate: controller.selectedCate,
           scadaId: selectedScada,
 
           /// Phải truyền ALL hoặc device thật.
           /// Không truyền selectedBoxId = DB-03.
-          selectedBox: selectedDevice,
+          selectedBox: _selectedDevice,
 
           importantOnly: controller.importantOnly,
         ),
 
         UtilityDailyTab(
+          isActive:
+              isActive && controller.selectedView == UtilityChartView.daily,
           facId: controller.selectedFac,
           cate: controller.selectedCate,
           scadaId: selectedScada,

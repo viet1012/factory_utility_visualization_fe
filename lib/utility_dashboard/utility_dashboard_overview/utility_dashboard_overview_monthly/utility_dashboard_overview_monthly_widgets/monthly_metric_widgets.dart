@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../utility_dashboard_common/chart_theme.dart';
-import '../../utility_dashboard_overview_models/energy_monthly_summary.dart';
+import '../../models/energy_monthly_summary.dart';
 
 // ============================================================
 // FORMATTER

@@ -6,7 +6,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../models/period/utility_period_dashboard.dart';
-import '../utility_period_api.dart';
+import '../api/utility_period_api.dart';
 
 class _RankedUtilityBox {
   final int rank;

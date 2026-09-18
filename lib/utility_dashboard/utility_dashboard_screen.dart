@@ -1,28 +1,32 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/utility_all_factories_charts_screen.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/utility_chart_screen.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/api/utility_chart_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/api/utility_latest_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/providers/latest_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/utility_catalog_tabs_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/SignalHealthMatrixController.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/api/signal_health_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/utility_alarm_center_screen.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_provider/utility_daily_dashboard_provider.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_provider/utility_hourly_dashboard_provider.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_provider/utility_minute_dashboard_provider.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_provider/utility_monthly_summary_provider.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/api/utility_dashboard_overview_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_daily_dashboard_provider.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_hourly_dashboard_provider.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_minute_dashboard_provider.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_monthly_summary_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_widgets/industrial_side_tab_bar.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_screens/utility_setting_screen.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_para_api.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_scada_api.dart';
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_scada_channel_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/channel/api/utility_scada_channel_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/para/api/utility_para_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/scada/api/utility_scada_api.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../utility_api/dio_client.dart';
-import '../utility_api/utility_api.dart';
-import '../utility_models/utility_facade_service.dart';
-import '../utility_state/chart_catalog_provider.dart';
-import '../utility_state/latest_provider.dart';
-import '../utility_state/minute_series_provider.dart';
-import '../utility_state/utility_daily_dashboard_provider.dart';
+import 'utility_dashboard_fac_details/api/utility_facade_service.dart';
+import 'utility_all_factory_chart/controllers/utility_chart_catalog_controller.dart';
+import 'utility_all_factory_chart/controllers/utility_daily_signal_controller.dart';
+import 'utility_all_factory_chart/controllers/utility_minute_chart_controller.dart';
 import 'utility_dashboard_overview/utility_dashboard_overview.dart';
 
 class UtilityDashboardScreen extends StatefulWidget {
@@ -34,9 +38,9 @@ class UtilityDashboardScreen extends StatefulWidget {
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin {
-  static const String _baseUrl = 'http://192.168.122.16:9093';
+  // static const String _baseUrl = 'http://192.168.122.16:9093';
 
-  // static const _baseUrl = 'http://localhost:9999';
+  static const _baseUrl = 'http://localhost:9999';
 
   static const int _tabCount = 5;
 
@@ -53,16 +57,18 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
   late final Dio dio;
 
-  late final UtilityApi api;
+  late final UtilityChartApi chartApi;
+  late final UtilityLatestApi latestApi;
   late final UtilityDashboardOverviewApi overviewApi;
+  late final SignalHealthApi signalHealthApi;
   late final UtilityFacadeService facade;
 
   late final UtilityScadaChannelApi scadaChannelApi;
   late final UtilityScadaApi scadaApi;
   late final UtilityParaApi paraApi;
 
-  late final MinuteSeriesProvider minuteSeriesProvider;
-  late final ChartCatalogProvider chartCatalogProvider;
+  late final UtilityMinuteChartController minuteSeriesProvider;
+  late final UtilityChartCatalogController chartCatalogProvider;
   late final LatestProvider latestProvider;
 
   late final SignalHealthMatrixController signalHealthController;
@@ -72,7 +78,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityDailyDashboardProvider dailyDashboardProvider;
   late final UtilityMonthlySummaryProvider monthlySummaryProvider;
 
-  late final UtilityDailySignalProvider dailySignalProvider;
+  late final UtilityDailySignalController dailySignalProvider;
 
   late final TabController _tabController;
 
@@ -107,9 +113,12 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   }
 
   void _initializeApis() {
-    api = UtilityApi(dio: dio);
+    chartApi = UtilityChartApi(dio: dio);
+
+    latestApi = UtilityLatestApi(dio: dio);
 
     overviewApi = UtilityDashboardOverviewApi();
+    signalHealthApi = SignalHealthApi();
 
     facade = UtilityFacadeService(dio);
 
@@ -121,20 +130,20 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   }
 
   void _initializeProviders() {
-    minuteSeriesProvider = MinuteSeriesProvider(
-      api: api,
+    minuteSeriesProvider = UtilityMinuteChartController(
+      api: chartApi,
       interval: const Duration(seconds: 30),
       window: const Duration(minutes: 60),
       requestTimeout: const Duration(seconds: 15),
-    )..startPolling();
+    );
 
-    dailySignalProvider = UtilityDailySignalProvider(api: api);
+    dailySignalProvider = UtilityDailySignalController(api: chartApi);
 
-    chartCatalogProvider = ChartCatalogProvider(api);
+    chartCatalogProvider = UtilityChartCatalogController(chartApi);
 
-    latestProvider = LatestProvider(api: api);
+    latestProvider = LatestProvider(api: latestApi);
 
-    signalHealthController = SignalHealthMatrixController(overviewApi)
+    signalHealthController = SignalHealthMatrixController(signalHealthApi)
       ..startPolling();
 
     minuteDashboardProvider = UtilityMinuteDashboardProvider(overviewApi);
@@ -167,9 +176,50 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
       return;
     }
 
+    final wasMapTab = _tabIndex == 0;
+    final isMapTab = nextIndex == 0;
+    final wasScadaTableTab = _tabIndex == 2;
+    final isScadaTableTab = nextIndex == 2;
+
     setState(() {
       _tabIndex = nextIndex;
     });
+
+    if (isMapTab) {
+      unawaited(minuteDashboardProvider.resume());
+      unawaited(hourlyDashboardProvider.resume());
+      unawaited(dailyDashboardProvider.resume());
+      unawaited(monthlySummaryProvider.resume());
+    } else if (wasMapTab) {
+      minuteDashboardProvider.pause();
+      hourlyDashboardProvider.pause();
+      dailyDashboardProvider.pause();
+      monthlySummaryProvider.pause();
+    }
+
+    if (isMapTab) {
+      signalHealthController.startPolling();
+    } else {
+      signalHealthController.stopPolling();
+    }
+
+    if (isScadaTableTab) {
+      unawaited(_activateLatestFullTreePolling());
+    } else if (wasScadaTableTab) {
+      latestProvider.stopPolling();
+    }
+  }
+
+  Future<void> _activateLatestFullTreePolling() async {
+    if (latestProvider.hasData) {
+      await latestProvider.refreshAll();
+    } else {
+      await latestProvider.loadInitial();
+    }
+
+    if (!mounted || _tabIndex != 2) return;
+
+    latestProvider.startPolling();
   }
 
   void _toggleSideBar() {
@@ -188,27 +238,19 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
       providers: [
         Provider<Dio>.value(value: dio),
 
-        Provider<UtilityApi>.value(value: api),
-
         Provider<UtilityDashboardOverviewApi>.value(value: overviewApi),
 
         Provider<UtilityFacadeService>.value(value: facade),
 
-        Provider<UtilityScadaChannelApi>.value(value: scadaChannelApi),
-
-        Provider<UtilityScadaApi>.value(value: scadaApi),
-
-        Provider<UtilityParaApi>.value(value: paraApi),
-
-        ChangeNotifierProvider<MinuteSeriesProvider>.value(
+        ChangeNotifierProvider<UtilityMinuteChartController>.value(
           value: minuteSeriesProvider,
         ),
 
-        ChangeNotifierProvider<UtilityDailySignalProvider>.value(
+        ChangeNotifierProvider<UtilityDailySignalController>.value(
           value: dailySignalProvider,
         ),
 
-        ChangeNotifierProvider<ChartCatalogProvider>.value(
+        ChangeNotifierProvider<UtilityChartCatalogController>.value(
           value: chartCatalogProvider,
         ),
 
@@ -292,6 +334,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     return Padding(
       padding: const EdgeInsets.all(8),
       child: UtilityDashboardOverview(
+        isActive: _tabIndex == 0,
         mainImageUrl: mainImageUrl,
         nightImageUrl: nightImageUrl,
       ),
@@ -299,7 +342,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   }
 
   Widget _buildChartsTab() {
-    return const RepaintBoundary(child: UtilityAllFactoriesChartsScreen());
+    return RepaintBoundary(
+      child: UtilityChartScreen(isCurrentScreen: _tabIndex == 1),
+    );
   }
 
   Widget _buildCatalogTab() {
@@ -310,9 +355,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   }
 
   Widget _buildAlarmTab() {
-    return const Padding(
-      padding: EdgeInsets.all(8),
-      child: SignalHealthMatrixScreen(),
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: SignalHealthMatrixScreen(isActive: _tabIndex == 3),
     );
   }
 
@@ -320,6 +365,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     return Padding(
       padding: const EdgeInsets.all(8),
       child: UtilityScadaSettingScreen(
+        isActive: _tabIndex == 4,
         scadaApi: scadaApi,
         channelApi: scadaChannelApi,
         paraApi: paraApi,

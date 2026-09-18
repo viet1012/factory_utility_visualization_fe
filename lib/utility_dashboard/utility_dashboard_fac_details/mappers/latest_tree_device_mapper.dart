@@ -1,5 +1,4 @@
-import '../../utility_dashboard_overview/'
-    'utility_dashboard_overview_models/latest_tree_response.dart';
+import '../../utility_catalog/models/latest_tree_response.dart';
 import '../models/fac_device_view_data.dart';
 
 class LatestTreeDeviceMapper {

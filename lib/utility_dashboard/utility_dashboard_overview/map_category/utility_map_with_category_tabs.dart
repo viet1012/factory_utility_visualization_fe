@@ -45,6 +45,7 @@ extension UtilityMapCateExt on UtilityMapCate {
 }
 
 class UtilityMapWithCategoryTabs extends StatefulWidget {
+  final bool isActive;
   final String mainImageUrl;
   final String nightImageUrl;
 
@@ -53,6 +54,7 @@ class UtilityMapWithCategoryTabs extends StatefulWidget {
 
   const UtilityMapWithCategoryTabs({
     super.key,
+    required this.isActive,
     required this.mainImageUrl,
     required this.monthKey,
     required this.shouldHighlight,
@@ -140,6 +142,7 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
         fit: StackFit.expand,
         children: [
           FactoryMapWithRain(
+            isActive: widget.isActive,
             mainImageUrl: widget.mainImageUrl,
             nightImageUrl: widget.nightImageUrl,
           ),
@@ -253,6 +256,7 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
   Widget _facBox(String facId, String title) {
     return UtilityOverviewMonthlyBox(
       key: ValueKey('monthly_box_$facId'),
+      isActive: widget.isActive,
       facId: facId,
       month: widget.monthKey,
       headerTitle: title,

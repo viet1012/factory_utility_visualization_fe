@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 
 import '../../../utility_api/dio_client.dart';
 import '../utility_dashboard_overview_widgets/month_label_badge.dart';
+import 'api/solar_api.dart';
+import 'models/solar_dashboard_data.dart';
 import 'solar_detail_screen.dart';
 
 /// Toàn bộ chuyển động "idle" (xoay tia nắng, đung đưa lá/cây, thở nền,
@@ -23,6 +25,7 @@ double _wave(double elapsedSeconds, double periodSeconds) {
 }
 
 class SolarSummaryCard extends StatefulWidget {
+  final bool isActive;
   final String facId;
 
   /// yyyyMM
@@ -34,6 +37,7 @@ class SolarSummaryCard extends StatefulWidget {
 
   const SolarSummaryCard({
     super.key,
+    required this.isActive,
     required this.facId,
     required this.month,
     this.refreshInterval = const Duration(minutes: 1),
@@ -57,7 +61,7 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
   /// Ticker DUY NHẤT cho mọi hiệu ứng idle trong toàn bộ card.
   late final AnimationController _timeController;
 
-  Dio get _dio => DioClient.dio;
+  late final SolarApi _api = SolarApi(DioClient.dio);
 
   int _requestVersion = 0;
   bool _requestRunning = false;
@@ -69,10 +73,13 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
     _timeController = AnimationController(
       vsync: this,
       duration: const Duration(hours: 1),
-    )..repeat();
+    );
 
-    _loadData();
-    _startAutoRefresh();
+    if (widget.isActive) {
+      _timeController.repeat();
+      _loadData();
+      _startAutoRefresh();
+    }
   }
 
   @override
@@ -82,13 +89,30 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
     final facChanged = oldWidget.facId != widget.facId;
 
     final monthChanged = oldWidget.month != widget.month;
+    final becameActive = !oldWidget.isActive && widget.isActive;
+    final becameInactive = oldWidget.isActive && !widget.isActive;
 
-    if (facChanged || monthChanged) {
-      _loadData(showMainLoading: true);
+    if (becameInactive) {
+      _stopAutoRefresh();
+      _timeController.stop();
+      return;
     }
 
-    if (oldWidget.refreshInterval != widget.refreshInterval) {
+    if (becameActive) {
+      _timeController.repeat();
+      _loadData(showMainLoading: false);
       _startAutoRefresh();
+      return;
+    }
+
+    if (widget.isActive) {
+      if (facChanged || monthChanged) {
+        _loadData(showMainLoading: true);
+      }
+
+      if (oldWidget.refreshInterval != widget.refreshInterval) {
+        _startAutoRefresh();
+      }
     }
   }
 
@@ -96,8 +120,7 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
   void dispose() {
     _requestVersion++;
 
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
+    _stopAutoRefresh();
 
     _timeController.dispose();
 
@@ -105,12 +128,23 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
   }
 
   void _startAutoRefresh() {
-    _refreshTimer?.cancel();
+    _stopAutoRefresh();
+
+    if (!widget.isActive) return;
 
     _refreshTimer = Timer.periodic(
       widget.refreshInterval,
-      (_) => _loadData(showMainLoading: false),
+      (_) {
+        if (!mounted || !widget.isActive) return;
+
+        _loadData(showMainLoading: false);
+      },
     );
+  }
+
+  void _stopAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
   }
 
   Future<void> _loadData({bool showMainLoading = false}) async {
@@ -174,17 +208,9 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
       // API MONTHLY SOLAR
       // ==========================================================
 
-      final response = await _dio.get<dynamic>(
-        '/api/solar/monthly',
-        queryParameters: {'facId': requestedFac, 'month': requestedMonth},
-      );
-
-      if (response.data is! Map) {
-        throw const FormatException('Invalid solar dashboard response');
-      }
-
-      final result = SolarDashboardData.fromJson(
-        Map<String, dynamic>.from(response.data as Map),
+      final result = await _api.getMonthly(
+        facId: requestedFac,
+        month: requestedMonth,
       );
 
       // ==========================================================
@@ -1308,73 +1334,6 @@ class _FlowState {
   final double opacity;
 
   const _FlowState({required this.progress, required this.opacity});
-}
-
-class SolarDashboardData {
-  final String facId;
-  final DateTime? generatedAt;
-
-  final double currentPowerKw;
-
-  // TODAY ENERGY MIX
-  final double solarKwh;
-  final double gridKwh;
-  final double totalKwh;
-  final double solarSharePercent;
-
-  // TODAY ENVIRONMENT IMPACT
-  final double todayCo2Kg;
-  final double todayCo2Ton;
-  final double todayEquivalentTrees;
-
-  const SolarDashboardData({
-    required this.facId,
-    required this.generatedAt,
-    required this.currentPowerKw,
-    required this.solarKwh,
-    required this.gridKwh,
-    required this.totalKwh,
-    required this.solarSharePercent,
-    required this.todayCo2Kg,
-    required this.todayCo2Ton,
-    required this.todayEquivalentTrees,
-  });
-
-  factory SolarDashboardData.fromJson(Map<String, dynamic> json) {
-    return SolarDashboardData(
-      facId: json['facId']?.toString() ?? 'KVH',
-
-      generatedAt: DateTime.tryParse(json['generatedAt']?.toString() ?? ''),
-
-      currentPowerKw: _toDouble(json['currentPowerKw']),
-
-      solarKwh: _toDouble(json['solarKwh']),
-
-      gridKwh: _toDouble(json['gridKwh']),
-
-      totalKwh: _toDouble(json['totalKwh']),
-
-      solarSharePercent: _toDouble(json['solarSharePercent']),
-
-      todayCo2Kg: _toDouble(json['todayCo2Kg']),
-
-      todayCo2Ton: _toDouble(json['todayCo2Ton']),
-
-      todayEquivalentTrees: _toDouble(json['todayEquivalentTrees']),
-    );
-  }
-
-  double get gridSharePercent {
-    return (100 - solarSharePercent).clamp(0, 100).toDouble();
-  }
-
-  static double _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(value?.toString() ?? '') ?? 0;
-  }
 }
 
 String _formatAnimatedNumber(

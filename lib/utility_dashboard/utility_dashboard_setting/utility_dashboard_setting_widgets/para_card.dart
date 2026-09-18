@@ -1,7 +1,7 @@
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_widgets/setting_common_widgets.dart';
 import 'package:flutter/material.dart';
 
-import '../utility_dashboard_setting_models/utility_para.dart';
+import '../para/models/utility_para.dart';
 
 class UtilityParaCard extends StatelessWidget {
   final UtilityPara item;

@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
-import '../utility_dashboard_overview_models/utility_hourly_dashboard_response.dart';
-import '../utility_dashboard_overview_provider/utility_hourly_dashboard_provider.dart';
+import '../models/utility_hourly_dashboard_response.dart';
+import '../providers/utility_hourly_dashboard_provider.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
 import 'utility_hourly_compare.dart';
 import 'widgets/utility_hourly_sensor_panel.dart';

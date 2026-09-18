@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../utility_para_api.dart';
-import '../utility_scada_api.dart';
-import '../utility_scada_channel_api.dart';
-import 'utility_para_screen.dart';
-import 'utility_scada_channel_screen.dart';
-import 'utility_scada_screen.dart';
+import '../channel/api/utility_scada_channel_api.dart';
+import '../channel/screens/utility_scada_channel_screen.dart';
+import '../para/api/utility_para_api.dart';
+import '../para/screens/utility_para_screen.dart';
+import '../scada/api/utility_scada_api.dart';
+import '../scada/screens/utility_scada_screen.dart';
 
 class TabSpec {
   final String label;
@@ -36,12 +36,14 @@ class TabSpec {
 }
 
 class UtilityScadaSettingScreen extends StatefulWidget {
+  final bool isActive;
   final UtilityScadaApi scadaApi;
   final UtilityScadaChannelApi channelApi;
   final UtilityParaApi paraApi;
 
   const UtilityScadaSettingScreen({
     super.key,
+    required this.isActive,
     required this.scadaApi,
     required this.channelApi,
     required this.paraApi,
@@ -73,7 +75,10 @@ class _UtilityScadaSettingScreenState extends State<UtilityScadaSettingScreen>
       TabSpec(
         label: 'SCADA',
         icon: Icons.settings_rounded,
-        child: UtilityScadaScreen(api: widget.scadaApi),
+        child: UtilityScadaScreen(
+          isActive: widget.isActive,
+          api: widget.scadaApi,
+        ),
       ),
       TabSpec(
         label: 'CHANNEL',
@@ -97,6 +102,21 @@ class _UtilityScadaSettingScreenState extends State<UtilityScadaSettingScreen>
       ..addListener(() {
         if (mounted) setState(() {});
       });
+  }
+
+  @override
+  void didUpdateWidget(covariant UtilityScadaSettingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.isActive == widget.isActive) return;
+
+    _tabs[0] = _tabs[0].copyWith(
+      child: UtilityScadaScreen(
+        isActive: widget.isActive,
+        api: widget.scadaApi,
+      ),
+      badge: _tabs[0].badge,
+    );
   }
 
   @override

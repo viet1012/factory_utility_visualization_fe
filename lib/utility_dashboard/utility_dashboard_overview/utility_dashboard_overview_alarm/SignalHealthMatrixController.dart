@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
+import 'api/signal_health_api.dart';
 
 class SignalHealthMatrixController extends ChangeNotifier {
-  final UtilityDashboardOverviewApi api;
+  final SignalHealthApi api;
 
   SignalHealthMatrixController(this.api);
 

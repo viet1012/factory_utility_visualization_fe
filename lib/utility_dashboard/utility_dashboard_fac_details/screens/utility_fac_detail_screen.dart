@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../utility_models/utility_facade_service.dart';
+import '../api/utility_facade_service.dart';
 import '../controllers/fac_detail_edit_controller.dart';
 import '../layout/overlay_layout_store.dart';
 import '../widgets/fac_detail_body.dart';

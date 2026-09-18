@@ -24,32 +24,23 @@ class SignalHealthKpiScreen extends StatelessWidget {
      *
      * Không rebuild chỉ vì List data đổi instance.
      */
-    return Selector<SignalHealthMatrixController, _SignalHealthState>(
+    return Selector<
+      SignalHealthMatrixController,
+      ({
+        bool loading,
+        int totalFac,
+        int totalBoxDevice,
+        int totalRegister,
+        int totalNgRegister,
+      })
+    >(
       selector: (_, controller) {
-        final rows = controller.data;
-
-        var totalRegister = 0;
-        var totalNgRegister = 0;
-
-        final facilities = <String>{};
-
-        for (final item in rows) {
-          final fac = item['fac']?.toString().trim();
-
-          if (fac != null && fac.isNotEmpty) {
-            facilities.add(fac);
-          }
-
-          totalRegister += _toInt(item['totalRegisters']);
-          totalNgRegister += _toInt(item['ngRegisters']);
-        }
-
-        return _SignalHealthState(
+        return (
           loading: controller.loading,
-          totalFac: facilities.length,
-          totalBoxDevice: rows.length,
-          totalRegister: totalRegister,
-          totalNgRegister: totalNgRegister,
+          totalFac: controller.totalFac,
+          totalBoxDevice: controller.totalBoxDevice,
+          totalRegister: controller.totalRegister,
+          totalNgRegister: controller.totalNgRegister,
         );
       },
       builder: (context, state, _) {
@@ -149,17 +140,6 @@ class SignalHealthKpiScreen extends StatelessWidget {
     );
   }
 
-  static int _toInt(dynamic value) {
-    if (value == null) {
-      return 0;
-    }
-
-    if (value is num) {
-      return value.toInt();
-    }
-
-    return int.tryParse(value.toString()) ?? 0;
-  }
 }
 
 class _SignalHealthCompactCard extends StatelessWidget {
@@ -270,45 +250,6 @@ class _SignalHealthCompactCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SignalHealthState {
-  final bool loading;
-  final int totalFac;
-  final int totalBoxDevice;
-  final int totalRegister;
-  final int totalNgRegister;
-
-  const _SignalHealthState({
-    required this.loading,
-    required this.totalFac,
-    required this.totalBoxDevice,
-    required this.totalRegister,
-    required this.totalNgRegister,
-  });
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        other is _SignalHealthState &&
-            runtimeType == other.runtimeType &&
-            loading == other.loading &&
-            totalFac == other.totalFac &&
-            totalBoxDevice == other.totalBoxDevice &&
-            totalRegister == other.totalRegister &&
-            totalNgRegister == other.totalNgRegister;
-  }
-
-  @override
-  int get hashCode {
-    return Object.hash(
-      loading,
-      totalFac,
-      totalBoxDevice,
-      totalRegister,
-      totalNgRegister,
     );
   }
 }

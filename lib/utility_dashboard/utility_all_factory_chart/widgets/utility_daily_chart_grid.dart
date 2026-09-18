@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:factory_utility_visualization/'
     'utility_dashboard/utility_all_factory_chart/'
-    'utility_daily_models.dart';
+    'models/utility_daily_models.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
@@ -455,7 +455,13 @@ class _DailyChart extends StatefulWidget {
 }
 
 class _DailyChartState extends State<_DailyChart> {
+  static final DateFormat _axisDateFormat = DateFormat('dd/MM');
+
   int? _selectedPointIndex;
+  late TooltipBehavior _tooltipBehavior;
+  late TrackballBehavior _trackballBehavior;
+  late _DailyChartBounds _bounds;
+  late List<UtilityDailyPoint> _rangePoints;
 
   UtilityDailyPoint? get _selectedPoint {
     final index = _selectedPointIndex;
@@ -471,6 +477,7 @@ class _DailyChartState extends State<_DailyChart> {
   void initState() {
     super.initState();
 
+    _prepareChartState();
     _selectLatestPoint();
   }
 
@@ -482,36 +489,49 @@ class _DailyChartState extends State<_DailyChart> {
         oldWidget.series.boxDeviceId != widget.series.boxDeviceId ||
         oldWidget.series.plcAddress != widget.series.plcAddress ||
         oldWidget.series.nameEn != widget.series.nameEn ||
-        !_samePointDates(oldWidget.points, widget.points);
+        !identical(oldWidget.points, widget.points);
 
-    if (!dataChanged) {
+    if (!dataChanged && oldWidget.lineColor == widget.lineColor) {
       return;
     }
 
-    _selectLatestPoint();
+    _prepareChartState();
+    if (dataChanged) {
+      _selectLatestPoint();
+    }
+  }
+
+  void _prepareChartState() {
+    _tooltipBehavior = TooltipBehavior(enable: false);
+    _trackballBehavior = TrackballBehavior(
+      enable: true,
+      activationMode: ActivationMode.singleTap,
+      tooltipDisplayMode: TrackballDisplayMode.none,
+      lineType: TrackballLineType.vertical,
+      lineColor: widget.lineColor.withOpacity(.55),
+      lineWidth: 1,
+      markerSettings: TrackballMarkerSettings(
+        markerVisibility: TrackballVisibilityMode.visible,
+        width: 8,
+        height: 8,
+        borderWidth: 2,
+        borderColor: widget.lineColor,
+        color: const Color(0xFF0B1727),
+      ),
+    );
+    _bounds = _DailyChartBounds.from(
+      series: widget.series,
+      points: widget.points,
+    );
+    _rangePoints = widget.points
+        .where((point) => point.minValue != null && point.maxValue != null)
+        .toList(growable: false);
   }
 
   void _selectLatestPoint() {
     _selectedPointIndex = widget.points.isEmpty
         ? null
         : widget.points.length - 1;
-  }
-
-  bool _samePointDates(
-    List<UtilityDailyPoint> first,
-    List<UtilityDailyPoint> second,
-  ) {
-    if (first.length != second.length) {
-      return false;
-    }
-
-    for (var index = 0; index < first.length; index++) {
-      if (first[index].recordDate != second[index].recordDate) {
-        return false;
-      }
-    }
-
-    return true;
   }
 
   void _handlePointTap(ChartPointDetails details) {
@@ -527,11 +547,6 @@ class _DailyChartState extends State<_DailyChart> {
   @override
   Widget build(BuildContext context) {
     final energy = widget.series.isEnergyConsumption;
-
-    final bounds = _DailyChartBounds.from(
-      series: widget.series,
-      points: widget.points,
-    );
 
     return Column(
       children: [
@@ -549,27 +564,12 @@ class _DailyChartState extends State<_DailyChart> {
             margin: const EdgeInsets.fromLTRB(4, 2, 8, 0),
             plotAreaBorderWidth: 0,
 
-            tooltipBehavior: TooltipBehavior(enable: false),
+            tooltipBehavior: _tooltipBehavior,
 
-            trackballBehavior: TrackballBehavior(
-              enable: true,
-              activationMode: ActivationMode.singleTap,
-              tooltipDisplayMode: TrackballDisplayMode.none,
-              lineType: TrackballLineType.vertical,
-              lineColor: widget.lineColor.withOpacity(.55),
-              lineWidth: 1,
-              markerSettings: TrackballMarkerSettings(
-                markerVisibility: TrackballVisibilityMode.visible,
-                width: 8,
-                height: 8,
-                borderWidth: 2,
-                borderColor: widget.lineColor,
-                color: const Color(0xFF0B1727),
-              ),
-            ),
+            trackballBehavior: _trackballBehavior,
 
             primaryXAxis: DateTimeCategoryAxis(
-              dateFormat: DateFormat('dd/MM'),
+              dateFormat: _axisDateFormat,
               interval: _xAxisInterval(widget.points.length),
               labelRotation: -35,
               edgeLabelPlacement: EdgeLabelPlacement.shift,
@@ -588,8 +588,8 @@ class _DailyChartState extends State<_DailyChart> {
             ),
 
             primaryYAxis: NumericAxis(
-              minimum: bounds.minimum,
-              maximum: bounds.maximum,
+              minimum: _bounds.minimum,
+              maximum: _bounds.maximum,
               rangePadding: ChartRangePadding.none,
               axisLine: const AxisLine(width: 0),
               majorTickLines: const MajorTickLines(size: 0),
@@ -672,13 +672,9 @@ class _DailyChartState extends State<_DailyChart> {
   }
 
   List<CartesianSeries<UtilityDailyPoint, DateTime>> _buildMeasuredSeries() {
-    final rangePoints = widget.points
-        .where((point) => point.minValue != null && point.maxValue != null)
-        .toList(growable: false);
-
     return [
       RangeAreaSeries<UtilityDailyPoint, DateTime>(
-        dataSource: rangePoints,
+        dataSource: _rangePoints,
         xValueMapper: (point, _) => point.recordDate,
         lowValueMapper: (point, _) => point.minValue,
         highValueMapper: (point, _) => point.maxValue,

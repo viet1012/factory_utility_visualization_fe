@@ -1,11 +1,10 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../utility_dashboard_overview_api/utility_dashboard_overview_api.dart';
 import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import 'SignalHealthMatrixController.dart';
 
 const kBg = Color(0xff0f172a);
 const kCard = Color(0xff111827);
@@ -18,8 +17,17 @@ const kGreen = Color(0xff22c55e);
 const kOrange = Color(0xfff97316);
 const kRed = Color(0xffef4444);
 
+typedef _SignalHealthRemoteState = ({
+  List<Map<String, dynamic>> data,
+  bool loading,
+  bool refreshing,
+  Object? error,
+});
+
 class SignalHealthMatrixScreen extends StatefulWidget {
-  const SignalHealthMatrixScreen({super.key});
+  final bool isActive;
+
+  const SignalHealthMatrixScreen({super.key, required this.isActive});
 
   @override
   State<SignalHealthMatrixScreen> createState() =>
@@ -34,124 +42,74 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
   String keyword = '';
 
   static const Duration _pollInterval = Duration(minutes: 1);
-  static const Duration _requestTimeout = Duration(seconds: 90);
-
-  bool loading = true;
-  bool refreshing = false;
-  bool _isFetching = false;
-  Object? error;
 
   Timer? _refreshTimer;
 
-  List<Map<String, dynamic>> data = [];
   Map<String, dynamic>? selected;
 
   @override
   void initState() {
     super.initState();
-    _load();
-    _startPolling();
+
+    if (widget.isActive) {
+      _startPolling();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SignalHealthMatrixScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.isActive == widget.isActive) return;
+
+    if (widget.isActive) {
+      _startPolling();
+    } else {
+      _stopPolling();
+    }
   }
 
   void _startPolling() {
     _refreshTimer?.cancel();
 
     _refreshTimer = Timer.periodic(_pollInterval, (_) {
-      if (!_isFetching && mounted) {
-        _load(silent: true);
+      if (mounted && widget.isActive) {
+        context.read<SignalHealthMatrixController>().refresh();
       }
     });
+  }
+
+  void _stopPolling() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
+    _stopPolling();
     super.dispose();
   }
 
-  Future<void> _load({bool silent = false}) async {
-    if (_isFetching || !mounted) return;
-
-    _isFetching = true;
-
-    if (!silent && data.isEmpty) {
-      setState(() {
-        loading = true;
-        error = null;
-      });
-    }
-
-    if (silent) {
-      setState(() => refreshing = true);
-    }
-
-    final oldBoxDeviceId = selected?['boxDeviceId'];
-
-    try {
-      final api = context.read<UtilityDashboardOverviewApi>();
-
-      final newData = await api.getSignalHealthMatrix().timeout(
-        _requestTimeout,
-      );
-
-      final newSelected = _findSelectedDevice(
-        newData,
-        oldBoxDeviceId?.toString(),
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        data = newData;
-        selected = newSelected;
-        loading = false;
-        refreshing = false;
-        error = null;
-      });
-    } on TimeoutException catch (e) {
-      _handleLoadError(e, '[TIMEOUT]');
-    } on DioException catch (e) {
-      _handleLoadError(e, '[DIO] ${e.type}');
-    } catch (e) {
-      _handleLoadError(e, '[ERROR]');
-    } finally {
-      _isFetching = false;
-    }
-  }
-
-  void _handleLoadError(Object e, String tag) {
-    debugPrint('$tag $e');
-
-    if (!mounted) return;
-
-    setState(() {
-      loading = false;
-      refreshing = false;
-
-      if (data.isEmpty) {
-        error = e;
-      }
-    });
-  }
-
   Map<String, dynamic>? _findSelectedDevice(
-    List<Map<String, dynamic>> newData,
+    List<Map<String, dynamic>> data,
     String? oldBoxDeviceId,
   ) {
-    if (newData.isEmpty) return null;
+    if (data.isEmpty) return null;
 
     if (oldBoxDeviceId != null) {
-      for (final row in newData) {
+      for (final row in data) {
         if ('${row['boxDeviceId']}' == oldBoxDeviceId) {
           return row;
         }
       }
     }
 
-    return newData.first;
+    return data.first;
   }
 
-  List<Map<String, dynamic>> get filteredData {
+  List<Map<String, dynamic>> _filteredData(
+    List<Map<String, dynamic>> data,
+  ) {
     return data.where((e) {
       final facOk = facFilter == 'ALL' || e['fac'] == facFilter;
 
@@ -175,39 +133,27 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
     }).toList();
   }
 
-  List<String> get facOptions => [
+  List<String> _facOptions(List<Map<String, dynamic>> data) => [
     'ALL',
     ...data.map((e) => '${e['fac']}').toSet(),
   ];
 
-  List<String> get cateOptions => [
+  List<String> _cateOptions(List<Map<String, dynamic>> data) => [
     'ALL',
     ...data.map((e) => '${e['cate']}').toSet(),
   ];
 
-  List<String> get scadaOptions => [
+  List<String> _scadaOptions(List<Map<String, dynamic>> data) => [
     'ALL',
     ...data.map((e) => '${e['scadaId']}').toSet(),
   ];
 
-  List<String> get boxDeviceOptions => [
+  List<String> _boxDeviceOptions(List<Map<String, dynamic>> data) => [
     'ALL',
     ...data.map((e) => '${e['boxDeviceId']}').toSet(),
   ];
 
-  int get totalFac => data.map((e) => e['fac']).toSet().length;
-
-  int get totalBoxDevice => data.length;
-
-  int get totalRegister => data.fold(
-    0,
-    (sum, e) => sum + ((e['totalRegisters'] ?? 0) as num).toInt(),
-  );
-
-  int get totalNgRegister =>
-      data.fold(0, (sum, e) => sum + ((e['ngRegisters'] ?? 0) as num).toInt());
-
-  String get lastUpdated {
+  String _lastUpdated(List<Map<String, dynamic>> data) {
     String latest = '-';
 
     for (final device in data) {
@@ -222,24 +168,15 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
     return latest;
   }
 
-  int get filteredTotalFac => filteredData.map((e) => e['fac']).toSet().length;
+  Widget _body(_SignalHealthRemoteState state) {
+    final data = state.data;
+    final rows = _filteredData(data);
+    selected = _findSelectedDevice(
+      data,
+      selected?['boxDeviceId']?.toString(),
+    );
 
-  int get filteredTotalBoxDevice => filteredData.length;
-
-  int get filteredTotalRegister => filteredData.fold(
-    0,
-    (sum, e) => sum + ((e['totalRegisters'] ?? 0) as num).toInt(),
-  );
-
-  int get filteredTotalNgRegister => filteredData.fold(
-    0,
-    (sum, e) => sum + ((e['ngRegisters'] ?? 0) as num).toInt(),
-  );
-
-  Widget _body() {
-    final rows = filteredData;
-
-    if (loading && data.isEmpty) {
+    if (state.loading && data.isEmpty) {
       return const Center(
         child: SizedBox(
           width: 18,
@@ -249,8 +186,11 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
       );
     }
 
-    if (error != null && data.isEmpty) {
-      return ChartApiErrorState(color: Colors.redAccent, onRetry: _load);
+    if (state.error != null && data.isEmpty) {
+      return ChartApiErrorState(
+        color: Colors.redAccent,
+        onRetry: context.read<SignalHealthMatrixController>().refresh,
+      );
     }
 
     if (data.isEmpty) {
@@ -265,8 +205,10 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
       child: Column(
         children: [
           _Header(
-            lastUpdated: refreshing ? 'Refreshing...' : lastUpdated,
-            onRefresh: () => _load(silent: true),
+            lastUpdated: state.refreshing
+                ? 'Refreshing...'
+                : _lastUpdated(data),
+            onRefresh: context.read<SignalHealthMatrixController>().refresh,
           ),
           const SizedBox(height: 16),
           _KpiRow(
@@ -291,10 +233,10 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
                   child: Column(
                     children: [
                       _FilterRow(
-                        facOptions: facOptions,
-                        cateOptions: cateOptions,
-                        scadaOptions: scadaOptions,
-                        boxDeviceOptions: boxDeviceOptions,
+                        facOptions: _facOptions(data),
+                        cateOptions: _cateOptions(data),
+                        scadaOptions: _scadaOptions(data),
+                        boxDeviceOptions: _boxDeviceOptions(data),
                         facValue: facFilter,
                         cateValue: cateFilter,
                         scadaValue: scadaFilter,
@@ -336,7 +278,17 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(backgroundColor: kBg, body: _body());
+    return Selector<SignalHealthMatrixController, _SignalHealthRemoteState>(
+      selector: (_, controller) => (
+        data: controller.data,
+        loading: controller.loading,
+        refreshing: controller.refreshing,
+        error: controller.error,
+      ),
+      builder: (_, state, _) {
+        return Scaffold(backgroundColor: kBg, body: _body(state));
+      },
+    );
   }
 }
 

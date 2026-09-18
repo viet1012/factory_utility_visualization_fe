@@ -1,19 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../utility_models/utility_facade_service.dart';
+import '../api/utility_facade_service.dart';
 import '../models/group_frame_types.dart';
-
-class OverlayGroupItem {
-  final Offset pos01;
-  final String direction;
-  final String? color;
-
-  const OverlayGroupItem({
-    required this.pos01,
-    required this.direction,
-    this.color,
-  });
-}
 
 class OverlayGroupLayoutStore extends ChangeNotifier {
   final UtilityFacadeService svc;

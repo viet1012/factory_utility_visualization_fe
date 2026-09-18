@@ -4,7 +4,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
-import '../utility_dashboard_overview_models/'
+import '../models/'
     'utility_daily_dashboard_response.dart';
 import 'daily_chart_common.dart';
 
