@@ -13,8 +13,7 @@ import '../models/'
     'utility_daily_dashboard_response.dart';
 import '../providers/'
     'utility_daily_dashboard_provider.dart';
-import '../utility_dashboard_overview_widgets/'
-    'chart_state_widgets.dart';
+import '../../shared/widgets/chart_state_widgets.dart';
 
 class UtilityDailyDashboardSection extends StatefulWidget {
   final String facId;

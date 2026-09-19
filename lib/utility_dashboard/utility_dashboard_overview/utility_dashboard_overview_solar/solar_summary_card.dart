@@ -557,7 +557,6 @@ class _SolarImpactDonutLayout extends StatelessWidget {
                   aspectRatio: 1,
                   child: _SolarShareDonut(
                     solarPercent: data.solarSharePercent,
-                    gridPercent: data.gridSharePercent,
                   ),
                 ),
               ),
@@ -641,12 +640,8 @@ class _SolarImpactDonutLayout extends StatelessWidget {
 
 class _SolarShareDonut extends StatelessWidget {
   final double solarPercent;
-  final double gridPercent;
 
-  const _SolarShareDonut({
-    required this.solarPercent,
-    required this.gridPercent,
-  });
+  const _SolarShareDonut({required this.solarPercent});
 
   @override
   Widget build(BuildContext context) {
@@ -662,10 +657,6 @@ class _SolarShareDonut extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // const CustomPaint(
-                  //   size: Size(26, 26),
-                  //   painter: _SunPainter(color: Color(0xffffc43d), rotation: 0),
-                  // ),
                   const SizedBox(height: 6),
 
                   Text(
@@ -792,7 +783,6 @@ class _EnergyMixSummary extends StatelessWidget {
             color: const Color(0xFF76FF03),
             label: 'SOLAR',
             value: data.solarKwh,
-            percent: data.solarSharePercent,
           ),
         ),
 
@@ -812,7 +802,6 @@ class _EnergyMixSummary extends StatelessWidget {
             color: const Color(0xFFFFB300),
             label: 'MAINS',
             value: data.gridKwh,
-            percent: data.gridSharePercent,
           ),
         ),
       ],
@@ -824,13 +813,11 @@ class _EnergyMixMetric extends StatelessWidget {
   final Color color;
   final String label;
   final double value;
-  final double percent;
 
   const _EnergyMixMetric({
     required this.color,
     required this.label,
     required this.value,
-    required this.percent,
   });
 
   @override
@@ -1082,137 +1069,6 @@ class _StatusDot extends StatelessWidget {
   }
 }
 
-enum _ImpactEffect { solar, co2, tree }
-
-/// Icon minh hoạ. Chỉ giữ 1 AnimationController RIÊNG cho hiệu ứng xuất hiện
-/// (entrance, one-shot, tự dừng sau khi chạy xong — không tốn ticker liên
-/// tục). Chuyển động nhàn rỗi (xoay/đung đưa) lấy pha từ [time] dùng chung
-/// của cả card, không tạo controller riêng.
-class _AnimatedImpactIcon extends StatefulWidget {
-  final IconData icon;
-  final Color color;
-  final _ImpactEffect effect;
-  final Animation<double> time;
-
-  const _AnimatedImpactIcon({
-    super.key,
-    required this.icon,
-    required this.color,
-    required this.effect,
-    required this.time,
-  });
-
-  @override
-  State<_AnimatedImpactIcon> createState() => _AnimatedImpactIconState();
-}
-
-class _AnimatedImpactIconState extends State<_AnimatedImpactIcon>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _entranceController;
-  late final Animation<double> _entranceCurve;
-
-  @override
-  void initState() {
-    super.initState();
-
-    final entranceDuration = Duration(
-      milliseconds: widget.effect == _ImpactEffect.tree ? 700 : 550,
-    );
-
-    _entranceController = AnimationController(
-      vsync: this,
-      duration: entranceDuration,
-    )..forward();
-
-    _entranceCurve = CurvedAnimation(
-      parent: _entranceController,
-      curve: widget.effect == _ImpactEffect.tree
-          ? Curves.easeOutCubic
-          : Curves.easeOutBack,
-    );
-  }
-
-  double get _idlePeriodSeconds {
-    switch (widget.effect) {
-      case _ImpactEffect.solar:
-        return 7;
-      case _ImpactEffect.co2:
-        return 3;
-      case _ImpactEffect.tree:
-        return 4;
-    }
-  }
-
-  @override
-  void dispose() {
-    _entranceController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _entranceCurve,
-      child: ScaleTransition(
-        scale: Tween<double>(begin: 0.88, end: 1).animate(_entranceCurve),
-        child: RepaintBoundary(
-          child: AnimatedBuilder(
-            animation: widget.time,
-            builder: (context, child) {
-              final elapsed = _elapsedSeconds(widget.time);
-
-              final wave = _wave(elapsed, _idlePeriodSeconds);
-
-              final angle = switch (widget.effect) {
-                _ImpactEffect.solar => 0.0,
-                _ImpactEffect.co2 => wave * 0.05,
-                _ImpactEffect.tree => wave * 0.018,
-              };
-
-              final y = switch (widget.effect) {
-                _ImpactEffect.solar => 0.0,
-                _ImpactEffect.co2 => wave * 0.8,
-                _ImpactEffect.tree => wave * 0.4,
-              };
-
-              return Transform.translate(
-                offset: Offset(0, y),
-                child: Transform.rotate(angle: angle, child: child),
-              );
-            },
-            child: _buildStaticIcon(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStaticIcon() {
-    return SizedBox(
-      width: 38,
-      height: 38,
-      child: Center(
-        child: switch (widget.effect) {
-          _ImpactEffect.solar => CustomPaint(
-            size: const Size(31, 31),
-            painter: _SunPainter(color: widget.color, rotation: 0),
-          ),
-
-          _ImpactEffect.co2 => CustomPaint(
-            size: const Size(21, 21),
-            painter: _LeafPainter(color: widget.color),
-          ),
-
-          _ImpactEffect.tree => CustomPaint(
-            size: const Size(36, 36),
-            painter: _ProfessionalTreePainter(color: widget.color),
-          ),
-        },
-      ),
-    );
-  }
-}
-
 /// Mũi tên nối. Chỉ giữ controller riêng cho entrance (one-shot). Chấm chảy
 /// liên tục lấy pha từ [time] dùng chung — không còn controller lặp riêng,
 /// và không còn dùng MaskFilter.blur (đắt nhất trong các thứ đã bỏ).
@@ -1368,50 +1224,6 @@ String _formatAnimatedNumber(
   }
 
   return '$formattedInteger.${parts.last}';
-}
-
-/// Mặt trời với tia nắng xoay chậm liên tục (pha lấy từ time chung của card).
-class _SunPainter extends CustomPainter {
-  final Color color;
-  final double rotation;
-
-  const _SunPainter({required this.color, required this.rotation});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final coreRadius = size.width * 0.26;
-
-    final rayPaint = Paint()
-      ..color = color.withOpacity(0.85)
-      ..strokeWidth = size.width * 0.09
-      ..strokeCap = StrokeCap.round;
-
-    const rayCount = 8;
-    final rayLength = size.width * 0.17;
-
-    for (var i = 0; i < rayCount; i++) {
-      final angle = rotation + (i * (2 * math.pi / rayCount));
-      final dir = Offset(math.cos(angle), math.sin(angle));
-
-      final start = center + dir * (coreRadius + 2);
-      final end = center + dir * (coreRadius + 2 + rayLength);
-
-      canvas.drawLine(start, end, rayPaint);
-    }
-
-    final corePaint = Paint()
-      ..shader = RadialGradient(
-        colors: [Color.lerp(color, Colors.white, 0.35) ?? color, color],
-      ).createShader(Rect.fromCircle(center: center, radius: coreRadius));
-
-    canvas.drawCircle(center, coreRadius, corePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SunPainter oldDelegate) {
-    return oldDelegate.rotation != rotation || oldDelegate.color != color;
-  }
 }
 
 /// Chiếc lá đơn giản, tinh gọn dùng cho chỉ số CO₂.

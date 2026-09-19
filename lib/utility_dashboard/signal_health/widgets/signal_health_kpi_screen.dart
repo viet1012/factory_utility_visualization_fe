@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'SignalHealthMatrixController.dart';
+import '../controllers/signal_health_matrix_controller.dart';
 
 const Color kSignalBg = Color(0xff07111f);
 const Color kSignalText = Color(0xfff8fafc);

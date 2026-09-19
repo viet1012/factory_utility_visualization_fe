@@ -831,7 +831,6 @@ class _SmallMetric extends StatelessWidget {
               fontWeight: FontWeight.w900,
             ),
           ),
-        
         ],
       ),
     );

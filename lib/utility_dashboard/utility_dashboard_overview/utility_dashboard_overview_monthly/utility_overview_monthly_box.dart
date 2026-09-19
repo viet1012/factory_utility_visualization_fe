@@ -108,6 +108,9 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     return widget.facId.trim().isNotEmpty && widget.month.trim().isNotEmpty;
   }
 
+  String get _healthKey =>
+      'Monthly_${widget.facId}_${widget.headerTitle}';
+
   // ============================================================
   // INIT
   // ============================================================
@@ -374,7 +377,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
         .toList(growable: false);
 
     return DataHealthAnalyzer.analyze(
-      key: 'Monthly_${widget.facId}_${widget.headerTitle}',
+      key: _healthKey,
 
       loading: false,
 
@@ -510,7 +513,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     final health =
         _health ??
         DataHealthAnalyzer.analyze(
-          key: 'Monthly_${widget.facId}_${widget.headerTitle}',
+          key: _healthKey,
 
           loading: _loading,
 

@@ -9,8 +9,8 @@ import '../models/minute_point.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
 import '../../utility_dashboard_fac_details/widgets/hover_box_panel/hover_flow_painters.dart';
-import '../../utility_dashboard_overview/utility_dashboard_overview_widgets/chart_state_widgets.dart';
-import '../../utility_dashboard_overview/utility_dashboard_overview_widgets/scada_panel_frame.dart';
+import '../../shared/widgets/chart_state_widgets.dart';
+import '../../shared/widgets/scada_panel_frame.dart';
 import '../../utility_dashboard_widgets/center_message.dart';
 import '../controllers/utility_minute_chart_controller.dart';
 

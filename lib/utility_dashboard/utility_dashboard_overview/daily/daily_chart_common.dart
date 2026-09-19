@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
-import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../../shared/widgets/chart_state_widgets.dart';
 import '../utility_dashboard_overview_widgets/common_chart_title_bar.dart';
 import '../utility_dashboard_overview_widgets/scada_chart_panel.dart';
 

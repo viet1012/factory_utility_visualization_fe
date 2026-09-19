@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../utility_models/response/latest_record.dart';
+import '../../utility_catalog/models/latest_record.dart';
 
 class UtilityInfoBoxWidgets {
   static Widget header({

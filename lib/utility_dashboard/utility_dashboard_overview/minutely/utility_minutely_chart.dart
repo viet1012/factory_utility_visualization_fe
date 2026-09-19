@@ -8,7 +8,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../models/utility_minute_dashboard_response.dart';
-import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../../shared/widgets/chart_state_widgets.dart';
 import '../utility_dashboard_overview_widgets/common_chart_title_bar.dart';
 import '../utility_dashboard_overview_widgets/scada_chart_panel.dart';
 
@@ -95,12 +95,12 @@ class _UtilityMinutelyChartState extends State<UtilityMinutelyChart>
 
   bool get _isWater => widget.utilityType.trim().toUpperCase() == 'WATER';
 
-  bool get _isElectricity =>
-      widget.utilityType.trim().toUpperCase() == 'ELECTRICITY';
-
   double get _standardValue {
     return UtilityStandardValues.byUtilityType(widget.utilityType);
   }
+
+  String get _healthKey =>
+      'Minutes_${widget.facId}_${widget.theme.title}_${widget.utilityType}';
 
   @override
   void initState() {
@@ -166,8 +166,7 @@ class _UtilityMinutelyChartState extends State<UtilityMinutelyChart>
     }
 
     _cachedHealth = DataHealthAnalyzer.analyze(
-      key:
-          'Minutes_${widget.facId}_${widget.theme.title}_${widget.utilityType}',
+      key: _healthKey,
       loading: widget.loading,
       error: widget.error,
       values: validRows.map((item) => item.value!).toList(growable: false),
@@ -205,8 +204,7 @@ class _UtilityMinutelyChartState extends State<UtilityMinutelyChart>
     final health =
         _cachedHealth ??
         DataHealthAnalyzer.analyze(
-          key:
-              'Minutes_${widget.facId}_${widget.theme.title}_${widget.utilityType}',
+          key: _healthKey,
           loading: widget.loading,
           error: widget.error,
           values: const [],
@@ -304,7 +302,6 @@ class _UtilityMinutelyChartState extends State<UtilityMinutelyChart>
         ),
         data: data,
         theme: widget.theme,
-        isElectricity: _isElectricity,
         standardValue: _standardValue,
       ),
     );
@@ -318,9 +315,8 @@ class _UtilityMinutelyChartState extends State<UtilityMinutelyChart>
 class _ChartPoint {
   final DateTime ts;
   final double y;
-  final String nameEn;
 
-  const _ChartPoint({required this.ts, required this.y, required this.nameEn});
+  const _ChartPoint({required this.ts, required this.y});
 }
 
 // ============================================================
@@ -358,9 +354,6 @@ class _MainChartData {
               (item) => _ChartPoint(
                 ts: item.ts.toLocal(),
                 y: item.value!,
-                nameEn: item.nameEn?.trim().isNotEmpty == true
-                    ? item.nameEn!.trim()
-                    : utilityType,
               ),
             )
             .toList()
@@ -558,7 +551,7 @@ class _WaterChartData {
         grouped.putIfAbsent(name, () => <_ChartPoint>[]);
 
         grouped[name]!.add(
-          _ChartPoint(ts: item.ts.toLocal(), y: value, nameEn: name),
+          _ChartPoint(ts: item.ts.toLocal(), y: value),
         );
       }
 
@@ -606,7 +599,7 @@ class _WaterChartData {
             values.fold<double>(0, (sum, value) => sum + value) / values.length;
 
         points.add(
-          _ChartPoint(ts: minuteEntry.key, y: average, nameEn: seriesEntry.key),
+          _ChartPoint(ts: minuteEntry.key, y: average),
         );
       }
 
@@ -660,14 +653,12 @@ class _WaterChartData {
 class _MainMinuteChart extends StatelessWidget {
   final _MainChartData data;
   final ChartTheme theme;
-  final bool isElectricity;
   final double standardValue;
 
   const _MainMinuteChart({
     super.key,
     required this.data,
     required this.theme,
-    required this.isElectricity,
     required this.standardValue,
   });
 
@@ -682,8 +673,8 @@ class _MainMinuteChart extends StatelessWidget {
      * Không dùng _StandardPoint riêng nữa.
      */
     final standardPoints = <_ChartPoint>[
-      _ChartPoint(ts: data.minX, y: standardValue, nameEn: 'Standard'),
-      _ChartPoint(ts: maxX, y: standardValue, nameEn: 'Standard'),
+      _ChartPoint(ts: data.minX, y: standardValue),
+      _ChartPoint(ts: maxX, y: standardValue),
     ];
 
     return SfCartesianChart(
@@ -886,8 +877,8 @@ class _WaterMinuteChart extends StatelessWidget {
     final maxX = data.maxX.add(const Duration(minutes: 2));
 
     final standardPoints = <_ChartPoint>[
-      _ChartPoint(ts: data.minX, y: standardValue, nameEn: 'Standard'),
-      _ChartPoint(ts: maxX, y: standardValue, nameEn: 'Standard'),
+      _ChartPoint(ts: data.minX, y: standardValue),
+      _ChartPoint(ts: maxX, y: standardValue),
     ];
 
     final chartSeries = <CartesianSeries<_ChartPoint, DateTime>>[

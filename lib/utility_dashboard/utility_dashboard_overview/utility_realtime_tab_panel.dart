@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'hourly/utility_hourly_dashboard_section.dart';
 import 'hourly/utility_hourly_header.dart';
 import 'minutely/utility_minutely_dashboard_section.dart';
-import 'utility_dashboard_overview_widgets/scada_tab_button.dart';
+import '../shared/widgets/scada_tab_button.dart';
 
 class UtilityRealtimeTabPanel extends StatefulWidget {
   final String selectedFac;

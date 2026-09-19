@@ -4,9 +4,6 @@ class UtilityHourlyHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
 
-  final bool loading;
-
-  final IconData icon;
   final Color backgroundColor;
   final bool showDivider;
 
@@ -14,8 +11,6 @@ class UtilityHourlyHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle,
-    this.loading = false,
-    this.icon = Icons.analytics_outlined,
     this.backgroundColor = const Color(0xFF0B1324),
     this.showDivider = true,
   });

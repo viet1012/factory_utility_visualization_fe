@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 
-import '../../../../utility_api/dio_client.dart';
+import '../../../utility_api/dio_client.dart';
 
 class SignalHealthApi {
   SignalHealthApi();

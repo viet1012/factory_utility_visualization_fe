@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../models/utility_minute_dashboard_response.dart';
 import '../providers/utility_minute_dashboard_provider.dart';
-import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../../shared/widgets/chart_state_widgets.dart';
 import 'utility_minutely_chart.dart';
 
 class UtilityMinutelyDashboardSection extends StatefulWidget {

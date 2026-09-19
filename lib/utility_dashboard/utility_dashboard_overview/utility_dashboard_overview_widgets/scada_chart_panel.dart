@@ -45,26 +45,28 @@ class ScadaChartPanel extends StatelessWidget {
   }
 }
 
+Path _buildScadaChartPanelOuterPath(Size size) {
+  const cut = 12.0;
+  const notchW = 52.0;
+  const notchH = 10.0;
+
+  return Path()
+    ..moveTo(cut, 0)
+    ..lineTo(size.width * .52, 0)
+    ..lineTo(size.width * .52 + notchW, notchH)
+    ..lineTo(size.width - cut, notchH)
+    ..lineTo(size.width, cut + notchH)
+    ..lineTo(size.width, size.height - cut)
+    ..lineTo(size.width - cut, size.height)
+    ..lineTo(cut, size.height)
+    ..lineTo(0, size.height - cut)
+    ..lineTo(0, cut)
+    ..close();
+}
+
 class _ScadaChartPanelClipper extends CustomClipper<Path> {
   @override
-  Path getClip(Size size) {
-    const cut = 12.0;
-    const notchW = 52.0;
-    const notchH = 10.0;
-
-    return Path()
-      ..moveTo(cut, 0)
-      ..lineTo(size.width * .52, 0)
-      ..lineTo(size.width * .52 + notchW, notchH)
-      ..lineTo(size.width - cut, notchH)
-      ..lineTo(size.width, cut + notchH)
-      ..lineTo(size.width, size.height - cut)
-      ..lineTo(size.width - cut, size.height)
-      ..lineTo(cut, size.height)
-      ..lineTo(0, size.height - cut)
-      ..lineTo(0, cut)
-      ..close();
-  }
+  Path getClip(Size size) => _buildScadaChartPanelOuterPath(size);
 
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
@@ -78,21 +80,9 @@ class _ScadaChartPanelPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     const cut = 12.0;
-    const notchW = 52.0;
     const notchH = 10.0;
 
-    final path = Path()
-      ..moveTo(cut, 0)
-      ..lineTo(size.width * .52, 0)
-      ..lineTo(size.width * .52 + notchW, notchH)
-      ..lineTo(size.width - cut, notchH)
-      ..lineTo(size.width, cut + notchH)
-      ..lineTo(size.width, size.height - cut)
-      ..lineTo(size.width - cut, size.height)
-      ..lineTo(cut, size.height)
-      ..lineTo(0, size.height - cut)
-      ..lineTo(0, cut)
-      ..close();
+    final path = _buildScadaChartPanelOuterPath(size);
 
     // ✅ 1. BODY FILL — đậm hơn, sâu hơn
     canvas.drawPath(

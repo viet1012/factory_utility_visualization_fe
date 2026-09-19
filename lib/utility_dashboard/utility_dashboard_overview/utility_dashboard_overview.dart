@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_alarm/SignalHealthHeader.dart';
+import 'package:factory_utility_visualization/utility_dashboard/signal_health/widgets/signal_health_kpi_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/daily/utility_daily_dashboard_section.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/map_category/utility_map_with_category_tabs.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/utility_realtime_tab_panel.dart';
@@ -33,6 +33,8 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
 
   Timer? _monthChangeTimer;
 
+  bool _followCurrentMonth = true;
+
   @override
   void initState() {
     super.initState();
@@ -53,12 +55,15 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
       _checkAndUpdateCurrentMonth();
     });
 
-    // Kiểm tra ngay khi bắt đầu, không cần chờ 1 phút.
     _checkAndUpdateCurrentMonth();
   }
 
   void _checkAndUpdateCurrentMonth() {
     if (!mounted) return;
+
+    if (!_followCurrentMonth) {
+      return;
+    }
 
     final now = DateTime.now();
 
@@ -81,6 +86,22 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
       '${currentMonth.year}-'
       '${currentMonth.month.toString().padLeft(2, '0')}',
     );
+  }
+
+  void _handleMonthChanged(DateTime m) {
+    final now = DateTime.now();
+
+    final currentMonth = DateTime(now.year, now.month, 1);
+
+    final newMonth = DateTime(m.year, m.month, 1);
+
+    setState(() {
+      selectedMonth = newMonth;
+
+      _followCurrentMonth =
+          newMonth.year == currentMonth.year &&
+          newMonth.month == currentMonth.month;
+    });
   }
 
   @override
@@ -115,8 +136,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
           selectedFac: selectedFac,
           selectedMonth: selectedMonth,
           onFacChanged: (v) => setState(() => selectedFac = v),
-          onMonthChanged: (m) =>
-              setState(() => selectedMonth = DateTime(m.year, m.month, 1)),
+          onMonthChanged: _handleMonthChanged,
         ),
         Expanded(
           child: LayoutBuilder(

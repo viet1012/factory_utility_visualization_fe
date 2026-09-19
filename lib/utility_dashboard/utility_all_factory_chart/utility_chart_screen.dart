@@ -9,7 +9,7 @@ import 'controllers/utility_chart_catalog_controller.dart';
 import 'controllers/utility_minute_chart_controller.dart';
 import 'tabs/utility_chart_view.dart';
 import '../utility_dashboard_common/chart_theme.dart';
-import '../utility_dashboard_overview/utility_dashboard_overview_painter/utility_industrial_motion_background.dart';
+import 'widgets/utility_industrial_motion_background.dart';
 
 class UtilityChartScreen extends StatefulWidget {
   final bool isCurrentScreen;

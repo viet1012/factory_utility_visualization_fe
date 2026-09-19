@@ -7,9 +7,9 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import '../../../utility_dashboard_common/chart_theme.dart';
 import '../../../utility_dashboard_common/data_health.dart';
 import '../../models/utility_hourly_dashboard_response.dart';
-import '../../utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../../../shared/widgets/chart_state_widgets.dart';
 import '../../utility_dashboard_overview_widgets/health_indicator.dart';
-import '../../utility_dashboard_overview_widgets/scada_panel_frame.dart';
+import '../../../shared/widgets/scada_panel_frame.dart';
 
 class _SensorPoint {
   final int hour;

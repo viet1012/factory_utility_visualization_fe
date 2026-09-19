@@ -52,34 +52,6 @@ class UtilityDashboardOverviewApi {
     );
   }
 
-  Future<List<MinutePointDto>> getEnergyMinute({
-    required String facId,
-    required int minutes,
-    String? utilityType,
-    String? nameEn,
-  }) async {
-    final normalizedFac = _requiredText(facId, fieldName: 'facId');
-
-    final safeMinutes = _safeRange(minutes, fallback: 60, min: 1, max: 24 * 60);
-
-    final query = <String, dynamic>{
-      'facId': normalizedFac,
-      'minutes': safeMinutes,
-    };
-
-    _putOptionalText(query, key: 'type', value: utilityType);
-
-    _putOptionalText(query, key: 'nameEn', value: nameEn);
-
-    final response = await _get(_energyMinutePath, queryParameters: query);
-
-    return _parseList(
-      response.data,
-      MinutePointDto.fromJson,
-      errorMessage: 'Invalid energy minute response',
-    );
-  }
-
   // ============================================================
   // HOURLY
   // ============================================================
@@ -183,18 +155,6 @@ class UtilityDashboardOverviewApi {
       response.data,
       fallbackMonth: normalizedMonth,
     );
-  }
-
-  /// Method tương thích với code cũ.
-  ///
-  /// Code mới nên dùng [getMonthlySummary].
-  Future<List<Map<String, dynamic>>> getEnergyMonthlySummary({
-    required String facId,
-    required String month,
-  }) async {
-    final items = await getMonthlySummary(facId: facId, month: month);
-
-    return items.map(_monthlySummaryToMap).toList(growable: false);
   }
 
   // ============================================================

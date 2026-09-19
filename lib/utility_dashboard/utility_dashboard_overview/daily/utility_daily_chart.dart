@@ -94,8 +94,6 @@ class UtilityDailyChart extends StatefulWidget {
 }
 
 class _UtilityDailyChartState extends State<UtilityDailyChart> {
-  List<UtilityDailyPoint>? _rowsReference;
-
   _DailyBarData? _chartData;
 
   DataHealthResult? _health;
@@ -163,8 +161,6 @@ class _UtilityDailyChartState extends State<UtilityDailyChart> {
   }
 
   void _prepareChartData() {
-    _rowsReference = widget.rows;
-
     if (widget.rows.isEmpty || !_hasRequired) {
       _chartData = null;
       return;

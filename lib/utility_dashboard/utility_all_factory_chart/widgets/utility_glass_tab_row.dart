@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
-import '../../utility_dashboard_overview/utility_dashboard_overview_widgets/scada_tab_button.dart';
+import '../../shared/widgets/scada_tab_button.dart';
 
 class UtilityGlassTabRow extends StatelessWidget {
   final List<String> labels;

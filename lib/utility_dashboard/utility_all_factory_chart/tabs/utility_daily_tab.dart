@@ -4,9 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../controllers/utility_daily_signal_controller.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
-import '../../utility_dashboard_overview/'
-    'utility_dashboard_overview_widgets/'
-    'chart_state_widgets.dart';
+import '../../shared/widgets/chart_state_widgets.dart';
 import '../models/utility_daily_models.dart';
 import '../widgets/utility_chart_loading_state.dart';
 import '../widgets/utility_daily_chart_grid.dart';

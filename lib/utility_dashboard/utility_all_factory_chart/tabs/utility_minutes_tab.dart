@@ -10,8 +10,7 @@ import 'package:provider/provider.dart';
 import '../controllers/utility_chart_catalog_controller.dart';
 import '../controllers/utility_minute_chart_controller.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
-import '../../utility_dashboard_overview/'
-    'utility_dashboard_overview_widgets/chart_state_widgets.dart';
+import '../../shared/widgets/chart_state_widgets.dart';
 import '../models/utility_chart_models.dart';
 
 class UtilityMinutesTab extends StatefulWidget {

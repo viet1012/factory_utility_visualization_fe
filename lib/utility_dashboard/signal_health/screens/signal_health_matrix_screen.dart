@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../utility_dashboard_overview_widgets/chart_state_widgets.dart';
-import 'SignalHealthMatrixController.dart';
+import '../../shared/widgets/chart_state_widgets.dart';
+import '../controllers/signal_health_matrix_controller.dart';
 
 const kBg = Color(0xff0f172a);
 const kCard = Color(0xff111827);
@@ -667,6 +667,12 @@ class _MatrixTable extends StatefulWidget {
 
 class _MatrixTableState extends State<_MatrixTable> {
   final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
