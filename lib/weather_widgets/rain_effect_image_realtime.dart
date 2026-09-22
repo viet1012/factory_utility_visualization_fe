@@ -8,6 +8,12 @@ import 'package:factory_utility_visualization/weather_widgets/weather/model/rain
 import 'package:factory_utility_visualization/weather_widgets/weather/model/rain_splash.dart';
 import 'package:factory_utility_visualization/weather_widgets/weather/model/weather_data.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'package:factory_utility_visualization/utility_dashboard/shared/polling/dashboard_polling_intervals.dart';
+import 'package:factory_utility_visualization/utility_dashboard/shared/polling/polling_coordinator.dart';
+import 'package:factory_utility_visualization/utility_dashboard/shared/polling/polling_scope.dart';
+import 'package:factory_utility_visualization/utility_dashboard/shared/polling/polling_task_ids.dart';
 
 class ApiControlledRainImage extends StatefulWidget {
   final bool isActive;
@@ -43,9 +49,9 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
   final List<RainDrop> _rainDrops = [];
   final List<RainSplash> _splashes = [];
 
-  Timer? _weatherTimer;
   StreamSubscription<WeatherData>? _mockWeatherSub;
   bool _weatherRequestRunning = false;
+  late final PollingCoordinator _pollingCoordinator;
 
   WeatherData? _currentWeather;
   bool _isRaining = false;
@@ -63,9 +69,18 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
       duration: const Duration(milliseconds: 50),
     );
 
+    _pollingCoordinator = context.read<PollingCoordinator>();
+    _pollingCoordinator.register(
+      id: PollingTaskIds.mapWeather,
+      scope: PollingScope.map,
+      interval: DashboardPollingIntervals.mapWeather,
+      action: _fetchWeather,
+    );
+    _pollingCoordinator.start(PollingTaskIds.mapWeather);
+
     if (widget.isActive) {
       _rainController.repeat();
-      _startWeatherMonitoring(fetchImmediately: true);
+      _fetchWeather();
     }
   }
 
@@ -77,43 +92,12 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
 
     if (widget.isActive) {
       _rainController.repeat();
-      _startWeatherMonitoring(fetchImmediately: _currentWeather == null);
-    } else {
-      _stopWeatherMonitoring();
-      _rainController.stop();
-    }
-  }
-
-  void _startWeatherMonitoring({required bool fetchImmediately}) {
-    // if (widget.weatherService is MockWeatherService) {
-    //   final mockService = widget.weatherService as MockWeatherService;
-    //   _mockWeatherSub = mockService.weatherStream().listen((weather) {
-    //     if (!mounted) return;
-    //     setState(() {
-    //       _applyWeather(weather);
-    //     });
-    //   });
-    //   return;
-    // }
-
-    _weatherTimer?.cancel();
-
-    if (!widget.isActive) return;
-
-    if (fetchImmediately) {
-      _fetchWeather();
-    }
-
-    _weatherTimer = Timer.periodic(const Duration(minutes: 45), (_) {
-      if (mounted && widget.isActive) {
+      if (_currentWeather == null) {
         _fetchWeather();
       }
-    });
-  }
-
-  void _stopWeatherMonitoring() {
-    _weatherTimer?.cancel();
-    _weatherTimer = null;
+    } else {
+      _rainController.stop();
+    }
   }
 
   Future<void> _fetchWeather() async {
@@ -202,7 +186,8 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
 
   @override
   void dispose() {
-    _stopWeatherMonitoring();
+    _pollingCoordinator.stop(PollingTaskIds.mapWeather);
+    _pollingCoordinator.unregister(PollingTaskIds.mapWeather);
     _mockWeatherSub?.cancel();
     _rainController.dispose();
     super.dispose();

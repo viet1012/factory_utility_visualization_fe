@@ -16,16 +16,11 @@ class SignalHealthMatrixController extends ChangeNotifier {
 
   static const Duration requestTimeout = Duration(seconds: 50);
 
-  static const Duration refreshInterval = Duration(minutes: 5);
-
   // ============================================================
   // INTERNAL STATE
   // ============================================================
 
-  Timer? _timer;
-
   bool _disposed = false;
-  bool _polling = false;
   bool _notifyScheduled = false;
 
   bool loading = true;
@@ -47,60 +42,11 @@ class SignalHealthMatrixController extends ChangeNotifier {
   // GETTERS
   // ============================================================
 
-  bool get polling => _polling;
-
   bool get hasData => data.isNotEmpty;
 
   DateTime? get lastSuccessAt => _lastSuccessAt;
 
   DateTime? get lastErrorAt => _lastErrorAt;
-
-  // ============================================================
-  // START / STOP POLLING
-  // ============================================================
-
-  void startPolling() {
-    if (_disposed || _polling) {
-      return;
-    }
-
-    _polling = true;
-    _cancelTimer();
-
-    /*
-     * Gọi API ngay khi bắt đầu.
-     */
-    unawaited(_runPollingCycle());
-  }
-
-  void stopPolling() {
-    _polling = false;
-    _cancelTimer();
-  }
-
-  Future<void> _runPollingCycle() async {
-    if (_disposed || !_polling) {
-      return;
-    }
-
-    await load(silent: hasData);
-
-    if (_disposed || !_polling) {
-      return;
-    }
-
-    /*
-     * Request hoàn tất rồi mới bắt đầu đếm 5 phút.
-     */
-    _timer = Timer(refreshInterval, () {
-      unawaited(_runPollingCycle());
-    });
-  }
-
-  void _cancelTimer() {
-    _timer?.cancel();
-    _timer = null;
-  }
 
   // ============================================================
   // FETCH
@@ -193,24 +139,7 @@ class SignalHealthMatrixController extends ChangeNotifier {
       return;
     }
 
-    /*
-     * Refresh thủ công thì tính lại chu kỳ 5 phút.
-     */
-    final shouldResumePolling = _polling;
-
-    _cancelTimer();
-
     await load(silent: hasData);
-
-    if (_disposed) {
-      return;
-    }
-
-    if (shouldResumePolling && _polling) {
-      _timer = Timer(refreshInterval, () {
-        unawaited(_runPollingCycle());
-      });
-    }
   }
 
   Future<void> retry() {
@@ -455,8 +384,6 @@ class SignalHealthMatrixController extends ChangeNotifier {
 
     _requestId++;
 
-    stopPolling();
-
     data = const <Map<String, dynamic>>[];
     selected = null;
 
@@ -523,9 +450,6 @@ class SignalHealthMatrixController extends ChangeNotifier {
 
     _disposed = true;
     _requestId++;
-
-    _polling = false;
-    _cancelTimer();
 
     super.dispose();
   }

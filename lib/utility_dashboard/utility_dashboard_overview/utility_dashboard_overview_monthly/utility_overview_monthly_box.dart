@@ -9,6 +9,10 @@ import 'package:provider/provider.dart';
 
 import '../../utility_dashboard_fac_details/api/utility_facade_service.dart';
 import '../../utility_catalog/providers/latest_provider.dart';
+import '../../shared/polling/polling_coordinator.dart';
+import '../../shared/polling/dashboard_polling_intervals.dart';
+import '../../shared/polling/polling_scope.dart';
+import '../../shared/polling/polling_task_ids.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
@@ -62,8 +66,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   // CONFIG
   // ============================================================
 
-  static const Duration _refreshInterval = Duration(hours: 1);
-
   static const Duration _requestTimeout = Duration(seconds: 30);
 
   // ============================================================
@@ -80,8 +82,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   // STATE
   // ============================================================
 
-  Timer? _refreshTimer;
-
   bool _screenActive = true;
   bool _loadOnActivation = false;
 
@@ -95,6 +95,9 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   DataHealthResult? _health;
 
   List<EnergyMonthlySummary> _items = const [];
+
+  late final PollingCoordinator _pollingCoordinator;
+  late String _pollingTaskId;
 
   // ============================================================
   // GETTERS
@@ -120,10 +123,12 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     super.initState();
 
     _initializeAnimation();
+    _pollingCoordinator = context.read<PollingCoordinator>();
+    _pollingTaskId = PollingTaskIds.mapMonthlyBox(widget.facId);
+    _registerPollingTask();
 
     if (widget.isActive) {
       _scheduleInitialLoad();
-      _startRefreshTimer();
     } else {
       _loadOnActivation = true;
     }
@@ -181,11 +186,11 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     _handleHighlightChange(oldWidget);
 
     final sourceChanged = _handleSourceChange(oldWidget);
+    _updatePollingTaskIdentity(oldWidget.facId);
 
     if (!widget.isActive) {
       if (oldWidget.isActive) {
         _loadOnActivation = _loadOnActivation || _fetching || _items.isEmpty;
-        _stopRefreshTimer();
         _invalidateRequests();
       }
 
@@ -197,8 +202,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     }
 
     if (!oldWidget.isActive) {
-      _startRefreshTimer();
-
       if (_loadOnActivation || sourceChanged || _items.isEmpty) {
         _loadOnActivation = false;
         _scheduleLoad(force: sourceChanged);
@@ -272,29 +275,25 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     });
   }
 
-  // ============================================================
-  // TIMER
-  // ============================================================
-
-  void _startRefreshTimer() {
-    _stopRefreshTimer();
-
-    if (!widget.isActive) {
-      return;
-    }
-
-    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
-      if (!_canUpdate || !widget.isActive || _fetching) {
-        return;
-      }
-
-      unawaited(_load(silent: true));
-    });
+  void _registerPollingTask() {
+    _pollingCoordinator.register(
+      id: _pollingTaskId,
+      scope: PollingScope.map,
+      interval: DashboardPollingIntervals.mapMonthlyBox,
+      action: () => _load(silent: true),
+    );
+    _pollingCoordinator.start(_pollingTaskId);
   }
 
-  void _stopRefreshTimer() {
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
+  void _updatePollingTaskIdentity(String oldFacId) {
+    final oldTaskId = PollingTaskIds.mapMonthlyBox(oldFacId);
+    final newTaskId = PollingTaskIds.mapMonthlyBox(widget.facId);
+    if (oldTaskId == newTaskId) return;
+
+    _pollingCoordinator.stop(_pollingTaskId);
+    _pollingCoordinator.unregister(_pollingTaskId);
+    _pollingTaskId = newTaskId;
+    _registerPollingTask();
   }
 
   // ============================================================
@@ -482,6 +481,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     final service = context.read<UtilityFacadeService>();
 
     final latestProvider = context.read<LatestProvider>();
+    final pollingCoordinator = context.read<PollingCoordinator>();
 
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -493,6 +493,8 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
               facId: widget.facId,
 
               service: service,
+
+              pollingCoordinator: pollingCoordinator,
             ),
           );
         },
@@ -577,7 +579,8 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
     _requestId++;
 
-    _stopRefreshTimer();
+    _pollingCoordinator.stop(_pollingTaskId);
+    _pollingCoordinator.unregister(_pollingTaskId);
 
     _fx.dispose();
 

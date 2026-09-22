@@ -12,18 +12,14 @@ class UtilityMinuteDashboardProvider extends ChangeNotifier {
 
   UtilityMinuteDashboardProvider(this.api);
 
-  static const Duration pollInterval = Duration(seconds: 50);
-
   static const Duration requestTimeout = Duration(seconds: 15);
 
-  Timer? _pollTimer;
   bool _notifyScheduled = false;
 
   bool _loading = false;
   bool _refreshing = false;
   bool _fetching = false;
   bool _disposed = false;
-  bool _paused = false;
 
   Object? _error;
 
@@ -63,7 +59,7 @@ class UtilityMinuteDashboardProvider extends ChangeNotifier {
     return fac != null && fac.trim().isNotEmpty && _minutes > 0;
   }
 
-  Future<void> start({required String facId, int minutes = 60}) async {
+  void configure({required String facId, int minutes = 60}) {
     if (_disposed) return;
 
     final normalizedFac = facId.trim();
@@ -74,8 +70,6 @@ class UtilityMinuteDashboardProvider extends ChangeNotifier {
 
     _facId = normalizedFac;
     _minutes = normalizedMinutes;
-
-    _pollTimer?.cancel();
 
     if (changed) {
       /*
@@ -95,43 +89,6 @@ class UtilityMinuteDashboardProvider extends ChangeNotifier {
 
       _safeNotifyListeners();
     }
-
-    if (_paused) return;
-
-    await load(force: changed);
-
-    if (_disposed || _paused) return;
-
-    _restartPollingTimer();
-  }
-
-  void pause() {
-    if (_disposed || _paused) return;
-
-    _paused = true;
-    _pollTimer?.cancel();
-    _pollTimer = null;
-  }
-
-  Future<void> resume() async {
-    if (_disposed || !_paused) return;
-
-    _paused = false;
-
-    if (!hasValidParams) return;
-
-    await load(silent: hasData);
-
-    if (_disposed || _paused) return;
-
-    _restartPollingTimer();
-  }
-
-  void _restartPollingTimer() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(pollInterval, (_) {
-      unawaited(load(silent: true));
-    });
   }
 
   Future<void> load({bool silent = false, bool force = false}) async {
@@ -211,9 +168,6 @@ class UtilityMinuteDashboardProvider extends ChangeNotifier {
   void clear() {
     _requestToken++;
 
-    _pollTimer?.cancel();
-    _pollTimer = null;
-
     _electricity = const [];
     _water = const [];
     _air = const [];
@@ -277,9 +231,6 @@ class UtilityMinuteDashboardProvider extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _requestToken++;
-
-    _pollTimer?.cancel();
-    _pollTimer = null;
 
     super.dispose();
   }

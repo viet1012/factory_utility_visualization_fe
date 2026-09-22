@@ -13,12 +13,6 @@ class UtilityParaApi {
 
   Uri _uri(String path) => Uri.parse('$baseUrl$path');
 
-  Future<List<UtilityPara>> getAll() async {
-    final res = await _client.get(_uri('/api/v1/utility-para'));
-    final body = jsonDecode(res.body);
-    return (body as List).map((e) => UtilityPara.fromJson(e)).toList();
-  }
-
   Future<List<UtilityParaTreeFac>> getGroupedByFacWithParas() async {
     final response = await _client.get(
       _uri('/api/v1/utility-para/grouped-by-fac-with-paras'),

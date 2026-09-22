@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/scheduler.dart';
@@ -24,9 +23,6 @@ class _MinuteReq {
 class UtilityMinuteChartController extends ChangeNotifier {
   final UtilityChartApi api;
 
-  /// Khoảng nghỉ sau khi một vòng polling hoàn tất.
-  final Duration interval;
-
   /// Khoảng dữ liệu giữ lại trên biểu đồ.
   final Duration window;
 
@@ -38,15 +34,11 @@ class UtilityMinuteChartController extends ChangeNotifier {
 
   UtilityMinuteChartController({
     required this.api,
-    this.interval = const Duration(seconds: 30),
     this.window = const Duration(minutes: 60),
     this.requestTimeout = const Duration(seconds: 15),
     this.maxConcurrentRequests = 3,
   }) : assert(maxConcurrentRequests > 0);
 
-  Timer? _timer;
-
-  bool _polling = false;
   bool _tickRunning = false;
   bool _disposed = false;
   bool _notifyScheduled = false;
@@ -66,8 +58,6 @@ class UtilityMinuteChartController extends ChangeNotifier {
   // ============================================================
   // GETTERS
   // ============================================================
-
-  bool get polling => _polling;
 
   bool get tickRunning => _tickRunning;
 
@@ -221,51 +211,8 @@ class UtilityMinuteChartController extends ChangeNotifier {
 
   DateTime? lastErrAt(String key) => _lastErrAt[key];
 
-  // ============================================================
-  // POLLING
-  // ============================================================
-
-  void startPolling() {
-    if (_disposed || _polling) {
-      return;
-    }
-
-    _polling = true;
-    _stopTimer();
-
-    /*
-     * Gọi ngay vòng đầu tiên.
-     */
-    unawaited(_runPollingCycle());
-  }
-
-  void stopPolling() {
-    _polling = false;
-    _stopTimer();
-  }
-
-  Future<void> _runPollingCycle() async {
-    if (_disposed || !_polling) {
-      return;
-    }
-
-    await _tickAll();
-
-    if (_disposed || !_polling) {
-      return;
-    }
-
-    /*
-     * Chỉ bắt đầu đếm interval sau khi vòng request hoàn tất.
-     */
-    _timer = Timer(interval, () {
-      unawaited(_runPollingCycle());
-    });
-  }
-
-  void _stopTimer() {
-    _timer?.cancel();
-    _timer = null;
+  Future<void> poll() {
+    return _tickAll();
   }
 
   // ============================================================
@@ -297,19 +244,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
       return;
     }
 
-    final wasPolling = _polling;
-
-    _stopTimer();
-
     await _tickAll(forceFullWindow: true);
-
-    if (_disposed) return;
-
-    if (wasPolling && _polling) {
-      _timer = Timer(interval, () {
-        unawaited(_runPollingCycle());
-      });
-    }
   }
 
   // ============================================================
@@ -728,10 +663,6 @@ class UtilityMinuteChartController extends ChangeNotifier {
     if (_disposed) return;
 
     _disposed = true;
-    _polling = false;
-
-    _stopTimer();
-
     for (final key in _versions.keys.toList()) {
       _invalidateKey(key);
     }

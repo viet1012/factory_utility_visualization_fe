@@ -15,6 +15,10 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_minute_dashboard_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_monthly_summary_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/shared/navigation/industrial_side_tab_bar.dart';
+import 'package:factory_utility_visualization/utility_dashboard/shared/polling/dashboard_polling_intervals.dart';
+import 'package:factory_utility_visualization/utility_dashboard/shared/polling/polling_coordinator.dart';
+import 'package:factory_utility_visualization/utility_dashboard/shared/polling/polling_scope.dart';
+import 'package:factory_utility_visualization/utility_dashboard/shared/polling/polling_task_ids.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/utility_dashboard_setting_screens/utility_setting_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/channel/api/utility_scada_channel_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/para/api/utility_para_api.dart';
@@ -38,9 +42,9 @@ class UtilityDashboardScreen extends StatefulWidget {
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin {
-  // static const String _baseUrl = 'http://192.168.122.16:9093';
+  static const String _baseUrl = 'http://192.168.122.16:9093';
 
-  static const _baseUrl = 'http://localhost:9999';
+  // static const _baseUrl = 'http://localhost:9999';
 
   static const int _tabCount = 5;
 
@@ -70,6 +74,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityMinuteChartController minuteSeriesProvider;
   late final UtilityChartCatalogController chartCatalogProvider;
   late final LatestProvider latestProvider;
+  late final PollingCoordinator pollingCoordinator;
 
   late final SignalHealthMatrixController signalHealthController;
 
@@ -93,6 +98,11 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     _initializeApis();
     _initializeProviders();
     _initializeTabController();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncInitialTopLevelPollingScopes();
+    });
   }
 
   // ============================================================
@@ -132,7 +142,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   void _initializeProviders() {
     minuteSeriesProvider = UtilityMinuteChartController(
       api: chartApi,
-      interval: const Duration(seconds: 30),
       window: const Duration(minutes: 60),
       requestTimeout: const Duration(seconds: 15),
     );
@@ -143,8 +152,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     latestProvider = LatestProvider(api: latestApi);
 
-    signalHealthController = SignalHealthMatrixController(signalHealthApi)
-      ..startPolling();
+    signalHealthController = SignalHealthMatrixController(signalHealthApi);
 
     minuteDashboardProvider = UtilityMinuteDashboardProvider(overviewApi);
 
@@ -153,6 +161,67 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     dailyDashboardProvider = UtilityDailyDashboardProvider(overviewApi);
 
     monthlySummaryProvider = UtilityMonthlySummaryProvider(overviewApi);
+
+    pollingCoordinator = PollingCoordinator()
+      ..register(
+        id: PollingTaskIds.scadaLatestTree,
+        scope: PollingScope.scadaTable,
+        interval: DashboardPollingIntervals.scadaLatestTree,
+        action: _refreshLatestFullTree,
+        runImmediately: true,
+      )
+      ..register(
+        id: PollingTaskIds.mapMinuteDashboard,
+        scope: PollingScope.mapMinutely,
+        interval: DashboardPollingIntervals.mapMinuteDashboard,
+        action: minuteDashboardProvider.refresh,
+        runImmediately: true,
+      )
+      ..register(
+        id: PollingTaskIds.mapHourlyDashboard,
+        scope: PollingScope.mapHourly,
+        interval: DashboardPollingIntervals.mapHourlyDashboard,
+        action: hourlyDashboardProvider.refresh,
+        runImmediately: true,
+      )
+      ..register(
+        id: PollingTaskIds.signalHealthMap,
+        scope: PollingScope.map,
+        interval: DashboardPollingIntervals.signalHealthMap,
+        action: signalHealthController.refresh,
+        runImmediately: true,
+      )
+      ..register(
+        id: PollingTaskIds.signalHealthAlarms,
+        scope: PollingScope.alarms,
+        interval: DashboardPollingIntervals.signalHealthAlarms,
+        action: signalHealthController.refresh,
+        runImmediately: true,
+      )
+      ..register(
+        id: PollingTaskIds.mapDailyDashboard,
+        scope: PollingScope.map,
+        interval: DashboardPollingIntervals.mapDailyDashboard,
+        action: dailyDashboardProvider.refresh,
+        runImmediately: true,
+      )
+      ..register(
+        id: PollingTaskIds.mapMonthlySummary,
+        scope: PollingScope.map,
+        interval: DashboardPollingIntervals.mapMonthlySummary,
+        action: monthlySummaryProvider.refresh,
+        runImmediately: true,
+      )
+      ..register(
+        id: PollingTaskIds.chartsMinuteSeries,
+        scope: PollingScope.chartsMinutes,
+        interval: DashboardPollingIntervals.chartsMinuteSeries,
+        action: minuteSeriesProvider.poll,
+        runImmediately: true,
+      )
+      ..start(PollingTaskIds.signalHealthMap)
+      ..start(PollingTaskIds.signalHealthAlarms)
+      ..start(PollingTaskIds.chartsMinuteSeries);
   }
 
   void _initializeTabController() {
@@ -178,48 +247,65 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     final wasMapTab = _tabIndex == 0;
     final isMapTab = nextIndex == 0;
+    final wasChartsTab = _tabIndex == 1;
+    final isChartsTab = nextIndex == 1;
     final wasScadaTableTab = _tabIndex == 2;
     final isScadaTableTab = nextIndex == 2;
+    final wasAlarmsTab = _tabIndex == 3;
+    final isAlarmsTab = nextIndex == 3;
 
     setState(() {
       _tabIndex = nextIndex;
     });
 
-    if (isMapTab) {
-      unawaited(minuteDashboardProvider.resume());
-      unawaited(hourlyDashboardProvider.resume());
-      unawaited(dailyDashboardProvider.resume());
-      unawaited(monthlySummaryProvider.resume());
-    } else if (wasMapTab) {
-      minuteDashboardProvider.pause();
-      hourlyDashboardProvider.pause();
-      dailyDashboardProvider.pause();
-      monthlySummaryProvider.pause();
+    if (wasMapTab && !isMapTab) {
+      pollingCoordinator.deactivateScope(PollingScope.map);
+    }
+    if (wasChartsTab && !isChartsTab) {
+      pollingCoordinator.deactivateScope(PollingScope.charts);
+    }
+    if (wasAlarmsTab && !isAlarmsTab) {
+      pollingCoordinator.deactivateScope(PollingScope.alarms);
     }
 
     if (isMapTab) {
-      signalHealthController.startPolling();
-    } else {
-      signalHealthController.stopPolling();
+      pollingCoordinator.activateScope(PollingScope.map);
+    }
+
+    if (isChartsTab) {
+      pollingCoordinator.activateScope(PollingScope.charts);
+    }
+
+    if (isAlarmsTab) {
+      pollingCoordinator.activateScope(PollingScope.alarms);
     }
 
     if (isScadaTableTab) {
-      unawaited(_activateLatestFullTreePolling());
+      pollingCoordinator.activateScope(PollingScope.scadaTable);
+      pollingCoordinator.start(PollingTaskIds.scadaLatestTree);
     } else if (wasScadaTableTab) {
-      latestProvider.stopPolling();
+      pollingCoordinator.deactivateScope(PollingScope.scadaTable);
     }
   }
 
-  Future<void> _activateLatestFullTreePolling() async {
+  Future<void> _refreshLatestFullTree() async {
     if (latestProvider.hasData) {
       await latestProvider.refreshAll();
     } else {
       await latestProvider.loadInitial();
     }
+  }
 
-    if (!mounted || _tabIndex != 2) return;
-
-    latestProvider.startPolling();
+  void _syncInitialTopLevelPollingScopes() {
+    if (_tabIndex == 0) {
+      pollingCoordinator.deactivateScope(PollingScope.alarms);
+      pollingCoordinator.activateScope(PollingScope.map);
+    } else if (_tabIndex == 3) {
+      pollingCoordinator.deactivateScope(PollingScope.map);
+      pollingCoordinator.activateScope(PollingScope.alarms);
+    } else if (_tabIndex == 1) {
+      pollingCoordinator.activateScope(PollingScope.charts);
+    }
   }
 
   void _toggleSideBar() {
@@ -255,6 +341,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         ),
 
         ChangeNotifierProvider<LatestProvider>.value(value: latestProvider),
+
+        Provider<PollingCoordinator>.value(value: pollingCoordinator),
 
         ChangeNotifierProvider<SignalHealthMatrixController>.value(
           value: signalHealthController,
@@ -385,6 +473,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     minuteSeriesProvider.dispose();
     chartCatalogProvider.dispose();
+    pollingCoordinator.dispose();
     latestProvider.dispose();
     dailySignalProvider.dispose();
 

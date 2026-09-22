@@ -6,7 +6,7 @@ class ScadaTabButton extends StatelessWidget {
   final VoidCallback onTap;
   final Color color;
   final double minWidth;
-
+final double height;
   const ScadaTabButton({
     super.key,
     required this.label,
@@ -14,6 +14,7 @@ class ScadaTabButton extends StatelessWidget {
     required this.onTap,
     this.color = const Color(0xFF00C2FF),
     this.minWidth = 72,
+    this.height = 34,
   });
 
   @override
@@ -28,8 +29,8 @@ class ScadaTabButton extends StatelessWidget {
             constraints: BoxConstraints(
               minWidth: minWidth,
               maxWidth: 140,
-              minHeight: 34,
-              maxHeight: 34,
+              minHeight: height,
+              maxHeight: height,
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),

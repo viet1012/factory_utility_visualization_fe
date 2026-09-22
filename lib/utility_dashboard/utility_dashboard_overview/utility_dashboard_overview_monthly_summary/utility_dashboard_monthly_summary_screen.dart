@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../shared/formatters/month_formatter.dart';
+import '../../shared/polling/polling_coordinator.dart';
+import '../../shared/polling/polling_task_ids.dart';
 import '../models/energy_monthly_summary.dart';
 import '../providers/utility_monthly_summary_provider.dart';
 import '../utility_dashboard_overview_widgets/month_label_badge.dart';
@@ -24,12 +27,14 @@ class MonthlySummaryScreen extends StatefulWidget {
 
 class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
   late final UtilityMonthlySummaryProvider _provider;
+  late final PollingCoordinator _pollingCoordinator;
 
   @override
   void initState() {
     super.initState();
 
     _provider = context.read<UtilityMonthlySummaryProvider>();
+    _pollingCoordinator = context.read<PollingCoordinator>();
 
     final initialFacId = widget.facId;
     final initialMonth = widget.month;
@@ -37,7 +42,10 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      unawaited(_provider.start(facId: initialFacId, month: initialMonth));
+      _configureAndStartPolling(
+        facId: initialFacId,
+        month: initialMonth,
+      );
     });
   }
 
@@ -61,39 +69,20 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      unawaited(_provider.start(facId: nextFacId, month: nextMonth));
+      _configureAndStartPolling(facId: nextFacId, month: nextMonth);
     });
   }
 
-  String get monthLabel {
-    final raw = widget.month.trim();
-
-    if (raw.length != 6) return raw;
-
-    final year = raw.substring(0, 4);
-    final monthNumber = int.tryParse(raw.substring(4, 6));
-
-    if (monthNumber == null || monthNumber < 1 || monthNumber > 12) {
-      return raw;
-    }
-
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-
-    return '${months[monthNumber - 1]} $year';
+  void _configureAndStartPolling({
+    required String facId,
+    required String month,
+  }) {
+    _pollingCoordinator.stop(PollingTaskIds.mapMonthlySummary);
+    _provider.configure(facId: facId, month: month);
+    _pollingCoordinator.start(PollingTaskIds.mapMonthlySummary);
   }
+
+  String get monthLabel => MonthFormatter.label(widget.month);
 
   Future<void> _forceRefresh() async {
     final success = await _provider.forceRefresh();
@@ -276,27 +265,9 @@ String fmt(num? v) => v == null ? '--' : _numFmt.format(v);
 String money(num? v) => v == null ? '--' : _moneyFmt.format(v);
 
 String monthSubtitle(String month, {required bool isMtd}) {
-  if (month.length != 6) return month;
+  final label = MonthFormatter.uppercaseLabel(month);
 
-  final year = month.substring(0, 4);
-  final m = int.parse(month.substring(4, 6));
-
-  const months = [
-    'JAN',
-    'FEB',
-    'MAR',
-    'APR',
-    'MAY',
-    'JUN',
-    'JUL',
-    'AUG',
-    'SEP',
-    'OCT',
-    'NOV',
-    'DEC',
-  ];
-
-  return isMtd ? 'MTD ${months[m - 1]} $year' : 'AVG ${months[m - 1]} $year';
+  return isMtd ? 'MTD $label' : 'AVG $label';
 }
 
 class _Header extends StatelessWidget {

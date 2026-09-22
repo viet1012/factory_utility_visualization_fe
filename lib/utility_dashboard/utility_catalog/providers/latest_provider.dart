@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
 import '../api/utility_latest_api.dart';
@@ -7,20 +5,35 @@ import '../models/latest_tree_response.dart';
 
 class LatestProvider extends ChangeNotifier {
   final UtilityLatestApi api;
-  final Duration refreshInterval;
 
-  LatestProvider({
-    required this.api,
-    this.refreshInterval = const Duration(minutes: 1),
-  });
-
-  Timer? _timer;
+  LatestProvider({required this.api});
 
   bool _disposed = false;
   bool _loading = false;
-  bool _refreshing = false;
 
-  Object? _error;
+  /*
+   * Tree va Facility dung guard rieng, de mot request tree dang
+   * chay khong lam bo qua tick cua Facility Detail va nguoc lai.
+   */
+  bool _treeRefreshing = false;
+  bool _facilityRefreshing = false;
+
+  /*
+   * Moi lifecycle co bo dem rieng. Request cu tra ve sau se bi bo qua,
+   * khong ghi de ket qua cua request moi hon trong cung lifecycle.
+   *
+   * Tree va Facility khong dung chung token, vi hai lifecycle nay
+   * duoc phep chay dong thoi.
+   */
+  int _treeRequestToken = 0;
+  int _facilityRequestToken = 0;
+
+  /*
+   * Tach error theo lifecycle: mot loi cua Facility khong duoc
+   * ghi de loi cua Tree/SCADA va nguoc lai.
+   */
+  Object? _treeError;
+  Object? _facilityError;
 
   List<LatestFacilityDto> _items = const [];
 
@@ -29,9 +42,15 @@ class LatestProvider extends ChangeNotifier {
 
   bool get loading => _loading;
 
-  bool get refreshing => _refreshing;
+  bool get refreshing => _treeRefreshing;
 
-  Object? get error => _error;
+  bool get facilityRefreshing => _facilityRefreshing;
+
+  /// Loi cua lifecycle Tree/SCADA. Giu nguyen ten cho cac caller hien tai.
+  Object? get error => _treeError;
+
+  /// Loi cua lifecycle Facility Detail, tach rieng khoi [error].
+  Object? get facilityError => _facilityError;
 
   bool get hasData => _items.isNotEmpty;
 
@@ -54,22 +73,24 @@ class LatestProvider extends ChangeNotifier {
       return;
     }
 
+    final token = ++_treeRequestToken;
+
     _loading = true;
-    _error = null;
+    _treeError = null;
     _safeNotify();
 
     try {
       final result = await api.getLatestTree();
 
-      if (_disposed) return;
+      if (!_isCurrentTreeRequest(token)) return;
 
       _items = List<LatestFacilityDto>.unmodifiable(result);
       _dataVersion++;
-      _error = null;
+      _treeError = null;
     } catch (error, stackTrace) {
-      if (_disposed) return;
+      if (!_isCurrentTreeRequest(token)) return;
 
-      _error = error;
+      _treeError = error;
 
       debugPrint('[LATEST INITIAL ERROR] $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -121,31 +142,33 @@ class LatestProvider extends ChangeNotifier {
   // ============================================================
 
   Future<void> refreshAll() async {
-    if (_disposed || _loading || _refreshing) {
+    if (_disposed || _loading || _treeRefreshing) {
       return;
     }
 
-    _refreshing = true;
-    _error = null;
+    final token = ++_treeRequestToken;
+
+    _treeRefreshing = true;
+    _treeError = null;
     _safeNotify();
 
     try {
       final result = await api.getLatestTree();
 
-      if (_disposed) return;
+      if (!_isCurrentTreeRequest(token)) return;
       _items = List<LatestFacilityDto>.unmodifiable(result);
       _dataVersion++;
-      _error = null;
+      _treeError = null;
     } catch (error, stackTrace) {
-      if (_disposed) return;
+      if (!_isCurrentTreeRequest(token)) return;
 
-      _error = error;
+      _treeError = error;
 
       debugPrint('[LATEST REFRESH ALL ERROR] $error');
       debugPrintStack(stackTrace: stackTrace);
     } finally {
       if (!_disposed) {
-        _refreshing = false;
+        _treeRefreshing = false;
         _safeNotify();
       }
     }
@@ -156,7 +179,7 @@ class LatestProvider extends ChangeNotifier {
   // ============================================================
 
   Future<void> refreshFacility(String facId, {bool silent = true}) async {
-    if (_disposed || _refreshing) {
+    if (_disposed || _facilityRefreshing) {
       return;
     }
 
@@ -166,8 +189,10 @@ class LatestProvider extends ChangeNotifier {
       return;
     }
 
-    _refreshing = true;
-    _error = null;
+    final token = ++_facilityRequestToken;
+
+    _facilityRefreshing = true;
+    _facilityError = null;
 
     if (!silent || _items.isEmpty) {
       _safeNotify();
@@ -176,15 +201,15 @@ class LatestProvider extends ChangeNotifier {
     try {
       final result = await api.getLatestTree(facId: fac);
 
-      if (_disposed) return;
+      if (!_isCurrentFacilityRequest(token)) return;
 
       _mergeFacility(fac: fac, incoming: result);
 
-      _error = null;
+      _facilityError = null;
     } catch (error, stackTrace) {
-      if (_disposed) return;
+      if (!_isCurrentFacilityRequest(token)) return;
 
-      _error = error;
+      _facilityError = error;
 
       debugPrint(
         '[LATEST FACILITY REFRESH ERROR] '
@@ -194,7 +219,7 @@ class LatestProvider extends ChangeNotifier {
       debugPrintStack(stackTrace: stackTrace);
     } finally {
       if (!_disposed) {
-        _refreshing = false;
+        _facilityRefreshing = false;
         _safeNotify();
       }
     }
@@ -234,7 +259,7 @@ class LatestProvider extends ChangeNotifier {
   // ============================================================
 
   Future<void> refreshActiveTab() async {
-    if (_disposed || _refreshing) {
+    if (_disposed || _treeRefreshing) {
       return;
     }
 
@@ -245,22 +270,24 @@ class LatestProvider extends ChangeNotifier {
       return;
     }
 
-    _refreshing = true;
-    _error = null;
+    final token = ++_treeRequestToken;
+
+    _treeRefreshing = true;
+    _treeError = null;
     _safeNotify();
 
     try {
       final result = await api.getLatestTree(facId: fac, cate: cate);
 
-      if (_disposed) return;
+      if (!_isCurrentTreeRequest(token)) return;
 
       _mergeCategory(fac: fac, cate: cate, incoming: result);
 
-      _error = null;
+      _treeError = null;
     } catch (error, stackTrace) {
-      if (_disposed) return;
+      if (!_isCurrentTreeRequest(token)) return;
 
-      _error = error;
+      _treeError = error;
 
       debugPrint(
         '[LATEST ACTIVE REFRESH ERROR] '
@@ -270,7 +297,7 @@ class LatestProvider extends ChangeNotifier {
       debugPrintStack(stackTrace: stackTrace);
     } finally {
       if (!_disposed) {
-        _refreshing = false;
+        _treeRefreshing = false;
         _safeNotify();
       }
     }
@@ -335,34 +362,6 @@ class LatestProvider extends ChangeNotifier {
   }
 
   // ============================================================
-  // POLLING
-  // ============================================================
-
-  void startPolling() {
-    _timer?.cancel();
-
-    _timer = Timer.periodic(refreshInterval, (_) {
-      unawaited(refreshAll());
-    });
-  }
-
-  void startFacilityPolling(
-    String facId, {
-    Duration interval = const Duration(seconds: 30),
-  }) {
-    _timer?.cancel();
-
-    _timer = Timer.periodic(interval, (_) {
-      unawaited(refreshFacility(facId, silent: true));
-    });
-  }
-
-  void stopPolling() {
-    _timer?.cancel();
-    _timer = null;
-  }
-
-  // ============================================================
   // HELPERS
   // ============================================================
 
@@ -418,6 +417,18 @@ class LatestProvider extends ChangeNotifier {
     return _sameText(first, second);
   }
 
+  // ============================================================
+  // REQUEST TOKEN
+  // ============================================================
+
+  bool _isCurrentTreeRequest(int token) {
+    return !_disposed && token == _treeRequestToken;
+  }
+
+  bool _isCurrentFacilityRequest(int token) {
+    return !_disposed && token == _facilityRequestToken;
+  }
+
   void _safeNotify() {
     if (_disposed) return;
 
@@ -428,7 +439,9 @@ class LatestProvider extends ChangeNotifier {
   void dispose() {
     _disposed = true;
 
-    stopPolling();
+    // Vo hieu hoa moi request dang chay cua ca hai lifecycle.
+    _treeRequestToken++;
+    _facilityRequestToken++;
 
     super.dispose();
   }

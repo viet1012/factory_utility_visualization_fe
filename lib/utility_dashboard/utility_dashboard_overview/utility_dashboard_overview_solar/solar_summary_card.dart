@@ -1,10 +1,15 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../utility_api/dio_client.dart';
+import '../../shared/polling/dashboard_polling_intervals.dart';
+import '../../shared/formatters/month_formatter.dart';
+import '../../shared/polling/polling_coordinator.dart';
+import '../../shared/polling/polling_scope.dart';
+import '../../shared/polling/polling_task_ids.dart';
 import '../utility_dashboard_overview_widgets/month_label_badge.dart';
 import 'api/solar_api.dart';
 import 'models/solar_dashboard_data.dart';
@@ -32,15 +37,11 @@ class SolarSummaryCard extends StatefulWidget {
   /// Ví dụ: 202608
   final String month;
 
-  /// Tự động tải lại dữ liệu sau khoảng thời gian này.
-  final Duration refreshInterval;
-
   const SolarSummaryCard({
     super.key,
     required this.isActive,
     required this.facId,
     required this.month,
-    this.refreshInterval = const Duration(minutes: 1),
   });
 
   @override
@@ -51,8 +52,6 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
     with SingleTickerProviderStateMixin {
   SolarDashboardData? _data;
 
-  Timer? _refreshTimer;
-
   bool _isLoading = true;
   bool _isRefreshing = false;
 
@@ -62,6 +61,7 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
   late final AnimationController _timeController;
 
   late final SolarApi _api = SolarApi(DioClient.dio);
+  late final PollingCoordinator _pollingCoordinator;
 
   int _requestVersion = 0;
   bool _requestRunning = false;
@@ -75,10 +75,18 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
       duration: const Duration(hours: 1),
     );
 
+    _pollingCoordinator = context.read<PollingCoordinator>();
+    _pollingCoordinator.register(
+      id: PollingTaskIds.mapSolarMonthly,
+      scope: PollingScope.map,
+      interval: DashboardPollingIntervals.mapSolarMonthly,
+      action: _poll,
+      runImmediately: true,
+    );
+    _pollingCoordinator.start(PollingTaskIds.mapSolarMonthly);
+
     if (widget.isActive) {
       _timeController.repeat();
-      _loadData();
-      _startAutoRefresh();
     }
   }
 
@@ -93,25 +101,20 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
     final becameInactive = oldWidget.isActive && !widget.isActive;
 
     if (becameInactive) {
-      _stopAutoRefresh();
       _timeController.stop();
       return;
     }
 
     if (becameActive) {
       _timeController.repeat();
-      _loadData(showMainLoading: false);
-      _startAutoRefresh();
+      _pollingCoordinator.stop(PollingTaskIds.mapSolarMonthly);
+      _pollingCoordinator.start(PollingTaskIds.mapSolarMonthly);
       return;
     }
 
     if (widget.isActive) {
       if (facChanged || monthChanged) {
         _loadData(showMainLoading: true);
-      }
-
-      if (oldWidget.refreshInterval != widget.refreshInterval) {
-        _startAutoRefresh();
       }
     }
   }
@@ -120,31 +123,19 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
   void dispose() {
     _requestVersion++;
 
-    _stopAutoRefresh();
+    _pollingCoordinator.stop(PollingTaskIds.mapSolarMonthly);
+    _pollingCoordinator.unregister(PollingTaskIds.mapSolarMonthly);
 
     _timeController.dispose();
 
     super.dispose();
   }
 
-  void _startAutoRefresh() {
-    _stopAutoRefresh();
-
-    if (!widget.isActive) return;
-
-    _refreshTimer = Timer.periodic(
-      widget.refreshInterval,
-      (_) {
-        if (!mounted || !widget.isActive) return;
-
-        _loadData(showMainLoading: false);
-      },
-    );
-  }
-
-  void _stopAutoRefresh() {
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
+  Future<void> _poll() {
+    if (!mounted || !widget.isActive) {
+      return Future<void>.value();
+    }
+    return _loadData(showMainLoading: false);
   }
 
   Future<void> _loadData({bool showMainLoading = false}) async {
@@ -284,35 +275,7 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
     return 'Cannot load solar data';
   }
 
-  String get monthLabel {
-    final raw = widget.month.trim();
-
-    if (raw.length != 6) return raw;
-
-    final year = raw.substring(0, 4);
-    final monthNumber = int.tryParse(raw.substring(4, 6));
-
-    if (monthNumber == null || monthNumber < 1 || monthNumber > 12) {
-      return raw;
-    }
-
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-
-    return '${months[monthNumber - 1]} $year';
-  }
+  String get monthLabel => MonthFormatter.label(widget.month);
 
   @override
   Widget build(BuildContext context) {

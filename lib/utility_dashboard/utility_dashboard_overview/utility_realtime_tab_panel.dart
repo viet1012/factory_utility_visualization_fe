@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../shared/polling/polling_coordinator.dart';
+import '../shared/polling/polling_scope.dart';
 import 'hourly/utility_hourly_dashboard_section.dart';
 import 'hourly/utility_hourly_header.dart';
 import 'minutely/utility_minutely_dashboard_section.dart';
 import '../shared/widgets/scada_tab_button.dart';
 
 class UtilityRealtimeTabPanel extends StatefulWidget {
+  /// MAP tab dang hien thi hay khong.
+  final bool isActive;
+
   final String selectedFac;
   final String nowStr;
   final String yStr;
 
   const UtilityRealtimeTabPanel({
     super.key,
+    required this.isActive,
     required this.selectedFac,
     required this.nowStr,
     required this.yStr,
@@ -28,6 +35,41 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
   bool _builtMinutely = true;
   bool _builtHourly = false;
 
+  int _syncToken = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _scheduleSyncPolling();
+  }
+
+  @override
+  void didUpdateWidget(covariant UtilityRealtimeTabPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.isActive == widget.isActive) return;
+
+    _scheduleSyncPolling();
+  }
+
+  @override
+  void dispose() {
+    _syncToken++;
+    super.dispose();
+  }
+
+  void _scheduleSyncPolling() {
+    final token = ++_syncToken;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (token != _syncToken) return;
+
+      _syncPolling();
+    });
+  }
+
   void _selectTab(int index) {
     if (selectedTab == index) return;
 
@@ -40,6 +82,29 @@ class _UtilityRealtimeTabPanelState extends State<UtilityRealtimeTabPanel> {
         _builtHourly = true;
       }
     });
+
+    _scheduleSyncPolling();
+  }
+
+  void _syncPolling() {
+    if (!mounted) return;
+
+    final minuteActive = widget.isActive && selectedTab == 0;
+    final hourlyActive = widget.isActive && selectedTab == 1;
+
+    final coordinator = context.read<PollingCoordinator>();
+
+    if (minuteActive) {
+      coordinator.activateScope(PollingScope.mapMinutely);
+    } else {
+      coordinator.deactivateScope(PollingScope.mapMinutely);
+    }
+
+    if (hourlyActive) {
+      coordinator.activateScope(PollingScope.mapHourly);
+    } else {
+      coordinator.deactivateScope(PollingScope.mapHourly);
+    }
   }
 
   @override

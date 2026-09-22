@@ -1,5 +1,5 @@
-import 'dart:async';
-
+import 'package:factory_utility_visualization/utility_dashboard/shared/widgets/scada_tab_button.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -24,6 +24,47 @@ typedef _SignalHealthRemoteState = ({
   Object? error,
 });
 
+typedef _ErrorSummaryItem = ({
+  String errorKey,
+  String signalName,
+  String parameterCode,
+  String ruleType,
+  int deviceCount,
+});
+
+typedef _BoxIssueItem = ({String boxDeviceId, int issueCount});
+
+bool _isSignalNg(Map<String, dynamic> signal) {
+  final status = '${signal['status'] ?? ''}'.trim().toUpperCase();
+  return status.isNotEmpty && status != 'OK';
+}
+
+String _firstNonEmpty(Iterable<dynamic> values, {String fallback = ''}) {
+  for (final value in values) {
+    final text = value?.toString().trim() ?? '';
+    if (text.isNotEmpty) return text;
+  }
+  return fallback;
+}
+
+String _normalizeSignalName(String value) {
+  return value.trim().toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+}
+
+/// Grouping key for the Error Summary.
+///
+/// Represents the logical signal / error type, never the physical PLC address:
+/// two devices exposing the same signal on different addresses must merge into
+/// a single summary item.
+String _signalErrorKey(Map<String, dynamic> signal) {
+  final code = _firstNonEmpty([signal['parameterCode'], signal['cateId']]);
+  if (code.isNotEmpty) return _normalizeSignalName(code);
+
+  return _normalizeSignalName(
+    _firstNonEmpty([signal['signalName'], signal['nameEn'], signal['name']]),
+  );
+}
+
 class SignalHealthMatrixScreen extends StatefulWidget {
   final bool isActive;
 
@@ -40,55 +81,10 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
   String scadaFilter = 'ALL';
   String boxDeviceFilter = 'ALL';
   String keyword = '';
-
-  static const Duration _pollInterval = Duration(minutes: 1);
-
-  Timer? _refreshTimer;
+  String? selectedErrorKey;
+  String? selectedBoxDeviceId;
 
   Map<String, dynamic>? selected;
-
-  @override
-  void initState() {
-    super.initState();
-
-    if (widget.isActive) {
-      _startPolling();
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant SignalHealthMatrixScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (oldWidget.isActive == widget.isActive) return;
-
-    if (widget.isActive) {
-      _startPolling();
-    } else {
-      _stopPolling();
-    }
-  }
-
-  void _startPolling() {
-    _refreshTimer?.cancel();
-
-    _refreshTimer = Timer.periodic(_pollInterval, (_) {
-      if (mounted && widget.isActive) {
-        context.read<SignalHealthMatrixController>().refresh();
-      }
-    });
-  }
-
-  void _stopPolling() {
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
-  }
-
-  @override
-  void dispose() {
-    _stopPolling();
-    super.dispose();
-  }
 
   Map<String, dynamic>? _findSelectedDevice(
     List<Map<String, dynamic>> data,
@@ -107,9 +103,7 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
     return data.first;
   }
 
-  List<Map<String, dynamic>> _filteredData(
-    List<Map<String, dynamic>> data,
-  ) {
+  List<Map<String, dynamic>> _filteredData(List<Map<String, dynamic>> data) {
     return data.where((e) {
       final facOk = facFilter == 'ALL' || e['fac'] == facFilter;
 
@@ -131,6 +125,123 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
 
       return facOk && cateOk && scadaOk && boxOk && searchOk;
     }).toList();
+  }
+
+  List<_ErrorSummaryItem> _errorSummary(List<Map<String, dynamic>> rows) {
+    final grouped = <String, _ErrorSummaryAccumulator>{};
+
+    for (final device in rows) {
+      final boxDeviceId = '${device['boxDeviceId'] ?? ''}'.trim();
+      final rawSignals = device['signals'];
+      if (rawSignals is! List) continue;
+
+      for (final rawSignal in rawSignals) {
+        if (rawSignal is! Map) continue;
+        final signal = Map<String, dynamic>.from(rawSignal);
+        if (!_isSignalNg(signal)) continue;
+
+        final signalName = _firstNonEmpty([
+          signal['signalName'],
+          signal['nameEn'],
+          signal['name'],
+        ]);
+        final parameterCode = _firstNonEmpty([
+          signal['parameterCode'],
+          signal['cateId'],
+        ]);
+        final ruleType = _firstNonEmpty([
+          signal['ruleType'],
+          signal['rule'],
+          signal['errorType'],
+          signal['status'],
+        ], fallback: '-');
+        final key = _signalErrorKey(signal);
+        if (key.isEmpty) continue;
+
+        final entry = grouped.putIfAbsent(
+          key,
+          () => _ErrorSummaryAccumulator(
+            errorKey: key,
+            signalName: signalName.isEmpty ? parameterCode : signalName,
+            parameterCode: parameterCode,
+            ruleType: ruleType,
+          ),
+        );
+        if (boxDeviceId.isNotEmpty) {
+          entry.boxDeviceIds.add(boxDeviceId);
+        }
+      }
+    }
+
+    final result = grouped.values
+        .map(
+          (entry) => (
+            errorKey: entry.errorKey,
+            signalName: entry.signalName,
+            parameterCode: entry.parameterCode,
+            ruleType: entry.ruleType,
+            deviceCount: entry.boxDeviceIds.length,
+          ),
+        )
+        .toList(growable: false);
+    result.sort((a, b) {
+      final countCompare = b.deviceCount.compareTo(a.deviceCount);
+      if (countCompare != 0) return countCompare;
+      return a.signalName.toLowerCase().compareTo(b.signalName.toLowerCase());
+    });
+    return result;
+  }
+
+  /// Counts abnormal signals per box device over the toolbar/search filtered
+  /// rows, independent of any Error Type selection.
+  List<_BoxIssueItem> _boxIssueSummary(List<Map<String, dynamic>> rows) {
+    final counts = <String, int>{};
+
+    for (final device in rows) {
+      final boxDeviceId = '${device['boxDeviceId'] ?? ''}'.trim();
+      if (boxDeviceId.isEmpty) continue;
+
+      final rawSignals = device['signals'];
+      if (rawSignals is! List) continue;
+
+      var issueCount = 0;
+      for (final rawSignal in rawSignals) {
+        if (rawSignal is! Map) continue;
+        if (_isSignalNg(Map<String, dynamic>.from(rawSignal))) issueCount++;
+      }
+      if (issueCount == 0) continue;
+
+      counts[boxDeviceId] = (counts[boxDeviceId] ?? 0) + issueCount;
+    }
+
+    final result = counts.entries
+        .map((e) => (boxDeviceId: e.key, issueCount: e.value))
+        .toList();
+    result.sort((a, b) {
+      final countCompare = b.issueCount.compareTo(a.issueCount);
+      if (countCompare != 0) return countCompare;
+      return a.boxDeviceId.toLowerCase().compareTo(b.boxDeviceId.toLowerCase());
+    });
+    return result;
+  }
+
+  List<Map<String, dynamic>> _applyErrorSummaryFilter(
+    List<Map<String, dynamic>> filteredRows,
+  ) {
+    final errorKey = selectedErrorKey;
+    if (errorKey == null) return filteredRows;
+
+    return filteredRows
+        .where((device) {
+          final rawSignals = device['signals'];
+          if (rawSignals is! List) return false;
+
+          return rawSignals.whereType<Map>().any((rawSignal) {
+            final signal = Map<String, dynamic>.from(rawSignal);
+            return _isSignalNg(signal) && _signalErrorKey(signal) == errorKey;
+          });
+        })
+        .toList(growable: false);
   }
 
   List<String> _facOptions(List<Map<String, dynamic>> data) => [
@@ -170,11 +281,16 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
 
   Widget _body(_SignalHealthRemoteState state) {
     final data = state.data;
-    final rows = _filteredData(data);
-    selected = _findSelectedDevice(
-      data,
-      selected?['boxDeviceId']?.toString(),
-    );
+    final filteredRows = _filteredData(data);
+    final errorSummary = _errorSummary(filteredRows);
+    final boxIssueSummary = _boxIssueSummary(filteredRows);
+    final visibleRows = _applyErrorSummaryFilter(filteredRows);
+
+    // A box chosen from the Box-with-issues row wins over the previous
+    // selection, but only while it is still inside the visible scope.
+    final preferredBoxDeviceId =
+        selectedBoxDeviceId ?? selected?['boxDeviceId']?.toString();
+    selected = _findSelectedDevice(visibleRows, preferredBoxDeviceId);
 
     if (state.loading && data.isEmpty) {
       return const Center(
@@ -210,26 +326,26 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
                 : _lastUpdated(data),
             onRefresh: context.read<SignalHealthMatrixController>().refresh,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 4),
           _KpiRow(
-            totalFac: rows.map((e) => e['fac']).toSet().length,
-            totalBoxDevice: rows.length,
-            totalRegister: rows.fold(
+            totalFac: filteredRows.map((e) => e['fac']).toSet().length,
+            totalBoxDevice: filteredRows.length,
+            totalRegister: filteredRows.fold(
               0,
               (sum, e) => sum + ((e['totalRegisters'] ?? 0) as num).toInt(),
             ),
-            totalNgRegister: rows.fold(
+            totalNgRegister: filteredRows.fold(
               0,
               (sum, e) => sum + ((e['ngRegisters'] ?? 0) as num).toInt(),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 4),
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  flex: 7,
+                  flex: 18,
                   child: Column(
                     children: [
                       _FilterRow(
@@ -241,20 +357,81 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
                         cateValue: cateFilter,
                         scadaValue: scadaFilter,
                         boxDeviceValue: boxDeviceFilter,
-                        onFacChanged: (v) => setState(() => facFilter = v!),
-                        onCateChanged: (v) => setState(() => cateFilter = v!),
-                        onScadaChanged: (v) => setState(() => scadaFilter = v!),
-                        onBoxDeviceChanged: (v) =>
-                            setState(() => boxDeviceFilter = v!),
-                        onSearchChanged: (v) => setState(() => keyword = v),
+                        onFacChanged: (v) => setState(() {
+                          facFilter = v!;
+                          selectedErrorKey = null;
+                          selectedBoxDeviceId = null;
+                        }),
+                        onCateChanged: (v) => setState(() {
+                          cateFilter = v!;
+                          selectedErrorKey = null;
+                          selectedBoxDeviceId = null;
+                        }),
+                        onScadaChanged: (v) => setState(() {
+                          scadaFilter = v!;
+                          selectedErrorKey = null;
+                          selectedBoxDeviceId = null;
+                        }),
+                        onBoxDeviceChanged: (v) => setState(() {
+                          boxDeviceFilter = v!;
+                          selectedErrorKey = null;
+                          selectedBoxDeviceId = null;
+                        }),
+                        onSearchChanged: (v) => setState(() {
+                          keyword = v;
+                          selectedErrorKey = null;
+                          selectedBoxDeviceId = null;
+                        }),
+                      ),
+                      const SizedBox(height: 6),
+                      _ErrorSummaryPanel(
+                        items: errorSummary,
+                        boxItems: boxIssueSummary,
+                        selectedErrorKey: selectedErrorKey,
+                        selectedBoxDeviceId: selectedBoxDeviceId,
+
+                        onSelected: (errorKey) {
+                          setState(() {
+                            selectedErrorKey = selectedErrorKey == errorKey
+                                ? null
+                                : errorKey;
+
+                            // nên clear box khi chọn error type
+                            selectedBoxDeviceId = null;
+                          });
+                        },
+
+                        onBoxSelected: (boxDeviceId) {
+                          setState(() {
+                            if (selectedBoxDeviceId == boxDeviceId) {
+                              selectedBoxDeviceId = null;
+                              return;
+                            }
+
+                            selectedBoxDeviceId = boxDeviceId;
+                            selectedErrorKey = null;
+                          });
+                        },
+
+                        // thêm
+                        onClear: () {
+                          setState(() {
+                            selectedErrorKey = null;
+                            selectedBoxDeviceId = null;
+                          });
+                        },
                       ),
                       const SizedBox(height: 12),
                       Expanded(
                         child: _MatrixTable(
-                          data: rows,
+                          data: visibleRows,
                           selected: selected,
                           onSelect: (item) {
-                            setState(() => selected = item);
+                            setState(() {
+                              selected = item;
+                              selectedBoxDeviceId =
+                                  '${item['boxDeviceId'] ?? ''}'.trim();
+                            });
                           },
                         ),
                       ),
@@ -263,7 +440,7 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  flex: 4,
+                  flex: 10,
                   child: selected == null
                       ? const SizedBox()
                       : _DetailPanel(device: selected!),
@@ -292,6 +469,284 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
   }
 }
 
+class _ErrorSummaryAccumulator {
+  final String errorKey;
+  final String signalName;
+  final String parameterCode;
+  final String ruleType;
+  final Set<String> boxDeviceIds = <String>{};
+
+  _ErrorSummaryAccumulator({
+    required this.errorKey,
+    required this.signalName,
+    required this.parameterCode,
+    required this.ruleType,
+  });
+}
+
+class _ErrorSummaryPanel extends StatefulWidget {
+  final List<_ErrorSummaryItem> items;
+  final List<_BoxIssueItem> boxItems;
+  final String? selectedErrorKey;
+  final String? selectedBoxDeviceId;
+  final ValueChanged<String> onSelected;
+  final ValueChanged<String> onBoxSelected;
+  final VoidCallback onClear;
+
+  const _ErrorSummaryPanel({
+    required this.items,
+    required this.boxItems,
+    required this.selectedErrorKey,
+    required this.selectedBoxDeviceId,
+    required this.onSelected,
+    required this.onBoxSelected,
+
+    // thêm
+    required this.onClear,
+  });
+  @override
+  State<_ErrorSummaryPanel> createState() => _ErrorSummaryPanelState();
+}
+
+class _ErrorSummaryPanelState extends State<_ErrorSummaryPanel> {
+  final ScrollController _errorScrollController = ScrollController();
+  final ScrollController _boxScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _errorScrollController.dispose();
+    _boxScrollController.dispose();
+    super.dispose();
+  }
+
+  Widget _rowLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: kSubText,
+        fontSize: 9.5,
+        height: 1.0,
+        fontWeight: FontWeight.w800,
+        letterSpacing: .5,
+      ),
+    );
+  }
+
+  Widget _emptyRow(String message) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        message,
+        style: const TextStyle(color: kSubText, fontSize: 11),
+      ),
+    );
+  }
+
+  Widget _chipRow({
+    required ScrollController controller,
+    required int itemCount,
+    required Widget Function(int index) itemBuilder,
+  }) {
+    return ScrollbarTheme(
+      data: const ScrollbarThemeData(
+        thumbColor: WidgetStatePropertyAll(Color(0xff00E5FF)),
+        trackColor: WidgetStatePropertyAll(Color(0xff1e293b)),
+        trackBorderColor: WidgetStatePropertyAll(Color(0xff38bdf8)),
+        thickness: WidgetStatePropertyAll(4),
+        radius: Radius.circular(10),
+      ),
+      child: Scrollbar(
+        controller: controller,
+        thumbVisibility: true,
+        trackVisibility: true,
+        interactive: true,
+        scrollbarOrientation: ScrollbarOrientation.bottom,
+        child: ScrollConfiguration(
+          // Flutter leaves the mouse out of dragDevices by default, so on web
+          // and desktop these chip rows could not be panned by pointer drag.
+          // Scoped to this row only; app-wide scroll behavior is untouched.
+          // scrollbars: false keeps this from adding a second, unthemed bar
+          // over the styled Scrollbar above.
+          behavior: ScrollConfiguration.of(context).copyWith(
+            scrollbars: false,
+            dragDevices: const {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
+              PointerDeviceKind.stylus,
+            },
+          ),
+          child: ListView.separated(
+            controller: controller,
+            scrollDirection: Axis.horizontal,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 2),
+            itemCount: itemCount,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, index) => itemBuilder(index),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryChip({
+    required String label,
+    required int count,
+    required bool isSelected,
+    required IconData icon,
+    required VoidCallback onTap,
+    required double minWidth,
+    required double maxWidth,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: minWidth, maxWidth: maxWidth),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? kRed.withOpacity(.16) : kCard2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? kRed : kBorder,
+              width: isSelected ? 1.6 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: kRed, size: 14),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: kText,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Container(width: 1, height: 15, color: kBorder),
+              const SizedBox(width: 9),
+              Text(
+                '$count',
+                style: const TextStyle(
+                  color: kRed,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 140,
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(10, 5, 10, 4),
+      decoration: BoxDecoration(
+        color: kRed.withOpacity(.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kRed.withOpacity(.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'ERROR SUMMARY — CURRENT FILTER',
+                  style: TextStyle(
+                    color: kRed,
+                    fontSize: 11,
+                    height: 1.0,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .4,
+                  ),
+                ),
+              ),
+
+              if (widget.selectedErrorKey != null ||
+                  widget.selectedBoxDeviceId != null)
+                ScadaTabButton(
+                  label: 'CLEAR',
+                  selected: true,
+                  color: kRed,
+                  minWidth: 58,
+                  onTap: widget.onClear,
+                ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Expanded(
+            child: widget.items.isEmpty
+                ? _emptyRow('No abnormal signals in the current filter.')
+                : _chipRow(
+                    controller: _errorScrollController,
+                    itemCount: widget.items.length,
+                    itemBuilder: (index) {
+                      final item = widget.items[index];
+                      final isSelected =
+                          item.errorKey == widget.selectedErrorKey;
+                      return _summaryChip(
+                        label: item.signalName,
+                        count: item.deviceCount,
+                        isSelected: isSelected,
+                        icon: isSelected
+                            ? Icons.filter_alt_rounded
+                            : Icons.warning_amber_rounded,
+                        minWidth: 160,
+                        maxWidth: 260,
+                        onTap: () => widget.onSelected(item.errorKey),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 3),
+          Expanded(
+            child: widget.boxItems.isEmpty
+                ? _emptyRow('No box device with issues in the current filter.')
+                : _chipRow(
+                    controller: _boxScrollController,
+                    itemCount: widget.boxItems.length,
+                    itemBuilder: (index) {
+                      final item = widget.boxItems[index];
+                      final isSelected =
+                          item.boxDeviceId == widget.selectedBoxDeviceId;
+                      return _summaryChip(
+                        label: item.boxDeviceId,
+                        count: item.issueCount,
+                        isSelected: isSelected,
+                        icon: isSelected
+                            ? Icons.check_circle_rounded
+                            : Icons.developer_board_rounded,
+                        minWidth: 140,
+                        maxWidth: 240,
+                        onTap: () => widget.onBoxSelected(item.boxDeviceId),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Header extends StatelessWidget {
   final String lastUpdated;
   final VoidCallback onRefresh;
@@ -303,47 +758,55 @@ class _Header extends StatelessWidget {
     return Row(
       children: [
         Container(
-          height: 48,
-          width: 48,
+          height: 36,
+          width: 36,
           decoration: BoxDecoration(
             color: kBlue.withOpacity(.18),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(9),
             border: Border.all(color: kBlue.withOpacity(.35)),
           ),
-          child: const Icon(Icons.monitor_heart, color: kBlue),
+          child: const Icon(Icons.monitor_heart, color: kBlue, size: 20),
         ),
-        const SizedBox(width: 14),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Signal Health Matrix',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  color: kText,
-                ),
-              ),
-              Text(
-                'Tổng hợp tình trạng Device và Register',
-                style: TextStyle(color: kSubText),
-              ),
-            ],
+
+        const SizedBox(width: 10),
+
+        const Text(
+          'Signal Health Matrix',
+          style: TextStyle(
+            fontSize: 20,
+            height: 1.1,
+            fontWeight: FontWeight.w800,
+            color: kText,
           ),
         ),
+
+        // Đẩy phần bên dưới sang góc phải
+        const Spacer(),
+
         Text(
           'Last updated: $lastUpdated',
-          style: const TextStyle(color: kSubText),
+          style: const TextStyle(fontSize: 11, color: kSubText),
         ),
-        const SizedBox(width: 16),
-        OutlinedButton.icon(
-          onPressed: onRefresh,
-          icon: const Icon(Icons.refresh),
-          label: const Text('Refresh'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: kBlue,
-            side: BorderSide(color: kBlue.withOpacity(.45)),
+
+        const SizedBox(width: 10),
+
+        SizedBox(
+          height: 34,
+          child: OutlinedButton.icon(
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh, size: 17),
+            label: const Text(
+              'Refresh',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: kBlue,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              side: BorderSide(color: kBlue.withOpacity(.45)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
           ),
         ),
       ],
@@ -426,8 +889,8 @@ class _KpiCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        height: 108,
-        padding: const EdgeInsets.all(10),
+        height: 72,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: danger ? kRed.withOpacity(.10) : kCard,
           borderRadius: BorderRadius.circular(16),
@@ -436,33 +899,45 @@ class _KpiCard extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 52,
-              height: 52,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
                 color: color.withOpacity(.16),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 30),
+              child: Icon(icon, color: color, size: 24),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   title,
-                  style: TextStyle(color: color, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    height: 1.1,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 Text(
                   '$value',
                   style: const TextStyle(
-                    fontSize: 28,
+                    fontSize: 23,
                     fontWeight: FontWeight.w900,
                     color: kText,
                     height: 1.1,
                   ),
                 ),
-                Text(subtitle, style: const TextStyle(color: kSubText)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: kSubText,
+                    fontSize: 11,
+                    height: 1.1,
+                  ),
+                ),
               ],
             ),
           ],
@@ -545,27 +1020,38 @@ class _FilterRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: TextField(
-            onChanged: onSearchChanged,
-            style: const TextStyle(color: kText),
-            decoration: InputDecoration(
-              hintText: 'Search device...',
-              hintStyle: const TextStyle(color: kSubText),
-              prefixIcon: const Icon(Icons.search, color: kSubText),
-              filled: true,
-              fillColor: kCard,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: kBorder),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: kBorder),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: kBlue),
+          child: SizedBox(
+            height: 38,
+            child: TextField(
+              onChanged: onSearchChanged,
+              style: const TextStyle(color: kText, fontSize: 14),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Search device...',
+                hintStyle: const TextStyle(color: kSubText, fontSize: 14),
+                prefixIcon: const Icon(Icons.search, color: kSubText, size: 18),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 34,
+                  minHeight: 34,
+                ),
+                filled: true,
+                fillColor: kCard,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: kBorder),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: kBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: kBlue),
+                ),
               ),
             ),
           ),
@@ -595,8 +1081,8 @@ class _FilterDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: width,
-      height: 46,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: kCard,
         border: Border.all(color: kBorder),
@@ -681,7 +1167,7 @@ class _MatrixTableState extends State<_MatrixTable> {
       child: Column(
         children: [
           Container(
-            height: 52,
+            height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: const BoxDecoration(
               color: kCard2,
@@ -719,9 +1205,9 @@ class _MatrixTableState extends State<_MatrixTable> {
 
                 child: ListView.separated(
                   controller: _controller,
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   itemCount: widget.data.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
                     final row = widget.data[index] as Map<String, dynamic>;
                     final isSelected = identical(row, widget.selected);
@@ -816,7 +1302,7 @@ class _MatrixTableState extends State<_MatrixTable> {
           ),
 
           Container(
-            height: 48,
+            height: 30,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: kBorder)),
@@ -824,7 +1310,7 @@ class _MatrixTableState extends State<_MatrixTable> {
             child: Row(
               children: [
                 Text(
-                  'Hiển thị ${widget.data.length} bản ghi',
+                  'Showing ${widget.data.length} records',
                   style: const TextStyle(
                     color: Color(0xff64748b),
                     fontWeight: FontWeight.w600,
@@ -832,7 +1318,7 @@ class _MatrixTableState extends State<_MatrixTable> {
                 ),
                 const Spacer(),
                 const Text(
-                  'Click vào dòng để xem chi tiết',
+                  'Click a row to view details',
                   style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
                 ),
               ],
@@ -998,11 +1484,21 @@ class _DetailPanelState extends State<_DetailPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final signals = widget.device['signals'] as List? ?? [];
+    final rawSignals = widget.device['signals'];
+    final signals = rawSignals is List
+        ? rawSignals
+              .whereType<Map>()
+              .map((signal) => Map<String, dynamic>.from(signal))
+              .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    final issueSignals = signals.where(_isSignalNg).toList(growable: false);
+    final normalSignals = signals
+        .where((signal) => !_isSignalNg(signal))
+        .toList(growable: false);
 
     return Container(
       height: double.infinity,
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(14),
       decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1027,7 +1523,7 @@ class _DetailPanelState extends State<_DetailPanel> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Expanded(
             child: ScrollbarTheme(
               data: ScrollbarThemeData(
@@ -1043,13 +1539,33 @@ class _DetailPanelState extends State<_DetailPanel> {
                 thumbVisibility: true,
                 interactive: true,
                 radius: const Radius.circular(12),
-                child: ListView.separated(
+                child: ListView(
                   controller: _controller,
-                  itemCount: signals.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    return _SignalMetricCard(signal: signals[index]);
-                  },
+                  children: [
+                    _SignalGroupHeader(
+                      title: 'ISSUES',
+                      count: issueSignals.length,
+                      color: kRed,
+                    ),
+                    ...issueSignals.map(
+                      (signal) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: _SignalMetricCard(signal: signal),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _SignalGroupHeader(
+                      title: 'NORMAL',
+                      count: normalSignals.length,
+                      color: kGreen,
+                    ),
+                    ...normalSignals.map(
+                      (signal) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: _SignalMetricCard(signal: signal),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1060,25 +1576,59 @@ class _DetailPanelState extends State<_DetailPanel> {
   }
 }
 
+class _SignalGroupHeader extends StatelessWidget {
+  final String title;
+  final int count;
+  final Color color;
+
+  const _SignalGroupHeader({
+    required this.title,
+    required this.count,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Text(
+            '$title ($count)',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .5,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Divider(color: color.withOpacity(.35), height: 1)),
+        ],
+      ),
+    );
+  }
+}
+
 class _SignalMetricCard extends StatelessWidget {
-  final dynamic signal;
+  final Map<String, dynamic> signal;
 
   const _SignalMetricCard({required this.signal});
 
   @override
   Widget build(BuildContext context) {
     final status = '${signal['status']}';
-    final isOk = status == 'OK';
-    final borderColor = isOk
+    final isNg = _isSignalNg(signal);
+    final borderColor = !isNg
         ? kGreen.withOpacity(.25)
         : kOrange.withOpacity(.55);
-    final bgColor = isOk ? kCard2 : kOrange.withOpacity(.10);
+    final bgColor = !isNg ? kCard2 : kOrange.withOpacity(.10);
 
     return Container(
-      padding: const EdgeInsets.all(6),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: borderColor),
       ),
       child: Column(
@@ -1087,9 +1637,9 @@ class _SignalMetricCard extends StatelessWidget {
           Row(
             children: [
               Icon(
-                isOk ? Icons.check_circle : Icons.warning_amber_rounded,
-                color: isOk ? kGreen : kOrange,
-                size: 22,
+                !isNg ? Icons.check_circle : Icons.warning_amber_rounded,
+                color: !isNg ? kGreen : kOrange,
+                size: 18,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1118,10 +1668,10 @@ class _SignalMetricCard extends StatelessWidget {
                   ],
                 ),
               ),
-              _StatusBadge(status),
+              _StatusBadge(status, isNg: isNg),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Row(
             children: [
               _MetaChip('PLC', '${signal['plcAddress']}'),
@@ -1136,7 +1686,7 @@ class _SignalMetricCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -1155,7 +1705,7 @@ class _SignalMetricCard extends StatelessWidget {
                   value:
                       '${signal['currentValue'] ?? '-'} '
                       '${signal['unit'] ?? ''}',
-                  color: isOk ? kGreen : kRed,
+                  color: !isNg ? kGreen : kRed,
                   highlight: true,
                 ),
               ),
@@ -1169,10 +1719,10 @@ class _SignalMetricCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(.18),
               borderRadius: BorderRadius.circular(10),
@@ -1181,7 +1731,7 @@ class _SignalMetricCard extends StatelessWidget {
             child: Text(
               '${signal['description']}',
               style: TextStyle(
-                color: isOk ? kSubText : const Color(0xffffd28a),
+                color: !isNg ? kSubText : const Color(0xffffd28a),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -1250,8 +1800,8 @@ class _ValueBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 66,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(highlight ? .16 : .09),
         borderRadius: BorderRadius.circular(11),
@@ -1288,12 +1838,13 @@ class _ValueBox extends StatelessWidget {
 
 class _StatusBadge extends StatelessWidget {
   final String status;
+  final bool? isNg;
 
-  const _StatusBadge(this.status);
+  const _StatusBadge(this.status, {this.isNg});
 
   @override
   Widget build(BuildContext context) {
-    final isOk = status == 'OK';
+    final isOk = isNg == null ? status == 'OK' : !isNg!;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

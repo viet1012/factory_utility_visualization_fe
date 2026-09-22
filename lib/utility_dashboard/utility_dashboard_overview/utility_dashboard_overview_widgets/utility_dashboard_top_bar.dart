@@ -1,6 +1,8 @@
 import 'package:factory_utility_visualization/utility_dashboard/shared/widgets/scada_tab_button.dart';
 import 'package:flutter/material.dart';
 
+import '../../shared/formatters/month_formatter.dart';
+
 class UtilityDashboardTopBar extends StatelessWidget {
   final String selectedFac;
   final ValueChanged<String> onFacChanged;
@@ -75,7 +77,7 @@ class _UtilityMonthLabel {
   ];
 
   static String format(DateTime date) {
-    return '${months[date.month - 1]} ${date.year}';
+    return MonthFormatter.fromDateTime(date);
   }
 }
 

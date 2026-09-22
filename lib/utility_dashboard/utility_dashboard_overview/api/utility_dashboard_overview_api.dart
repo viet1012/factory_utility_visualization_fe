@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 
 import '../../../utility_api/dio_client.dart';
-import '../../utility_all_factory_chart/models/minute_point.dart';
 import '../models/energy_monthly_summary.dart';
 import '../models/utility_daily_dashboard_response.dart';
 import '../models/utility_hourly_dashboard_response.dart';
@@ -17,8 +16,6 @@ class UtilityDashboardOverviewApi {
   // ============================================================
 
   static const String _minuteDashboardPath = '/api/utility/minute-dashboard';
-
-  static const String _energyMinutePath = '/api/utility/energy-minute';
 
   static const String _hourlyDashboardPath = '/api/utility/hourly-dashboard';
 
@@ -227,41 +224,6 @@ class UtilityDashboardOverviewApi {
     return List<EnergyMonthlySummary>.unmodifiable(result);
   }
 
-  Map<String, dynamic> _monthlySummaryToMap(EnergyMonthlySummary item) {
-    final pickAt = item.pickAt?.toIso8601String();
-    final generatedAt = item.generatedAt?.toIso8601String();
-
-    return {
-      'name': item.name,
-      'cate': item.cate,
-      'month': item.month,
-      'unit': item.unit,
-
-      'minValue': item.minValue,
-      'maxValue': item.maxValue,
-      'prevMinValue': item.prevMinValue,
-      'prevMaxValue': item.prevMaxValue,
-
-      'value': item.value,
-      'avgValue': item.avgValue,
-
-      'vndCost': item.vndCost,
-      'usdCost': item.usdCost,
-
-      'prevValue': item.prevValue,
-      'prevAvgValue': item.prevAvgValue,
-      'prevVndCost': item.prevVndCost,
-      'prevUsdCost': item.prevUsdCost,
-
-      'deltaValue': item.deltaValue,
-      'deltaPercent': item.deltaPercent,
-
-      'pickAt': pickAt,
-      'generatedAt': generatedAt,
-      'timestamp': generatedAt ?? pickAt,
-    };
-  }
-
   // ============================================================
   // GENERIC PARSE
   // ============================================================
@@ -272,28 +234,6 @@ class UtilityDashboardOverviewApi {
     }
 
     return Map<String, dynamic>.from(raw);
-  }
-
-  List<T> _parseList<T>(
-    dynamic raw,
-    T Function(Map<String, dynamic>) parser, {
-    required String errorMessage,
-  }) {
-    if (raw is! List) {
-      throw FormatException(errorMessage);
-    }
-
-    final result = <T>[];
-
-    for (final item in raw) {
-      if (item is! Map) {
-        continue;
-      }
-
-      result.add(parser(Map<String, dynamic>.from(item)));
-    }
-
-    return List<T>.unmodifiable(result);
   }
 
   // ============================================================

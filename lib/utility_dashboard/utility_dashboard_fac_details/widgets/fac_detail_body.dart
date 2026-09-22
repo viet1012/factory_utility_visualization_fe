@@ -5,6 +5,10 @@ import 'package:provider/provider.dart';
 
 import '../../../utility_api/dio_client.dart';
 import '../../utility_catalog/providers/latest_provider.dart';
+import '../../shared/polling/dashboard_polling_intervals.dart';
+import '../../shared/polling/polling_coordinator.dart';
+import '../../shared/polling/polling_scope.dart';
+import '../../shared/polling/polling_task_ids.dart';
 import '../api/utility_period_api.dart';
 import '../controllers/fac_detail_edit_controller.dart';
 import '../helpers/fac_detail_formatters.dart';
@@ -59,6 +63,7 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
   late final UtilityPeriodApi _periodApi;
   late final LatestProvider _latestProvider;
+  late final PollingCoordinator _pollingCoordinator;
 
   // ============================================================
   // STORE
@@ -126,6 +131,17 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
     _periodApi = UtilityPeriodApi(DioClient.dio);
     _latestProvider = context.read<LatestProvider>();
+    _pollingCoordinator = context.read<PollingCoordinator>();
+    _pollingCoordinator.register(
+      id: PollingTaskIds.facilityLatest,
+      scope: PollingScope.facilityDetail,
+      interval: DashboardPollingIntervals.facilityLatest,
+      action: () => _latestProvider.refreshFacility(
+        widget.facId,
+        silent: true,
+      ),
+    );
+    _pollingCoordinator.activateScope(PollingScope.facilityDetail);
 
     _refreshFacility();
   }
@@ -157,6 +173,7 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
   void _refreshFacility() {
     final facId = widget.facId;
+    _pollingCoordinator.stop(PollingTaskIds.facilityLatest);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -170,14 +187,16 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
         if (!mounted || widget.facId != facId) return;
 
-        _latestProvider.startFacilityPolling(facId);
+        _pollingCoordinator.start(PollingTaskIds.facilityLatest);
       });
     });
   }
 
   @override
   void dispose() {
-    _latestProvider.stopPolling();
+    _pollingCoordinator.stop(PollingTaskIds.facilityLatest);
+    _pollingCoordinator.deactivateScope(PollingScope.facilityDetail);
+    _pollingCoordinator.unregister(PollingTaskIds.facilityLatest);
     super.dispose();
   }
 

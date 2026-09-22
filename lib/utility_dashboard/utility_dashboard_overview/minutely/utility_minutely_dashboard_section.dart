@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
+import '../../shared/polling/polling_coordinator.dart';
+import '../../shared/polling/polling_task_ids.dart';
 import '../models/utility_minute_dashboard_response.dart';
 import '../providers/utility_minute_dashboard_provider.dart';
 import '../../shared/widgets/chart_state_widgets.dart';
@@ -27,17 +29,19 @@ class UtilityMinutelyDashboardSection extends StatefulWidget {
 class _UtilityMinutelyDashboardSectionState
     extends State<UtilityMinutelyDashboardSection> {
   late final UtilityMinuteDashboardProvider _provider;
+  late final PollingCoordinator _pollingCoordinator;
 
   @override
   void initState() {
     super.initState();
 
     _provider = context.read<UtilityMinuteDashboardProvider>();
+    _pollingCoordinator = context.read<PollingCoordinator>();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      unawaited(_provider.start(facId: widget.facId, minutes: widget.minutes));
+      _configureAndStartPolling();
     });
   }
 
@@ -50,7 +54,13 @@ class _UtilityMinutelyDashboardSectionState
 
     if (!changed) return;
 
-    unawaited(_provider.start(facId: widget.facId, minutes: widget.minutes));
+    _configureAndStartPolling();
+  }
+
+  void _configureAndStartPolling() {
+    _pollingCoordinator.stop(PollingTaskIds.mapMinuteDashboard);
+    _provider.configure(facId: widget.facId, minutes: widget.minutes);
+    _pollingCoordinator.start(PollingTaskIds.mapMinuteDashboard);
   }
 
   @override

@@ -8,30 +8,32 @@ class MonthLabelBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 26,
-      padding: const EdgeInsets.symmetric(horizontal: 7),
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.04),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(.12)),
+        color: const Color(0xFF0A1623),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: const Color(0xFF294052), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
+          const Icon(
             Icons.calendar_month_rounded,
-            color: Colors.white70,
-            size: 13,
+            size: 14,
+            color: Color(0xFF8A9BA8),
           ),
 
-          const SizedBox(width: 4),
+          const SizedBox(width: 5),
 
           Text(
             monthLabel,
-            style: TextStyle(
-              color: const Color(0xff22d3ee),
+            maxLines: 1,
+            style: const TextStyle(
+              color: Color(0xFF22D3EE),
               fontSize: 14,
-              fontWeight: FontWeight.w900,
+              height: 1,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],

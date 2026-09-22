@@ -16,8 +16,6 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
   // CONFIG
   // ============================================================
 
-  static const Duration pollInterval = Duration(hours: 6);
-
   static const Duration requestTimeout = Duration(seconds: 45);
 
   static const Duration forceRefreshTimeout = Duration(seconds: 120);
@@ -26,12 +24,9 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
   // INTERNAL STATE
   // ============================================================
 
-  Timer? _pollTimer;
-
   bool _notifyScheduled = false;
   bool _disposed = false;
   bool _fetching = false;
-  bool _paused = false;
 
   bool _loading = false;
   bool _refreshing = false;
@@ -91,19 +86,16 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
   }
 
   // ============================================================
-  // START
+  // CONFIGURE
   // ============================================================
 
-  Future<void> start({required String facId, required String month}) async {
+  void configure({required String facId, required String month}) {
     if (_disposed) return;
 
     final normalizedFac = _normalizeFac(facId);
     final normalizedMonth = _normalizeMonth(month);
 
     final changed = normalizedFac != _facId || normalizedMonth != _month;
-
-    // Hủy lịch polling cũ trước khi load.
-    _stopPolling();
 
     if (changed) {
       // Response cũ nếu trả về sau sẽ không được cập nhật state.
@@ -126,35 +118,6 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
       _facId = normalizedFac;
       _month = normalizedMonth;
     }
-
-    if (_paused) return;
-
-    await load(silent: !changed && hasData, force: changed);
-
-    if (_disposed || _paused) return;
-
-    _scheduleNextPoll();
-  }
-
-  void pause() {
-    if (_disposed || _paused) return;
-
-    _paused = true;
-    _stopPolling();
-  }
-
-  Future<void> resume() async {
-    if (_disposed || !_paused) return;
-
-    _paused = false;
-
-    if (!hasValidParams) return;
-
-    await load(silent: hasData, force: false);
-
-    if (_disposed || _paused) return;
-
-    _scheduleNextPoll();
   }
 
   // ============================================================
@@ -252,14 +215,7 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
       return;
     }
 
-    // Người dùng refresh thì đếm lại chu kỳ 6 giờ.
-    _stopPolling();
-
     await load(silent: hasData, force: false);
-
-    if (_disposed || _paused) return;
-
-    _scheduleNextPoll();
   }
 
   // ============================================================
@@ -279,8 +235,6 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
     final requestMonth = _month!;
 
     final token = ++_requestToken;
-
-    _stopPolling();
 
     _fetching = true;
     _forceRefreshing = true;
@@ -339,10 +293,6 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
         _forceRefreshing = false;
 
         _safeNotify();
-
-        if (!_disposed && !_paused) {
-          _scheduleNextPoll();
-        }
       }
     }
   }
@@ -356,41 +306,7 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
       return;
     }
 
-    _stopPolling();
-
     await load(silent: hasData, force: false);
-
-    if (_disposed || _paused) return;
-
-    _scheduleNextPoll();
-  }
-
-  // ============================================================
-  // POLLING
-  // ============================================================
-
-  void _scheduleNextPoll() {
-    if (_disposed || _paused || !hasValidParams) {
-      return;
-    }
-
-    _stopPolling();
-
-    _pollTimer = Timer(pollInterval, () async {
-      if (_disposed || _paused) return;
-
-      await load(silent: true, force: false);
-
-      if (_disposed || _paused) return;
-
-      // Request hoàn tất rồi mới đếm tiếp 6 giờ.
-      _scheduleNextPoll();
-    });
-  }
-
-  void _stopPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = null;
   }
 
   // ============================================================
@@ -401,8 +317,6 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
     if (_disposed) return;
 
     _invalidateCurrentRequest();
-    _stopPolling();
-
     _facId = null;
     _month = null;
 
@@ -546,8 +460,6 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier {
     _disposed = true;
 
     _invalidateCurrentRequest();
-    _stopPolling();
-
     super.dispose();
   }
 }

@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
+import '../../shared/polling/polling_coordinator.dart';
+import '../../shared/polling/polling_task_ids.dart';
 // Water + Air
 import 'utility_daily_chart.dart';
 // Electricity Grid + Solar
@@ -37,6 +39,7 @@ class _UtilityDailyDashboardSectionState
   // ============================================================
 
   late final UtilityDailyDashboardProvider _provider;
+  late final PollingCoordinator _pollingCoordinator;
 
   // Dùng để vô hiệu hóa callback cũ nếu FAC/month đổi liên tục.
   int _startGeneration = 0;
@@ -50,6 +53,7 @@ class _UtilityDailyDashboardSectionState
     super.initState();
 
     _provider = context.read<UtilityDailyDashboardProvider>();
+    _pollingCoordinator = context.read<PollingCoordinator>();
 
     _queueStart();
   }
@@ -105,7 +109,9 @@ class _UtilityDailyDashboardSectionState
         return;
       }
 
-      unawaited(_provider.start(facId: facId, month: month));
+      _pollingCoordinator.stop(PollingTaskIds.mapDailyDashboard);
+      _provider.configure(facId: facId, month: month);
+      _pollingCoordinator.start(PollingTaskIds.mapDailyDashboard);
     });
   }
 

@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/utility_catalog_tree_view.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
+import 'catalog_view_models.dart';
+import 'widgets/catalog_left_panels.dart';
+import 'widgets/catalog_signal_detail.dart';
 import 'models/latest_tree_response.dart';
 import 'providers/latest_provider.dart';
 
@@ -44,9 +46,9 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
   int _cachedDataVersion = -1;
   String _cachedFilterKey = '';
 
-  List<_CatalogTableRow> _cachedRows = const [];
+  List<CatalogTableRow> _cachedRows = const [];
 
-  String _deviceKey(_CatalogTableRow row) {
+  String _deviceKey(CatalogTableRow row) {
     return [
       row.facility,
       row.category,
@@ -65,9 +67,6 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     _searchController.addListener(_handleSearchChanged);
 
     _latestProvider = context.read<LatestProvider>();
-
-      // Nếu màn hình này tự quản lý polling thì mở dòng này.
-      // Nếu dashboard cha đã startPolling thì bỏ dòng này.
   }
 
   void _handleSearchChanged() {
@@ -82,6 +81,10 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
       setState(() {
         _keyword = next;
+
+        if (next.isNotEmpty) {
+          _resetNavigationSelection();
+        }
       });
     });
   }
@@ -96,6 +99,13 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     await provider.refreshAll();
   }
 
+  /// Xoa selection dieu huong khi buoc vao global filter mode.
+  void _resetNavigationSelection() {
+    _selectedTreeKey = null;
+    _selectedDeviceKey = null;
+    _devicePage = 0;
+  }
+
   void _clearFilters() {
     _searchController.clear();
 
@@ -107,13 +117,26 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
       _selectedBox = null;
       _selectedStatus = null;
 
-      _selectedTreeKey = null;
-      _selectedDeviceKey = null;
+      // Bo loc xong, _ensureNormalSelection se chon lai o lan build ke tiep.
       _devicePage = 0;
     });
   }
 
-  List<_CatalogTableRow> _prepareRows(
+  /*
+   * Global filter mode: khi co search hoac bat ky filter nao tren toolbar,
+   * bang ben phai hien thi toan bo ket qua loc, khong bi gioi han theo
+   * device dang chon o cay ben trai.
+   */
+  bool get _hasActiveSearchOrFilter {
+    return _keyword.trim().isNotEmpty ||
+        _selectedFacility != null ||
+        _selectedCategory != null ||
+        _selectedScada != null ||
+        _selectedBox != null ||
+        _selectedStatus != null;
+  }
+
+  List<CatalogTableRow> _prepareRows(
     List<LatestFacilityDto> source,
     int dataVersion,
   ) {
@@ -133,7 +156,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     _cachedDataVersion = dataVersion;
     _cachedFilterKey = filterKey;
 
-    final rows = <_CatalogTableRow>[];
+    final rows = <CatalogTableRow>[];
     final now = DateTime.now();
 
     for (final facility in source) {
@@ -165,7 +188,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
             for (final device in box.devices) {
               for (final signal in device.signals) {
-                final row = _CatalogTableRow(
+                final row = CatalogTableRow(
                   facility: facility.fac,
                   category: categoryLabel,
                   rawCategory: category.cate,
@@ -199,12 +222,12 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
     rows.sort(_compareRows);
 
-    _cachedRows = List<_CatalogTableRow>.unmodifiable(rows);
+    _cachedRows = List<CatalogTableRow>.unmodifiable(rows);
 
     return _cachedRows;
   }
 
-  bool _matchesKeyword(_CatalogTableRow row, String keyword, DateTime now) {
+  bool _matchesKeyword(CatalogTableRow row, String keyword, DateTime now) {
     if (keyword.isEmpty) {
       return true;
     }
@@ -212,7 +235,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     return row.searchTextAt(now).contains(keyword);
   }
 
-  int _compareRows(_CatalogTableRow first, _CatalogTableRow second) {
+  int _compareRows(CatalogTableRow first, CatalogTableRow second) {
     final facCompare = first.facility.compareTo(second.facility);
 
     if (facCompare != 0) return facCompare;
@@ -396,13 +419,13 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     return category.trim().isEmpty ? 'Other' : category.trim();
   }
 
-  List<_CatalogDeviceGroup> _buildDeviceGroups(List<_CatalogTableRow> rows) {
-    final grouped = <String, List<_CatalogTableRow>>{};
+  List<CatalogDeviceGroup> _buildDeviceGroups(List<CatalogTableRow> rows) {
+    final grouped = <String, List<CatalogTableRow>>{};
 
     for (final row in rows) {
       final key = _deviceKey(row);
 
-      grouped.putIfAbsent(key, () => <_CatalogTableRow>[]);
+      grouped.putIfAbsent(key, () => <CatalogTableRow>[]);
 
       grouped[key]!.add(row);
     }
@@ -415,14 +438,14 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
         return _naturalCompare(a.plcAddress, b.plcAddress);
       });
 
-      return _CatalogDeviceGroup(
+      return CatalogDeviceGroup(
         key: entry.key,
         facility: first.facility,
         category: first.category,
         scadaId: first.scadaId,
         boxId: first.boxId,
         boxDeviceId: first.boxDeviceId,
-        signals: List<_CatalogTableRow>.unmodifiable(signals),
+        signals: List<CatalogTableRow>.unmodifiable(signals),
       );
     }).toList();
 
@@ -457,21 +480,21 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     return '$scadaId|$boxId';
   }
 
-  List<_CatalogTreeGroup> _buildTreeGroups(List<_CatalogDeviceGroup> devices) {
-    final grouped = <String, List<_CatalogDeviceGroup>>{};
+  List<CatalogTreeGroup> _buildTreeGroups(List<CatalogDeviceGroup> devices) {
+    final grouped = <String, List<CatalogDeviceGroup>>{};
 
     for (final device in devices) {
       final key = _treeKey(scadaId: device.scadaId, boxId: device.boxId);
 
-      grouped.putIfAbsent(key, () => <_CatalogDeviceGroup>[]);
+      grouped.putIfAbsent(key, () => <CatalogDeviceGroup>[]);
 
       grouped[key]!.add(device);
     }
 
-    final result = <_CatalogTreeGroup>[];
+    final result = <CatalogTreeGroup>[];
 
     for (final entry in grouped.entries) {
-      final devices = List<_CatalogDeviceGroup>.from(entry.value);
+      final devices = List<CatalogDeviceGroup>.from(entry.value);
 
       if (devices.isEmpty) continue;
 
@@ -482,11 +505,11 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
       final first = devices.first;
 
       result.add(
-        _CatalogTreeGroup(
+        CatalogTreeGroup(
           key: entry.key,
           scadaId: first.scadaId,
           boxId: first.boxId,
-          devices: List<_CatalogDeviceGroup>.unmodifiable(devices),
+          devices: List<CatalogDeviceGroup>.unmodifiable(devices),
         ),
       );
     }
@@ -504,9 +527,11 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     return result;
   }
 
-  void _ensureSelections({
-    required List<_CatalogTreeGroup> treeGroups,
-    required List<_CatalogDeviceGroup> devices,
+  /// Chon mac dinh cho normal mode. Caller phai tu kiem tra khong o
+  /// global filter mode truoc khi goi.
+  void _ensureNormalSelection({
+    required List<CatalogTreeGroup> treeGroups,
+    required List<CatalogDeviceGroup> devices,
   }) {
     if (treeGroups.isEmpty) {
       if (_selectedTreeKey != null || _selectedDeviceKey != null) {
@@ -559,13 +584,13 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     });
   }
 
-  List<_CatalogDeviceGroup> _devicesForSelectedTree(
-    List<_CatalogDeviceGroup> devices,
+  List<CatalogDeviceGroup> _devicesForSelectedTree(
+    List<CatalogDeviceGroup> devices,
   ) {
     final selectedTreeKey = _selectedTreeKey;
 
     if (selectedTreeKey == null) {
-      return const <_CatalogDeviceGroup>[];
+      return const <CatalogDeviceGroup>[];
     }
 
     return devices.where((device) {
@@ -580,7 +605,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     return (itemCount / _devicePageSize).ceil();
   }
 
-  List<_CatalogDeviceGroup> _pagedDevices(List<_CatalogDeviceGroup> devices) {
+  List<CatalogDeviceGroup> _pagedDevices(List<CatalogDeviceGroup> devices) {
     final pageCount = _pageCount(devices.length);
 
     final safePage = _devicePage.clamp(0, pageCount - 1);
@@ -588,7 +613,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     final start = safePage * _devicePageSize;
 
     if (start >= devices.length) {
-      return const <_CatalogDeviceGroup>[];
+      return const <CatalogDeviceGroup>[];
     }
 
     final end = (start + _devicePageSize).clamp(0, devices.length);
@@ -596,7 +621,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     return devices.sublist(start, end);
   }
 
-  DateTime? _latestTime(List<_CatalogTableRow> rows) {
+  DateTime? _latestTime(List<CatalogTableRow> rows) {
     DateTime? latest;
 
     for (final row in rows) {
@@ -656,29 +681,39 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
         }
 
         final rows = _prepareRows(vm.items, vm.dataVersion);
+
+        final isGlobalFilterMode = _hasActiveSearchOrFilter;
+
         final allDevices = _buildDeviceGroups(rows);
 
         final treeGroups = _buildTreeGroups(allDevices);
 
-        _ensureSelections(treeGroups: treeGroups, devices: allDevices);
+        if (!isGlobalFilterMode) {
+          _ensureNormalSelection(treeGroups: treeGroups, devices: allDevices);
+        }
 
         final devicesForTree = _devicesForSelectedTree(allDevices);
 
         final pagedDevices = _pagedDevices(devicesForTree);
 
         final selectedDevice = allDevices
-            .cast<_CatalogDeviceGroup?>()
+            .cast<CatalogDeviceGroup?>()
             .firstWhere(
               (item) => item?.key == _selectedDeviceKey,
               orElse: () => null,
             );
 
         final selectedSignals =
-            selectedDevice?.signals ?? const <_CatalogTableRow>[];
+            selectedDevice?.signals ?? const <CatalogTableRow>[];
 
-        final dataSource = _CatalogDataSource(rows: selectedSignals);
+        final visibleSignals = isGlobalFilterMode ? rows : selectedSignals;
 
-        final summary = _CatalogSummary.fromRows(rows);
+        final dataSource = CatalogDataSource(
+          rows: visibleSignals,
+          globalMode: isGlobalFilterMode,
+        );
+
+        final summary = CatalogSummary.fromRows(rows);
 
         final facilityOptions = _facilityOptions(vm.items);
 
@@ -737,9 +772,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                     _selectedScada = null;
                     _selectedBox = null;
 
-                    _selectedTreeKey = null;
-                    _selectedDeviceKey = null;
-                    _devicePage = 0;
+                    _resetNavigationSelection();
                   });
                 },
                 onCategoryChanged: (value) {
@@ -748,9 +781,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                     _selectedScada = null;
                     _selectedBox = null;
 
-                    _selectedTreeKey = null;
-                    _selectedDeviceKey = null;
-                    _devicePage = 0;
+                    _resetNavigationSelection();
                   });
                 },
                 onScadaChanged: (value) {
@@ -758,26 +789,21 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                     _selectedScada = value;
                     _selectedBox = null;
 
-                    _selectedTreeKey = null;
-                    _selectedDeviceKey = null;
-                    _devicePage = 0;
+                    _resetNavigationSelection();
                   });
                 },
                 onBoxChanged: (value) {
                   setState(() {
                     _selectedBox = value;
 
-                    _selectedTreeKey = null;
-                    _selectedDeviceKey = null;
-                    _devicePage = 0;
+                    _resetNavigationSelection();
                   });
                 },
                 onStatusChanged: (value) {
                   setState(() {
                     _selectedStatus = value;
 
-                    _selectedDeviceKey = null;
-                    _devicePage = 0;
+                    _resetNavigationSelection();
                   });
                 },
                 onClearFilters: _clearFilters,
@@ -789,7 +815,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                         children: [
                           SizedBox(
                             width: 230,
-                            child: _ScadaBoxTreePanel(
+                            child: CatalogScadaBoxTreePanel(
                               groups: treeGroups,
                               selectedKey: _selectedTreeKey,
                               onSelected: (key) {
@@ -810,7 +836,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
                           SizedBox(
                             width: 310,
-                            child: _DeviceListPanel(
+                            child: CatalogDeviceListPanel(
                               devices: pagedDevices,
                               selectedDeviceKey: _selectedDeviceKey,
                               totalDevices: devicesForTree.length,
@@ -831,9 +857,11 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                           ),
 
                           Expanded(
-                            child: _DeviceSignalDetail(
+                            child: CatalogSignalDetail(
                               device: selectedDevice,
                               dataSource: dataSource,
+                              globalMode: isGlobalFilterMode,
+                              rows: visibleSignals,
                             ),
                           ),
                         ],
@@ -907,337 +935,6 @@ class _CatalogVm {
     required this.items,
     required this.dataVersion,
   });
-}
-// ============================================================
-// FLATTENED TABLE ROW
-// ============================================================
-
-class _CatalogTableRow {
-  final String facility;
-  final String category;
-  final String rawCategory;
-
-  final String scadaId;
-  final String boxId;
-  final String boxDeviceId;
-
-  final String plcAddress;
-  final String cateId;
-  final String signalName;
-
-  final double? value;
-  final String unit;
-  final DateTime? recordedAt;
-
-  /*
-   * Các giá trị đã chuẩn hóa.
-   * Không cần trim lại trong mỗi lần build.
-   */
-  final String normalizedFacility;
-  final String normalizedCategory;
-  final String normalizedRawCategory;
-
-  final String normalizedScadaId;
-  final String normalizedBoxId;
-  final String normalizedBoxDeviceId;
-
-  final String normalizedPlcAddress;
-  final String normalizedCateId;
-  final String normalizedSignalName;
-  final String normalizedUnit;
-
-  final String searchBaseText;
-
-  _CatalogTableRow({
-    required String facility,
-    required String category,
-    required String rawCategory,
-    required String scadaId,
-    required String boxId,
-    required String boxDeviceId,
-    required String plcAddress,
-    required String cateId,
-    required String signalName,
-    required this.value,
-    required String unit,
-    required this.recordedAt,
-  }) : facility = facility,
-       category = category,
-       rawCategory = rawCategory,
-       scadaId = scadaId,
-       boxId = boxId,
-       boxDeviceId = boxDeviceId,
-       plcAddress = plcAddress,
-       cateId = cateId,
-       signalName = signalName,
-       unit = unit,
-
-       normalizedFacility = facility.trim(),
-       normalizedCategory = category.trim(),
-       normalizedRawCategory = rawCategory.trim(),
-
-       normalizedScadaId = scadaId.trim(),
-       normalizedBoxId = boxId.trim(),
-       normalizedBoxDeviceId = boxDeviceId.trim(),
-
-       normalizedPlcAddress = plcAddress.trim(),
-       normalizedCateId = cateId.trim(),
-       normalizedSignalName = signalName.trim(),
-       normalizedUnit = unit.trim(),
-
-       searchBaseText = [
-         facility,
-         category,
-         rawCategory,
-         scadaId,
-         boxId,
-         boxDeviceId,
-         plcAddress,
-         cateId,
-         signalName,
-         unit,
-       ].join('|').toLowerCase();
-
-  // ============================================================
-  // STATUS
-  // ============================================================
-
-  bool isStaleAt(DateTime now) {
-    final time = recordedAt;
-
-    if (time == null) {
-      return true;
-    }
-
-    final localTime = time.toLocal();
-
-    return now.difference(localTime) > const Duration(minutes: 2);
-  }
-
-  /*
-   * Dùng cho những chỗ không truyền now.
-   * Trong vòng lặp nhiều row nên ưu tiên isStaleAt(now).
-   */
-  bool get isStale {
-    return isStaleAt(DateTime.now());
-  }
-
-  String statusLabelAt(DateTime now) {
-    return isStaleAt(now) ? 'Stale' : 'Online';
-  }
-
-  String get statusLabel {
-    return isStale ? 'Stale' : 'Online';
-  }
-
-  // ============================================================
-  // DISPLAY
-  // ============================================================
-
-  String get displaySignalName {
-    if (normalizedSignalName.isNotEmpty) {
-      return normalizedSignalName;
-    }
-
-    if (normalizedCateId.isNotEmpty) {
-      return normalizedCateId;
-    }
-
-    return '--';
-  }
-
-  String get displayValue {
-    final currentValue = value;
-
-    if (currentValue == null || !currentValue.isFinite) {
-      return '--';
-    }
-
-    final valueText = currentValue.abs() >= 1000
-        ? currentValue.toStringAsFixed(1)
-        : currentValue.toStringAsFixed(2);
-
-    if (normalizedUnit.isEmpty) {
-      return valueText;
-    }
-
-    return '$valueText $normalizedUnit';
-  }
-
-  String get displayTime {
-    final time = recordedAt;
-
-    if (time == null) {
-      return '--';
-    }
-
-    final local = time.toLocal();
-
-    return '${_two(local.day)}/'
-        '${_two(local.month)}/'
-        '${local.year} '
-        '${_two(local.hour)}:'
-        '${_two(local.minute)}:'
-        '${_two(local.second)}';
-  }
-
-  // ============================================================
-  // SEARCH
-  // ============================================================
-
-  String searchTextAt(DateTime now) {
-    return '$searchBaseText|'
-        '${displayValue.toLowerCase()}|'
-        '${statusLabelAt(now).toLowerCase()}';
-  }
-
-  String get searchText {
-    return searchTextAt(DateTime.now());
-  }
-
-  static String _two(int value) {
-    return value.toString().padLeft(2, '0');
-  }
-}
-
-enum _DeviceHealth { online, warning, offline }
-
-class _CatalogDeviceGroup {
-  final String key;
-
-  final String facility;
-  final String category;
-  final String scadaId;
-  final String boxId;
-  final String boxDeviceId;
-
-  final List<_CatalogTableRow> signals;
-
-  const _CatalogDeviceGroup({
-    required this.key,
-    required this.facility,
-    required this.category,
-    required this.scadaId,
-    required this.boxId,
-    required this.boxDeviceId,
-    required this.signals,
-  });
-
-  int get signalCount => signals.length;
-
-  int get staleCount {
-    return signals.where((item) => item.isStale).length;
-  }
-
-  int get onlineCount {
-    return signalCount - staleCount;
-  }
-
-  _DeviceHealth get health {
-    if (signals.isEmpty || staleCount == signalCount) {
-      return _DeviceHealth.offline;
-    }
-
-    if (staleCount > 0) {
-      return _DeviceHealth.warning;
-    }
-
-    return _DeviceHealth.online;
-  }
-
-  DateTime? get lastUpdated {
-    DateTime? latest;
-
-    for (final signal in signals) {
-      final time = signal.recordedAt;
-
-      if (time == null) continue;
-
-      if (latest == null || time.isAfter(latest)) {
-        latest = time;
-      }
-    }
-
-    return latest;
-  }
-}
-
-class _CatalogTreeGroup {
-  final String key;
-  final String scadaId;
-  final String boxId;
-  final List<_CatalogDeviceGroup> devices;
-
-  const _CatalogTreeGroup({
-    required this.key,
-    required this.scadaId,
-    required this.boxId,
-    required this.devices,
-  });
-
-  int get deviceCount => devices.length;
-
-  int get signalCount {
-    return devices.fold(0, (total, device) => total + device.signalCount);
-  }
-
-  int get staleDeviceCount {
-    return devices
-        .where((device) => device.health != _DeviceHealth.online)
-        .length;
-  }
-}
-// ============================================================
-// SUMMARY
-// ============================================================
-
-class _CatalogSummary {
-  final int facilities;
-  final int devices;
-  final int signals;
-  final int online;
-  final int stale;
-
-  const _CatalogSummary({
-    required this.facilities,
-    required this.devices,
-    required this.signals,
-    required this.online,
-    required this.stale,
-  });
-
-  factory _CatalogSummary.fromRows(List<_CatalogTableRow> rows) {
-    final facilities = <String>{};
-    final devices = <String>{};
-
-    var online = 0;
-    var stale = 0;
-
-    for (final row in rows) {
-      facilities.add(row.facility);
-
-      devices.add(
-        '${row.facility}|'
-        '${row.scadaId}|'
-        '${row.boxId}|'
-        '${row.boxDeviceId}',
-      );
-
-      if (row.isStale) {
-        stale++;
-      } else {
-        online++;
-      }
-    }
-
-    return _CatalogSummary(
-      facilities: facilities.length,
-      devices: devices.length,
-      signals: rows.length,
-      online: online,
-      stale: stale,
-    );
-  }
 }
 
 // ============================================================
@@ -1327,7 +1024,7 @@ class _ViewModeButton extends StatelessWidget {
 class _SignalMonitorTopBar extends StatelessWidget {
   final bool refreshing;
   final Object? error;
-  final _CatalogSummary summary;
+  final CatalogSummary summary;
   final DateTime? lastUpdated;
   final Future<void> Function() onRefresh;
   final UtilityCatalogViewMode viewMode;
@@ -1653,399 +1350,6 @@ class _SignalMonitorFilters extends StatelessWidget {
   }
 }
 
-class _ScadaBoxTreePanel extends StatelessWidget {
-  final List<_CatalogTreeGroup> groups;
-  final String? selectedKey;
-  final ValueChanged<String> onSelected;
-
-  const _ScadaBoxTreePanel({
-    required this.groups,
-    required this.selectedKey,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scadaGroups = <String, List<_CatalogTreeGroup>>{};
-
-    for (final group in groups) {
-      scadaGroups.putIfAbsent(group.scadaId, () => <_CatalogTreeGroup>[]);
-
-      scadaGroups[group.scadaId]!.add(group);
-    }
-
-    return Container(
-      color: const Color(0xFF07111F),
-      child: Column(
-        children: [
-          const _PanelHeader(
-            icon: Icons.account_tree_rounded,
-            title: 'SCADA / BOX TREE',
-          ),
-          Expanded(
-            child: groups.isEmpty
-                ? const _SmallEmptyState(message: 'No SCADA or box')
-                : ListView(
-                    padding: const EdgeInsets.all(8),
-                    children: [
-                      for (final entry in scadaGroups.entries)
-                        Theme(
-                          data: ThemeData.dark().copyWith(
-                            dividerColor: Colors.transparent,
-                          ),
-                          child: ExpansionTile(
-                            initiallyExpanded: true,
-                            tilePadding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                            ),
-                            childrenPadding: const EdgeInsets.only(
-                              left: 8,
-                              bottom: 6,
-                            ),
-                            leading: const Icon(
-                              Icons.hub_rounded,
-                              size: 18,
-                              color: Color(0xFF60A5FA),
-                            ),
-                            title: Text(
-                              entry.key,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            children: [
-                              for (final group in entry.value)
-                                _TreeBoxTile(
-                                  group: group,
-                                  selected: selectedKey == group.key,
-                                  onTap: () {
-                                    onSelected(group.key);
-                                  },
-                                ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TreeBoxTile extends StatelessWidget {
-  final _CatalogTreeGroup group;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _TreeBoxTile({
-    required this.group,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasWarning = group.staleDeviceCount > 0;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
-      child: Material(
-        color: selected
-            ? const Color(0xFF22D3EE).withOpacity(.11)
-            : const Color(0xFF0B1828),
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: selected
-                    ? const Color(0xFF22D3EE).withOpacity(.38)
-                    : Colors.white.withOpacity(.05),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.inventory_2_rounded,
-                  size: 16,
-                  color: selected
-                      ? const Color(0xFF67E8F9)
-                      : const Color(0xFF7C92AC),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        group.boxId,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: selected
-                              ? Colors.white
-                              : const Color(0xFFBCCBDB),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${group.deviceCount} devices'
-                        ' • ${group.signalCount} signals',
-                        style: const TextStyle(
-                          color: Color(0xFF687E98),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: hasWarning
-                        ? Colors.orangeAccent
-                        : const Color(0xFF4ADE80),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DeviceListPanel extends StatelessWidget {
-  final List<_CatalogDeviceGroup> devices;
-  final String? selectedDeviceKey;
-
-  final int totalDevices;
-  final int currentPage;
-  final int pageSize;
-
-  final ValueChanged<String> onSelected;
-
-  const _DeviceListPanel({
-    required this.devices,
-    required this.selectedDeviceKey,
-    required this.totalDevices,
-    required this.currentPage,
-    required this.pageSize,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final start = totalDevices == 0 ? 0 : currentPage * pageSize + 1;
-
-    final end = totalDevices == 0
-        ? 0
-        : (currentPage * pageSize + devices.length).clamp(0, totalDevices);
-
-    return Container(
-      color: const Color(0xFF081321),
-      child: Column(
-        children: [
-          _PanelHeader(
-            icon: Icons.memory_rounded,
-            title: 'DEVICE LIST',
-            trailing: '$start–$end / $totalDevices',
-          ),
-          Expanded(
-            child: devices.isEmpty
-                ? const _SmallEmptyState(message: 'No devices')
-                : ListView.builder(
-                    padding: const EdgeInsets.all(8),
-                    itemCount: devices.length,
-                    itemBuilder: (context, index) {
-                      final device = devices[index];
-
-                      return _DeviceListTile(
-                        device: device,
-                        selected: selectedDeviceKey == device.key,
-                        onTap: () {
-                          onSelected(device.key);
-                        },
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DeviceListTile extends StatelessWidget {
-  final _CatalogDeviceGroup device;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _DeviceListTile({
-    required this.device,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final healthColor = switch (device.health) {
-      _DeviceHealth.online => const Color(0xFF4ADE80),
-      _DeviceHealth.warning => Colors.orangeAccent,
-      _DeviceHealth.offline => Colors.redAccent,
-    };
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: selected
-            ? const Color(0xFF22D3EE).withOpacity(.10)
-            : const Color(0xFF0B1828),
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.all(11),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: selected
-                    ? const Color(0xFF22D3EE).withOpacity(.38)
-                    : Colors.white.withOpacity(.055),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 35,
-                  height: 35,
-                  decoration: BoxDecoration(
-                    color: healthColor.withOpacity(.08),
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Icon(
-                    Icons.memory_rounded,
-                    color: healthColor,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        device.boxDeviceId,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: selected
-                              ? Colors.white
-                              : const Color(0xFFD0DCEC),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${device.signalCount} signals'
-                        ' • ${device.onlineCount} online'
-                        ' • ${device.staleCount} stale',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF71869F),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Updated ${_formatDeviceTime(device.lastUpdated)}',
-                        style: const TextStyle(
-                          color: Color(0xFF60758D),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: healthColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  static String _formatDeviceTime(DateTime? value) {
-    if (value == null) return '--:--:--';
-
-    final local = value.toLocal();
-
-    String two(int value) {
-      return value.toString().padLeft(2, '0');
-    }
-
-    return '${two(local.hour)}:'
-        '${two(local.minute)}:'
-        '${two(local.second)}';
-  }
-}
-
-class _NoDeviceSelected extends StatelessWidget {
-  const _NoDeviceSelected();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.touch_app_rounded, color: Color(0xFF526A84), size: 44),
-          SizedBox(height: 12),
-          Text(
-            'Select a device',
-            style: TextStyle(
-              color: Color(0xFFB7C8DE),
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          SizedBox(height: 5),
-          Text(
-            'Signals will appear here',
-            style: TextStyle(color: Color(0xFF71869F), fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _DevicePaginationBar extends StatelessWidget {
   final int totalItems;
   final int currentPage;
@@ -2158,72 +1462,6 @@ class _PageButton extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PanelHeader extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? trailing;
-
-  const _PanelHeader({required this.icon, required this.title, this.trailing});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 46,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0D1B2B),
-        border: Border(bottom: BorderSide(color: Color(0xFF20344D))),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 17, color: const Color(0xFF8FA5BF)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: Color(0xFFB7C8DE),
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: .55,
-              ),
-            ),
-          ),
-          if (trailing != null)
-            Text(
-              trailing!,
-              style: const TextStyle(
-                color: Color(0xFF67E8F9),
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SmallEmptyState extends StatelessWidget {
-  final String message;
-
-  const _SmallEmptyState({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        message,
-        style: const TextStyle(
-          color: Color(0xFF667C94),
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -2351,480 +1589,6 @@ class _FilterDropdown extends StatelessWidget {
   }
 }
 
-class _DeviceSignalDetail extends StatelessWidget {
-  final _CatalogDeviceGroup? device;
-  final _CatalogDataSource dataSource;
-
-  const _DeviceSignalDetail({required this.device, required this.dataSource});
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedDevice = device;
-
-    if (selectedDevice == null) {
-      return const _NoDeviceSelected();
-    }
-
-    return Container(
-      color: const Color(0xFF07111F),
-      child: Column(
-        children: [
-          Container(
-            height: 80,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: const BoxDecoration(
-              color: Color(0xFF0D1B2B),
-              border: Border(bottom: BorderSide(color: Color(0xFF20344D))),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        selectedDevice.boxDeviceId,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        '${selectedDevice.facility}'
-                        '  •  ${selectedDevice.category}'
-                        '  •  ${selectedDevice.scadaId}'
-                        '  •  ${selectedDevice.boxId}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF7F94AD),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _DetailBadge(
-                  label: '${selectedDevice.signalCount} Signals',
-                  color: const Color(0xFF60A5FA),
-                ),
-                const SizedBox(width: 7),
-                _DetailBadge(
-                  label: '${selectedDevice.onlineCount} Online',
-                  color: const Color(0xFF4ADE80),
-                ),
-                const SizedBox(width: 7),
-                _DetailBadge(
-                  label: '${selectedDevice.staleCount} Stale',
-                  color: Colors.orangeAccent,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: selectedDevice.signals.isEmpty
-                ? const _CatalogEmptyState()
-                : _DeviceSignalGrid(source: dataSource),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DeviceSignalGrid extends StatelessWidget {
-  final _CatalogDataSource source;
-
-  const _DeviceSignalGrid({required this.source});
-
-  @override
-  Widget build(BuildContext context) {
-    return SfDataGrid(
-      source: source,
-      allowSorting: true,
-      allowMultiColumnSorting: true,
-      rowHeight: 56,
-      headerRowHeight: 46,
-      frozenColumnsCount: 1,
-      columnWidthMode: ColumnWidthMode.none,
-      gridLinesVisibility: GridLinesVisibility.horizontal,
-      headerGridLinesVisibility: GridLinesVisibility.both,
-      horizontalScrollPhysics: const ClampingScrollPhysics(),
-      verticalScrollPhysics: const ClampingScrollPhysics(),
-      columns: [
-        GridColumn(
-          columnName: 'plcAddress',
-          width: 110,
-          label: const _GridHeader(label: 'PLC'),
-        ),
-        GridColumn(
-          columnName: 'signalName',
-          width: 360,
-          label: const _GridHeader(label: 'SIGNAL'),
-        ),
-        GridColumn(
-          columnName: 'value',
-          width: 155,
-          label: const _GridHeader(label: 'VALUE'),
-        ),
-        GridColumn(
-          columnName: 'updated',
-          width: 180,
-          label: const _GridHeader(label: 'UPDATED'),
-        ),
-        GridColumn(
-          columnName: 'status',
-          width: 110,
-          label: const _GridHeader(label: 'STATUS'),
-        ),
-      ],
-    );
-  }
-}
-
-class _DetailBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _DetailBadge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withOpacity(.08),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(.20)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-// ============================================================
-// DATA GRID
-// ============================================================
-
-class _GridHeader extends StatelessWidget {
-  final String label;
-
-  const _GridHeader({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      color: const Color(0xFF16253A),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Color(0xFFB7C8DE),
-          fontSize: 15,
-          fontWeight: FontWeight.w900,
-          letterSpacing: .55,
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// DATA SOURCE
-// ============================================================
-
-class _CatalogDataSource extends DataGridSource {
-  final List<_CatalogTableRow> rowsData;
-
-  late final List<DataGridRow> _rows;
-
-  final Map<DataGridRow, _CatalogTableRow> _modelByGridRow =
-      <DataGridRow, _CatalogTableRow>{};
-
-  _CatalogDataSource({required List<_CatalogTableRow> rows})
-    : rowsData = List<_CatalogTableRow>.unmodifiable(rows) {
-    _rows = rowsData.map(_createGridRow).toList(growable: false);
-  }
-
-  DataGridRow _createGridRow(_CatalogTableRow model) {
-    final gridRow = DataGridRow(
-      cells: [
-        DataGridCell<String>(columnName: 'plcAddress', value: model.plcAddress),
-        DataGridCell<String>(
-          columnName: 'signalName',
-          value: model.displaySignalName,
-        ),
-        DataGridCell<double>(
-          columnName: 'value',
-          value: model.value ?? double.negativeInfinity,
-        ),
-        DataGridCell<int>(
-          columnName: 'updated',
-          value: model.recordedAt?.millisecondsSinceEpoch ?? -1,
-        ),
-        DataGridCell<int>(columnName: 'status', value: model.isStale ? 1 : 0),
-      ],
-    );
-
-    _modelByGridRow[gridRow] = model;
-
-    return gridRow;
-  }
-
-  @override
-  List<DataGridRow> get rows => _rows;
-
-  @override
-  DataGridRowAdapter buildRow(DataGridRow gridRow) {
-    final model = _modelByGridRow[gridRow];
-
-    if (model == null) {
-      return DataGridRowAdapter(
-        cells: gridRow
-            .getCells()
-            .map((cell) => _textCell(cell.value?.toString() ?? '--'))
-            .toList(growable: false),
-      );
-    }
-
-    final index = _rows.indexOf(gridRow);
-
-    final background = index.isEven
-        ? const Color(0xFF081321)
-        : const Color(0xFF0B1728);
-
-    return DataGridRowAdapter(
-      color: background,
-      cells: gridRow
-          .getCells()
-          .map((cell) {
-            switch (cell.columnName) {
-              case 'plcAddress':
-                return _plcCell(model);
-
-              case 'signalName':
-                return _signalCell(model);
-
-              case 'value':
-                return _valueCell(model);
-
-              case 'updated':
-                return _updatedCell(model);
-
-              case 'status':
-                return _statusCell(model);
-
-              default:
-                return _textCell(cell.value?.toString() ?? '--');
-            }
-          })
-          .toList(growable: false),
-    );
-  }
-
-  Widget _textCell(String text) {
-    final displayText = text.trim().isEmpty ? '--' : text.trim();
-
-    return Container(
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Text(
-        displayText,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Color(0xFFC6D4E5),
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
-  Widget _plcCell(_CatalogTableRow row) {
-    final style = _categoryStyle(row.category);
-
-    return Container(
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: style.color.withOpacity(.08),
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: style.color.withOpacity(.18)),
-        ),
-        child: Text(
-          row.plcAddress.trim().isEmpty ? '--' : row.plcAddress.trim(),
-          style: TextStyle(
-            color: style.color,
-            fontSize: 15,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _signalCell(_CatalogTableRow row) {
-    return Container(
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            row.displaySignalName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          if (row.cateId.trim().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 3),
-              child: Text(
-                row.cateId.trim(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF6F859F),
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _valueCell(_CatalogTableRow row) {
-    return Container(
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Text(
-        row.displayValue,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: row.isStale ? Colors.orangeAccent : const Color(0xFF4ADE80),
-          fontSize: 15,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-
-  Widget _updatedCell(_CatalogTableRow row) {
-    return Container(
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Text(
-        row.displayTime,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Color(0xFF9AAEC5),
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
-  Widget _statusCell(_CatalogTableRow row) {
-    final color = row.isStale ? Colors.orangeAccent : const Color(0xFF4ADE80);
-
-    return Container(
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withOpacity(.09),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withOpacity(.22)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              row.statusLabel.toUpperCase(),
-              style: TextStyle(
-                color: color,
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  _CategoryVisualStyle _categoryStyle(String category) {
-    final value = category.trim().toUpperCase();
-
-    if (value.contains('ELECTRIC')) {
-      return const _CategoryVisualStyle(
-        color: Color(0xFFFBBF24),
-        icon: Icons.bolt_rounded,
-      );
-    }
-
-    if (value.contains('WATER')) {
-      return const _CategoryVisualStyle(
-        color: Color(0xFF22D3EE),
-        icon: Icons.water_drop_rounded,
-      );
-    }
-
-    if (value.contains('AIR') || value.contains('COMPRESSED')) {
-      return const _CategoryVisualStyle(
-        color: Color(0xFFA78BFA),
-        icon: Icons.air_rounded,
-      );
-    }
-
-    return const _CategoryVisualStyle(
-      color: Color(0xFF94A3B8),
-      icon: Icons.category_rounded,
-    );
-  }
-}
-
-class _CategoryVisualStyle {
-  final Color color;
-  final IconData icon;
-
-  const _CategoryVisualStyle({required this.color, required this.icon});
-}
-
 // ============================================================
 // STATES
 // ============================================================
@@ -2896,43 +1660,6 @@ class _CatalogErrorState extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CatalogEmptyState extends StatelessWidget {
-  const _CatalogEmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.table_rows_outlined,
-            color: Colors.white.withOpacity(.28),
-            size: 52,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No utility signals found',
-            style: TextStyle(
-              color: Colors.white.withOpacity(.66),
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            'Try changing or clearing the filters',
-            style: TextStyle(
-              color: Colors.white.withOpacity(.38),
-              fontSize: 12,
-            ),
-          ),
-        ],
       ),
     );
   }

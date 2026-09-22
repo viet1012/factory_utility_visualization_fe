@@ -11,17 +11,12 @@ class UtilityHourlyDashboardProvider extends ChangeNotifier {
 
   UtilityHourlyDashboardProvider(this.api);
 
-  static const Duration pollInterval = Duration(minutes: 30);
-
   static const Duration requestTimeout = Duration(seconds: 15);
-
-  Timer? _pollTimer;
 
   bool _loading = false;
   bool _refreshing = false;
   bool _fetching = false;
   bool _disposed = false;
-  bool _paused = false;
 
   Object? _error;
 
@@ -58,11 +53,13 @@ class UtilityHourlyDashboardProvider extends ChangeNotifier {
 
   bool get hasValidParams => _facId != null && _facId!.isNotEmpty;
 
-  Future<void> start({
+  void configure({
     required String facId,
     int hours = 48,
     String? nameEn,
-  }) async {
+  }) {
+    if (_disposed) return;
+
     final normalizedFac = facId.trim();
     final normalizedHours = hours <= 0 ? 48 : hours.clamp(1, 168);
 
@@ -77,9 +74,9 @@ class UtilityHourlyDashboardProvider extends ChangeNotifier {
     _hours = normalizedHours;
     _nameEn = normalizedName;
 
-    _pollTimer?.cancel();
-
     if (changed) {
+      _requestToken++;
+
       _electricity = const [];
       _water = const [];
       _air = const [];
@@ -87,48 +84,10 @@ class UtilityHourlyDashboardProvider extends ChangeNotifier {
       _error = null;
       _loading = true;
       _refreshing = false;
+      _fetching = false;
 
       _safeNotifyListeners();
     }
-
-    if (_paused) return;
-
-    await load();
-
-    if (_disposed || _paused) return;
-
-    _restartPollingTimer();
-  }
-
-  void pause() {
-    if (_disposed || _paused) return;
-
-    _paused = true;
-    _pollTimer?.cancel();
-    _pollTimer = null;
-  }
-
-  Future<void> resume() async {
-    if (_disposed || !_paused) return;
-
-    _paused = false;
-
-    if (!hasValidParams) return;
-
-    await load(silent: hasData);
-
-    if (_disposed || _paused) return;
-
-    _restartPollingTimer();
-  }
-
-  void _restartPollingTimer() {
-    if (_disposed || _paused) return;
-
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(pollInterval, (_) {
-      unawaited(load(silent: true));
-    });
   }
 
   Future<void> load({bool silent = false}) async {
@@ -223,8 +182,6 @@ class UtilityHourlyDashboardProvider extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _requestToken++;
-
-    _pollTimer?.cancel();
 
     super.dispose();
   }

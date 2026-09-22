@@ -211,6 +211,7 @@ class _UtilityDashboardOverviewState extends State<UtilityDashboardOverview> {
 
                           Expanded(
                             child: UtilityRealtimeTabPanel(
+                              isActive: widget.isActive,
                               selectedFac: selectedFac,
                               nowStr: nowStr,
                               yStr: yStr,

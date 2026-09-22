@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'controllers/utility_chart_catalog_controller.dart';
-import 'controllers/utility_minute_chart_controller.dart';
+import '../shared/polling/polling_coordinator.dart';
+import '../shared/polling/polling_scope.dart';
 import 'tabs/utility_chart_view.dart';
 import '../utility_dashboard_common/chart_theme.dart';
 import 'widgets/utility_industrial_motion_background.dart';
@@ -23,7 +24,7 @@ class UtilityChartScreen extends StatefulWidget {
 class _UtilityChartScreenState extends State<UtilityChartScreen>
     with WidgetsBindingObserver {
   late final UtilityChartController controller;
-  late final UtilityMinuteChartController _minuteController;
+  late final PollingCoordinator _pollingCoordinator;
   late final ValueNotifier<bool> _animationEnabledNotifier;
 
   Timer? _resumeAnimationTimer;
@@ -46,12 +47,14 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
 
     WidgetsBinding.instance.addObserver(this);
 
-    _minuteController = context.read<UtilityMinuteChartController>();
+    _pollingCoordinator = context.read<PollingCoordinator>();
     controller = UtilityChartController(
       catalog: context.read<UtilityChartCatalogController>(),
     );
     controller.addListener(_syncMinutePolling);
     _animationEnabledNotifier = ValueNotifier<bool>(_animationEnabled);
+
+    _syncMinutePolling();
 
     _scheduleActivation();
   }
@@ -62,9 +65,9 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
         controller.selectedView == UtilityChartView.minutes;
 
     if (shouldPoll) {
-      _minuteController.startPolling();
+      _pollingCoordinator.activateScope(PollingScope.chartsMinutes);
     } else {
-      _minuteController.stopPolling();
+      _pollingCoordinator.deactivateScope(PollingScope.chartsMinutes);
     }
   }
 
@@ -271,7 +274,7 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
     WidgetsBinding.instance.removeObserver(this);
 
     _animationEnabledNotifier.dispose();
-    _minuteController.stopPolling();
+    _pollingCoordinator.deactivateScope(PollingScope.chartsMinutes);
     controller.removeListener(_syncMinutePolling);
     controller.dispose();
 

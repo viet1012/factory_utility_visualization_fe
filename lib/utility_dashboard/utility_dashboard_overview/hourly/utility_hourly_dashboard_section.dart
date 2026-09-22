@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../utility_dashboard_common/chart_theme.dart';
+import '../../shared/polling/polling_coordinator.dart';
+import '../../shared/polling/polling_task_ids.dart';
 import '../models/utility_hourly_dashboard_response.dart';
 import '../providers/utility_hourly_dashboard_provider.dart';
 import '../../shared/widgets/chart_state_widgets.dart';
@@ -23,6 +25,7 @@ class UtilityHourlyDashboardSection extends StatefulWidget {
 class _UtilityHourlyDashboardSectionState
     extends State<UtilityHourlyDashboardSection> {
   late final UtilityHourlyDashboardProvider _provider;
+  late final PollingCoordinator _pollingCoordinator;
 
   int _scheduleToken = 0;
 
@@ -30,6 +33,7 @@ class _UtilityHourlyDashboardSectionState
   void initState() {
     super.initState();
     _provider = context.read<UtilityHourlyDashboardProvider>();
+    _pollingCoordinator = context.read<PollingCoordinator>();
     _scheduleStart(facId: widget.facId);
   }
 
@@ -52,7 +56,9 @@ class _UtilityHourlyDashboardSectionState
       if (!mounted) return;
       if (token != _scheduleToken) return;
 
-      unawaited(_provider.start(facId: nextFacId));
+      _pollingCoordinator.stop(PollingTaskIds.mapHourlyDashboard);
+      _provider.configure(facId: nextFacId);
+      _pollingCoordinator.start(PollingTaskIds.mapHourlyDashboard);
     });
   }
 

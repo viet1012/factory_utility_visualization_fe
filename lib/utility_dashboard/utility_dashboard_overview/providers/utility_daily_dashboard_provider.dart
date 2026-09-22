@@ -12,17 +12,13 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
 
   UtilityDailyDashboardProvider(this.api);
 
-  static const Duration pollInterval = Duration(hours: 1);
   static const Duration requestTimeout = Duration(seconds: 30);
-
-  Timer? _pollTimer;
 
   bool _notifyScheduled = false;
   bool _loading = false;
   bool _refreshing = false;
   bool _fetching = false;
   bool _disposed = false;
-  bool _paused = false;
 
   Object? _error;
 
@@ -79,18 +75,16 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
   }
 
   // ============================================================
-  // START
+  // CONFIGURE
   // ============================================================
 
-  Future<void> start({required String facId, required String month}) async {
+  void configure({required String facId, required String month}) {
     if (_disposed) return;
 
     final normalizedFac = _normalizeFac(facId);
     final normalizedMonth = _normalizeMonth(month);
 
     final changed = normalizedFac != _facId || normalizedMonth != _month;
-
-    _stopPolling();
 
     if (changed) {
       _invalidateCurrentRequest();
@@ -115,35 +109,6 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
       _facId = normalizedFac;
       _month = normalizedMonth;
     }
-
-    if (_paused) return;
-
-    await load(silent: !changed && hasData, force: changed);
-
-    if (_disposed || _paused) return;
-
-    _scheduleNextPoll();
-  }
-
-  void pause() {
-    if (_disposed || _paused) return;
-
-    _paused = true;
-    _stopPolling();
-  }
-
-  Future<void> resume() async {
-    if (_disposed || !_paused) return;
-
-    _paused = false;
-
-    if (!hasValidParams) return;
-
-    await load(silent: hasData, force: false);
-
-    if (_disposed || _paused) return;
-
-    _scheduleNextPoll();
   }
 
   // ============================================================
@@ -235,40 +200,7 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
       return;
     }
 
-    _stopPolling();
-
     await load(silent: hasData, force: false);
-
-    if (_disposed) return;
-
-    _scheduleNextPoll();
-  }
-
-  // ============================================================
-  // POLLING
-  // ============================================================
-
-  void _scheduleNextPoll() {
-    if (_disposed || _paused || !hasValidParams) {
-      return;
-    }
-
-    _stopPolling();
-
-    _pollTimer = Timer(pollInterval, () async {
-      if (_disposed || _paused) return;
-
-      await load(silent: true, force: false);
-
-      if (_disposed || _paused) return;
-
-      _scheduleNextPoll();
-    });
-  }
-
-  void _stopPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = null;
   }
 
   // ============================================================
@@ -279,8 +211,6 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
     if (_disposed) return;
 
     _invalidateCurrentRequest();
-    _stopPolling();
-
     _facId = null;
     _month = null;
 
@@ -407,8 +337,6 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
     _disposed = true;
 
     _invalidateCurrentRequest();
-    _stopPolling();
-
     super.dispose();
   }
 }

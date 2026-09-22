@@ -25,13 +25,4 @@ class WeatherApiService {
     }
     return null;
   }
-
-  // Stream realtime weather (update mỗi 60 phút)
-  Stream<WeatherData> weatherStream() async* {
-    while (true) {
-      final data = await fetchWeatherData();
-      if (data != null) yield data;
-      await Future.delayed(const Duration(minutes: 5));
-    }
-  }
 }
