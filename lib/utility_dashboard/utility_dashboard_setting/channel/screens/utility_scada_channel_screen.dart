@@ -390,9 +390,9 @@ class VerticalFacTree extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.035),
+        color: Colors.white.withValues(alpha: 0.035),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -411,7 +411,7 @@ class VerticalFacTree extends StatelessWidget {
           subtitle: Text(
             '${node.scadas.length} SCADA • $totalBoxes boxes • $totalDevices devices',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.62),
+              color: Colors.white.withValues(alpha: 0.62),
               fontSize: 14,
             ),
           ),
@@ -459,12 +459,12 @@ class VerticalScadaTree extends StatelessWidget {
     );
 
     return _TreeIndent(
-      color: lineColor.withOpacity(0.40),
+      color: lineColor.withValues(alpha: 0.40),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.03),
+          color: Colors.white.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.07)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
         ),
         child: Theme(
           data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -482,7 +482,7 @@ class VerticalScadaTree extends StatelessWidget {
             subtitle: Text(
               '${scada.boxes.length} boxes • $totalDevices devices',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.62),
+                color: Colors.white.withValues(alpha: 0.62),
                 fontSize: 14,
               ),
             ),
@@ -532,9 +532,9 @@ class VerticalBoxTree extends StatelessWidget {
       color: Colors.white24,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.025),
+          color: Colors.white.withValues(alpha: 0.025),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
         ),
         child: Theme(
           data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -558,7 +558,7 @@ class VerticalBoxTree extends StatelessWidget {
             subtitle: Text(
               '${box.devices.length} devices',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.62),
+                color: Colors.white.withValues(alpha: 0.62),
                 fontSize: 14,
               ),
             ),
@@ -606,7 +606,7 @@ class VerticalDeviceNode extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF11151C),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -674,7 +674,7 @@ class _NodeIconBox extends StatelessWidget {
       width: 34,
       height: 34,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(icon, color: color, size: 18),
@@ -695,13 +695,16 @@ class _EmptyLeaf extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.025),
+          color: Colors.white.withValues(alpha: 0.025),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
         ),
         child: Text(
           label,
-          style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 15),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.55),
+            fontSize: 15,
+          ),
         ),
       ),
     );
@@ -727,19 +730,19 @@ class _TopActionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
+          color: Colors.white.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withOpacity(0.10)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: Colors.white.withOpacity(0.85)),
+            Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.85)),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.90),
+                color: Colors.white.withValues(alpha: 0.90),
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
               ),

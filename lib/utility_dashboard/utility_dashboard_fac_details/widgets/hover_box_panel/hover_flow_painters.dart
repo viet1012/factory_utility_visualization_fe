@@ -11,7 +11,7 @@ class ElectricFlowPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final random = math.Random(42);
     final paint = Paint()
-      ..color = const Color(0xFFFFB400).withOpacity(0.6 * (1 - progress))
+      ..color = const Color(0xFFFFB400).withValues(alpha: 0.6 * (1 - progress))
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
 
@@ -54,13 +54,15 @@ class WaterFlowPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = const Color(0xFF0369A1).withOpacity(0.5 * (1 - progress));
+      ..color = const Color(0xFF0369A1).withValues(alpha: 0.5 * (1 - progress));
 
     // Draw expanding wave rings
     for (int i = 0; i < 3; i++) {
       final radius = (size.width / 2) * (progress + (i * 0.3)) % 1.0;
       final waveOpacity = (1 - (progress + (i * 0.3)) % 1.0);
-      paint.color = const Color(0xFF0369A1).withOpacity(0.5 * waveOpacity);
+      paint.color = const Color(
+        0xFF0369A1,
+      ).withValues(alpha: 0.5 * waveOpacity);
 
       canvas.drawCircle(Offset(size.width / 2, size.height / 2), radius, paint);
     }
@@ -84,7 +86,7 @@ class AirFlowPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = const Color(0xFFA78BFA).withOpacity(0.6);
+      ..color = const Color(0xFFA78BFA).withValues(alpha: 0.6);
 
     // Draw 2 sine wave streams
     for (int stream = 0; stream < 2; stream++) {
@@ -121,7 +123,7 @@ class ParticleFlowPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..style = PaintingStyle.fill
-      ..color = const Color(0xFF38BDF8).withOpacity(0.7 * (1 - progress));
+      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.7 * (1 - progress));
 
     // Draw 3 flowing particles
     for (int i = 0; i < 3; i++) {
@@ -160,10 +162,10 @@ class PremiumIconEffectPainter extends CustomPainter {
         transform: GradientRotation(progress * math.pi * 2),
         colors: [
           Colors.transparent,
-          color.withOpacity(0.20),
-          color.withOpacity(0.95),
-          Colors.white.withOpacity(0.80),
-          color.withOpacity(0.25),
+          color.withValues(alpha: 0.20),
+          color.withValues(alpha: 0.95),
+          Colors.white.withValues(alpha: 0.80),
+          color.withValues(alpha: 0.25),
           Colors.transparent,
         ],
       ).createShader(rect);
@@ -173,13 +175,13 @@ class PremiumIconEffectPainter extends CustomPainter {
     final pulsePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
-      ..color = color.withOpacity((1 - progress) * 0.30);
+      ..color = color.withValues(alpha: (1 - progress) * 0.30);
 
     canvas.drawCircle(center, 12 + progress * 8, pulsePaint);
 
     final dotPaint = Paint()
       ..style = PaintingStyle.fill
-      ..color = color.withOpacity(0.85);
+      ..color = color.withValues(alpha: 0.85);
 
     for (int i = 0; i < 3; i++) {
       final p = (progress + i * 0.33) % 1.0;
@@ -204,7 +206,7 @@ class PremiumIconEffectPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Colors.white.withOpacity(0.28), Colors.transparent],
+        colors: [Colors.white.withValues(alpha: 0.28), Colors.transparent],
       ).createShader(Rect.fromLTWH(7, 6, 16, 10));
 
     canvas.drawOval(Rect.fromLTWH(8, 6, 14, 8), shinePaint);
@@ -253,12 +255,12 @@ class ScadaEnergyIcon extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: color.withOpacity(0.42),
+                      color: color.withValues(alpha: 0.42),
                       blurRadius: 20,
                       spreadRadius: 1.5,
                     ),
                     BoxShadow(
-                      color: color.withOpacity(0.20),
+                      color: color.withValues(alpha: 0.20),
                       blurRadius: 36,
                       spreadRadius: 3,
                     ),
@@ -276,13 +278,13 @@ class ScadaEnergyIcon extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white.withOpacity(0.24),
-                      color.withOpacity(0.28),
-                      Colors.black.withOpacity(0.18),
+                      Colors.white.withValues(alpha: 0.24),
+                      color.withValues(alpha: 0.28),
+                      Colors.black.withValues(alpha: 0.18),
                     ],
                   ),
                   border: Border.all(
-                    color: color.withOpacity(0.55),
+                    color: color.withValues(alpha: 0.55),
                     width: 1.15,
                   ),
                 ),
@@ -303,10 +305,10 @@ class ScadaEnergyIcon extends StatelessWidget {
                         child: Container(
                           height: 1.2,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.45),
+                            color: Colors.white.withValues(alpha: 0.45),
                             boxShadow: [
                               BoxShadow(
-                                color: color.withOpacity(0.55),
+                                color: color.withValues(alpha: 0.55),
                                 blurRadius: 8,
                               ),
                             ],
@@ -325,8 +327,8 @@ class ScadaEnergyIcon extends StatelessWidget {
                             borderRadius: BorderRadius.circular(20),
                             gradient: LinearGradient(
                               colors: [
-                                Colors.white.withOpacity(0.28),
-                                Colors.white.withOpacity(0.02),
+                                Colors.white.withValues(alpha: 0.28),
+                                Colors.white.withValues(alpha: 0.02),
                               ],
                             ),
                           ),
@@ -336,12 +338,15 @@ class ScadaEnergyIcon extends StatelessWidget {
                       // icon fixed: no zoom, no heartbeat
                       Icon(
                         icon,
-                        color: Colors.white.withOpacity(0.92),
+                        color: Colors.white.withValues(alpha: 0.92),
                         size: 21,
                         shadows: [
-                          Shadow(color: color.withOpacity(0.95), blurRadius: 9),
                           Shadow(
-                            color: color.withOpacity(0.55),
+                            color: color.withValues(alpha: 0.95),
+                            blurRadius: 9,
+                          ),
+                          Shadow(
+                            color: color.withValues(alpha: 0.55),
                             blurRadius: 18,
                           ),
                         ],
@@ -363,7 +368,7 @@ class ScadaEnergyIcon extends StatelessWidget {
                     color: color,
                     boxShadow: [
                       BoxShadow(
-                        color: color.withOpacity(0.9),
+                        color: color.withValues(alpha: 0.9),
                         blurRadius: 8,
                         spreadRadius: 1,
                       ),

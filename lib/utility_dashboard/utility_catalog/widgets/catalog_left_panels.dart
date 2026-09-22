@@ -104,7 +104,7 @@ class _TreeBoxTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 5),
       child: Material(
         color: selected
-            ? const Color(0xFF22D3EE).withOpacity(.11)
+            ? const Color(0xFF22D3EE).withValues(alpha: .11)
             : const Color(0xFF0B1828),
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
@@ -116,8 +116,8 @@ class _TreeBoxTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: selected
-                    ? const Color(0xFF22D3EE).withOpacity(.38)
-                    : Colors.white.withOpacity(.05),
+                    ? const Color(0xFF22D3EE).withValues(alpha: .38)
+                    : Colors.white.withValues(alpha: .05),
               ),
             ),
             child: Row(
@@ -262,7 +262,7 @@ class _DeviceListTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
         color: selected
-            ? const Color(0xFF22D3EE).withOpacity(.10)
+            ? const Color(0xFF22D3EE).withValues(alpha: .10)
             : const Color(0xFF0B1828),
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
@@ -274,8 +274,8 @@ class _DeviceListTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: selected
-                    ? const Color(0xFF22D3EE).withOpacity(.38)
-                    : Colors.white.withOpacity(.055),
+                    ? const Color(0xFF22D3EE).withValues(alpha: .38)
+                    : Colors.white.withValues(alpha: .055),
               ),
             ),
             child: Row(
@@ -284,7 +284,7 @@ class _DeviceListTile extends StatelessWidget {
                   width: 35,
                   height: 35,
                   decoration: BoxDecoration(
-                    color: healthColor.withOpacity(.08),
+                    color: healthColor.withValues(alpha: .08),
                     borderRadius: BorderRadius.circular(9),
                   ),
                   child: Icon(

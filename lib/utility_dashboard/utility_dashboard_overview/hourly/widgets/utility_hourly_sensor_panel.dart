@@ -331,9 +331,9 @@ class _TemperatureTrendCard extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: theme.line.withOpacity(.10),
+                  color: theme.line.withValues(alpha: .10),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: theme.line.withOpacity(.22)),
+                  border: Border.all(color: theme.line.withValues(alpha: .22)),
                 ),
                 child: Icon(theme.icon, color: theme.line, size: 18),
               ),
@@ -368,7 +368,7 @@ class _TemperatureTrendCard extends StatelessWidget {
                       Text(
                         theme.unit,
                         style: TextStyle(
-                          color: theme.line.withOpacity(.72),
+                          color: theme.line.withValues(alpha: .72),
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                         ),
@@ -386,10 +386,7 @@ class _TemperatureTrendCard extends StatelessWidget {
                 _DiffBadge(diff: data.diff!),
                 const SizedBox(width: 10),
               ],
-              HealthIndicator(
-                result: health,
-                size: 8,
-              ),
+              HealthIndicator(result: health, size: 8),
             ],
           ),
         ),
@@ -418,9 +415,9 @@ class _DiffBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(.08),
+        color: color.withValues(alpha: .08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(.20)),
+        border: Border.all(color: color.withValues(alpha: .20)),
       ),
       child: Row(
         children: [
@@ -502,7 +499,7 @@ class _TempLineChart extends StatelessWidget {
       return Center(
         child: Text(
           'Not enough points',
-          style: TextStyle(color: Colors.white.withOpacity(.60)),
+          style: TextStyle(color: Colors.white.withValues(alpha: .60)),
         ),
       );
     }
@@ -516,7 +513,7 @@ class _TempLineChart extends StatelessWidget {
         alignment: ChartAlignment.center,
         toggleSeriesVisibility: true,
         textStyle: TextStyle(
-          color: Colors.white.withOpacity(.72),
+          color: Colors.white.withValues(alpha: .72),
           fontSize: 10,
           fontWeight: FontWeight.w700,
         ),
@@ -530,7 +527,7 @@ class _TempLineChart extends StatelessWidget {
           return ChartAxisLabel(
             args.value.toInt().toString(),
             TextStyle(
-              color: Colors.white.withOpacity(.66),
+              color: Colors.white.withValues(alpha: .66),
               fontSize: 11,
               fontWeight: FontWeight.w500,
             ),
@@ -538,9 +535,9 @@ class _TempLineChart extends StatelessWidget {
         },
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(.04),
+          color: Colors.white.withValues(alpha: .04),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
+        axisLine: AxisLine(color: Colors.white.withValues(alpha: .10)),
       ),
       primaryYAxis: NumericAxis(
         minimum: data.minY,
@@ -549,18 +546,18 @@ class _TempLineChart extends StatelessWidget {
         numberFormat: NumberFormat('0.0'),
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(.04),
+          color: Colors.white.withValues(alpha: .04),
         ),
         title: AxisTitle(
           text: theme.unit,
           alignment: ChartAlignment.center,
           textStyle: TextStyle(
-            color: Colors.white.withOpacity(.76),
+            color: Colors.white.withValues(alpha: .76),
             fontWeight: FontWeight.w600,
             fontSize: 13,
           ),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
+        axisLine: AxisLine(color: Colors.white.withValues(alpha: .10)),
         labelStyle: TextStyle(color: Colors.white70, fontSize: 14),
       ),
       tooltipBehavior: TooltipBehavior(
@@ -582,8 +579,8 @@ class _TempLineChart extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF9CA3AF).withOpacity(.18),
-              const Color(0xFF9CA3AF).withOpacity(.02),
+              const Color(0xFF9CA3AF).withValues(alpha: .18),
+              const Color(0xFF9CA3AF).withValues(alpha: .02),
             ],
           ),
           emptyPointSettings: const EmptyPointSettings(
@@ -606,7 +603,7 @@ class _TempLineChart extends StatelessWidget {
             width: 4,
             height: 4,
             borderWidth: 1,
-            borderColor: theme.line.withOpacity(.90),
+            borderColor: theme.line.withValues(alpha: .90),
           ),
 
           // Không hiện label toàn bộ điểm,

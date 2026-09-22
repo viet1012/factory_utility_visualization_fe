@@ -39,16 +39,19 @@ class CenterMessage extends StatelessWidget {
               end: Alignment.bottomRight,
 
               colors: [
-                Colors.white.withOpacity(0.08),
-                Colors.white.withOpacity(0.03),
+                Colors.white.withValues(alpha: 0.08),
+                Colors.white.withValues(alpha: 0.03),
               ],
             ),
 
-            border: Border.all(color: color.withOpacity(0.28), width: 1.2),
+            border: Border.all(
+              color: color.withValues(alpha: 0.28),
+              width: 1.2,
+            ),
 
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.12),
+                color: color.withValues(alpha: 0.12),
 
                 blurRadius: 24,
 
@@ -58,7 +61,7 @@ class CenterMessage extends StatelessWidget {
               ),
 
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
+                color: Colors.black.withValues(alpha: 0.25),
 
                 blurRadius: 18,
 
@@ -81,9 +84,9 @@ class CenterMessage extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
 
-                  color: color.withOpacity(0.14),
+                  color: color.withValues(alpha: 0.14),
 
-                  border: Border.all(color: color.withOpacity(0.35)),
+                  border: Border.all(color: color.withValues(alpha: 0.35)),
                 ),
 
                 child: Icon(icon, size: 30, color: color),
@@ -100,7 +103,7 @@ class CenterMessage extends StatelessWidget {
                 textAlign: TextAlign.center,
 
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.92),
+                  color: Colors.white.withValues(alpha: 0.92),
 
                   fontSize: 16,
 

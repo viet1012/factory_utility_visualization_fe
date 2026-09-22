@@ -75,11 +75,11 @@ class TopHeader extends StatelessWidget {
 
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.05),
+        color: Colors.white.withValues(alpha: .05),
 
         borderRadius: BorderRadius.circular(14),
 
-        border: Border.all(color: accent.withOpacity(.22)),
+        border: Border.all(color: accent.withValues(alpha: .22)),
       ),
 
       child: Row(
@@ -132,7 +132,7 @@ class TopHeader extends StatelessWidget {
             Container(
               width: 1,
               height: 26,
-              color: Colors.white.withOpacity(.10),
+              color: Colors.white.withValues(alpha: .10),
             ),
 
             const SizedBox(width: 8),
@@ -205,15 +205,15 @@ class _UtilityButton extends StatelessWidget {
 
             decoration: BoxDecoration(
               color: selected
-                  ? theme.line.withOpacity(.15)
-                  : Colors.white.withOpacity(.025),
+                  ? theme.line.withValues(alpha: .15)
+                  : Colors.white.withValues(alpha: .025),
 
               borderRadius: BorderRadius.circular(8),
 
               border: Border.all(
                 color: selected
-                    ? theme.line.withOpacity(.85)
-                    : Colors.white.withOpacity(.10),
+                    ? theme.line.withValues(alpha: .85)
+                    : Colors.white.withValues(alpha: .10),
               ),
             ),
 

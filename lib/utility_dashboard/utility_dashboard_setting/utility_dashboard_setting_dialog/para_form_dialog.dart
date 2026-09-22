@@ -142,12 +142,12 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
+              color: Colors.white.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: _boxDeviceIdInvalid
-                    ? Colors.red.withOpacity(0.8)
-                    : Colors.white.withOpacity(0.10),
+                    ? Colors.red.withValues(alpha: 0.8)
+                    : Colors.white.withValues(alpha: 0.10),
               ),
             ),
             child: Row(
@@ -158,7 +158,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                     style: TextStyle(
                       color: hasValue
                           ? Colors.white
-                          : Colors.white.withOpacity(0.45),
+                          : Colors.white.withValues(alpha: 0.45),
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -166,7 +166,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                 ),
                 Icon(
                   Icons.arrow_drop_down_rounded,
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                 ),
               ],
             ),
@@ -205,9 +205,9 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
+              color: Colors.white.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.10)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
             ),
             child: Row(
               children: [
@@ -221,7 +221,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                     style: TextStyle(
                       color: hasValue
                           ? Colors.white
-                          : Colors.white.withOpacity(0.45),
+                          : Colors.white.withValues(alpha: 0.45),
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -229,7 +229,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                 ),
                 Icon(
                   Icons.arrow_drop_down_rounded,
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                 ),
               ],
             ),
@@ -291,30 +291,30 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                         decoration: InputDecoration(
                           hintText: 'Search Box Device ID...',
                           hintStyle: TextStyle(
-                            color: Colors.white.withOpacity(0.45),
+                            color: Colors.white.withValues(alpha: 0.45),
                           ),
                           prefixIcon: Icon(
                             Icons.search,
-                            color: Colors.white.withOpacity(0.7),
+                            color: Colors.white.withValues(alpha: 0.7),
                           ),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.06),
+                          fillColor: Colors.white.withValues(alpha: 0.06),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: Colors.white.withOpacity(0.08),
+                              color: Colors.white.withValues(alpha: 0.08),
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: Colors.white.withOpacity(0.08),
+                              color: Colors.white.withValues(alpha: 0.08),
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: Colors.white.withOpacity(0.18),
+                              color: Colors.white.withValues(alpha: 0.18),
                             ),
                           ),
                         ),
@@ -326,7 +326,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                                 child: Text(
                                   'No Box Device ID found',
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.6),
+                                    color: Colors.white.withValues(alpha: 0.6),
                                   ),
                                 ),
                               )
@@ -334,7 +334,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                                 itemCount: filtered.length,
                                 separatorBuilder: (_, __) => Divider(
                                   height: 1,
-                                  color: Colors.white.withOpacity(0.06),
+                                  color: Colors.white.withValues(alpha: 0.06),
                                 ),
                                 itemBuilder: (context, index) {
                                   final item = filtered[index];
@@ -448,30 +448,30 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                         decoration: InputDecoration(
                           hintText: 'Search or type Name EN...',
                           hintStyle: TextStyle(
-                            color: Colors.white.withOpacity(0.45),
+                            color: Colors.white.withValues(alpha: 0.45),
                           ),
                           prefixIcon: Icon(
                             Icons.search,
-                            color: Colors.white.withOpacity(0.7),
+                            color: Colors.white.withValues(alpha: 0.7),
                           ),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.06),
+                          fillColor: Colors.white.withValues(alpha: 0.06),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: Colors.white.withOpacity(0.08),
+                              color: Colors.white.withValues(alpha: 0.08),
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: Colors.white.withOpacity(0.08),
+                              color: Colors.white.withValues(alpha: 0.08),
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: Colors.white.withOpacity(0.18),
+                              color: Colors.white.withValues(alpha: 0.18),
                             ),
                           ),
                         ),
@@ -490,10 +490,12 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                               vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.greenAccent.withOpacity(0.10),
+                              color: Colors.greenAccent.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Colors.greenAccent.withOpacity(0.28),
+                                color: Colors.greenAccent.withValues(
+                                  alpha: 0.28,
+                                ),
                               ),
                             ),
                             child: Row(
@@ -528,7 +530,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                                 child: Text(
                                   'No Name EN found',
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.6),
+                                    color: Colors.white.withValues(alpha: 0.6),
                                   ),
                                 ),
                               )
@@ -536,7 +538,7 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
                                 itemCount: filtered.length,
                                 separatorBuilder: (_, __) => Divider(
                                   height: 1,
-                                  color: Colors.white.withOpacity(0.06),
+                                  color: Colors.white.withValues(alpha: 0.06),
                                 ),
                                 itemBuilder: (context, index) {
                                   final item = filtered[index];

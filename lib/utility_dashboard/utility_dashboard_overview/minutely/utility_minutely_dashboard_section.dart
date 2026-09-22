@@ -169,7 +169,7 @@ class _UtilityMinutelyDashboardSectionState
                     child: LinearProgressIndicator(
                       minHeight: 2,
                       color: ChartThemes.power.line,
-                      backgroundColor: Colors.white.withOpacity(.04),
+                      backgroundColor: Colors.white.withValues(alpha: .04),
                     ),
                   ),
                 ),

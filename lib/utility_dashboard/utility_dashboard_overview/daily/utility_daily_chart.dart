@@ -275,7 +275,7 @@ class _DailyBarChart extends StatelessWidget {
 
       plotAreaBorderWidth: 1,
 
-      plotAreaBorderColor: Colors.white.withOpacity(.12),
+      plotAreaBorderColor: Colors.white.withValues(alpha: .12),
 
       legend: const Legend(isVisible: false),
 
@@ -305,15 +305,18 @@ class _DailyBarChart extends StatelessWidget {
 
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(.07),
+          color: Colors.white.withValues(alpha: .07),
         ),
 
-        axisLine: AxisLine(color: Colors.white.withOpacity(.15), width: 1),
+        axisLine: AxisLine(
+          color: Colors.white.withValues(alpha: .15),
+          width: 1,
+        ),
 
         majorTickLines: const MajorTickLines(size: 3),
 
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(.70),
+          color: Colors.white.withValues(alpha: .70),
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
@@ -332,7 +335,7 @@ class _DailyBarChart extends StatelessWidget {
 
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(.075),
+          color: Colors.white.withValues(alpha: .075),
           dashArray: const [4, 4],
         ),
 
@@ -342,13 +345,16 @@ class _DailyBarChart extends StatelessWidget {
           alignment: ChartAlignment.center,
 
           textStyle: TextStyle(
-            color: Colors.white.withOpacity(.72),
+            color: Colors.white.withValues(alpha: .72),
             fontWeight: FontWeight.w600,
             fontSize: 13,
           ),
         ),
 
-        axisLine: AxisLine(color: Colors.white.withOpacity(.15), width: 1),
+        axisLine: AxisLine(
+          color: Colors.white.withValues(alpha: .15),
+          width: 1,
+        ),
 
         majorTickLines: const MajorTickLines(size: 0),
 
@@ -377,7 +383,7 @@ class _DailyBarChart extends StatelessWidget {
             colors: [theme.fillTop, theme.fillBottom],
           ),
 
-          borderColor: theme.line.withOpacity(.95),
+          borderColor: theme.line.withValues(alpha: .95),
 
           borderWidth: .8,
 

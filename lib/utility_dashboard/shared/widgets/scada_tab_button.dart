@@ -6,7 +6,7 @@ class ScadaTabButton extends StatelessWidget {
   final VoidCallback onTap;
   final Color color;
   final double minWidth;
-final double height;
+  final double height;
   const ScadaTabButton({
     super.key,
     required this.label,
@@ -43,7 +43,7 @@ final double height;
                   style: TextStyle(
                     color: selected
                         ? Colors.white
-                        : Colors.white.withOpacity(0.72),
+                        : Colors.white.withValues(alpha: 0.72),
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.5,
@@ -87,12 +87,12 @@ class ScadaTabPainter extends CustomPainter {
           end: Alignment.bottomCenter,
           colors: selected
               ? [
-                  color.withOpacity(0.34),
-                  const Color(0xFF071A33).withOpacity(0.96),
+                  color.withValues(alpha: 0.34),
+                  const Color(0xFF071A33).withValues(alpha: 0.96),
                 ]
               : [
-                  const Color(0xFF0B1730).withOpacity(0.92),
-                  const Color(0xFF060D1D).withOpacity(0.96),
+                  const Color(0xFF0B1730).withValues(alpha: 0.92),
+                  const Color(0xFF060D1D).withValues(alpha: 0.96),
                 ],
         ).createShader(Offset.zero & size),
     );
@@ -101,7 +101,7 @@ class ScadaTabPainter extends CustomPainter {
       canvas.drawPath(
         path,
         Paint()
-          ..color = color.withOpacity(0.28)
+          ..color = color.withValues(alpha: 0.28)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 7
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
@@ -112,16 +112,16 @@ class ScadaTabPainter extends CustomPainter {
       path,
       Paint()
         ..color = selected
-            ? color.withOpacity(0.95)
-            : Colors.white.withOpacity(0.13)
+            ? color.withValues(alpha: 0.95)
+            : Colors.white.withValues(alpha: 0.13)
         ..style = PaintingStyle.stroke
         ..strokeWidth = selected ? 1.4 : 1,
     );
 
     final topLine = Paint()
       ..color = selected
-          ? color.withOpacity(0.9)
-          : Colors.white.withOpacity(0.12)
+          ? color.withValues(alpha: 0.9)
+          : Colors.white.withValues(alpha: 0.12)
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
 

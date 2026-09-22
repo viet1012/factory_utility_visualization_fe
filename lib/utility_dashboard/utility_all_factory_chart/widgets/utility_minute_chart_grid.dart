@@ -50,7 +50,7 @@ class UtilityMinuteChartGrid extends StatelessWidget {
         child: Text(
           'No chart found for $selectedBox',
           style: TextStyle(
-            color: Colors.white.withOpacity(.70),
+            color: Colors.white.withValues(alpha: .70),
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),

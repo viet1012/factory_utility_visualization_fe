@@ -31,9 +31,11 @@ class SolarDetailHeader extends StatelessWidget {
       height: 72,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
-        color: const Color(0xff03111d).withOpacity(.95),
+        color: const Color(0xff03111d).withValues(alpha: .95),
         border: Border(
-          bottom: BorderSide(color: SolarDetailColors.cyan.withOpacity(.15)),
+          bottom: BorderSide(
+            color: SolarDetailColors.cyan.withValues(alpha: .15),
+          ),
         ),
       ),
       child: Row(
@@ -84,9 +86,11 @@ class SolarDetailHeader extends StatelessWidget {
       height: 30,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: SolarDetailColors.cyan.withOpacity(.08),
+        color: SolarDetailColors.cyan.withValues(alpha: .08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: SolarDetailColors.cyan.withOpacity(.35)),
+        border: Border.all(
+          color: SolarDetailColors.cyan.withValues(alpha: .35),
+        ),
       ),
       alignment: Alignment.center,
       child: Text(

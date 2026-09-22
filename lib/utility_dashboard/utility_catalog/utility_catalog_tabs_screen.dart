@@ -730,7 +730,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
             border: Border.all(color: const Color(0xFF263D5D)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(.22),
+                color: Colors.black.withValues(alpha: .22),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),
@@ -957,7 +957,7 @@ class _UtilityCatalogViewSwitcher extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF07111F),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
       ),
       child: Row(
         children: [
@@ -1057,10 +1057,10 @@ class _SignalMonitorTopBar extends StatelessWidget {
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              color: const Color(0xFF22D3EE).withOpacity(.11),
+              color: const Color(0xFF22D3EE).withValues(alpha: .11),
               borderRadius: BorderRadius.circular(13),
               border: Border.all(
-                color: const Color(0xFF22D3EE).withOpacity(.25),
+                color: const Color(0xFF22D3EE).withValues(alpha: .25),
               ),
             ),
             child: const Icon(Icons.sensors_rounded, color: Color(0xFF67E8F9)),
@@ -1211,9 +1211,9 @@ class _TopStatusMetric extends StatelessWidget {
       width: 76,
       padding: const EdgeInsets.symmetric(vertical: 7),
       decoration: BoxDecoration(
-        color: color.withOpacity(.07),
+        color: color.withValues(alpha: .07),
         borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: color.withOpacity(.18)),
+        border: Border.all(color: color.withValues(alpha: .18)),
       ),
       child: Column(
         children: [
@@ -1488,7 +1488,7 @@ class _CatalogSearchField extends StatelessWidget {
           hintText:
               'Search facility, category, SCADA, box, device, PLC, signal...',
           hintStyle: TextStyle(
-            color: Colors.white.withOpacity(.35),
+            color: Colors.white.withValues(alpha: .35),
             fontSize: 15,
           ),
           prefixIcon: const Icon(
@@ -1512,7 +1512,7 @@ class _CatalogSearchField extends StatelessWidget {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.white.withOpacity(.10)),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: .10)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -1569,7 +1569,7 @@ class _FilterDropdown extends StatelessWidget {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.white.withOpacity(.09)),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: .09)),
           ),
         ),
         items: [
@@ -1622,7 +1622,7 @@ class _CatalogErrorState extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF111827),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.redAccent.withOpacity(.30)),
+          border: Border.all(color: Colors.redAccent.withValues(alpha: .30)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1648,7 +1648,7 @@ class _CatalogErrorState extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withOpacity(.52),
+                color: Colors.white.withValues(alpha: .52),
                 fontSize: 12.5,
               ),
             ),

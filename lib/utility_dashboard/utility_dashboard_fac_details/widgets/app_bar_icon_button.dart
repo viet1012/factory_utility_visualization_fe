@@ -25,13 +25,13 @@ class AppBarIconButton extends StatelessWidget {
           height: 32,
           decoration: BoxDecoration(
             color: selected
-                ? Colors.amber.withOpacity(0.18)
-                : Colors.white.withOpacity(0.06),
+                ? Colors.amber.withValues(alpha: 0.18)
+                : Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: selected
                   ? Colors.amberAccent
-                  : Colors.white.withOpacity(0.14),
+                  : Colors.white.withValues(alpha: 0.14),
             ),
           ),
           child: Icon(icon, size: 18, color: color),

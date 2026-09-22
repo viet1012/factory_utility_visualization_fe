@@ -19,7 +19,6 @@ class UtilityInfoBoxHeader {
       healthResult: themedResult,
     );
   }
-
 }
 
 class _PremiumInfoBoxHeader extends StatefulWidget {
@@ -74,21 +73,21 @@ class _PremiumInfoBoxHeaderState extends State<_PremiumInfoBoxHeader>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                color.withOpacity(0.7),
-                color.withOpacity(0.4),
-                color.withOpacity(0.2),
+                color.withValues(alpha: 0.7),
+                color.withValues(alpha: 0.4),
+                color.withValues(alpha: 0.2),
               ],
             ),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(_isOk ? 0.26 : 0.14),
+                color: color.withValues(alpha: _isOk ? 0.26 : 0.14),
                 blurRadius: _isOk ? 16 : 10,
                 offset: const Offset(0, 4),
               ),
             ],
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.12),
+                color: Colors.white.withValues(alpha: 0.12),
                 width: 1,
               ),
             ),
@@ -107,7 +106,7 @@ class _PremiumInfoBoxHeaderState extends State<_PremiumInfoBoxHeader>
                           gradient: LinearGradient(
                             colors: [
                               Colors.transparent,
-                              Colors.white.withOpacity(0.14),
+                              Colors.white.withValues(alpha: 0.14),
                               Colors.transparent,
                             ],
                           ),
@@ -128,7 +127,7 @@ class _PremiumInfoBoxHeaderState extends State<_PremiumInfoBoxHeader>
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.96),
+                          color: Colors.white.withValues(alpha: 0.96),
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.45,
                         ),
@@ -142,10 +141,10 @@ class _PremiumInfoBoxHeaderState extends State<_PremiumInfoBoxHeader>
                       width: 22,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.10),
+                        color: Colors.black.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.12),
+                          color: Colors.white.withValues(alpha: 0.12),
                         ),
                       ),
                       child: HealthIndicator(
@@ -181,14 +180,17 @@ class _HeaderIcon extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(0.24),
-            Colors.white.withOpacity(0.08),
+            Colors.white.withValues(alpha: 0.24),
+            Colors.white.withValues(alpha: 0.08),
           ],
         ),
-        border: Border.all(color: Colors.white.withOpacity(0.18), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.18),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.10),
+            color: Colors.black.withValues(alpha: 0.10),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -197,7 +199,7 @@ class _HeaderIcon extends StatelessWidget {
       child: Icon(
         Icons.factory_rounded,
         size: 15.5,
-        color: Colors.white.withOpacity(0.96),
+        color: Colors.white.withValues(alpha: 0.96),
       ),
     );
   }

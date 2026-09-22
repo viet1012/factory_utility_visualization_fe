@@ -60,7 +60,7 @@ class SolarHourlyProfilePanel extends StatelessWidget {
                   interval: 3,
                   labelFormat: '{value}:00',
                   majorGridLines: MajorGridLines(
-                    color: Colors.white.withOpacity(.03),
+                    color: Colors.white.withValues(alpha: .03),
                   ),
                   labelStyle: const TextStyle(
                     color: Colors.white38,
@@ -71,7 +71,7 @@ class SolarHourlyProfilePanel extends StatelessWidget {
                 primaryYAxis: NumericAxis(
                   numberFormat: NumberFormat.compact(),
                   majorGridLines: MajorGridLines(
-                    color: Colors.white.withOpacity(.05),
+                    color: Colors.white.withValues(alpha: .05),
                   ),
                   labelStyle: const TextStyle(
                     color: Colors.white38,

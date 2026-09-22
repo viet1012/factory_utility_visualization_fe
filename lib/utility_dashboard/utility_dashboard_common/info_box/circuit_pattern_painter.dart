@@ -9,12 +9,12 @@ class CircuitPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withOpacity(0.1)
+      ..color = color.withValues(alpha: 0.1)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
 
     final glowPaint = Paint()
-      ..color = color.withOpacity(0.2 * animationValue)
+      ..color = color.withValues(alpha: 0.2 * animationValue)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
@@ -33,7 +33,7 @@ class CircuitPatternPainter extends CustomPainter {
     canvas.drawPath(path, glowPaint);
 
     final nodePaint = Paint()
-      ..color = color.withOpacity(0.3 * animationValue)
+      ..color = color.withValues(alpha: 0.3 * animationValue)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(

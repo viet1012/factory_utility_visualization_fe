@@ -40,7 +40,7 @@ class MonthlyWaterCard extends StatelessWidget {
                 Divider(
                   height: 1,
                   thickness: .5,
-                  color: Colors.white.withOpacity(.5),
+                  color: Colors.white.withValues(alpha: .5),
                 ),
 
                 const SizedBox(height: 3),

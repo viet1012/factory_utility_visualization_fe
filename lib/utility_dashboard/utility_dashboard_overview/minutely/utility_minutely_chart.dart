@@ -227,7 +227,7 @@ class _UtilityMinutelyChartState extends State<UtilityMinutelyChart>
                 title: widget.theme.title,
                 health: health,
                 backgroundColor: Colors.transparent,
-                borderColor: widget.theme.line.withOpacity(.44),
+                borderColor: widget.theme.line.withValues(alpha: .44),
                 valueLabel: 'Max',
                 value: _headerPoint == null
                     ? '--'
@@ -350,12 +350,7 @@ class _MainChartData {
     final points =
         rows
             .where((item) => item.value != null)
-            .map(
-              (item) => _ChartPoint(
-                ts: item.ts.toLocal(),
-                y: item.value!,
-              ),
-            )
+            .map((item) => _ChartPoint(ts: item.ts.toLocal(), y: item.value!))
             .toList()
           ..sort((a, b) => a.ts.compareTo(b.ts));
 
@@ -550,9 +545,7 @@ class _WaterChartData {
 
         grouped.putIfAbsent(name, () => <_ChartPoint>[]);
 
-        grouped[name]!.add(
-          _ChartPoint(ts: item.ts.toLocal(), y: value),
-        );
+        grouped[name]!.add(_ChartPoint(ts: item.ts.toLocal(), y: value));
       }
 
       return grouped;
@@ -598,9 +591,7 @@ class _WaterChartData {
         final average =
             values.fold<double>(0, (sum, value) => sum + value) / values.length;
 
-        points.add(
-          _ChartPoint(ts: minuteEntry.key, y: average),
-        );
+        points.add(_ChartPoint(ts: minuteEntry.key, y: average));
       }
 
       points.sort((a, b) => a.ts.compareTo(b.ts));
@@ -681,7 +672,7 @@ class _MainMinuteChart extends StatelessWidget {
       enableAxisAnimation: false,
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 1,
-      plotAreaBorderColor: Colors.white.withOpacity(.10),
+      plotAreaBorderColor: Colors.white.withValues(alpha: .10),
 
       tooltipBehavior: TooltipBehavior(
         enable: true,
@@ -700,11 +691,11 @@ class _MainMinuteChart extends StatelessWidget {
         dateFormat: DateFormat('HH:mm'),
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(.06),
+          color: Colors.white.withValues(alpha: .06),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
+        axisLine: AxisLine(color: Colors.white.withValues(alpha: .10)),
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(.55),
+          color: Colors.white.withValues(alpha: .55),
           fontSize: 13,
         ),
       ),
@@ -716,18 +707,18 @@ class _MainMinuteChart extends StatelessWidget {
         numberFormat: NumberFormat('0.0'),
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(.06),
+          color: Colors.white.withValues(alpha: .06),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(.10)),
+        axisLine: AxisLine(color: Colors.white.withValues(alpha: .10)),
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(.55),
+          color: Colors.white.withValues(alpha: .55),
           fontSize: 14,
         ),
         title: AxisTitle(
           text: theme.unit,
           alignment: ChartAlignment.center,
           textStyle: TextStyle(
-            color: Colors.white.withOpacity(.80),
+            color: Colors.white.withValues(alpha: .80),
             fontWeight: FontWeight.w600,
             fontSize: 13,
           ),
@@ -787,7 +778,7 @@ class _MainMinuteChart extends StatelessWidget {
           dataSource: data.points,
           xValueMapper: (point, _) => point.ts,
           yValueMapper: (point, _) => point.y,
-          color: theme.line.withOpacity(.15),
+          color: theme.line.withValues(alpha: .15),
           width: 6,
           enableTooltip: false,
           isVisibleInLegend: false,
@@ -814,7 +805,7 @@ class _MainMinuteChart extends StatelessWidget {
             width: 4,
             height: 4,
             borderWidth: 1,
-            borderColor: theme.line.withOpacity(.90),
+            borderColor: theme.line.withValues(alpha: .90),
           ),
           isVisibleInLegend: false,
         ),
@@ -962,14 +953,14 @@ class _WaterMinuteChart extends StatelessWidget {
       enableAxisAnimation: false,
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 1,
-      plotAreaBorderColor: Colors.white.withOpacity(.08),
+      plotAreaBorderColor: Colors.white.withValues(alpha: .08),
 
       legend: Legend(
         isVisible: showLegend,
         position: LegendPosition.top,
         overflowMode: LegendItemOverflowMode.wrap,
         textStyle: TextStyle(
-          color: Colors.white.withOpacity(.75),
+          color: Colors.white.withValues(alpha: .75),
           fontSize: 11,
           fontWeight: FontWeight.w700,
         ),
@@ -988,11 +979,11 @@ class _WaterMinuteChart extends StatelessWidget {
         dateFormat: DateFormat('HH:mm'),
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(.04),
+          color: Colors.white.withValues(alpha: .04),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(.08)),
+        axisLine: AxisLine(color: Colors.white.withValues(alpha: .08)),
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(.55),
+          color: Colors.white.withValues(alpha: .55),
           fontSize: 11,
         ),
       ),
@@ -1006,18 +997,18 @@ class _WaterMinuteChart extends StatelessWidget {
         // Không dùng plotBands nữa.
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(.05),
+          color: Colors.white.withValues(alpha: .05),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(.08)),
+        axisLine: AxisLine(color: Colors.white.withValues(alpha: .08)),
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(.55),
+          color: Colors.white.withValues(alpha: .55),
           fontSize: 13,
         ),
         title: AxisTitle(
           text: theme.unit,
           alignment: ChartAlignment.center,
           textStyle: TextStyle(
-            color: Colors.white.withOpacity(.80),
+            color: Colors.white.withValues(alpha: .80),
             fontWeight: FontWeight.w600,
             fontSize: 12,
           ),
@@ -1040,7 +1031,10 @@ class _NotEnoughPoints extends StatelessWidget {
     return Center(
       child: Text(
         'Not enough points',
-        style: TextStyle(color: Colors.white.withOpacity(.70), fontSize: 13),
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: .70),
+          fontSize: 13,
+        ),
       ),
     );
   }

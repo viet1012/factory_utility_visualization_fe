@@ -63,8 +63,8 @@ class ApiRainPainter extends CustomPainter {
       // Glow — tái dùng path đã gộp, không lặp lại vòng for lần 2.
       if (!isDay || intensity > 0.5) {
         final glowPaint = Paint()
-          ..color = (isDay ? Colors.cyanAccent : Colors.blueAccent).withOpacity(
-            (0.3 * intensity).clamp(0.0, 1.0),
+          ..color = (isDay ? Colors.cyanAccent : Colors.blueAccent).withValues(
+            alpha: (0.3 * intensity).clamp(0.0, 1.0),
           )
           ..strokeWidth = (0.5 + intensity * 0.5)
           ..strokeCap = StrokeCap.round
@@ -90,7 +90,7 @@ class ApiRainPainter extends CustomPainter {
         final center = Offset(splash.x * width, splash.y * height);
 
         splashPaint
-          ..color = baseColor.withOpacity(opacity * 0.5)
+          ..color = baseColor.withValues(alpha: opacity * 0.5)
           ..strokeWidth = 2;
         canvas.drawCircle(center, radius, splashPaint);
 

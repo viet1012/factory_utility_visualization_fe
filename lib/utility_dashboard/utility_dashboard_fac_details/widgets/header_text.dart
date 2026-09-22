@@ -27,7 +27,7 @@ class HeaderText extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.65),
+            color: Colors.white.withValues(alpha: 0.65),
             fontSize: 11.5,
             fontWeight: FontWeight.w600,
           ),

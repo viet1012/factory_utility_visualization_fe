@@ -153,9 +153,9 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.10),
+                  Colors.black.withValues(alpha: 0.10),
                   Colors.transparent,
-                  Colors.black.withOpacity(0.15),
+                  Colors.black.withValues(alpha: 0.15),
                 ],
               ),
             ),
@@ -230,11 +230,11 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
                 height: 58,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.black.withOpacity(.42),
-                  border: Border.all(color: color.withOpacity(.7)),
+                  color: Colors.black.withValues(alpha: .42),
+                  border: Border.all(color: color.withValues(alpha: .7)),
                   boxShadow: [
                     BoxShadow(
-                      color: color.withOpacity(.38),
+                      color: color.withValues(alpha: .38),
                       blurRadius: 32,
                       spreadRadius: 2,
                     ),
@@ -281,14 +281,14 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white.withOpacity(.13),
-                  Colors.white.withOpacity(.045),
+                  Colors.white.withValues(alpha: .13),
+                  Colors.white.withValues(alpha: .045),
                 ],
               ),
-              border: Border.all(color: Colors.white.withOpacity(.18)),
+              border: Border.all(color: Colors.white.withValues(alpha: .18)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(.30),
+                  color: Colors.black.withValues(alpha: .30),
                   blurRadius: 24,
                   spreadRadius: -2,
                 ),
@@ -320,18 +320,18 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
                               ),
                               decoration: BoxDecoration(
                                 color: active
-                                    ? color.withOpacity(.18)
+                                    ? color.withValues(alpha: .18)
                                     : Colors.transparent,
                                 borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
                                   color: active
-                                      ? color.withOpacity(.55)
+                                      ? color.withValues(alpha: .55)
                                       : Colors.transparent,
                                 ),
                                 boxShadow: active
                                     ? [
                                         BoxShadow(
-                                          color: color.withOpacity(.30),
+                                          color: color.withValues(alpha: .30),
                                           blurRadius: 15,
                                           spreadRadius: -2,
                                         ),
@@ -392,7 +392,7 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
                                   borderRadius: BorderRadius.circular(20),
                                   child: Container(
                                     height: 2,
-                                    color: Colors.white.withOpacity(.12),
+                                    color: Colors.white.withValues(alpha: .12),
                                     child: Align(
                                       alignment: Alignment.centerLeft,
                                       child: FractionallySizedBox(
@@ -405,7 +405,9 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
                                             ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: color.withOpacity(.65),
+                                                color: color.withValues(
+                                                  alpha: .65,
+                                                ),
                                                 blurRadius: 8,
                                               ),
                                             ],

@@ -67,7 +67,7 @@ class SolarDailyGenerationPanel extends StatelessWidget {
 
             majorGridLines: const MajorGridLines(width: 0),
 
-            axisLine: AxisLine(color: Colors.white.withOpacity(.20)),
+            axisLine: AxisLine(color: Colors.white.withValues(alpha: .20)),
 
             majorTickLines: const MajorTickLines(size: 0),
 
@@ -87,7 +87,7 @@ class SolarDailyGenerationPanel extends StatelessWidget {
             numberFormat: NumberFormat.compact(),
 
             majorGridLines: MajorGridLines(
-              color: Colors.white.withOpacity(.06),
+              color: Colors.white.withValues(alpha: .06),
               width: 1,
             ),
 

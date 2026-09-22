@@ -208,9 +208,9 @@ class _DetailBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(.08),
+        color: color.withValues(alpha: .08),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(.20)),
+        border: Border.all(color: color.withValues(alpha: .20)),
       ),
       child: Text(
         label,
@@ -396,9 +396,9 @@ class CatalogDataSource extends DataGridSource {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: style.color.withOpacity(.08),
+          color: style.color.withValues(alpha: .08),
           borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: style.color.withOpacity(.18)),
+          border: Border.all(color: style.color.withValues(alpha: .18)),
         ),
         child: Text(
           row.plcAddress.trim().isEmpty ? '--' : row.plcAddress.trim(),
@@ -492,9 +492,9 @@ class CatalogDataSource extends DataGridSource {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(.09),
+          color: color.withValues(alpha: .09),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withOpacity(.22)),
+          border: Border.all(color: color.withValues(alpha: .22)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -598,14 +598,14 @@ class _CatalogEmptyState extends StatelessWidget {
         children: [
           Icon(
             Icons.table_rows_outlined,
-            color: Colors.white.withOpacity(.28),
+            color: Colors.white.withValues(alpha: .28),
             size: 52,
           ),
           const SizedBox(height: 12),
           Text(
             'No utility signals found',
             style: TextStyle(
-              color: Colors.white.withOpacity(.66),
+              color: Colors.white.withValues(alpha: .66),
               fontSize: 15,
               fontWeight: FontWeight.w800,
             ),
@@ -614,7 +614,7 @@ class _CatalogEmptyState extends StatelessWidget {
           Text(
             'Try changing or clearing the filters',
             style: TextStyle(
-              color: Colors.white.withOpacity(.38),
+              color: Colors.white.withValues(alpha: .38),
               fontSize: 12,
             ),
           ),

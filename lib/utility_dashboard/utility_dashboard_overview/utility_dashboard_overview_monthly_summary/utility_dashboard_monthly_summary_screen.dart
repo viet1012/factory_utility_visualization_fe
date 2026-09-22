@@ -42,10 +42,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      _configureAndStartPolling(
-        facId: initialFacId,
-        month: initialMonth,
-      );
+      _configureAndStartPolling(facId: initialFacId, month: initialMonth);
     });
   }
 
@@ -518,12 +515,12 @@ class _SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: color.withOpacity(.055),
+        color: color.withValues(alpha: .055),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(.75), width: .9),
+        border: Border.all(color: color.withValues(alpha: .75), width: .9),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(.16),
+            color: color.withValues(alpha: .16),
             blurRadius: 16,
             spreadRadius: -9,
           ),
@@ -538,8 +535,8 @@ class _SummaryCard extends StatelessWidget {
                 height: 30,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: color.withOpacity(.16),
-                  border: Border.all(color: color.withOpacity(.8)),
+                  color: color.withValues(alpha: .16),
+                  border: Border.all(color: color.withValues(alpha: .8)),
                 ),
                 child: Icon(icon, color: Colors.white, size: 17),
               ),
@@ -564,7 +561,7 @@ class _SummaryCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(.68),
+                        color: Colors.white.withValues(alpha: .68),
                         // fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -630,7 +627,7 @@ class _MainValue extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: color.withOpacity(.9),
+              color: color.withValues(alpha: .9),
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
@@ -659,9 +656,9 @@ class _InfoLine extends StatelessWidget {
     return Container(
       height: 50,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.17),
+        color: Colors.black.withValues(alpha: .17),
         borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: Colors.white.withOpacity(.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
       ),
       child: Column(
         children: [
@@ -717,9 +714,9 @@ class _InfoTile extends StatelessWidget {
       height: 60,
       // padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.16),
+        color: Colors.black.withValues(alpha: .16),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: .07)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -776,9 +773,9 @@ class _SmallMetric extends StatelessWidget {
       // height: 46,
       // padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.16),
+        color: Colors.black.withValues(alpha: .16),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: .07)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -822,9 +819,9 @@ class _DeltaPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(.09),
+        color: color.withValues(alpha: .09),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(.28)),
+        border: Border.all(color: color.withValues(alpha: .28)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -847,7 +844,7 @@ class _DeltaPill extends StatelessWidget {
           Text(
             'vs prev',
             style: TextStyle(
-              color: Colors.white.withOpacity(.6),
+              color: Colors.white.withValues(alpha: .6),
               fontSize: 14,
               fontWeight: FontWeight.w700,
             ),

@@ -234,7 +234,7 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
       width: double.infinity,
       height: double.infinity,
       alignment: Alignment.center,
-      color: Colors.blueGrey.withOpacity(0.3),
+      color: Colors.blueGrey.withValues(alpha: 0.3),
       colorBlendMode: BlendMode.darken,
     );
 
@@ -251,9 +251,9 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
   Widget _buildWeatherOverlay() {
     final overlayColor = _isRaining
         ? (_isDay
-              ? Colors.black.withOpacity(0.1 + _rainIntensity * 0.2)
-              : Colors.black.withOpacity(0.3 + _rainIntensity * 0.3))
-        : (_isDay ? Colors.transparent : Colors.black.withOpacity(0.25));
+              ? Colors.black.withValues(alpha: 0.1 + _rainIntensity * 0.2)
+              : Colors.black.withValues(alpha: 0.3 + _rainIntensity * 0.3))
+        : (_isDay ? Colors.transparent : Colors.black.withValues(alpha: 0.25));
 
     return Positioned.fill(child: ColoredBox(color: overlayColor));
   }
@@ -315,9 +315,9 @@ class _WeatherInfoBadge extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.08),
+              color: Colors.white.withValues(alpha: .08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(.16)),
+              border: Border.all(color: Colors.white.withValues(alpha: .16)),
             ),
             child: const Text(
               'Loading weather...',
@@ -353,23 +353,26 @@ class _WeatherInfoBadge extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.white.withOpacity(.16),
-                accentColor.withOpacity(.08),
-                Colors.black.withOpacity(.18),
+                Colors.white.withValues(alpha: .16),
+                accentColor.withValues(alpha: .08),
+                Colors.black.withValues(alpha: .18),
               ],
             ),
 
-            border: Border.all(color: Colors.white.withOpacity(.22), width: 1),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: .22),
+              width: 1,
+            ),
 
             boxShadow: [
               BoxShadow(
-                color: accentColor.withOpacity(.18),
+                color: accentColor.withValues(alpha: .18),
                 blurRadius: 18,
                 spreadRadius: -8,
                 offset: const Offset(0, 8),
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(.25),
+                color: Colors.black.withValues(alpha: .25),
                 blurRadius: 16,
                 spreadRadius: -8,
                 offset: const Offset(0, 10),
@@ -389,7 +392,7 @@ class _WeatherInfoBadge extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: [
                         Colors.transparent,
-                        Colors.white.withOpacity(.65),
+                        Colors.white.withValues(alpha: .65),
                         Colors.transparent,
                       ],
                     ),
@@ -406,10 +409,10 @@ class _WeatherInfoBadge extends StatelessWidget {
                   height: 72,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: accentColor.withOpacity(.12),
+                    color: accentColor.withValues(alpha: .12),
                     boxShadow: [
                       BoxShadow(
-                        color: accentColor.withOpacity(.25),
+                        color: accentColor.withValues(alpha: .25),
                         blurRadius: 30,
                         spreadRadius: 4,
                       ),
@@ -431,13 +434,13 @@ class _WeatherInfoBadge extends StatelessWidget {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: accentColor.withOpacity(.16),
+                          color: accentColor.withValues(alpha: .16),
                           border: Border.all(
-                            color: accentColor.withOpacity(.45),
+                            color: accentColor.withValues(alpha: .45),
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: accentColor.withOpacity(.22),
+                              color: accentColor.withValues(alpha: .22),
                               blurRadius: 12,
                               spreadRadius: -3,
                             ),
@@ -504,9 +507,11 @@ class _WeatherInfoBadge extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: accentColor.withOpacity(.12),
+                        color: accentColor.withValues(alpha: .12),
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: accentColor.withOpacity(.35)),
+                        border: Border.all(
+                          color: accentColor.withValues(alpha: .35),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,

@@ -136,10 +136,7 @@ class _FacDetailBodyState extends State<FacDetailBody> {
       id: PollingTaskIds.facilityLatest,
       scope: PollingScope.facilityDetail,
       interval: DashboardPollingIntervals.facilityLatest,
-      action: () => _latestProvider.refreshFacility(
-        widget.facId,
-        silent: true,
-      ),
+      action: () => _latestProvider.refreshFacility(widget.facId, silent: true),
     );
     _pollingCoordinator.activateScope(PollingScope.facilityDetail);
 
@@ -518,12 +515,12 @@ class _FacDetailBodyState extends State<FacDetailBody> {
 
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(.10),
+                        color: Colors.black.withValues(alpha: .10),
 
                         borderRadius: BorderRadius.circular(14),
 
                         border: Border.all(
-                          color: Colors.white.withOpacity(.08),
+                          color: Colors.white.withValues(alpha: .08),
                         ),
                       ),
 

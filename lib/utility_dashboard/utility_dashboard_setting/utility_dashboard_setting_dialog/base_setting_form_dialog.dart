@@ -46,7 +46,7 @@ class BaseSettingFormDialog extends StatelessWidget {
                     onPressed: () => Navigator.of(context).pop(),
                     icon: Icon(
                       Icons.close,
-                      color: Colors.white.withOpacity(0.75),
+                      color: Colors.white.withValues(alpha: 0.75),
                     ),
                   ),
                 ],
@@ -76,7 +76,9 @@ class BaseSettingFormDialog extends StatelessWidget {
                     child: OutlinedButton(
                       onPressed: () => Navigator.of(context).pop(),
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.white.withOpacity(0.12)),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -157,29 +159,39 @@ class BaseSettingFormDialog extends StatelessWidget {
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               filled: true,
-              fillColor: Colors.white.withOpacity(0.06),
+              fillColor: Colors.white.withValues(alpha: 0.06),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.10),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.10),
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.white.withOpacity(0.18)),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.18),
+                ),
               ),
               errorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.red.withOpacity(0.7)),
+                borderSide: BorderSide(
+                  color: Colors.red.withValues(alpha: 0.7),
+                ),
               ),
               focusedErrorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.red.withOpacity(0.9)),
+                borderSide: BorderSide(
+                  color: Colors.red.withValues(alpha: 0.9),
+                ),
               ),
             ),
-            iconEnabledColor: Colors.white.withOpacity(0.85),
+            iconEnabledColor: Colors.white.withValues(alpha: 0.85),
           ),
         ],
       );
@@ -193,7 +205,7 @@ class BaseSettingFormDialog extends StatelessWidget {
           style: TextStyle(
             color: config.enabled
                 ? Colors.white
-                : Colors.white.withOpacity(0.45),
+                : Colors.white.withValues(alpha: 0.45),
             fontWeight: FontWeight.w600,
             fontSize: 13,
           ),
@@ -209,30 +221,38 @@ class BaseSettingFormDialog extends StatelessWidget {
           style: TextStyle(
             color: config.enabled
                 ? Colors.white
-                : Colors.white.withOpacity(0.45),
+                : Colors.white.withValues(alpha: 0.45),
           ),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withOpacity(config.enabled ? 0.06 : 0.03),
+            fillColor: Colors.white.withValues(
+              alpha: config.enabled ? 0.06 : 0.03,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.10),
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.10),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.18)),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.18),
+              ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.red.withOpacity(0.7)),
+              borderSide: BorderSide(color: Colors.red.withValues(alpha: 0.7)),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.red.withOpacity(0.9)),
+              borderSide: BorderSide(color: Colors.red.withValues(alpha: 0.9)),
             ),
           ),
         ),

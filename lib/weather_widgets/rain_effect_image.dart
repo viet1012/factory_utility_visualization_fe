@@ -109,7 +109,7 @@
 //   void paint(Canvas canvas, Size size) {
 //     for (var drop in rainDrops) {
 //       final paint = Paint()
-//         ..color = Colors.white.withOpacity(drop.opacity * intensity)
+//         ..color = Colors.white.withValues(alpha: drop.opacity * intensity)
 //         ..strokeWidth = 1.5
 //         ..strokeCap = StrokeCap.round;
 //
@@ -122,7 +122,7 @@
 //
 //       // Glow effect
 //       paint.strokeWidth = 3;
-//       paint.color = Colors.white.withOpacity(drop.opacity * 0.2 * intensity);
+//       paint.color = Colors.white.withValues(alpha: drop.opacity * 0.2 * intensity);
 //       canvas.drawLine(Offset(startX, startY), Offset(startX, endY), paint);
 //     }
 //   }
@@ -232,7 +232,7 @@
 //
 //         // Dark overlay for better rain visibility
 //         Positioned.fill(
-//           child: Container(color: Colors.black.withOpacity(0.15)),
+//           child: Container(color: Colors.black.withValues(alpha: 0.15)),
 //         ),
 //
 //         // Rain and splash effects
@@ -278,7 +278,7 @@
 //     // Draw rain drops
 //     for (var drop in rainDrops) {
 //       final paint = Paint()
-//         ..color = Colors.white.withOpacity(drop.opacity)
+//         ..color = Colors.white.withValues(alpha: drop.opacity)
 //         ..strokeWidth = 2
 //         ..strokeCap = StrokeCap.round;
 //
@@ -291,7 +291,7 @@
 //
 //       // Glow
 //       paint.strokeWidth = 4;
-//       paint.color = Colors.cyanAccent.withOpacity(drop.opacity * 0.3);
+//       paint.color = Colors.cyanAccent.withValues(alpha: drop.opacity * 0.3);
 //       canvas.drawLine(Offset(startX, startY), Offset(startX, endY), paint);
 //     }
 //
@@ -301,7 +301,7 @@
 //       final radius = splash.age * 15;
 //
 //       final paint = Paint()
-//         ..color = Colors.white.withOpacity(opacity * 0.5)
+//         ..color = Colors.white.withValues(alpha: opacity * 0.5)
 //         ..style = PaintingStyle.stroke
 //         ..strokeWidth = 2;
 //
@@ -328,7 +328,7 @@
 //       borderRadius: BorderRadius.circular(16),
 //       boxShadow: [
 //         BoxShadow(
-//           color: Colors.grey.withOpacity(0.35),
+//           color: Colors.grey.withValues(alpha: 0.35),
 //           spreadRadius: 2,
 //           blurRadius: 10,
 //           offset: const Offset(0, 5),
@@ -355,9 +355,9 @@
 //                 begin: Alignment.topCenter,
 //                 end: Alignment.bottomCenter,
 //                 colors: [
-//                   Colors.black.withOpacity(0.1),
+//                   Colors.black.withValues(alpha: 0.1),
 //                   Colors.transparent,
-//                   Colors.black.withOpacity(0.15),
+//                   Colors.black.withValues(alpha: 0.15),
 //                 ],
 //               ),
 //             ),
@@ -377,7 +377,7 @@
 //       borderRadius: BorderRadius.circular(16),
 //       boxShadow: [
 //         BoxShadow(
-//           color: Colors.grey.withOpacity(0.35),
+//           color: Colors.grey.withValues(alpha: 0.35),
 //           spreadRadius: 2,
 //           blurRadius: 10,
 //           offset: const Offset(0, 5),

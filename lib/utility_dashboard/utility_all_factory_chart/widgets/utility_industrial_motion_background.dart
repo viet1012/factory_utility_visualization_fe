@@ -134,7 +134,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
   Paint _stroke(double opacity, double width) {
     return Paint()
-      ..color = color.withOpacity(opacity)
+      ..color = color.withValues(alpha: opacity)
       ..strokeWidth = width
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -143,7 +143,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
   Paint _glow(double opacity, double width, double blur) {
     return Paint()
-      ..color = color.withOpacity(opacity)
+      ..color = color.withValues(alpha: opacity)
       ..strokeWidth = width
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -198,8 +198,8 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       ..shader =
           RadialGradient(
             colors: [
-              color.withOpacity(.1),
-              color.withOpacity(.045),
+              color.withValues(alpha: .1),
+              color.withValues(alpha: .045),
               Colors.transparent,
             ],
             stops: const [0, .42, 1],
@@ -214,8 +214,8 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       ..shader =
           RadialGradient(
             colors: [
-              color.withOpacity(.12),
-              color.withOpacity(.032),
+              color.withValues(alpha: .12),
+              color.withValues(alpha: .032),
               Colors.transparent,
             ],
             stops: const [0, .46, 1],
@@ -232,12 +232,12 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
   void _drawBlueprintGrid(Canvas canvas, Size size) {
     final minorPaint = Paint()
-      ..color = Colors.white.withOpacity(.025)
+      ..color = Colors.white.withValues(alpha: .025)
       ..strokeWidth = .65
       ..style = PaintingStyle.stroke;
 
     final majorPaint = Paint()
-      ..color = color.withOpacity(.045)
+      ..color = color.withValues(alpha: .045)
       ..strokeWidth = .8
       ..style = PaintingStyle.stroke;
 
@@ -261,7 +261,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     }
 
     final diagonalPaint = Paint()
-      ..color = Colors.white.withOpacity(.018)
+      ..color = Colors.white.withValues(alpha: .018)
       ..strokeWidth = .7
       ..style = PaintingStyle.stroke;
 
@@ -281,8 +281,8 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       ..shader = LinearGradient(
         colors: [
           Colors.transparent,
-          Colors.black.withOpacity(.10),
-          Colors.black.withOpacity(.22),
+          Colors.black.withValues(alpha: .10),
+          Colors.black.withValues(alpha: .22),
         ],
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
@@ -400,8 +400,8 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       ..shader =
           RadialGradient(
             colors: [
-              color.withOpacity(.12),
-              color.withOpacity(.035),
+              color.withValues(alpha: .12),
+              color.withValues(alpha: .035),
               Colors.transparent,
             ],
             stops: const [0, .42, 1],
@@ -485,7 +485,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
     final detailPaint = _stroke(opacity, .75);
     final nodePaint = Paint()
-      ..color = color.withOpacity(nodeOpacity)
+      ..color = color.withValues(alpha: nodeOpacity)
       ..style = PaintingStyle.fill;
 
     // Xương sống giữa trụ.
@@ -652,7 +652,11 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
         .clamp(0.0, 1.0)
         .toDouble();
 
-    canvas.drawCircle(top, 2.2, Paint()..color = color.withOpacity(topOpacity));
+    canvas.drawCircle(
+      top,
+      2.2,
+      Paint()..color = color.withValues(alpha: topOpacity),
+    );
 
     _drawTowerIndustrialDetails(
       canvas,
@@ -692,7 +696,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
   /// Chuỗi sứ cách điện dạng các hạt nhỏ nối xuống dưới.
   void _drawInsulatorString(Canvas canvas, Offset start, Paint paint) {
     final beadPaint = Paint()
-      ..color = color.withOpacity(.105)
+      ..color = color.withValues(alpha: .105)
       ..style = PaintingStyle.stroke
       ..strokeWidth = .8;
 
@@ -755,7 +759,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
     // Một vài node sáng nhỏ.
     final nodePaint = Paint()
-      ..color = color.withOpacity(.15)
+      ..color = color.withValues(alpha: .15)
       ..style = PaintingStyle.fill;
 
     final ringPaint = _stroke(.075, .8);
@@ -926,14 +930,14 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     final waterY = rect.top + rect.height * (.56 + index * .035);
 
     final waveGlow = Paint()
-      ..color = color.withOpacity(.055)
+      ..color = color.withValues(alpha: .055)
       ..strokeWidth = 5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
     final wavePaint = Paint()
-      ..color = color.withOpacity(.26)
+      ..color = color.withValues(alpha: .26)
       ..strokeWidth = 1.35
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -963,7 +967,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [color.withOpacity(.055), color.withOpacity(.012)],
+        colors: [color.withValues(alpha: .055), color.withValues(alpha: .012)],
       ).createShader(rect)
       ..style = PaintingStyle.fill;
 
@@ -974,7 +978,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
   void _drawCoolingTankBubbles(Canvas canvas, Rect rect, {required int index}) {
     final bubblePaint = Paint()
-      ..color = color.withOpacity(.24)
+      ..color = color.withValues(alpha: .24)
       ..strokeWidth = 1.05
       ..style = PaintingStyle.stroke;
 
@@ -1004,13 +1008,13 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     final r = rect.width * .15;
 
     final glow = Paint()
-      ..color = color.withOpacity(.08)
+      ..color = color.withValues(alpha: .08)
       ..strokeWidth = 5
       ..style = PaintingStyle.stroke
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
     final paint = Paint()
-      ..color = color.withOpacity(.28)
+      ..color = color.withValues(alpha: .28)
       ..strokeWidth = 1.15
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -1033,7 +1037,11 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       canvas.drawLine(p2, bladeEnd, paint);
     }
 
-    canvas.drawCircle(center, 2.4, Paint()..color = color.withOpacity(.30));
+    canvas.drawCircle(
+      center,
+      2.4,
+      Paint()..color = color.withValues(alpha: .30),
+    );
   }
 
   void _drawCoolingTankLevelPulse(
@@ -1050,14 +1058,14 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     final y = bottom - (bottom - top) * progress;
 
     final pulsePaint = Paint()
-      ..color = color.withOpacity(.34)
+      ..color = color.withValues(alpha: .34)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
 
     final dotPaint = Paint()
-      ..color = color.withOpacity(.32)
+      ..color = color.withValues(alpha: .32)
       ..style = PaintingStyle.fill;
 
     canvas.drawLine(Offset(gaugeX - 10, y), Offset(gaugeX + 10, y), pulsePaint);
@@ -1105,7 +1113,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
     final fillPaint = Paint()
       ..shader = LinearGradient(
-        colors: [color.withOpacity(.18), color.withOpacity(.065)],
+        colors: [color.withValues(alpha: .18), color.withValues(alpha: .065)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(rect)
@@ -1247,7 +1255,11 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       _stroke(.24, 1.15),
     );
 
-    canvas.drawCircle(center, 2.2, Paint()..color = color.withOpacity(.22));
+    canvas.drawCircle(
+      center,
+      2.2,
+      Paint()..color = color.withValues(alpha: .22),
+    );
 
     // Chân gauge nối xuống pipe.
     canvas.drawLine(
@@ -1381,13 +1393,13 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     required double phase,
   }) {
     final flowPaint = Paint()
-      ..color = color.withOpacity(.17)
+      ..color = color.withValues(alpha: .17)
       ..strokeWidth = 1.15
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
     final flowGlow = Paint()
-      ..color = color.withOpacity(.035)
+      ..color = color.withValues(alpha: .035)
       ..strokeWidth = 4.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -1427,7 +1439,11 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       );
     }
 
-    canvas.drawCircle(center, 2.4, Paint()..color = color.withOpacity(.16));
+    canvas.drawCircle(
+      center,
+      2.4,
+      Paint()..color = color.withValues(alpha: .16),
+    );
 
     canvas.drawLine(
       center + const Offset(0, -13),
@@ -1510,7 +1526,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     }
 
     final dropPaint = Paint()
-      ..color = color.withOpacity(.055)
+      ..color = color.withValues(alpha: .055)
       ..style = PaintingStyle.fill;
 
     for (double x = 135; x < size.width; x += 290) {
@@ -1547,7 +1563,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
   /// Vạch kỹ thuật nhẹ giống blueprint/water level marks.
   void _drawWaterLevelMarks(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withOpacity(.055)
+      ..color = color.withValues(alpha: .055)
       ..strokeWidth = .8
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -1586,7 +1602,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
     final ringPaint = _stroke(.10, 1.3);
     final fillPaint = Paint()
-      ..color = color.withOpacity(.035)
+      ..color = color.withValues(alpha: .035)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(center, radius, fillPaint);
@@ -1594,7 +1610,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     canvas.drawCircle(
       center,
       radius * .12,
-      Paint()..color = color.withOpacity(.12),
+      Paint()..color = color.withValues(alpha: .12),
     );
 
     for (int i = 0; i < 3; i++) {
@@ -1631,7 +1647,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     }
 
     final arrowPaint = Paint()
-      ..color = color.withOpacity(.11)
+      ..color = color.withValues(alpha: .11)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -1790,7 +1806,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     final progress = _electricProgressForRow(0);
 
     final outerGlow = Paint()
-      ..color = color.withOpacity(.060)
+      ..color = color.withValues(alpha: .060)
       ..strokeWidth = 5.2
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -1798,7 +1814,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5);
 
     final glow = Paint()
-      ..color = color.withOpacity(.16)
+      ..color = color.withValues(alpha: .16)
       ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -1806,7 +1822,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8);
 
     final core = Paint()
-      ..color = color.withOpacity(.68)
+      ..color = color.withValues(alpha: .68)
       ..strokeWidth = 1.35
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -1972,7 +1988,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     final progress = _electricProgressForRow(row);
 
     final glowPaint = Paint()
-      ..color = color.withOpacity(strong ? .11 : .060)
+      ..color = color.withValues(alpha: strong ? .11 : .060)
       ..strokeWidth = strong ? 3.0 : 2.1
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -1980,7 +1996,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.2);
 
     final corePaint = Paint()
-      ..color = color.withOpacity(strong ? .68 : .40)
+      ..color = color.withValues(alpha: strong ? .68 : .40)
       ..strokeWidth = strong ? 1.2 : .85
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -2079,7 +2095,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
     // Halo nhỏ, không dùng RadialGradient mỗi cột.
     final haloPaint = Paint()
-      ..color = color.withOpacity(.025 * intensity)
+      ..color = color.withValues(alpha: .025 * intensity)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
@@ -2087,7 +2103,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
     // Chỉ sáng hai chân và trục giữa, không vẽ lại toàn bộ chi tiết.
     final highlightPaint = Paint()
-      ..color = color.withOpacity(.12 + intensity * .34)
+      ..color = color.withValues(alpha: .12 + intensity * .34)
       ..strokeWidth = 1.0 + intensity * .65
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -2105,7 +2121,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     canvas.drawPath(path, highlightPaint);
 
     final nodePaint = Paint()
-      ..color = color.withOpacity(.20 + intensity * .48)
+      ..color = color.withValues(alpha: .20 + intensity * .48)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(top, 1.6 + intensity * 1.4, nodePaint);
@@ -2123,8 +2139,8 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     final haloPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          color.withOpacity(.030 * intensity),
-          color.withOpacity(.010 * intensity),
+          color.withValues(alpha: .030 * intensity),
+          color.withValues(alpha: .010 * intensity),
           Colors.transparent,
         ],
         stops: const [0, .36, 1],
@@ -2185,7 +2201,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
           if (strength < .35) continue;
 
           coronaPaint
-            ..color = color.withOpacity(.025 + .055 * strength)
+            ..color = color.withValues(alpha: .025 + .055 * strength)
             ..strokeWidth = .65 + strength * .55;
 
           canvas.drawCircle(points[i], 3.0 + strength * 2.8, coronaPaint);
@@ -2196,7 +2212,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
   void _drawRandomVoltageFlicker(Canvas canvas, Size size) {
     final flickerPaint = Paint()
-      ..color = color.withOpacity(.14)
+      ..color = color.withValues(alpha: .14)
       ..strokeWidth = .9
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -2232,20 +2248,20 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     final metrics = pipePath.computeMetrics().toList();
 
     final glowPaint = Paint()
-      ..color = color.withOpacity(.16)
+      ..color = color.withValues(alpha: .16)
       ..strokeWidth = 9
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
 
     final flowPaint = Paint()
-      ..color = color.withOpacity(.48)
+      ..color = color.withValues(alpha: .48)
       ..strokeWidth = 2.25
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
     final headPaint = Paint()
-      ..color = color.withOpacity(.55)
+      ..color = color.withValues(alpha: .55)
       ..style = PaintingStyle.fill;
 
     for (final metric in metrics) {
@@ -2320,13 +2336,13 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
   void _drawCompressedAirPressurePulses(Canvas canvas, Size size) {
     final pulsePaint = Paint()
-      ..color = color.withOpacity(.24)
+      ..color = color.withValues(alpha: .24)
       ..strokeWidth = 1.25
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
     final pulseGlow = Paint()
-      ..color = color.withOpacity(.065)
+      ..color = color.withValues(alpha: .065)
       ..strokeWidth = 5.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -2359,7 +2375,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
         final r = 12 + phase * 18;
 
         final ringPaint = Paint()
-          ..color = color.withOpacity((1 - phase) * .075)
+          ..color = color.withValues(alpha: (1 - phase) * .075)
           ..strokeWidth = 1
           ..style = PaintingStyle.stroke;
 
@@ -2372,7 +2388,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     final vib = math.sin(t * math.pi * 2 * 5) * 1.3;
 
     final vibPaint = Paint()
-      ..color = color.withOpacity(.09)
+      ..color = color.withValues(alpha: .09)
       ..strokeWidth = .9
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -2407,7 +2423,7 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
   void _drawGaugeNeedleVibration(Canvas canvas, Size size) {
     final needlePaint = Paint()
-      ..color = color.withOpacity(.18)
+      ..color = color.withValues(alpha: .18)
       ..strokeWidth = 1.1
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;

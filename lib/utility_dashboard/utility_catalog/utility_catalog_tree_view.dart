@@ -310,40 +310,6 @@ class _UtilityCatalogTreeViewState extends State<UtilityCatalogTreeView> {
     });
   }
 
-  bool _pathStillExists(_StructurePath path) {
-    for (final facility in widget.items) {
-      if (facility.fac != path.facility.fac) {
-        continue;
-      }
-
-      for (final category in facility.categories) {
-        if (category.cate != path.category.cate) {
-          continue;
-        }
-
-        for (final scada in category.scadas) {
-          if (scada.scadaId != path.scada.scadaId) {
-            continue;
-          }
-
-          for (final box in scada.boxes) {
-            if (box.boxId != path.box.boxId) {
-              continue;
-            }
-
-            for (final device in box.devices) {
-              if (device.boxDeviceId == path.device.boxDeviceId) {
-                return true;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    return false;
-  }
-
   _StructurePath? _findFirstPath(List<LatestFacilityDto> facilities) {
     for (final facility in facilities) {
       for (final category in facility.categories) {
@@ -1635,8 +1601,8 @@ class _FacilityQuickTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: selected
-                    ? const Color(0xFF3B82F6).withOpacity(.45)
-                    : Colors.white.withOpacity(.04),
+                    ? const Color(0xFF3B82F6).withValues(alpha: .45)
+                    : Colors.white.withValues(alpha: .04),
               ),
             ),
             child: Row(
@@ -1663,9 +1629,9 @@ class _FacilityQuickTile extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(.08),
+                    color: color.withValues(alpha: .08),
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: color.withOpacity(.22)),
+                    border: Border.all(color: color.withValues(alpha: .22)),
                   ),
                   child: Text(
                     label,
@@ -2053,10 +2019,10 @@ class _StructureCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF0B1828),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(.50)),
+          border: Border.all(color: color.withValues(alpha: .50)),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(.05),
+              color: color.withValues(alpha: .05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -2068,7 +2034,7 @@ class _StructureCard extends StatelessWidget {
               width: 39,
               height: 54,
               decoration: BoxDecoration(
-                color: color.withOpacity(.10),
+                color: color.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: color, size: 22),
@@ -2105,9 +2071,11 @@ class _StructureCard extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(.08),
+                      color: statusColor.withValues(alpha: .08),
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: statusColor.withOpacity(.22)),
+                      border: Border.all(
+                        color: statusColor.withValues(alpha: .22),
+                      ),
                     ),
                     child: Text(
                       statusText,

@@ -25,7 +25,7 @@ class UtilityDashboardTopBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: _UtilityTopBarStyle.background,
         border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.08)),
+          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
       ),
       child: Row(
@@ -52,9 +52,11 @@ class _UtilityTopBarStyle {
     List<BoxShadow>? boxShadow,
   }) {
     return BoxDecoration(
-      color: color ?? Colors.white.withOpacity(0.06),
+      color: color ?? Colors.white.withValues(alpha: 0.06),
       borderRadius: borderRadius,
-      border: Border.all(color: borderColor ?? Colors.white.withOpacity(0.10)),
+      border: Border.all(
+        color: borderColor ?? Colors.white.withValues(alpha: 0.10),
+      ),
       boxShadow: boxShadow ?? const [],
     );
   }
@@ -90,11 +92,11 @@ class _TitlePill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: _UtilityTopBarStyle.glassBox(
         borderRadius: BorderRadius.circular(12),
-        color: Colors.white.withOpacity(0.08),
-        borderColor: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.08),
+        borderColor: Colors.white.withValues(alpha: 0.12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -106,7 +108,7 @@ class _TitlePill extends StatelessWidget {
           Icon(
             Icons.factory_outlined,
             size: 18,
-            color: Colors.cyanAccent.withOpacity(0.9),
+            color: Colors.cyanAccent.withValues(alpha: 0.9),
           ),
           const SizedBox(width: 10),
           Text(
@@ -149,14 +151,14 @@ class _FacToggleBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF050B18).withOpacity(0.92),
+        color: const Color(0xFF050B18).withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _UtilityTopBarStyle.selectedColor.withOpacity(0.20),
+          color: _UtilityTopBarStyle.selectedColor.withValues(alpha: 0.20),
         ),
         boxShadow: [
           BoxShadow(
-            color: _UtilityTopBarStyle.selectedColor.withOpacity(0.10),
+            color: _UtilityTopBarStyle.selectedColor.withValues(alpha: 0.10),
             blurRadius: 14,
           ),
         ],
@@ -199,11 +201,10 @@ class _MonthPickerPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return _ScadaMonthButton(
       month: month,
-      color: _UtilityTopBarStyle.selectedColor.withOpacity(.7),
+      color: _UtilityTopBarStyle.selectedColor.withValues(alpha: .7),
       onTap: () => _pick(context),
     );
   }
-
 }
 
 class _ScadaMonthButton extends StatelessWidget {
@@ -279,7 +280,7 @@ class _MonthPickerDialogState extends State<_MonthPickerDialog> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.10)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -310,21 +311,27 @@ class _MonthPickerDialogState extends State<_MonthPickerDialog> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: selected
-                          ? _UtilityTopBarStyle.selectedColor.withOpacity(0.18)
-                          : Colors.white.withOpacity(0.06),
+                          ? _UtilityTopBarStyle.selectedColor.withValues(
+                              alpha: 0.18,
+                            )
+                          : Colors.white.withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: selected
-                            ? _UtilityTopBarStyle.selectedColor.withOpacity(0.55)
-                            : Colors.white.withOpacity(0.10),
+                            ? _UtilityTopBarStyle.selectedColor.withValues(
+                                alpha: 0.55,
+                              )
+                            : Colors.white.withValues(alpha: 0.10),
                       ),
                     ),
                     child: Text(
                       _UtilityMonthLabel.months[i],
                       style: TextStyle(
                         color: selected
-                            ? _UtilityTopBarStyle.selectedColor.withOpacity(0.95)
-                            : Colors.white.withOpacity(0.85),
+                            ? _UtilityTopBarStyle.selectedColor.withValues(
+                                alpha: 0.95,
+                              )
+                            : Colors.white.withValues(alpha: 0.85),
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -340,7 +347,9 @@ class _MonthPickerDialogState extends State<_MonthPickerDialog> {
                     onPressed: () => Navigator.pop(context),
                     child: Text(
                       'Cancel',
-                      style: TextStyle(color: Colors.white.withOpacity(0.75)),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.75),
+                      ),
                     ),
                   ),
                 ),
@@ -348,14 +357,14 @@ class _MonthPickerDialogState extends State<_MonthPickerDialog> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _UtilityTopBarStyle.selectedColor
-                          .withOpacity(0.22),
+                          .withValues(alpha: 0.22),
                       foregroundColor: _UtilityTopBarStyle.selectedColor,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
-                          color: _UtilityTopBarStyle.selectedColor.withOpacity(
-                            0.55,
+                          color: _UtilityTopBarStyle.selectedColor.withValues(
+                            alpha: 0.55,
                           ),
                         ),
                       ),
@@ -392,14 +401,17 @@ class _YearHeader extends StatelessWidget {
       children: [
         IconButton(
           onPressed: onPrev,
-          icon: Icon(Icons.chevron_left, color: Colors.white.withOpacity(0.85)),
+          icon: Icon(
+            Icons.chevron_left,
+            color: Colors.white.withValues(alpha: 0.85),
+          ),
         ),
         Expanded(
           child: Center(
             child: Text(
               '$year',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.92),
+                color: Colors.white.withValues(alpha: 0.92),
                 fontWeight: FontWeight.w900,
                 fontSize: 16,
               ),
@@ -410,7 +422,7 @@ class _YearHeader extends StatelessWidget {
           onPressed: onNext,
           icon: Icon(
             Icons.chevron_right,
-            color: Colors.white.withOpacity(0.85),
+            color: Colors.white.withValues(alpha: 0.85),
           ),
         ),
       ],

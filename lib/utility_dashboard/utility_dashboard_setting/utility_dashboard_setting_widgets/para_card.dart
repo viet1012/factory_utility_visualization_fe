@@ -17,8 +17,8 @@ class UtilityParaCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: Colors.white.withOpacity(0.05),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        color: Colors.white.withValues(alpha: 0.05),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -42,7 +42,7 @@ class UtilityParaCard extends StatelessWidget {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.blueAccent.withOpacity(0.14),
+                        color: Colors.blueAccent.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
@@ -146,7 +146,9 @@ class UtilityParaCard extends StatelessWidget {
                     label: const Text('Edit'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withOpacity(0.14)),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.14),
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -169,7 +171,7 @@ class UtilityParaCard extends StatelessWidget {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: Colors.cyan.withOpacity(0.14),
+            color: Colors.cyan.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Icon(Icons.tune_rounded, color: Colors.cyan, size: 22),

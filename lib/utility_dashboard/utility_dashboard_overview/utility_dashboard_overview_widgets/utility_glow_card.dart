@@ -47,18 +47,18 @@ class UtilityGlowCard extends StatelessWidget {
         foregroundPainter: _UtilityPatternPainter(color: color, type: type),
         child: Container(
           decoration: BoxDecoration(
-            // color: const Color(0xff030712).withOpacity(.4),
+            // color: const Color(0xff030712).withValues(alpha: .4),
             gradient: LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: [
-                const Color(0xff111827).withOpacity(.7),
-                const Color(0xff151d2d).withOpacity(.2),
+                const Color(0xff111827).withValues(alpha: .7),
+                const Color(0xff151d2d).withValues(alpha: .2),
               ],
             ),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(.12),
+                color: color.withValues(alpha: .12),
                 blurRadius: 18,
                 spreadRadius: -12,
               ),
@@ -75,10 +75,10 @@ class UtilityGlowCard extends StatelessWidget {
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.black.withOpacity(.05),
+                    color: Colors.black.withValues(alpha: .05),
                     boxShadow: [
                       BoxShadow(
-                        color: color.withOpacity(.18),
+                        color: color.withValues(alpha: .18),
                         blurRadius: 30,
                         spreadRadius: 2,
                       ),
@@ -117,13 +117,13 @@ class _UtilityPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withOpacity(.32)
+      ..color = color.withValues(alpha: .32)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
     final glowPaint = Paint()
-      ..color = color.withOpacity(.06)
+      ..color = color.withValues(alpha: .06)
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -168,14 +168,14 @@ class _UtilityPatternPainter extends CustomPainter {
 
     // Paint chi tiết nhẹ hơn thân chính.
     final detailPaint = Paint()
-      ..color = color.withOpacity(.28)
+      ..color = color.withValues(alpha: .28)
       ..style = PaintingStyle.stroke
       ..strokeWidth = .85
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
     final detailGlowPaint = Paint()
-      ..color = color.withOpacity(.035)
+      ..color = color.withValues(alpha: .035)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.5
       ..strokeCap = StrokeCap.round
@@ -183,13 +183,13 @@ class _UtilityPatternPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
 
     final wirePaint = Paint()
-      ..color = color.withOpacity(.16)
+      ..color = color.withValues(alpha: .16)
       ..style = PaintingStyle.stroke
       ..strokeWidth = .85
       ..strokeCap = StrokeCap.round;
 
     final wireGlowPaint = Paint()
-      ..color = color.withOpacity(.025)
+      ..color = color.withValues(alpha: .025)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.5
       ..strokeCap = StrokeCap.round
@@ -205,8 +205,8 @@ class _UtilityPatternPainter extends CustomPainter {
       ..shader =
           RadialGradient(
             colors: [
-              color.withOpacity(.10),
-              color.withOpacity(.025),
+              color.withValues(alpha: .10),
+              color.withValues(alpha: .025),
               Colors.transparent,
             ],
             stops: const [0, .45, 1],
@@ -400,12 +400,12 @@ class _UtilityPatternPainter extends CustomPainter {
     canvas.drawPath(mastPath, paint);
 
     final mastGlowPaint = Paint()
-      ..color = color.withOpacity(.12)
+      ..color = color.withValues(alpha: .12)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
     final mastDotPaint = Paint()
-      ..color = color.withOpacity(.58)
+      ..color = color.withValues(alpha: .58)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(mastTop, 5, mastGlowPaint);
@@ -417,7 +417,7 @@ class _UtilityPatternPainter extends CustomPainter {
     // ============================================================
 
     final nodePaint = Paint()
-      ..color = color.withOpacity(.30)
+      ..color = color.withValues(alpha: .30)
       ..style = PaintingStyle.fill;
 
     for (final progress in levels.skip(1)) {
@@ -435,13 +435,13 @@ class _UtilityPatternPainter extends CustomPainter {
     // ============================================================
 
     final footingPaint = Paint()
-      ..color = color.withOpacity(.34)
+      ..color = color.withValues(alpha: .34)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
       ..strokeCap = StrokeCap.round;
 
     final footingGlowPaint = Paint()
-      ..color = color.withOpacity(.035)
+      ..color = color.withValues(alpha: .035)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4
       ..strokeCap = StrokeCap.round
@@ -478,11 +478,11 @@ class _UtilityPatternPainter extends CustomPainter {
     const discCount = 4;
 
     final discPaint = Paint()
-      ..color = color.withOpacity(.34)
+      ..color = color.withValues(alpha: .34)
       ..style = PaintingStyle.fill;
 
     final discGlowPaint = Paint()
-      ..color = color.withOpacity(.035)
+      ..color = color.withValues(alpha: .035)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
 
@@ -502,7 +502,7 @@ class _UtilityPatternPainter extends CustomPainter {
       end,
       1.4,
       Paint()
-        ..color = color.withOpacity(.46)
+        ..color = color.withValues(alpha: .46)
         ..style = PaintingStyle.fill,
     );
   }
@@ -560,13 +560,13 @@ class _UtilityPatternPainter extends CustomPainter {
       ..close();
 
     final dropGlowPaint = Paint()
-      ..color = color.withOpacity(.075)
+      ..color = color.withValues(alpha: .075)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 6
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
 
     final dropPaint = Paint()
-      ..color = color.withOpacity(.45)
+      ..color = color.withValues(alpha: .45)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1
       ..strokeCap = StrokeCap.round
@@ -591,7 +591,7 @@ class _UtilityPatternPainter extends CustomPainter {
       );
 
     final highlightPaint = Paint()
-      ..color = color.withOpacity(.47)
+      ..color = color.withValues(alpha: .47)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
       ..strokeCap = StrokeCap.round;
@@ -651,7 +651,7 @@ class _UtilityPatternPainter extends CustomPainter {
 
       if (waveIndex == 1) {
         final waveGlow = Paint()
-          ..color = color.withOpacity(.055)
+          ..color = color.withValues(alpha: .055)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 5
           ..strokeCap = StrokeCap.round
@@ -661,7 +661,7 @@ class _UtilityPatternPainter extends CustomPainter {
       }
 
       final wavePaint = Paint()
-        ..color = color.withOpacity(config.opacity)
+        ..color = color.withValues(alpha: config.opacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = config.strokeWidth
         ..strokeCap = StrokeCap.round;
@@ -681,12 +681,12 @@ class _UtilityPatternPainter extends CustomPainter {
     ];
 
     final bubblePaint = Paint()
-      ..color = color.withOpacity(.48)
+      ..color = color.withValues(alpha: .48)
       ..style = PaintingStyle.stroke
       ..strokeWidth = .9;
 
     final bubbleDotPaint = Paint()
-      ..color = color.withOpacity(.34)
+      ..color = color.withValues(alpha: .34)
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < bubbles.length; i++) {
@@ -720,14 +720,14 @@ class _UtilityPatternPainter extends CustomPainter {
     final swirlCenter = Offset(size.width * .82, size.height * .43);
 
     final swirlGlowPaint = Paint()
-      ..color = color.withOpacity(.12)
+      ..color = color.withValues(alpha: .12)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 8
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
 
     final swirlPaint = Paint()
-      ..color = color.withOpacity(.55)
+      ..color = color.withValues(alpha: .55)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6
       ..strokeCap = StrokeCap.round;
@@ -756,12 +756,12 @@ class _UtilityPatternPainter extends CustomPainter {
 
     // Center pressure dot.
     final centerGlowPaint = Paint()
-      ..color = color.withOpacity(.10)
+      ..color = color.withValues(alpha: .10)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
     final centerPaint = Paint()
-      ..color = color.withOpacity(.9)
+      ..color = color.withValues(alpha: .9)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(swirlCenter, 5.5, centerGlowPaint);
@@ -831,7 +831,7 @@ class _UtilityPatternPainter extends CustomPainter {
 
       if (streamIndex == 1) {
         final streamGlow = Paint()
-          ..color = color.withOpacity(.14)
+          ..color = color.withValues(alpha: .14)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 8
           ..strokeCap = StrokeCap.round
@@ -841,7 +841,7 @@ class _UtilityPatternPainter extends CustomPainter {
       }
 
       final streamPaint = Paint()
-        ..color = color.withOpacity(stream.opacity)
+        ..color = color.withValues(alpha: stream.opacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = stream.strokeWidth
         ..strokeCap = StrokeCap.round;
@@ -855,7 +855,7 @@ class _UtilityPatternPainter extends CustomPainter {
         final arrowY = stream.y;
 
         final arrowPaint = Paint()
-          ..color = color.withOpacity(stream.opacity)
+          ..color = color.withValues(alpha: stream.opacity)
           ..style = PaintingStyle.stroke
           ..strokeWidth = stream.strokeWidth
           ..strokeCap = StrokeCap.round;
@@ -907,7 +907,7 @@ class _UtilityPatternPainter extends CustomPainter {
 
     for (final particle in particles) {
       final particlePaint = Paint()
-        ..color = color.withOpacity(particle.opacity)
+        ..color = color.withValues(alpha: particle.opacity)
         ..style = PaintingStyle.fill;
 
       canvas.drawCircle(particle.offset, particle.radius, particlePaint);
@@ -915,7 +915,7 @@ class _UtilityPatternPainter extends CustomPainter {
 
     // Small pressure rings.
     final ringPaint = Paint()
-      ..color = color.withOpacity(.12)
+      ..color = color.withValues(alpha: .12)
       ..style = PaintingStyle.stroke
       ..strokeWidth = .75;
 

@@ -104,7 +104,7 @@ class _ScadaChartPanelPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = color.withOpacity(0.88)
+        ..color = color.withValues(alpha: 0.88)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.4,
     );
@@ -125,7 +125,7 @@ class _ScadaChartPanelPainter extends CustomPainter {
     canvas.drawPath(
       innerPath,
       Paint()
-        ..color = color.withOpacity(0.55)
+        ..color = color.withValues(alpha: 0.55)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -142,13 +142,16 @@ class _ScadaChartPanelPainter extends CustomPainter {
       topStrip,
       Paint()
         ..shader = LinearGradient(
-          colors: [color.withOpacity(0.38), color.withOpacity(0.06)],
+          colors: [
+            color.withValues(alpha: 0.38),
+            color.withValues(alpha: 0.06),
+          ],
         ).createShader(Offset.zero & size),
     );
 
     // ✅ 6. CORNER ACCENT DOTS — góc trên trái, điểm nhấn
     final dotPaint = Paint()
-      ..color = color.withOpacity(0.85)
+      ..color = color.withValues(alpha: 0.85)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
 
     canvas.drawCircle(const Offset(10, 10), 2.5, dotPaint);
@@ -156,7 +159,7 @@ class _ScadaChartPanelPainter extends CustomPainter {
 
     // ✅ 7. SCAN BARS — đậm hơn, thêm 1 bar
     final barPaint = Paint()
-      ..color = color.withOpacity(0.82)
+      ..color = color.withValues(alpha: 0.82)
       ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round;
 
@@ -171,7 +174,7 @@ class _ScadaChartPanelPainter extends CustomPainter {
       Offset(cut + 4, size.height - 1),
       Offset(size.width - cut - 4, size.height - 1),
       Paint()
-        ..color = color.withOpacity(0.4)
+        ..color = color.withValues(alpha: 0.4)
         ..strokeWidth = 1.5
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
@@ -181,7 +184,7 @@ class _ScadaChartPanelPainter extends CustomPainter {
       const Offset(1, cut + 6),
       Offset(1, size.height - cut - 6),
       Paint()
-        ..color = color.withOpacity(0.50)
+        ..color = color.withValues(alpha: 0.50)
         ..strokeWidth = 2,
     );
   }

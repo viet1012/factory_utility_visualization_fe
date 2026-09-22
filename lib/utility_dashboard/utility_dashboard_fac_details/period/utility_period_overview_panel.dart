@@ -353,11 +353,11 @@ class _UtilityPeriodOverviewPanelState
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: selected
-              ? accent.withOpacity(.12)
-              : Colors.white.withOpacity(.035),
+              ? accent.withValues(alpha: .12)
+              : Colors.white.withValues(alpha: .035),
           borderRadius: BorderRadius.circular(7),
           border: Border.all(
-            color: selected ? accent.withOpacity(.75) : _border,
+            color: selected ? accent.withValues(alpha: .75) : _border,
           ),
         ),
         child: Text(
@@ -626,7 +626,7 @@ class _UtilityPeriodOverviewPanelState
                 majorGridLines: const MajorGridLines(width: 0),
                 majorTickLines: const MajorTickLines(width: 0),
                 axisLine: AxisLine(
-                  color: Colors.white.withOpacity(.08),
+                  color: Colors.white.withValues(alpha: .08),
                   width: 1,
                 ),
                 labelStyle: const TextStyle(
@@ -644,7 +644,7 @@ class _UtilityPeriodOverviewPanelState
                 axisLine: const AxisLine(width: 0),
                 majorTickLines: const MajorTickLines(width: 0),
                 majorGridLines: MajorGridLines(
-                  color: Colors.white.withOpacity(.055),
+                  color: Colors.white.withValues(alpha: .055),
                   width: 1,
                   dashArray: const [4, 4],
                 ),
@@ -654,7 +654,7 @@ class _UtilityPeriodOverviewPanelState
                 enable: true,
                 activationMode: ActivationMode.singleTap,
                 lineType: TrackballLineType.vertical,
-                lineColor: Colors.white.withOpacity(.20),
+                lineColor: Colors.white.withValues(alpha: .20),
                 lineWidth: 1,
                 tooltipDisplayMode: TrackballDisplayMode.floatAllPoints,
                 tooltipSettings: const InteractiveTooltip(
@@ -714,9 +714,9 @@ class _UtilityPeriodOverviewPanelState
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         decoration: BoxDecoration(
-          color: color.withOpacity(.10),
+          color: color.withValues(alpha: .10),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withOpacity(.25)),
+          border: Border.all(color: color.withValues(alpha: .25)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -753,9 +753,9 @@ class _UtilityPeriodOverviewPanelState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: theme.line.withOpacity(.07),
+        color: theme.line.withValues(alpha: .07),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: theme.line.withOpacity(.16)),
+        border: Border.all(color: theme.line.withValues(alpha: .16)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -839,7 +839,9 @@ class _UtilityPeriodOverviewPanelState
 
           labelStyle: const TextStyle(color: Colors.white54, fontSize: 12),
 
-          majorGridLines: MajorGridLines(color: Colors.white.withOpacity(.05)),
+          majorGridLines: MajorGridLines(
+            color: Colors.white.withValues(alpha: .05),
+          ),
         ),
 
         // ========================================================
@@ -943,7 +945,7 @@ class _UtilityPeriodOverviewPanelState
   Widget _buildHeatmapHeader(UtilityPeriodDashboard data) {
     return Container(
       height: 36,
-      color: Colors.white.withOpacity(.025),
+      color: Colors.white.withValues(alpha: .025),
       child: Row(
         children: [
           const SizedBox(
@@ -1056,8 +1058,10 @@ class _UtilityPeriodOverviewPanelState
     return Container(
       height: 38,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.04),
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(.08))),
+        color: Colors.white.withValues(alpha: .04),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: .08)),
+        ),
       ),
       child: Row(
         children: [
@@ -1244,11 +1248,11 @@ class _UtilityPeriodOverviewPanelState
 
   Color _heatColor(double value, double min, double max) {
     if (!value.isFinite || value <= 0) {
-      return Colors.white.withOpacity(.025);
+      return Colors.white.withValues(alpha: .025);
     }
 
     if (max <= min) {
-      return const Color(0xFF3F8F4D).withOpacity(.72);
+      return const Color(0xFF3F8F4D).withValues(alpha: .72);
     }
 
     final double ratio = ((value - min) / (max - min)).clamp(0.0, 1.0);
@@ -1258,7 +1262,7 @@ class _UtilityPeriodOverviewPanelState
         const Color(0xFF174F37),
         const Color(0xFF4A8F38),
         ratio / .25,
-      )!.withOpacity(.82);
+      )!.withValues(alpha: .82);
     }
 
     if (ratio <= .50) {
@@ -1266,7 +1270,7 @@ class _UtilityPeriodOverviewPanelState
         const Color(0xFF4A8F38),
         const Color(0xFFC7A51C),
         (ratio - .25) / .25,
-      )!.withOpacity(.84);
+      )!.withValues(alpha: .84);
     }
 
     if (ratio <= .75) {
@@ -1274,13 +1278,13 @@ class _UtilityPeriodOverviewPanelState
         const Color(0xFFC7A51C),
         const Color(0xFFD66A18),
         (ratio - .50) / .25,
-      )!.withOpacity(.86);
+      )!.withValues(alpha: .86);
     }
 
     return Color.lerp(
       const Color(0xFFD66A18),
       const Color(0xFFC93232),
       (ratio - .75) / .25,
-    )!.withOpacity(.90);
+    )!.withValues(alpha: .90);
   }
 }

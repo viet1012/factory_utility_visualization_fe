@@ -31,7 +31,7 @@ class AppActionButton extends StatelessWidget {
     final style = outlined
         ? OutlinedButton.styleFrom(
             foregroundColor: foreground,
-            side: BorderSide(color: foreground.withOpacity(0.35)),
+            side: BorderSide(color: foreground.withValues(alpha: 0.35)),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(compact ? 10 : 12),
             ),
@@ -134,7 +134,11 @@ class AppIconActionButton extends StatelessWidget {
     return IconButton(
       tooltip: tooltip ?? config.label,
       onPressed: onPressed,
-      icon: Icon(config.icon, size: 20, color: config.color.withOpacity(0.9)),
+      icon: Icon(
+        config.icon,
+        size: 20,
+        color: config.color.withValues(alpha: 0.9),
+      ),
     );
   }
 

@@ -18,7 +18,7 @@ class UtilityDailyHeader extends StatelessWidget {
               height: 1,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.transparent, _accent.withOpacity(.35)],
+                  colors: [Colors.transparent, _accent.withValues(alpha: .35)],
                 ),
               ),
             ),
@@ -29,9 +29,9 @@ class UtilityDailyHeader extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             decoration: BoxDecoration(
-              color: _accent.withOpacity(.08),
+              color: _accent.withValues(alpha: .08),
               borderRadius: BorderRadius.circular(5),
-              border: Border.all(color: _accent.withOpacity(.25)),
+              border: Border.all(color: _accent.withValues(alpha: .25)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -62,7 +62,7 @@ class UtilityDailyHeader extends StatelessWidget {
               height: 1,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [_accent.withOpacity(.35), Colors.transparent],
+                  colors: [_accent.withValues(alpha: .35), Colors.transparent],
                 ),
               ),
             ),

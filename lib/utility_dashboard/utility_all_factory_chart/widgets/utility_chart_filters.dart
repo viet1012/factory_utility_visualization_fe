@@ -231,7 +231,7 @@ class UtilityFilterSection extends StatelessWidget {
           height: 38,
           child: Row(
             children: [
-              Icon(icon, size: 16, color: Colors.white.withOpacity(.48)),
+              Icon(icon, size: 16, color: Colors.white.withValues(alpha: .48)),
 
               const SizedBox(width: 7),
 
@@ -241,7 +241,7 @@ class UtilityFilterSection extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(.58),
+                    color: Colors.white.withValues(alpha: .58),
                     fontSize: 11,
                     fontWeight: FontWeight.w900,
                     letterSpacing: .7,
@@ -334,9 +334,9 @@ class _FilterLoadingPill extends StatelessWidget {
       height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: theme.line.withOpacity(.07),
+        color: theme.line.withValues(alpha: .07),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.line.withOpacity(.20)),
+        border: Border.all(color: theme.line.withValues(alpha: .20)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -351,7 +351,7 @@ class _FilterLoadingPill extends StatelessWidget {
           Text(
             text,
             style: TextStyle(
-              color: Colors.white.withOpacity(.72),
+              color: Colors.white.withValues(alpha: .72),
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
@@ -373,9 +373,9 @@ class _FilterEmptyHint extends StatelessWidget {
       height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.025),
+        color: Colors.white.withValues(alpha: .025),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -383,7 +383,7 @@ class _FilterEmptyHint extends StatelessWidget {
           Icon(
             Icons.info_outline_rounded,
             size: 15,
-            color: Colors.white.withOpacity(.38),
+            color: Colors.white.withValues(alpha: .38),
           ),
 
           const SizedBox(width: 8),
@@ -394,7 +394,7 @@ class _FilterEmptyHint extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: Colors.white.withOpacity(.46),
+                color: Colors.white.withValues(alpha: .46),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),

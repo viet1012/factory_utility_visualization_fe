@@ -190,7 +190,7 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
                 'No utility signals found in '
                 '${widget.selectedBox} / '
                 '${widget.scadaId ?? "-"}',
-            color: Colors.white.withOpacity(.58),
+            color: Colors.white.withValues(alpha: .58),
           );
         }
 

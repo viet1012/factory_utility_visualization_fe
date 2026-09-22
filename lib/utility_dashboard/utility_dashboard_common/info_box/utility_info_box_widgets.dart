@@ -34,26 +34,29 @@ class UtilityInfoBoxWidgets {
 
         gradient: LinearGradient(
           colors: [
-            Colors.white.withOpacity(0.06),
-            Colors.white.withOpacity(0.02),
+            Colors.white.withValues(alpha: 0.06),
+            Colors.white.withValues(alpha: 0.02),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
 
         border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
         ),
 
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
           // ?? accent nh? theo cate
           BoxShadow(
-            color: facilityColor.withOpacity(0.10),
+            color: facilityColor.withValues(alpha: 0.10),
             blurRadius: 14,
             offset: const Offset(0, 2),
           ),
@@ -65,11 +68,11 @@ class UtilityInfoBoxWidgets {
             width: 3,
             height: 22,
             decoration: BoxDecoration(
-              color: facilityColor.withOpacity(0.95),
+              color: facilityColor.withValues(alpha: 0.95),
               borderRadius: BorderRadius.circular(99),
               boxShadow: [
                 BoxShadow(
-                  color: facilityColor.withOpacity(0.45),
+                  color: facilityColor.withValues(alpha: 0.45),
                   blurRadius: 8,
                 ),
               ],
@@ -109,7 +112,7 @@ class UtilityInfoBoxWidgets {
     return Center(
       child: Text(
         hasError ? 'Error: $err' : 'No data',
-        style: TextStyle(color: Colors.white.withOpacity(0.7)),
+        style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
         textAlign: TextAlign.center,
       ),
     );
@@ -135,9 +138,12 @@ class UtilityInfoBoxWidgets {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
@@ -148,7 +154,7 @@ class UtilityInfoBoxWidgets {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${r.plcAddress} • ${valueText}',
+                  '${r.plcAddress} • $valueText',
                   style: TextStyle(
                     color: color,
                     fontSize: 20,
@@ -185,9 +191,9 @@ class UtilityInfoBoxWidgets {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -321,7 +327,7 @@ class _StatusDotState extends State<_StatusDot>
                       width: 10,
                       height: 10,
                       decoration: BoxDecoration(
-                        color: widget.color.withOpacity(_opacity.value),
+                        color: widget.color.withValues(alpha: _opacity.value),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -336,7 +342,7 @@ class _StatusDotState extends State<_StatusDot>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: widget.color.withOpacity(0.55),
+                    color: widget.color.withValues(alpha: 0.55),
                     blurRadius: 8,
                   ),
                 ],

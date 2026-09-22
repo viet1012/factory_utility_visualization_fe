@@ -403,10 +403,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         end: Alignment.bottomRight,
         colors: [Color(0xFF03111F), Color(0xFF051A2E), Color(0xFF020814)],
       ),
-      border: Border.all(color: const Color(0xFF00CFFF).withOpacity(.35)),
+      border: Border.all(color: const Color(0xFF00CFFF).withValues(alpha: .35)),
       boxShadow: [
         BoxShadow(
-          color: const Color(0xFF00CFFF).withOpacity(.10),
+          color: const Color(0xFF00CFFF).withValues(alpha: .10),
           blurRadius: 18,
           spreadRadius: 1,
         ),

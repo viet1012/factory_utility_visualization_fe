@@ -111,8 +111,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     return widget.facId.trim().isNotEmpty && widget.month.trim().isNotEmpty;
   }
 
-  String get _healthKey =>
-      'Monthly_${widget.facId}_${widget.headerTitle}';
+  String get _healthKey => 'Monthly_${widget.facId}_${widget.headerTitle}';
 
   // ============================================================
   // INIT
@@ -623,15 +622,15 @@ class _MonthlyContainer extends StatelessWidget {
       height: height,
 
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.1),
+        color: Colors.white.withValues(alpha: .1),
 
         borderRadius: BorderRadius.circular(16),
 
-        border: Border.all(color: Colors.white.withOpacity(.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
 
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.6),
+            color: Colors.black.withValues(alpha: .6),
 
             blurRadius: 16,
 
@@ -647,7 +646,7 @@ class _MonthlyContainer extends StatelessWidget {
 
         children: [
           UtilityInfoBoxHeader.header(
-            facilityColor: headerColor.withOpacity(.3),
+            facilityColor: headerColor.withValues(alpha: .3),
 
             facTitle: title,
 

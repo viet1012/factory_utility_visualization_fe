@@ -369,9 +369,9 @@
 //             child: Container(
 //               margin: const EdgeInsets.symmetric(horizontal: 8),
 //               decoration: BoxDecoration(
-//                 color: Colors.black.withOpacity(0.18),
+//                 color: Colors.black.withValues(alpha: 0.18),
 //                 borderRadius: BorderRadius.circular(18),
-//                 border: Border.all(color: Colors.white.withOpacity(0.08)),
+//                 border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
 //               ),
 //               child: _FacOverlayMapGroup(
 //                 facId: widget.facId,
@@ -964,7 +964,7 @@
 //
 //         border: Border.all(color: color, width: 1.2),
 //
-//         boxShadow: [BoxShadow(color: color.withOpacity(.28), blurRadius: 9)],
+//         boxShadow: [BoxShadow(color: color.withValues(alpha: .28), blurRadius: 9)],
 //       ),
 //
 //       child: Column(
@@ -983,7 +983,7 @@
 //             decoration: BoxDecoration(
 //               shape: BoxShape.circle,
 //
-//               color: color.withOpacity(.18),
+//               color: color.withValues(alpha: .18),
 //
 //               border: Border.all(color: color),
 //             ),
@@ -1026,7 +1026,7 @@
 //             'kWh',
 //
 //             style: TextStyle(
-//               color: Colors.white.withOpacity(.6),
+//               color: Colors.white.withValues(alpha: .6),
 //
 //               fontSize: 8,
 //

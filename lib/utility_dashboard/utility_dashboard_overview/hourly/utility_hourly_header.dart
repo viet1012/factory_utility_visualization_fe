@@ -26,7 +26,9 @@ class UtilityHourlyHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: backgroundColor,
         border: showDivider
-            ? Border(bottom: BorderSide(color: Colors.white.withOpacity(0.10)))
+            ? Border(
+                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+              )
             : null,
       ),
       child: Row(
@@ -39,7 +41,7 @@ class UtilityHourlyHeader extends StatelessWidget {
                   TextSpan(
                     text: title,
                     style: TextStyle(
-                      color: const Color(0xFF5CFF7A).withOpacity(0.9),
+                      color: const Color(0xFF5CFF7A).withValues(alpha: 0.9),
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.5,
@@ -50,7 +52,7 @@ class UtilityHourlyHeader extends StatelessWidget {
                     TextSpan(
                       text: sub,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.60),
+                        color: Colors.white.withValues(alpha: 0.60),
                         fontSize: 13,
                         fontStyle: FontStyle.italic,
                         fontWeight: FontWeight.w600,

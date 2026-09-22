@@ -115,7 +115,7 @@ class _PasswordConfirmDialogState extends State<_PasswordConfirmDialog> {
             Text(
               widget.message,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.72),
+                color: Colors.white.withValues(alpha: 0.72),
                 fontSize: 13,
                 height: 1.4,
               ),
@@ -128,23 +128,31 @@ class _PasswordConfirmDialogState extends State<_PasswordConfirmDialog> {
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 labelText: 'Password',
-                labelStyle: TextStyle(color: Colors.white.withOpacity(0.75)),
+                labelStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.75),
+                ),
                 hintText: 'Nhập mật khẩu',
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
+                hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.35),
+                ),
                 errorText: _errorText,
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
+                fillColor: Colors.white.withValues(alpha: 0.05),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 14,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.10),
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.10),
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -193,7 +201,7 @@ class _PasswordConfirmDialogState extends State<_PasswordConfirmDialog> {
           child: Text(
             'Huỷ',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.72),
+              color: Colors.white.withValues(alpha: 0.72),
               fontWeight: FontWeight.w600,
             ),
           ),

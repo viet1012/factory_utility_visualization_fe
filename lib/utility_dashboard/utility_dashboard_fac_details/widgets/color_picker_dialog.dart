@@ -21,7 +21,7 @@ class ColorPickerDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: Colors.black.withOpacity(0.85),
+      backgroundColor: Colors.black.withValues(alpha: 0.85),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -51,8 +51,10 @@ class _ColorPickItem extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withOpacity(0.3)),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 10)],
+          border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+          boxShadow: [
+            BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 10),
+          ],
         ),
       ),
     );

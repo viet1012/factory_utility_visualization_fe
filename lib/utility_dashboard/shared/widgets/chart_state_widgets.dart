@@ -16,12 +16,12 @@ class EmptyChartState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? Colors.white.withOpacity(0.58);
+    final c = color ?? Colors.white.withValues(alpha: 0.58);
 
     return _ChartStateShell(
       icon: icon,
       iconColor: c,
-      iconBackground: Colors.white.withOpacity(0.06),
+      iconBackground: Colors.white.withValues(alpha: 0.06),
       title: title,
       message: message,
     );
@@ -43,7 +43,7 @@ class ChartApiErrorState extends StatelessWidget {
     return _ChartStateShell(
       icon: Icons.cloud_off_rounded,
       iconColor: color,
-      iconBackground: color.withOpacity(0.12),
+      iconBackground: color.withValues(alpha: 0.12),
       title: 'Unable to Load Data',
       message: 'Please check your connection or try again.',
       action: SizedBox(
@@ -104,7 +104,7 @@ class _ChartStateShell extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: iconBackground,
-                  border: Border.all(color: iconColor.withOpacity(0.18)),
+                  border: Border.all(color: iconColor.withValues(alpha: 0.18)),
                 ),
                 child: Icon(icon, color: iconColor, size: 26),
               ),
@@ -115,7 +115,7 @@ class _ChartStateShell extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.88),
+                  color: Colors.white.withValues(alpha: 0.88),
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
                 ),
@@ -127,7 +127,7 @@ class _ChartStateShell extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.52),
+                  color: Colors.white.withValues(alpha: 0.52),
                   fontSize: 13,
                   height: 1.35,
                   fontWeight: FontWeight.w500,

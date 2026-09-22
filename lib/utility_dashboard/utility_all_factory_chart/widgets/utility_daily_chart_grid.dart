@@ -287,17 +287,20 @@ BoxDecoration _dailyPanelDecoration(ChartTheme theme) {
     gradient: LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [Colors.white.withOpacity(.06), Colors.white.withOpacity(.02)],
+      colors: [
+        Colors.white.withValues(alpha: .06),
+        Colors.white.withValues(alpha: .02),
+      ],
     ),
-    border: Border.all(color: theme.line.withOpacity(.18)),
+    border: Border.all(color: theme.line.withValues(alpha: .18)),
     boxShadow: [
       BoxShadow(
-        color: theme.line.withOpacity(.18),
+        color: theme.line.withValues(alpha: .18),
         blurRadius: 10,
         offset: const Offset(0, 4),
       ),
       BoxShadow(
-        color: Colors.black.withOpacity(.32),
+        color: Colors.black.withValues(alpha: .32),
         blurRadius: 12,
         offset: const Offset(0, 6),
       ),
@@ -329,9 +332,9 @@ class _DailyLatestInfoBar extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
       padding: const EdgeInsets.symmetric(horizontal: 9),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.04),
+        color: Colors.white.withValues(alpha: .04),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(.06)),
+        border: Border.all(color: Colors.white.withValues(alpha: .06)),
       ),
       child: Row(
         children: [
@@ -339,9 +342,9 @@ class _DailyLatestInfoBar extends StatelessWidget {
             width: 30,
             height: 30,
             decoration: BoxDecoration(
-              color: color.withOpacity(.12),
+              color: color.withValues(alpha: .12),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: color.withOpacity(.22)),
+              border: Border.all(color: color.withValues(alpha: .22)),
             ),
             child: Icon(
               _dailySignalStyle(series.nameEn, '').icon,
@@ -376,7 +379,7 @@ class _DailyLatestInfoBar extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(.58),
+                        color: Colors.white.withValues(alpha: .58),
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -389,7 +392,7 @@ class _DailyLatestInfoBar extends StatelessWidget {
                 Container(
                   width: 1,
                   height: 17,
-                  color: Colors.white.withOpacity(.12),
+                  color: Colors.white.withValues(alpha: .12),
                 ),
 
                 const SizedBox(width: 10),
@@ -400,7 +403,7 @@ class _DailyLatestInfoBar extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(.58),
+                      color: Colors.white.withValues(alpha: .58),
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
@@ -414,9 +417,9 @@ class _DailyLatestInfoBar extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
               decoration: BoxDecoration(
-                color: color.withOpacity(.10),
+                color: color.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: color.withOpacity(.22)),
+                border: Border.all(color: color.withValues(alpha: .22)),
               ),
               child: Text(
                 // DateFormat('dd/MM').format(latestPoint!.recordDate),
@@ -508,7 +511,7 @@ class _DailyChartState extends State<_DailyChart> {
       activationMode: ActivationMode.singleTap,
       tooltipDisplayMode: TrackballDisplayMode.none,
       lineType: TrackballLineType.vertical,
-      lineColor: widget.lineColor.withOpacity(.55),
+      lineColor: widget.lineColor.withValues(alpha: .55),
       lineWidth: 1,
       markerSettings: TrackballMarkerSettings(
         markerVisibility: TrackballVisibilityMode.visible,
@@ -595,7 +598,7 @@ class _DailyChartState extends State<_DailyChart> {
               majorTickLines: const MajorTickLines(size: 0),
               majorGridLines: MajorGridLines(
                 width: .65,
-                color: Colors.white.withOpacity(.065),
+                color: Colors.white.withValues(alpha: .065),
                 dashArray: const <double>[4, 4],
               ),
               labelStyle: const TextStyle(
@@ -646,7 +649,7 @@ class _DailyChartState extends State<_DailyChart> {
 
         name: 'Daily consumption',
 
-        color: widget.lineColor.withOpacity(.78),
+        color: widget.lineColor.withValues(alpha: .78),
         borderColor: widget.lineColor,
         borderWidth: 1,
 
@@ -678,8 +681,8 @@ class _DailyChartState extends State<_DailyChart> {
         xValueMapper: (point, _) => point.recordDate,
         lowValueMapper: (point, _) => point.minValue,
         highValueMapper: (point, _) => point.maxValue,
-        color: widget.lineColor.withOpacity(.10),
-        borderColor: widget.lineColor.withOpacity(.22),
+        color: widget.lineColor.withValues(alpha: .10),
+        borderColor: widget.lineColor.withValues(alpha: .22),
         borderWidth: .8,
         name: 'Min - Max',
         enableTooltip: false,
@@ -744,8 +747,8 @@ class _DailySelectedPointPanel extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: Colors.white.withOpacity(.035),
-          border: Border.all(color: Colors.white.withOpacity(.07)),
+          color: Colors.white.withValues(alpha: .035),
+          border: Border.all(color: Colors.white.withValues(alpha: .07)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -753,13 +756,13 @@ class _DailySelectedPointPanel extends StatelessWidget {
             Icon(
               Icons.touch_app_rounded,
               size: 16,
-              color: Colors.white.withOpacity(.42),
+              color: Colors.white.withValues(alpha: .42),
             ),
             const SizedBox(width: 7),
             Text(
               'Tap a chart point to view details',
               style: TextStyle(
-                color: Colors.white.withOpacity(.48),
+                color: Colors.white.withValues(alpha: .48),
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
@@ -773,24 +776,24 @@ class _DailySelectedPointPanel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(.30), width: 1),
+        border: Border.all(color: color.withValues(alpha: .30), width: 1),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            color.withOpacity(.10),
-            Colors.white.withOpacity(.055),
-            Colors.white.withOpacity(.025),
+            color.withValues(alpha: .10),
+            Colors.white.withValues(alpha: .055),
+            Colors.white.withValues(alpha: .025),
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.16),
+            color: Colors.black.withValues(alpha: .16),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
           BoxShadow(
-            color: color.withOpacity(.08),
+            color: color.withValues(alpha: .08),
             blurRadius: 18,
             spreadRadius: -5,
           ),
@@ -818,7 +821,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
               Text(
                 'Tap another point to change',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(.34),
+                  color: Colors.white.withValues(alpha: .34),
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
@@ -839,7 +842,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                 height: 34,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(999),
-                  color: Colors.white.withOpacity(.16),
+                  color: Colors.white.withValues(alpha: .16),
                 ),
               ),
 
@@ -918,7 +921,7 @@ class _IosMetricDivider extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: Colors.white.withOpacity(.075),
+        color: Colors.white.withValues(alpha: .075),
       ),
     );
   }
@@ -937,11 +940,14 @@ class _SelectedDateBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: color.withOpacity(.22)),
+        border: Border.all(color: color.withValues(alpha: .22)),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [color.withOpacity(.16), Colors.white.withOpacity(.055)],
+          colors: [
+            color.withValues(alpha: .16),
+            Colors.white.withValues(alpha: .055),
+          ],
         ),
       ),
       alignment: Alignment.center,
@@ -990,7 +996,7 @@ class _SelectedMetric extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           textAlign: centered ? TextAlign.center : TextAlign.left,
           style: TextStyle(
-            color: Colors.white.withOpacity(.42),
+            color: Colors.white.withValues(alpha: .42),
             fontSize: 12,
             height: 1,
             fontWeight: FontWeight.w600,
@@ -1009,7 +1015,7 @@ class _SelectedMetric extends StatelessWidget {
                 _formatDailyValue(value),
                 maxLines: 1,
                 style: TextStyle(
-                  color: color ?? Colors.white.withOpacity(.90),
+                  color: color ?? Colors.white.withValues(alpha: .90),
                   fontSize: 16,
                   height: 1,
                   fontWeight: FontWeight.w700,
@@ -1024,7 +1030,7 @@ class _SelectedMetric extends StatelessWidget {
                   unit,
                   maxLines: 1,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(.38),
+                    color: Colors.white.withValues(alpha: .38),
                     fontSize: 12,
                     height: 1,
                     fontWeight: FontWeight.w600,

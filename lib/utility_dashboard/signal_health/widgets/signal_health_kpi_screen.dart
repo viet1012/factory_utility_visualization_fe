@@ -139,7 +139,6 @@ class SignalHealthKpiScreen extends StatelessWidget {
       },
     );
   }
-
 }
 
 class _SignalHealthCompactCard extends StatelessWidget {
@@ -157,7 +156,7 @@ class _SignalHealthCompactCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: color.withOpacity(0.30), width: 0.8),
+          border: Border.all(color: color.withValues(alpha: 0.30), width: 0.8),
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -175,7 +174,7 @@ class _SignalHealthCompactCard extends StatelessWidget {
               child: RepaintBoundary(
                 child: CustomPaint(
                   painter: _KpiPatternPainter(
-                    color: color.withOpacity(0.30),
+                    color: color.withValues(alpha: 0.30),
                     type: item.pattern,
                   ),
                   isComplex: true,
@@ -187,7 +186,11 @@ class _SignalHealthCompactCard extends StatelessWidget {
             Positioned(
               right: -4,
               bottom: -7,
-              child: Icon(item.icon, size: 39, color: color.withOpacity(0.045)),
+              child: Icon(
+                item.icon,
+                size: 39,
+                color: color.withValues(alpha: 0.045),
+              ),
             ),
 
             Row(
@@ -198,9 +201,9 @@ class _SignalHealthCompactCard extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: color.withOpacity(0.13),
+                    color: color.withValues(alpha: 0.13),
                     border: Border.all(
-                      color: color.withOpacity(0.48),
+                      color: color.withValues(alpha: 0.48),
                       width: 0.8,
                     ),
                   ),
@@ -434,7 +437,7 @@ class _KpiPatternPainter extends CustomPainter {
     canvas.drawPath(path, paint);
 
     final warningPaint = Paint()
-      ..color = color.withOpacity(0.55)
+      ..color = color.withValues(alpha: 0.55)
       ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke

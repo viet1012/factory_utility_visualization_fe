@@ -117,7 +117,7 @@ class _SelectedFilterSummary extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: Colors.white.withOpacity(.68),
+        color: Colors.white.withValues(alpha: .68),
         fontSize: 12,
         fontWeight: FontWeight.w600,
       ),
@@ -148,12 +148,12 @@ class _CollapseToggle extends StatelessWidget {
           height: 38,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(.05),
+            color: Colors.white.withValues(alpha: .05),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: expanded
-                  ? theme.line.withOpacity(.30)
-                  : Colors.white.withOpacity(.14),
+                  ? theme.line.withValues(alpha: .30)
+                  : Colors.white.withValues(alpha: .14),
             ),
           ),
           child: Row(
@@ -164,7 +164,7 @@ class _CollapseToggle extends StatelessWidget {
                 turns: expanded ? 0 : .5,
                 child: Icon(
                   Icons.expand_less_rounded,
-                  color: Colors.white.withOpacity(.85),
+                  color: Colors.white.withValues(alpha: .85),
                   size: 18,
                 ),
               ),
@@ -172,7 +172,7 @@ class _CollapseToggle extends StatelessWidget {
               Text(
                 expanded ? 'Hide Tabs' : 'Show Tabs',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(.88),
+                  color: Colors.white.withValues(alpha: .88),
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
@@ -197,12 +197,12 @@ class _CatalogSyncBadge extends StatelessWidget {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 11),
         decoration: BoxDecoration(
-          color: color.withOpacity(.07),
+          color: color.withValues(alpha: .07),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(.20)),
+          border: Border.all(color: color.withValues(alpha: .20)),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(.10),
+              color: color.withValues(alpha: .10),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -219,7 +219,7 @@ class _CatalogSyncBadge extends StatelessWidget {
             Text(
               'Syncing',
               style: TextStyle(
-                color: Colors.white.withOpacity(.74),
+                color: Colors.white.withValues(alpha: .74),
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: .2,
@@ -250,8 +250,8 @@ class _ImportantSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final activeColor = value
-        ? theme.line.withOpacity(.30)
-        : Colors.white.withOpacity(.14);
+        ? theme.line.withValues(alpha: .30)
+        : Colors.white.withValues(alpha: .14);
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 160),
@@ -261,7 +261,7 @@ class _ImportantSwitch extends StatelessWidget {
         height: 38,
         padding: const EdgeInsets.only(left: 10, right: 3),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.05),
+          color: Colors.white.withValues(alpha: .05),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: activeColor),
         ),
@@ -279,7 +279,7 @@ class _ImportantSwitch extends StatelessWidget {
             Text(
               'Important',
               style: TextStyle(
-                color: Colors.white.withOpacity(enabled ? .88 : .55),
+                color: Colors.white.withValues(alpha: enabled ? .88 : .55),
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
@@ -289,7 +289,7 @@ class _ImportantSwitch extends StatelessWidget {
               scale: .76,
               child: Switch(
                 value: value,
-                activeColor: theme.line,
+                activeThumbColor: theme.line,
                 onChanged: enabled ? onChanged : null,
               ),
             ),

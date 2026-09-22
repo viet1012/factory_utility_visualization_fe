@@ -44,21 +44,15 @@ class _DataRowTileState extends State<DataRowTile> {
       return '-';
     }
 
-    if (recordedAt is DateTime) {
-      return formatTime(recordedAt);
-    }
-
-    final parsed = DateTime.tryParse(recordedAt.toString());
-
-    return parsed == null ? '-' : formatTime(parsed);
+    return formatTime(recordedAt);
   }
 
   @override
   Widget build(BuildContext context) {
     final backgroundColor = _hovered
-        ? PanelStyle.accent.withOpacity(0.13)
+        ? PanelStyle.accent.withValues(alpha: 0.13)
         : widget.isEven
-        ? Colors.white.withOpacity(0.035)
+        ? Colors.white.withValues(alpha: 0.035)
         : Colors.transparent;
 
     return MouseRegion(
@@ -86,8 +80,8 @@ class _DataRowTileState extends State<DataRowTile> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: _hovered
-                ? PanelStyle.accent.withOpacity(0.20)
-                : Colors.white.withOpacity(0.045),
+                ? PanelStyle.accent.withValues(alpha: 0.20)
+                : Colors.white.withValues(alpha: 0.045),
           ),
         ),
         child: Row(
@@ -130,7 +124,7 @@ class _DataRowTileState extends State<DataRowTile> {
                         text: _unitText,
                         style: TextStyles.value.copyWith(
                           fontSize: 13,
-                          color: Colors.white.withOpacity(0.55),
+                          color: Colors.white.withValues(alpha: 0.55),
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -150,7 +144,7 @@ class _DataRowTileState extends State<DataRowTile> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.72),
+                    color: Colors.white.withValues(alpha: 0.72),
                     fontWeight: FontWeight.w700,
                     fontSize: 12,
                   ),

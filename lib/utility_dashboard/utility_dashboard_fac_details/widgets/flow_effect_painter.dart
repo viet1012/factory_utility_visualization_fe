@@ -33,8 +33,8 @@ class FlowEffectPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = effect == GroupFrameEffect.water ? 3.2 : 2.4
       ..strokeCap = StrokeCap.round
-      ..color = color.withOpacity(
-        effect == GroupFrameEffect.water ? 0.75 : 0.95,
+      ..color = color.withValues(
+        alpha: effect == GroupFrameEffect.water ? 0.75 : 0.95,
       )
       ..maskFilter = MaskFilter.blur(
         BlurStyle.normal,
@@ -45,7 +45,7 @@ class FlowEffectPainter extends CustomPainter {
 
     if (effect == GroupFrameEffect.electric) {
       final sparkPaint = Paint()
-        ..color = Colors.white.withOpacity(0.9)
+        ..color = Colors.white.withValues(alpha: 0.9)
         ..strokeWidth = 1.2
         ..strokeCap = StrokeCap.round;
 

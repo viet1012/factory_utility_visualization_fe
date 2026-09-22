@@ -46,7 +46,7 @@ class ArrowLabel extends StatelessWidget {
         ? const Color(0xFFFF5252)
         : selected
         ? Colors.amberAccent
-        : Colors.black.withOpacity(.78);
+        : Colors.black.withValues(alpha: .78);
 
     final activeEffectColor = hasAlarm ? const Color(0xFFFF7043) : effectColor;
 
@@ -57,8 +57,8 @@ class ArrowLabel extends StatelessWidget {
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: glowColor.withOpacity(
-              hasAlarm
+            color: glowColor.withValues(
+              alpha: hasAlarm
                   ? .55 * blinkValue
                   : selected
                   ? .28
@@ -81,7 +81,7 @@ class ArrowLabel extends StatelessWidget {
 
       child: CustomPaint(
         painter: ArrowPainter(
-          color: color.withOpacity(opacity),
+          color: color.withValues(alpha: opacity),
           borderColor: borderColor,
           direction: direction,
         ),

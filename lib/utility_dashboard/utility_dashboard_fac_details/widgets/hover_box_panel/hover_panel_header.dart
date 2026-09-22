@@ -49,9 +49,11 @@ class PanelHeader extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
             decoration: BoxDecoration(
-              color: PanelStyle.accent.withOpacity(0.14),
+              color: PanelStyle.accent.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: PanelStyle.accent.withOpacity(0.38)),
+              border: Border.all(
+                color: PanelStyle.accent.withValues(alpha: 0.38),
+              ),
             ),
             child: Text(
               '$total items',
@@ -91,7 +93,7 @@ class PanelHeader extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: color.withOpacity(0.36),
+                        color: color.withValues(alpha: 0.36),
                         blurRadius: 18,
                         spreadRadius: 1,
                       ),
@@ -120,13 +122,13 @@ class PanelHeader extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.white.withOpacity(0.18),
-                        color.withOpacity(0.18),
-                        Colors.black.withOpacity(0.10),
+                        Colors.white.withValues(alpha: 0.18),
+                        color.withValues(alpha: 0.18),
+                        Colors.black.withValues(alpha: 0.10),
                       ],
                     ),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.20),
+                      color: Colors.white.withValues(alpha: 0.20),
                       width: 1,
                     ),
                   ),

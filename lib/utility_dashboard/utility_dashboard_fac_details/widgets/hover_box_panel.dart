@@ -164,15 +164,15 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
         colors: [Color(0xFF111C2D), Color(0xFF0A1422), Color(0xFF07101C)],
         stops: [0, .52, 1],
       ),
-      border: Border.all(color: theme.line.withOpacity(.34), width: 1),
+      border: Border.all(color: theme.line.withValues(alpha: .34), width: 1),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(.48),
+          color: Colors.black.withValues(alpha: .48),
           blurRadius: 20,
           offset: const Offset(0, 10),
         ),
         BoxShadow(
-          color: theme.line.withOpacity(.10),
+          color: theme.line.withValues(alpha: .10),
           blurRadius: 16,
           spreadRadius: 1,
         ),
@@ -193,12 +193,14 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
           colors: [
-            theme.line.withOpacity(.19),
-            theme.line.withOpacity(.07),
+            theme.line.withValues(alpha: .19),
+            theme.line.withValues(alpha: .07),
             Colors.transparent,
           ],
         ),
-        border: Border(bottom: BorderSide(color: theme.line.withOpacity(.18))),
+        border: Border(
+          bottom: BorderSide(color: theme.line.withValues(alpha: .18)),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -239,7 +241,7 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
                     Icon(
                       Icons.hub_outlined,
                       size: 13,
-                      color: Colors.white.withOpacity(.48),
+                      color: Colors.white.withValues(alpha: .48),
                     ),
                     const SizedBox(width: 5),
                     Flexible(
@@ -250,7 +252,7 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(.58),
+                          color: Colors.white.withValues(alpha: .58),
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           height: 1,
@@ -289,10 +291,13 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
             height: 42,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: theme.line.withOpacity(.12),
-              border: Border.all(color: theme.line.withOpacity(.38)),
+              color: theme.line.withValues(alpha: .12),
+              border: Border.all(color: theme.line.withValues(alpha: .38)),
               boxShadow: [
-                BoxShadow(color: theme.line.withOpacity(.18), blurRadius: 9),
+                BoxShadow(
+                  color: theme.line.withValues(alpha: .18),
+                  blurRadius: 9,
+                ),
               ],
             ),
             child: Icon(theme.icon, color: theme.iconColor, size: 21),
@@ -308,9 +313,9 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
-        color: theme.line.withOpacity(.12),
+        color: theme.line.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: theme.line.withOpacity(.28)),
+        border: Border.all(color: theme.line.withValues(alpha: .28)),
       ),
       child: Text(
         text,
@@ -331,9 +336,9 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
       constraints: const BoxConstraints(minWidth: 100),
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.18),
+        color: Colors.black.withValues(alpha: .18),
         borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: Colors.white.withOpacity(.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -351,7 +356,7 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
           Text(
             'REGISTERS',
             style: TextStyle(
-              color: Colors.white.withOpacity(.46),
+              color: Colors.white.withValues(alpha: .46),
               fontSize: 8.5,
               fontWeight: FontWeight.w800,
               letterSpacing: .65,
@@ -372,9 +377,9 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
       height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.12),
+        color: Colors.black.withValues(alpha: .12),
         border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(.06)),
+          bottom: BorderSide(color: Colors.white.withValues(alpha: .06)),
         ),
       ),
       child: Row(
@@ -399,19 +404,19 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
             value: '$_missingRegisterCount',
             color: _missingRegisterCount > 0
                 ? const Color(0xFFF59E0B)
-                : Colors.white.withOpacity(.38),
+                : Colors.white.withValues(alpha: .38),
           ),
           const Spacer(),
           Icon(
             Icons.info_outline_rounded,
             size: 14,
-            color: Colors.white.withOpacity(.32),
+            color: Colors.white.withValues(alpha: .32),
           ),
           const SizedBox(width: 5),
           Text(
             'Click outside to close',
             style: TextStyle(
-              color: Colors.white.withOpacity(.34),
+              color: Colors.white.withValues(alpha: .34),
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
@@ -429,9 +434,9 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 9, 12, 7),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.018),
+        color: Colors.white.withValues(alpha: .018),
         border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(.06)),
+          bottom: BorderSide(color: Colors.white.withValues(alpha: .06)),
         ),
       ),
       child: const TableHeader(),
@@ -460,7 +465,7 @@ class _HoverBoxPanelState extends State<HoverBoxPanel>
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: index.isEven
-                    ? Colors.white.withOpacity(.026)
+                    ? Colors.white.withValues(alpha: .026)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -504,7 +509,7 @@ class _SummaryItem extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(.45),
+            color: Colors.white.withValues(alpha: .45),
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),

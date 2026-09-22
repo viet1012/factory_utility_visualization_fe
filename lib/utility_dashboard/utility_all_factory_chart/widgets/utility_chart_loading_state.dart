@@ -20,12 +20,12 @@ class UtilityChartLoadingState extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.035),
+          color: Colors.white.withValues(alpha: .035),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: theme.line.withOpacity(.18)),
+          border: Border.all(color: theme.line.withValues(alpha: .18)),
           boxShadow: [
             BoxShadow(
-              color: theme.line.withOpacity(.08),
+              color: theme.line.withValues(alpha: .08),
               blurRadius: 18,
               spreadRadius: -8,
             ),
@@ -45,7 +45,7 @@ class UtilityChartLoadingState extends StatelessWidget {
             Text(
               message,
               style: TextStyle(
-                color: Colors.white.withOpacity(.72),
+                color: Colors.white.withValues(alpha: .72),
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),

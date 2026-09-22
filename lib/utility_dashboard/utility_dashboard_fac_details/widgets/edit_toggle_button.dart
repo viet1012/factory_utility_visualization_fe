@@ -17,13 +17,13 @@ class EditToggleButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: editMode
-              ? Colors.amber.withOpacity(0.16)
-              : Colors.white.withOpacity(0.06),
+              ? Colors.amber.withValues(alpha: 0.16)
+              : Colors.white.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: editMode
                 ? Colors.amberAccent
-                : Colors.white.withOpacity(0.14),
+                : Colors.white.withValues(alpha: 0.14),
           ),
         ),
         child: Row(

@@ -51,7 +51,7 @@ class LatestRecordDto {
       v = double.tryParse(rawValue.toString());
     }
 
-    double? _toDouble(dynamic x) {
+    double? toDouble(dynamic x) {
       if (x == null) return null;
       if (x is num) return x.toDouble();
       return double.tryParse(x.toString());
@@ -74,10 +74,10 @@ class LatestRecordDto {
       alarm: json['alarm']?.toString(),
 
       // optional
-      minVol: _toDouble(json['minVol']),
-      maxVol: _toDouble(json['maxVol']),
-      minVolStd: _toDouble(json['minVolStd']),
-      maxVolStd: _toDouble(json['maxVolStd']),
+      minVol: toDouble(json['minVol']),
+      maxVol: toDouble(json['maxVol']),
+      minVolStd: toDouble(json['minVolStd']),
+      maxVolStd: toDouble(json['maxVolStd']),
 
       unit: json['unit']?.toString(),
     );

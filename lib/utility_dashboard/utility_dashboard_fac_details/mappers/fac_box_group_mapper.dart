@@ -36,16 +36,16 @@ class FacBoxGroupMapper {
 
     for (final group in result.values) {
       group.signals.sort((a, b) {
-        final plcCompare = (a.plcAddress ?? '').trim().toLowerCase().compareTo(
-          (b.plcAddress ?? '').trim().toLowerCase(),
+        final plcCompare = a.plcAddress.trim().toLowerCase().compareTo(
+          b.plcAddress.trim().toLowerCase(),
         );
 
         if (plcCompare != 0) {
           return plcCompare;
         }
 
-        return (a.nameEn ?? '').trim().toLowerCase().compareTo(
-          (b.nameEn ?? '').trim().toLowerCase(),
+        return a.nameEn.trim().toLowerCase().compareTo(
+          b.nameEn.trim().toLowerCase(),
         );
       });
     }

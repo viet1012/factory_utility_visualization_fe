@@ -155,10 +155,6 @@ class UtilityDailyPoint {
   }
 }
 
-String _readString(dynamic value) {
-  return value?.toString().trim() ?? '';
-}
-
 double? _readDouble(dynamic value) {
   if (value == null) return null;
 

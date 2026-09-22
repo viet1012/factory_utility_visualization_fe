@@ -73,7 +73,7 @@ class MonthlyMetricDeltaBadge extends StatelessWidget {
           '--',
           maxLines: 1,
           style: TextStyle(
-            color: Colors.white.withOpacity(.35),
+            color: Colors.white.withValues(alpha: .35),
             fontSize: 14,
             fontWeight: FontWeight.w800,
           ),
@@ -224,7 +224,7 @@ class MonthlyMetricValueText extends StatelessWidget {
               TextSpan(
                 text: ' ($normalizedBadge)',
                 style: TextStyle(
-                  color: color.withOpacity(.9),
+                  color: color.withValues(alpha: .9),
                   fontSize: 12.5,
                   height: 1,
                   fontWeight: FontWeight.w900,
@@ -355,7 +355,7 @@ class MonthlyMetricComparisonRow extends StatelessWidget {
                       : Text(
                           '--',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(.35),
+                            color: Colors.white.withValues(alpha: .35),
                             fontSize: 17,
                             height: 1,
                             fontWeight: FontWeight.w900,
@@ -486,14 +486,14 @@ class MonthlyInlineState extends StatelessWidget {
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: Colors.white.withOpacity(.55), size: 22),
+        Icon(icon, color: Colors.white.withValues(alpha: .55), size: 22),
 
         const SizedBox(height: 6),
 
         Text(
           title,
           style: TextStyle(
-            color: Colors.white.withOpacity(.84),
+            color: Colors.white.withValues(alpha: .84),
             fontSize: 12,
             fontWeight: FontWeight.w900,
           ),
@@ -505,7 +505,7 @@ class MonthlyInlineState extends StatelessWidget {
           message,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Colors.white.withOpacity(.52),
+            color: Colors.white.withValues(alpha: .52),
             fontSize: 10.5,
             fontWeight: FontWeight.w700,
           ),

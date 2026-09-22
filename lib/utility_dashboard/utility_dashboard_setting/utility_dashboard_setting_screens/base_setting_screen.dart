@@ -104,7 +104,7 @@ class BaseSettingScreen extends StatelessWidget {
                     Text(
                       'Nhập mật khẩu để thêm mới dữ liệu.',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.72),
+                        color: Colors.white.withValues(alpha: 0.72),
                         fontSize: 13,
                         height: 1.4,
                       ),
@@ -118,15 +118,15 @@ class BaseSettingScreen extends StatelessWidget {
                       decoration: InputDecoration(
                         labelText: 'Password',
                         labelStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.75),
+                          color: Colors.white.withValues(alpha: 0.75),
                         ),
                         hintText: 'Nhập mật khẩu',
                         hintStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.35),
+                          color: Colors.white.withValues(alpha: 0.35),
                         ),
                         errorText: errorText,
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.05),
+                        fillColor: Colors.white.withValues(alpha: 0.05),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 14,
@@ -134,13 +134,13 @@ class BaseSettingScreen extends StatelessWidget {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide(
-                            color: Colors.white.withOpacity(0.10),
+                            color: Colors.white.withValues(alpha: 0.10),
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide(
-                            color: Colors.white.withOpacity(0.10),
+                            color: Colors.white.withValues(alpha: 0.10),
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
@@ -199,7 +199,7 @@ class BaseSettingScreen extends StatelessWidget {
                   child: Text(
                     'Huỷ',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.72),
+                      color: Colors.white.withValues(alpha: 0.72),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -260,11 +260,13 @@ class BaseSettingScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
                 decoration: BoxDecoration(
                   border: Border(
-                    bottom: BorderSide(color: Colors.white.withOpacity(0.06)),
+                    bottom: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.06),
+                    ),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.20),
+                      color: Colors.black.withValues(alpha: 0.20),
                       blurRadius: 10,
                       offset: const Offset(0, 3),
                     ),
@@ -320,7 +322,7 @@ class BaseSettingScreen extends StatelessWidget {
           ),
           if (submitting)
             Container(
-              color: Colors.black.withOpacity(0.18),
+              color: Colors.black.withValues(alpha: 0.18),
               child: const Center(child: CircularProgressIndicator()),
             ),
         ],
@@ -391,9 +393,9 @@ class _IconActionButton extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.045),
+            color: Colors.white.withValues(alpha: 0.045),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Icon(
             icon,
@@ -440,16 +442,18 @@ class _AddButton extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  color: Colors.white.withOpacity(0.06),
-                  border: Border.all(color: Colors.white.withOpacity(0.50)),
+                  color: Colors.white.withValues(alpha: 0.06),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.50),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: accent.withOpacity(0.25),
+                      color: accent.withValues(alpha: 0.25),
                       blurRadius: 18,
                       offset: const Offset(0, 6),
                     ),
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.35),
+                      color: Colors.black.withValues(alpha: 0.35),
                       blurRadius: 14,
                       offset: const Offset(0, 6),
                     ),

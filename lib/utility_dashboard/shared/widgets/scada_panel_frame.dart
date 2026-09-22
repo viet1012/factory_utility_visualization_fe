@@ -39,8 +39,8 @@ class _ScadaFramePainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF081B36).withOpacity(0.92),
-            const Color(0xFF050B16).withOpacity(0.96),
+            const Color(0xFF081B36).withValues(alpha: 0.92),
+            const Color(0xFF050B16).withValues(alpha: 0.96),
           ],
         ).createShader(Offset.zero & size),
     );
@@ -48,7 +48,7 @@ class _ScadaFramePainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = color.withOpacity(0.18)
+        ..color = color.withValues(alpha: 0.18)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 5
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
@@ -57,7 +57,7 @@ class _ScadaFramePainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = color.withOpacity(0.85)
+        ..color = color.withValues(alpha: 0.85)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2,
     );
@@ -78,13 +78,13 @@ class _ScadaFramePainter extends CustomPainter {
     canvas.drawPath(
       innerPath,
       Paint()
-        ..color = color.withOpacity(0.22)
+        ..color = color.withValues(alpha: 0.22)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8,
     );
 
     final linePaint = Paint()
-      ..color = color.withOpacity(0.75)
+      ..color = color.withValues(alpha: 0.75)
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
 

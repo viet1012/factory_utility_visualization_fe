@@ -56,7 +56,6 @@ class UtilityScadaSettingScreen extends StatefulWidget {
 
 class _UtilityScadaSettingScreenState extends State<UtilityScadaSettingScreen>
     with SingleTickerProviderStateMixin {
-  static const _tabBarBg = Color(0xFF0B0D12);
   static const _active = Colors.white;
   static const _inactive = Colors.white54;
   static const _accent = Color(0xFF1F6FEB);
@@ -177,7 +176,7 @@ class _UtilityScadaSettingScreenState extends State<UtilityScadaSettingScreen>
             ),
           ),
         ),
-        Container(height: 1, color: Colors.white.withOpacity(0.08)),
+        Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
         Expanded(
           child: TabBarView(
             controller: _controller,
@@ -225,12 +224,14 @@ class _TabChip extends StatelessWidget {
         curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? accentColor.withOpacity(0.14) : Colors.transparent,
+          color: selected
+              ? accentColor.withValues(alpha: 0.14)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: selected
-                ? accentColor.withOpacity(0.36)
-                : Colors.white.withOpacity(0.06),
+                ? accentColor.withValues(alpha: 0.36)
+                : Colors.white.withValues(alpha: 0.06),
           ),
         ),
         child: Row(

@@ -97,7 +97,7 @@
 //           end: Alignment.bottomRight,
 //         ),
 //         borderRadius: BorderRadius.circular(15),
-//         border: Border.all(color: Colors.cyan.withOpacity(0.3)),
+//         border: Border.all(color: Colors.cyan.withValues(alpha: 0.3)),
 //       ),
 //       child: Row(
 //         children: [
@@ -135,9 +135,9 @@
 //         return Container(
 //           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
 //           decoration: BoxDecoration(
-//             color: color.withOpacity(0.2),
+//             color: color.withValues(alpha: 0.2),
 //             borderRadius: BorderRadius.circular(20),
-//             border: Border.all(color: color.withOpacity(0.5)),
+//             border: Border.all(color: color.withValues(alpha: 0.5)),
 //           ),
 //           child: Row(
 //             mainAxisSize: MainAxisSize.min,
@@ -233,10 +233,10 @@
 //               end: Alignment.bottomRight,
 //             ),
 //             borderRadius: BorderRadius.circular(15),
-//             border: Border.all(color: color.withOpacity(0.3)),
+//             border: Border.all(color: color.withValues(alpha: 0.3)),
 //             boxShadow: [
 //               BoxShadow(
-//                 color: color.withOpacity(0.2),
+//                 color: color.withValues(alpha: 0.2),
 //                 blurRadius: 10,
 //                 offset: Offset(0, 5),
 //               ),
@@ -291,7 +291,7 @@
 //           end: Alignment.bottomRight,
 //         ),
 //         borderRadius: BorderRadius.circular(15),
-//         border: Border.all(color: Colors.cyan.withOpacity(0.3)),
+//         border: Border.all(color: Colors.cyan.withValues(alpha: 0.3)),
 //       ),
 //       child: Column(
 //         crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,7 +353,7 @@
 //           end: Alignment.bottomRight,
 //         ),
 //         borderRadius: BorderRadius.circular(15),
-//         border: Border.all(color: color.withOpacity(0.3)),
+//         border: Border.all(color: color.withValues(alpha: 0.3)),
 //       ),
 //       child: Column(
 //         children: [
@@ -414,8 +414,8 @@
 //     final fillPaint = Paint()
 //       ..shader = LinearGradient(
 //         colors: [
-//           Colors.cyan.withOpacity(0.3),
-//           Colors.cyan.withOpacity(0.1),
+//           Colors.cyan.withValues(alpha: 0.3),
+//           Colors.cyan.withValues(alpha: 0.1),
 //           Colors.transparent,
 //         ],
 //         begin: Alignment.topCenter,
@@ -495,7 +495,7 @@
 //     // Progress arc
 //     final progressPaint = Paint()
 //       ..shader = SweepGradient(
-//         colors: [color.withOpacity(0.3), color],
+//         colors: [color.withValues(alpha: 0.3), color],
 //         stops: [0.0, 1.0],
 //       ).createShader(Rect.fromCircle(center: center, radius: radius))
 //       ..strokeWidth = 8
@@ -512,7 +512,7 @@
 //
 //     // Glow effect
 //     final glowPaint = Paint()
-//       ..color = color.withOpacity(0.3)
+//       ..color = color.withValues(alpha: 0.3)
 //       ..strokeWidth = 12
 //       ..style = PaintingStyle.stroke
 //       ..strokeCap = StrokeCap.round

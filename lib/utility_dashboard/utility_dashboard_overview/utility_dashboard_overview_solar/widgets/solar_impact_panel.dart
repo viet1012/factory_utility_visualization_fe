@@ -11,11 +11,7 @@ class SolarImpactPanel extends StatelessWidget {
   /// yyyyMM, dung cho tieu de panel.
   final String month;
 
-  const SolarImpactPanel({
-    super.key,
-    required this.data,
-    required this.month,
-  });
+  const SolarImpactPanel({super.key, required this.data, required this.month});
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +74,7 @@ class SolarImpactPanel extends StatelessWidget {
 
             const SizedBox(height: 6),
 
-            Divider(height: 1, color: Colors.white.withOpacity(.08)),
+            Divider(height: 1, color: Colors.white.withValues(alpha: .08)),
 
             const SizedBox(height: 5),
 
@@ -103,9 +99,7 @@ class SolarImpactPanel extends StatelessWidget {
                     child: _impactEnvironment(
                       icon: Icons.park_rounded,
                       title: 'TREES',
-                      value: SolarDetailFormatters.compact(
-                        env.equivalentTrees,
-                      ),
+                      value: SolarDetailFormatters.compact(env.equivalentTrees),
                     ),
                   ),
 
@@ -128,10 +122,10 @@ class SolarImpactPanel extends StatelessWidget {
               height: 25,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
-                color: SolarDetailColors.green.withOpacity(.05),
+                color: SolarDetailColors.green.withValues(alpha: .05),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: SolarDetailColors.green.withOpacity(.13),
+                  color: SolarDetailColors.green.withValues(alpha: .13),
                 ),
               ),
               child: Row(
@@ -180,9 +174,9 @@ class SolarImpactPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(7),
       decoration: BoxDecoration(
-        color: color.withOpacity(.035),
+        color: color.withValues(alpha: .035),
         borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: color.withOpacity(.15)),
+        border: Border.all(color: color.withValues(alpha: .15)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -268,7 +262,7 @@ class SolarImpactPanel extends StatelessWidget {
       width: 1,
       height: 40,
       margin: const EdgeInsets.symmetric(horizontal: 5),
-      color: Colors.white.withOpacity(.08),
+      color: Colors.white.withValues(alpha: .08),
     );
   }
 }

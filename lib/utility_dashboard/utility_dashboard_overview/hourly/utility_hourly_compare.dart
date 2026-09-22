@@ -22,42 +22,6 @@ class _HourlyCompareDto {
     required this.todayUsd,
     required this.yesterdayUsd,
   });
-
-  factory _HourlyCompareDto.fromJson(Map<String, dynamic> json) {
-    double? toD(dynamic v) {
-      if (v == null) return null;
-      if (v is num) return v.toDouble();
-      return double.tryParse(v.toString());
-    }
-
-    double? round2(dynamic v) {
-      final val = toD(v);
-      if (val == null) return null;
-      return double.parse(val.toStringAsFixed(2));
-    }
-
-    double? sanitizeEnergy(double? v) {
-      if (v == null || v.isNaN || v.isInfinite) return null;
-      if (v < 0 || v > 5000) return null;
-      return v;
-    }
-
-    double? sanitizeUsd(double? v) {
-      if (v == null || v.isNaN || v.isInfinite) return null;
-      if (v < 0 || v > 1000) return null;
-      return v;
-    }
-
-    final h = json['scaleHour'];
-
-    return _HourlyCompareDto(
-      scaleHour: h is num ? h.toInt() : int.tryParse(h.toString()) ?? 0,
-      today: sanitizeEnergy(toD(json['today'])),
-      yesterday: sanitizeEnergy(toD(json['yesterday'])),
-      todayUsd: sanitizeUsd(round2(json['todayUsd'])),
-      yesterdayUsd: sanitizeUsd(round2(json['yesterdayUsd'])),
-    );
-  }
 }
 
 class _LinePoint {
@@ -328,12 +292,6 @@ class _SummaryBar extends StatelessWidget {
 
     final s = summary!;
 
-    final energyColor = s.trendUp
-        ? const Color(0xFFFF6B6B)
-        : const Color(0xFF22C55E);
-
-    final usdColor = s.trendUpUsd ? const Color(0xFFFF6B6B) : theme.usdLine;
-
     return Container(
       margin: const EdgeInsets.all(8),
       child: Row(
@@ -345,7 +303,7 @@ class _SummaryBar extends StatelessWidget {
                   text:
                       'Today ${s.sumToday.toStringAsFixed(0)} ${theme.unit}/ ',
                   style: TextStyle(
-                    color: const Color(0xFF5CFF7A).withOpacity(0.9),
+                    color: const Color(0xFF5CFF7A).withValues(alpha: 0.9),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -353,7 +311,7 @@ class _SummaryBar extends StatelessWidget {
                   text:
                       'Yesterday ${s.sumYday.toStringAsFixed(0)} ${theme.unit}',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.60),
+                    color: Colors.white.withValues(alpha: 0.60),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -372,14 +330,14 @@ class _SummaryBar extends StatelessWidget {
                   TextSpan(
                     text: '${s.sumTodayUsd.toStringAsFixed(2)}\$ / ',
                     style: TextStyle(
-                      color: const Color(0xFF5CFF7A).withOpacity(0.9),
+                      color: const Color(0xFF5CFF7A).withValues(alpha: 0.9),
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   TextSpan(
                     text: '${s.sumYdayUsd.toStringAsFixed(2)}\$',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.60),
+                      color: Colors.white.withValues(alpha: 0.60),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -389,10 +347,7 @@ class _SummaryBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          HealthIndicator(
-            result: health,
-            size: 8,
-          ),
+          HealthIndicator(result: health, size: 8),
         ],
       ),
     );
@@ -405,13 +360,13 @@ class _SummaryBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: isError
-            ? Colors.redAccent.withOpacity(0.10)
-            : Colors.white.withOpacity(0.05),
+            ? Colors.redAccent.withValues(alpha: 0.10)
+            : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isError
-              ? Colors.redAccent.withOpacity(0.35)
-              : theme.fillTop.withOpacity(0.25),
+              ? Colors.redAccent.withValues(alpha: 0.35)
+              : theme.fillTop.withValues(alpha: 0.25),
         ),
       ),
       child: Text(
@@ -419,7 +374,9 @@ class _SummaryBar extends StatelessWidget {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: isError ? Colors.redAccent : Colors.white.withOpacity(0.75),
+          color: isError
+              ? Colors.redAccent
+              : Colors.white.withValues(alpha: 0.75),
           fontWeight: FontWeight.w800,
           fontSize: 20,
         ),
@@ -439,14 +396,14 @@ class _HourlyChart extends StatelessWidget {
     return SfCartesianChart(
       margin: EdgeInsets.zero,
       plotAreaBorderWidth: 1,
-      plotAreaBorderColor: Colors.white.withOpacity(0.10),
+      plotAreaBorderColor: Colors.white.withValues(alpha: 0.10),
       legend: Legend(
         isVisible: true,
         position: LegendPosition.top,
         toggleSeriesVisibility: true,
         overflowMode: LegendItemOverflowMode.scroll,
         textStyle: TextStyle(
-          color: Colors.white.withOpacity(0.85),
+          color: Colors.white.withValues(alpha: 0.85),
           fontSize: 11,
         ),
       ),
@@ -471,7 +428,7 @@ class _HourlyChart extends StatelessWidget {
           return ChartAxisLabel(
             h.toString(),
             TextStyle(
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               fontSize: 11,
               fontWeight: FontWeight.w500,
             ),
@@ -479,9 +436,9 @@ class _HourlyChart extends StatelessWidget {
         },
         majorGridLines: MajorGridLines(
           width: 1,
-          color: theme.fillBottom.withOpacity(0.12),
+          color: theme.fillBottom.withValues(alpha: 0.12),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
+        axisLine: AxisLine(color: Colors.white.withValues(alpha: 0.10)),
       ),
       primaryYAxis: NumericAxis(
         name: 'leftAxis',
@@ -496,18 +453,18 @@ class _HourlyChart extends StatelessWidget {
         },
         majorGridLines: MajorGridLines(
           width: 1,
-          color: theme.fillBottom.withOpacity(0.12),
+          color: theme.fillBottom.withValues(alpha: 0.12),
         ),
         title: AxisTitle(
           text: theme.unit,
           alignment: ChartAlignment.center,
           textStyle: TextStyle(
-            color: Colors.white.withOpacity(0.8),
+            color: Colors.white.withValues(alpha: 0.8),
             fontWeight: FontWeight.w600,
             fontSize: 12,
           ),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(0.10)),
+        axisLine: AxisLine(color: Colors.white.withValues(alpha: 0.10)),
       ),
       axes: <ChartAxis>[
         NumericAxis(
@@ -519,7 +476,10 @@ class _HourlyChart extends StatelessWidget {
           axisLabelFormatter: (args) {
             return ChartAxisLabel(
               args.value.toStringAsFixed(0),
-              TextStyle(color: theme.usdLine.withOpacity(0.9), fontSize: 14),
+              TextStyle(
+                color: theme.usdLine.withValues(alpha: 0.9),
+                fontSize: 14,
+              ),
             );
           },
           majorGridLines: const MajorGridLines(width: 0),
@@ -527,12 +487,12 @@ class _HourlyChart extends StatelessWidget {
             text: 'USD',
             alignment: ChartAlignment.center,
             textStyle: TextStyle(
-              color: theme.usdLine.withOpacity(0.95),
+              color: theme.usdLine.withValues(alpha: 0.95),
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),
           ),
-          axisLine: AxisLine(color: theme.usdLine.withOpacity(0.35)),
+          axisLine: AxisLine(color: theme.usdLine.withValues(alpha: 0.35)),
         ),
       ],
       series: <CartesianSeries<_LinePoint, num>>[
@@ -548,8 +508,8 @@ class _HourlyChart extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF9CA3AF).withOpacity(.20),
-              const Color(0xFF9CA3AF).withOpacity(.02),
+              const Color(0xFF9CA3AF).withValues(alpha: .20),
+              const Color(0xFF9CA3AF).withValues(alpha: .02),
             ],
           ),
           emptyPointSettings: const EmptyPointSettings(
@@ -573,7 +533,7 @@ class _HourlyChart extends StatelessWidget {
             width: 5,
             height: 5,
             borderWidth: 1,
-            borderColor: theme.line.withOpacity(0.9),
+            borderColor: theme.line.withValues(alpha: 0.9),
           ),
         ),
         AreaSeries<_LinePoint, num>(
@@ -586,8 +546,8 @@ class _HourlyChart extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              theme.usdFillBottom.withOpacity(0.45),
-              theme.usdFillBottom.withOpacity(0.05),
+              theme.usdFillBottom.withValues(alpha: 0.45),
+              theme.usdFillBottom.withValues(alpha: 0.05),
             ],
           ),
           dashArray: const <double>[6, 3],
@@ -612,7 +572,7 @@ class _HourlyChart extends StatelessWidget {
             width: 4,
             height: 4,
             borderWidth: 1,
-            borderColor: theme.usdLine.withOpacity(0.9),
+            borderColor: theme.usdLine.withValues(alpha: 0.9),
           ),
         ),
       ],

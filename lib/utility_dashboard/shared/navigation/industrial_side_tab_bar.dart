@@ -62,11 +62,11 @@ class IndustrialSideTabBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF0B1324),
         border: Border(
-          right: BorderSide(color: Colors.white.withOpacity(0.10)),
+          right: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 18,
             offset: const Offset(6, 0),
           ),
@@ -89,7 +89,10 @@ class IndustrialSideTabBar extends StatelessWidget {
                       title: title,
                       brandIcon: brandIcon,
                     ),
-                    Divider(height: 1, color: Colors.white.withOpacity(0.10)),
+                    Divider(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.10),
+                    ),
 
                     Expanded(
                       child: AnimatedBuilder(
@@ -124,7 +127,10 @@ class IndustrialSideTabBar extends StatelessWidget {
                       ),
                     ),
 
-                    Divider(height: 1, color: Colors.white.withOpacity(0.10)),
+                    Divider(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.10),
+                    ),
                     _Footer(expanded: effectiveExpanded),
                   ],
                 ),
@@ -141,16 +147,16 @@ class IndustrialSideTabBar extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
+                          color: Colors.white.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.12),
+                            color: Colors.white.withValues(alpha: 0.12),
                           ),
                         ),
                         child: Icon(
                           expanded ? Icons.chevron_left : Icons.chevron_right,
                           size: 18,
-                          color: Colors.white.withOpacity(0.90),
+                          color: Colors.white.withValues(alpha: 0.90),
                         ),
                       ),
                     ),
@@ -189,14 +195,14 @@ class _Header extends StatelessWidget {
               width: 30,
               height: 30,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
+                color: Colors.white.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: Colors.white.withOpacity(0.10)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
               ),
               child: Icon(
                 brandIcon,
                 size: 16,
-                color: Colors.white.withOpacity(0.85),
+                color: Colors.white.withValues(alpha: 0.85),
               ),
             ),
             if (expanded) ...[
@@ -207,7 +213,7 @@ class _Header extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.92),
+                    color: Colors.white.withValues(alpha: 0.92),
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.1,
                   ),
@@ -236,7 +242,7 @@ class _Footer extends StatelessWidget {
           Icon(
             Icons.circle,
             size: 10,
-            color: const Color(0xFF5CFF7A).withOpacity(0.9),
+            color: const Color(0xFF5CFF7A).withValues(alpha: 0.9),
           ),
           const SizedBox(width: 8),
           if (expanded)
@@ -246,7 +252,7 @@ class _Footer extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.75),
+                  color: Colors.white.withValues(alpha: 0.75),
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
                 ),
@@ -288,20 +294,20 @@ class _TabTileState extends State<_TabTile> {
     const accent = Color(0xFF5CFF7A);
 
     final fg = !enabled
-        ? Colors.white.withOpacity(0.35)
+        ? Colors.white.withValues(alpha: 0.35)
         : selected
         ? accent
-        : Colors.white.withOpacity(_hover ? 0.92 : 0.80);
+        : Colors.white.withValues(alpha: _hover ? 0.92 : 0.80);
 
     final bg = selected
-        ? Colors.white.withOpacity(0.08)
+        ? Colors.white.withValues(alpha: 0.08)
         : _hover
-        ? Colors.white.withOpacity(0.05)
+        ? Colors.white.withValues(alpha: 0.05)
         : Colors.transparent;
 
     final border = selected
-        ? accent.withOpacity(0.35)
-        : Colors.white.withOpacity(0.06);
+        ? accent.withValues(alpha: 0.35)
+        : Colors.white.withValues(alpha: 0.06);
 
     final tilePadding = EdgeInsets.symmetric(
       horizontal: widget.expanded ? 8 : 8, // ✅ giảm
@@ -385,7 +391,7 @@ class _TabTileState extends State<_TabTile> {
         boxShadow: selected
             ? [
                 BoxShadow(
-                  color: accent.withOpacity(0.15),
+                  color: accent.withValues(alpha: 0.15),
                   blurRadius: 18,
                   spreadRadius: 1,
                   offset: const Offset(0, 10),

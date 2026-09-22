@@ -379,10 +379,10 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xff55d7ff).withOpacity(0.09),
+                color: const Color(0xff55d7ff).withValues(alpha: 0.09),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xff55d7ff).withOpacity(0.22),
+                  color: const Color(0xff55d7ff).withValues(alpha: 0.22),
                 ),
               ),
               child: Text(
@@ -518,9 +518,7 @@ class _SolarImpactDonutLayout extends StatelessWidget {
               child: Center(
                 child: AspectRatio(
                   aspectRatio: 1,
-                  child: _SolarShareDonut(
-                    solarPercent: data.solarSharePercent,
-                  ),
+                  child: _SolarShareDonut(solarPercent: data.solarSharePercent),
                 ),
               ),
             ),
@@ -570,7 +568,9 @@ class _SolarImpactDonutLayout extends StatelessWidget {
                             child: Container(
                               width: 1,
                               height: 38,
-                              color: const Color(0xff214058).withOpacity(.65),
+                              color: const Color(
+                                0xff214058,
+                              ).withValues(alpha: .65),
                             ),
                           ),
                         ),
@@ -638,7 +638,7 @@ class _SolarShareDonut extends StatelessWidget {
                   Text(
                     'SOLAR SHARE',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(.72),
+                      color: Colors.white.withValues(alpha: .72),
                       fontSize: 10,
                       height: 1,
                       fontWeight: FontWeight.w800,
@@ -680,7 +680,7 @@ class _SolarDonutPainter extends CustomPainter {
 
     // subtle back track
     final trackPaint = Paint()
-      ..color = Colors.white.withOpacity(.045)
+      ..color = Colors.white.withValues(alpha: .045)
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth + 3
       ..strokeCap = StrokeCap.butt
@@ -716,7 +716,7 @@ class _SolarDonutPainter extends CustomPainter {
 
     // inner border
     final innerBorder = Paint()
-      ..color = const Color(0xff4db6ff).withOpacity(.10)
+      ..color = const Color(0xff4db6ff).withValues(alpha: .10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = .8
       ..isAntiAlias = true;
@@ -755,7 +755,7 @@ class _EnergyMixSummary extends StatelessWidget {
             child: Container(
               width: 1,
               height: 38,
-              color: const Color(0xff214058).withOpacity(.65),
+              color: const Color(0xff214058).withValues(alpha: .65),
             ),
           ),
         ),
@@ -798,7 +798,7 @@ class _EnergyMixMetric extends StatelessWidget {
             shape: BoxShape.circle,
             color: color,
             boxShadow: [
-              BoxShadow(color: color.withOpacity(.25), blurRadius: 4),
+              BoxShadow(color: color.withValues(alpha: .25), blurRadius: 4),
             ],
           ),
         ),
@@ -1207,7 +1207,7 @@ class _LeafPainter extends CustomPainter {
       ..isAntiAlias = true;
 
     final veinPaint = Paint()
-      ..color = Colors.white.withOpacity(0.4)
+      ..color = Colors.white.withValues(alpha: 0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = size.width * 0.05
       ..strokeCap = StrokeCap.round;
@@ -1262,7 +1262,7 @@ class _FlowArrowPainter extends CustomPainter {
     final lineEnd = size.width - 6;
 
     final linePaint = Paint()
-      ..color = const Color(0xff4ccc83).withOpacity(0.30)
+      ..color = const Color(0xff4ccc83).withValues(alpha: 0.30)
       ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round
       ..isAntiAlias = true;
@@ -1298,17 +1298,17 @@ class _FlowArrowPainter extends CustomPainter {
      * Ba vòng tròn đồng tâm nhẹ hơn đáng kể trên Web.
      */
     final outerGlowPaint = Paint()
-      ..color = const Color(0xff82f5ad).withOpacity(0.08 * safeOpacity)
+      ..color = const Color(0xff82f5ad).withValues(alpha: 0.08 * safeOpacity)
       ..style = PaintingStyle.fill
       ..isAntiAlias = true;
 
     final innerGlowPaint = Paint()
-      ..color = const Color(0xffb6ffcf).withOpacity(0.22 * safeOpacity)
+      ..color = const Color(0xffb6ffcf).withValues(alpha: 0.22 * safeOpacity)
       ..style = PaintingStyle.fill
       ..isAntiAlias = true;
 
     final dotPaint = Paint()
-      ..color = const Color(0xffedfff3).withOpacity(safeOpacity)
+      ..color = const Color(0xffedfff3).withValues(alpha: safeOpacity)
       ..style = PaintingStyle.fill
       ..isAntiAlias = true;
 
@@ -1335,7 +1335,7 @@ class _ProfessionalTreePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final trunkPaint = Paint()
-      ..color = color.withOpacity(0.72)
+      ..color = color.withValues(alpha: 0.72)
       ..style = PaintingStyle.fill
       ..isAntiAlias = true;
 
@@ -1347,7 +1347,7 @@ class _ProfessionalTreePainter extends CustomPainter {
       ..isAntiAlias = true;
 
     final highlightPaint = Paint()
-      ..color = Colors.white.withOpacity(0.10)
+      ..color = Colors.white.withValues(alpha: 0.10)
       ..style = PaintingStyle.fill
       ..isAntiAlias = true;
 
@@ -1417,11 +1417,6 @@ class SolarIsometricSystemPainter extends CustomPainter {
   static const Color _green = Color(0xff64ed79);
 
   static const Color _metalLight = Color(0xff9db5c7);
-  static const Color _metalMid = Color(0xff557181);
-  static const Color _metalDark = Color(0xff172b38);
-
-  static const Color _factoryLight = Color(0xff526d7b);
-  static const Color _factoryDark = Color(0xff172936);
 
   // ============================================================
   // MAIN
@@ -1451,8 +1446,6 @@ class SolarIsometricSystemPainter extends CustomPainter {
     final sunCenter = Offset(w * .075, h * .18);
 
     final panelCenter = Offset(w * .25, systemY);
-
-    final inverterCenter = Offset(w * .54, systemY);
 
     final factoryCenter = Offset(w * .68, systemY);
 
@@ -1540,7 +1533,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
 
   void _drawPerspectiveGrid(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = _blue.withOpacity(.035)
+      ..color = _blue.withValues(alpha: .035)
       ..strokeWidth = .7
       ..style = PaintingStyle.stroke
       ..isAntiAlias = true;
@@ -1587,8 +1580,8 @@ class SolarIsometricSystemPainter extends CustomPainter {
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          _solar.withOpacity(.22),
-          _solar.withOpacity(.08),
+          _solar.withValues(alpha: .22),
+          _solar.withValues(alpha: .08),
           Colors.transparent,
         ],
       ).createShader(Rect.fromCircle(center: center, radius: radius * 3));
@@ -1607,7 +1600,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     canvas.drawCircle(center, radius, corePaint);
 
     final borderPaint = Paint()
-      ..color = _solarBright.withOpacity(.80)
+      ..color = _solarBright.withValues(alpha: .80)
       ..strokeWidth = 1.3
       ..style = PaintingStyle.stroke;
 
@@ -1616,7 +1609,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     // rays
 
     final rayPaint = Paint()
-      ..color = _solarBright.withOpacity(.64)
+      ..color = _solarBright.withValues(alpha: .64)
       ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round;
 
@@ -1637,7 +1630,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     // tech circles
 
     final techPaint = Paint()
-      ..color = _solar.withOpacity(.16)
+      ..color = _solar.withValues(alpha: .16)
       ..strokeWidth = .7
       ..style = PaintingStyle.stroke;
 
@@ -1653,7 +1646,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
   void _drawSunBeam(Canvas canvas, {required Offset from, required Offset to}) {
     final mainPaint = Paint()
       ..shader = LinearGradient(
-        colors: [_solar.withOpacity(.03), _solar.withOpacity(.40)],
+        colors: [_solar.withValues(alpha: .03), _solar.withValues(alpha: .40)],
       ).createShader(Rect.fromPoints(from, to))
       ..strokeWidth = 1.2
       ..strokeCap = StrokeCap.round;
@@ -1688,15 +1681,15 @@ class SolarIsometricSystemPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          const Color(0xff18394e).withOpacity(.75),
-          const Color(0xff071722).withOpacity(.90),
+          const Color(0xff18394e).withValues(alpha: .75),
+          const Color(0xff071722).withValues(alpha: .90),
         ],
       ).createShader(top.getBounds());
 
     canvas.drawPath(top, fillPaint);
 
     final borderPaint = Paint()
-      ..color = _cyan.withOpacity(.30)
+      ..color = _cyan.withValues(alpha: .30)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
 
@@ -1763,8 +1756,6 @@ class SolarIsometricSystemPainter extends CustomPainter {
 
     final dx = width * .17;
 
-    final dy = height * .22;
-
     final p1 = Offset(center.dx - width / 2 + dx, center.dy - height / 2);
 
     final p2 = Offset(center.dx + width / 2 + dx, center.dy - height / 2);
@@ -1784,7 +1775,10 @@ class SolarIsometricSystemPainter extends CustomPainter {
 
     final shadowPath = panelPath.shift(const Offset(2, 4));
 
-    canvas.drawPath(shadowPath, Paint()..color = Colors.black.withOpacity(.25));
+    canvas.drawPath(
+      shadowPath,
+      Paint()..color = Colors.black.withValues(alpha: .25),
+    );
 
     // panel fill
 
@@ -1803,7 +1797,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
 
     final glassPaint = Paint()
       ..shader = LinearGradient(
-        colors: [Colors.white.withOpacity(.22), Colors.transparent],
+        colors: [Colors.white.withValues(alpha: .22), Colors.transparent],
       ).createShader(rect);
 
     canvas.drawPath(panelPath, glassPaint);
@@ -1811,7 +1805,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     // border
 
     final borderPaint = Paint()
-      ..color = const Color(0xffa9dcff).withOpacity(.75)
+      ..color = const Color(0xffa9dcff).withValues(alpha: .75)
       ..strokeWidth = .9
       ..style = PaintingStyle.stroke;
 
@@ -1820,7 +1814,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     // cells
 
     final cellPaint = Paint()
-      ..color = _cyan.withOpacity(.25)
+      ..color = _cyan.withValues(alpha: .25)
       ..strokeWidth = .5
       ..style = PaintingStyle.stroke;
 
@@ -1847,7 +1841,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     // support
 
     final supportPaint = Paint()
-      ..color = _metalLight.withOpacity(.35)
+      ..color = _metalLight.withValues(alpha: .35)
       ..strokeWidth = .9;
 
     canvas.drawLine(
@@ -1880,8 +1874,8 @@ class SolarIsometricSystemPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            const Color(0xff17364a).withOpacity(.85),
-            const Color(0xff07141e).withOpacity(.95),
+            const Color(0xff17364a).withValues(alpha: .85),
+            const Color(0xff07141e).withValues(alpha: .95),
           ],
         ).createShader(base.getBounds()),
     );
@@ -1889,7 +1883,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     canvas.drawPath(
       base,
       Paint()
-        ..color = _cyan.withOpacity(.28)
+        ..color = _cyan.withValues(alpha: .28)
         ..strokeWidth = 1
         ..style = PaintingStyle.stroke,
     );
@@ -1936,7 +1930,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
       shadowRect,
       Paint()
         ..shader = RadialGradient(
-          colors: [Colors.black.withOpacity(.32), Colors.transparent],
+          colors: [Colors.black.withValues(alpha: .32), Colors.transparent],
         ).createShader(shadowRect),
     );
 
@@ -2012,7 +2006,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     // ============================================================
 
     final outlinePaint = Paint()
-      ..color = _cyan.withOpacity(.34)
+      ..color = _cyan.withValues(alpha: .34)
       ..strokeWidth = .8
       ..style = PaintingStyle.stroke
       ..strokeJoin = StrokeJoin.round
@@ -2029,7 +2023,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     // ============================================================
 
     final roofEdgePaint = Paint()
-      ..color = Colors.white.withOpacity(.15)
+      ..color = Colors.white.withValues(alpha: .15)
       ..strokeWidth = .7
       ..strokeCap = StrokeCap.round;
 
@@ -2088,7 +2082,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
       canvas.drawPath(
         sideWindow,
         Paint()
-          ..color = Colors.white.withOpacity(.14)
+          ..color = Colors.white.withValues(alpha: .14)
           ..strokeWidth = .5
           ..style = PaintingStyle.stroke,
       );
@@ -2120,13 +2114,13 @@ class SolarIsometricSystemPainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(shutterRect, Radius.circular(width * .015)),
       Paint()
-        ..color = _cyan.withOpacity(.20)
+        ..color = _cyan.withValues(alpha: .20)
         ..style = PaintingStyle.stroke
         ..strokeWidth = .7,
     );
 
     final shutterLinePaint = Paint()
-      ..color = Colors.white.withOpacity(.07)
+      ..color = Colors.white.withValues(alpha: .07)
       ..strokeWidth = .5;
 
     for (var i = 1; i < 5; i++) {
@@ -2220,9 +2214,9 @@ class SolarIsometricSystemPainter extends CustomPainter {
     // FLOOR LIGHTS
     // ============================================================
 
-    final lightPaint = Paint()..color = _solar.withOpacity(.85);
+    final lightPaint = Paint()..color = _solar.withValues(alpha: .85);
 
-    final glowPaint = Paint()..color = _solar.withOpacity(.12);
+    final glowPaint = Paint()..color = _solar.withValues(alpha: .12);
 
     for (var i = 0; i < 3; i++) {
       final p = Offset(left + width * (.13 + i * .34), bottom + height * .015);
@@ -2273,13 +2267,13 @@ class SolarIsometricSystemPainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, Radius.circular(width * .08)),
       Paint()
-        ..color = Colors.white.withOpacity(.12)
+        ..color = Colors.white.withValues(alpha: .12)
         ..strokeWidth = .5
         ..style = PaintingStyle.stroke,
     );
 
     final framePaint = Paint()
-      ..color = const Color(0xff263944).withOpacity(.85)
+      ..color = const Color(0xff263944).withValues(alpha: .85)
       ..strokeWidth = .65;
 
     canvas.drawLine(
@@ -2299,7 +2293,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
       Offset(rect.left + 1, rect.top + 1),
       Offset(rect.right - 1, rect.top + 1),
       Paint()
-        ..color = Colors.white.withOpacity(.25)
+        ..color = Colors.white.withValues(alpha: .25)
         ..strokeWidth = .5,
     );
   }
@@ -2332,7 +2326,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     canvas.drawRRect(
       frontRRect,
       Paint()
-        ..color = Colors.white.withOpacity(.15)
+        ..color = Colors.white.withValues(alpha: .15)
         ..strokeWidth = .5
         ..style = PaintingStyle.stroke,
     );
@@ -2349,7 +2343,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
       fanCenter,
       math.min(width, height) * .14,
       Paint()
-        ..color = _cyan.withOpacity(.14)
+        ..color = _cyan.withValues(alpha: .14)
         ..style = PaintingStyle.stroke
         ..strokeWidth = .6,
     );
@@ -2359,7 +2353,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
       Offset(front.right, front.top + depth * .15),
       Offset(front.right + depth, front.top + depth),
       Paint()
-        ..color = Colors.white.withOpacity(.08)
+        ..color = Colors.white.withValues(alpha: .08)
         ..strokeWidth = .6,
     );
   }
@@ -2387,7 +2381,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
         rect.shift(const Offset(1.2, 1.5)),
         Radius.circular(width * .30),
       ),
-      Paint()..color = Colors.black.withOpacity(.20),
+      Paint()..color = Colors.black.withValues(alpha: .20),
     );
 
     // body
@@ -2413,7 +2407,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
       Offset(rect.left + width * .42, rect.top + 2),
       Offset(rect.left + width * .42, rect.bottom - 2),
       Paint()
-        ..color = Colors.white.withOpacity(.22)
+        ..color = Colors.white.withValues(alpha: .22)
         ..strokeWidth = .6,
     );
 
@@ -2435,7 +2429,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     canvas.drawOval(
       rim.inflate(width * .08),
       Paint()
-        ..color = const Color(0xffff754d).withOpacity(.35)
+        ..color = const Color(0xffff754d).withValues(alpha: .35)
         ..style = PaintingStyle.stroke
         ..strokeWidth = .8,
     );
@@ -2463,7 +2457,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = _cyan.withOpacity(.5)
+        ..color = _cyan.withValues(alpha: .5)
         ..style = PaintingStyle.stroke
         ..strokeWidth = .7,
     );
@@ -2487,7 +2481,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
       start,
       end,
       Paint()
-        ..color = color.withOpacity(.08)
+        ..color = color.withValues(alpha: .08)
         ..strokeWidth = 6
         ..strokeCap = StrokeCap.round,
     );
@@ -2498,7 +2492,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
       start,
       end,
       Paint()
-        ..color = color.withOpacity(.16)
+        ..color = color.withValues(alpha: .16)
         ..strokeWidth = 3
         ..strokeCap = StrokeCap.round,
     );
@@ -2507,7 +2501,11 @@ class SolarIsometricSystemPainter extends CustomPainter {
 
     final corePaint = Paint()
       ..shader = LinearGradient(
-        colors: [color.withOpacity(.45), color, color.withOpacity(.55)],
+        colors: [
+          color.withValues(alpha: .45),
+          color,
+          color.withValues(alpha: .55),
+        ],
       ).createShader(rect)
       ..strokeWidth = 1.2
       ..strokeCap = StrokeCap.round;
@@ -2528,7 +2526,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
       canvas.drawCircle(
         position,
         1.6,
-        Paint()..color = Colors.white.withOpacity(.75),
+        Paint()..color = Colors.white.withValues(alpha: .75),
       );
     }
   }
@@ -2610,7 +2608,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
   }) {
     final paint = Paint()
       ..shader = RadialGradient(
-        colors: [_solar.withOpacity(.055), Colors.transparent],
+        colors: [_solar.withValues(alpha: .055), Colors.transparent],
       ).createShader(Rect.fromCircle(center: center, radius: radius));
 
     canvas.drawCircle(center, radius, paint);
@@ -2623,7 +2621,7 @@ class SolarIsometricSystemPainter extends CustomPainter {
   }) {
     final paint = Paint()
       ..shader = RadialGradient(
-        colors: [_green.withOpacity(.035), Colors.transparent],
+        colors: [_green.withValues(alpha: .035), Colors.transparent],
       ).createShader(Rect.fromCircle(center: center, radius: radius));
 
     canvas.drawCircle(center, radius, paint);

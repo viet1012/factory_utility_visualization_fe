@@ -56,10 +56,10 @@ class CommonChartTitleBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       decoration: BoxDecoration(
-        color: backgroundColor ?? Colors.white.withOpacity(.05),
+        color: backgroundColor ?? Colors.white.withValues(alpha: .05),
         border: Border(
           bottom: BorderSide(
-            color: borderColor ?? Colors.white.withOpacity(.10),
+            color: borderColor ?? Colors.white.withValues(alpha: .10),
           ),
         ),
       ),
@@ -82,10 +82,7 @@ class CommonChartTitleBar extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              HealthIndicator(
-                result: health,
-                size: 10,
-              ),
+              HealthIndicator(result: health, size: 10),
 
               if (_hasValue) ...[
                 const SizedBox(width: 12),

@@ -41,7 +41,7 @@ class MonthlyElectricityCard extends StatelessWidget {
             Divider(
               height: 1,
               thickness: .5,
-              color: Colors.white.withOpacity(.7),
+              color: Colors.white.withValues(alpha: .7),
             ),
             const SizedBox(height: 3),
             MonthlyMetricAnimatedUtilityRow(

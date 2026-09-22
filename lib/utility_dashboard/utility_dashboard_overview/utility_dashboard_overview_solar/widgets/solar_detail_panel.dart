@@ -54,12 +54,12 @@ class SolarDetailPanel extends StatelessWidget {
 /// Decoration dung chung cho panel va cac o KPI.
 BoxDecoration solarPanelDecoration() {
   return BoxDecoration(
-    color: SolarDetailColors.panel.withOpacity(.92),
+    color: SolarDetailColors.panel.withValues(alpha: .92),
     borderRadius: BorderRadius.circular(12),
-    border: Border.all(color: SolarDetailColors.border.withOpacity(.8)),
+    border: Border.all(color: SolarDetailColors.border.withValues(alpha: .8)),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(.35),
+        color: Colors.black.withValues(alpha: .35),
         blurRadius: 12,
         offset: const Offset(0, 5),
       ),

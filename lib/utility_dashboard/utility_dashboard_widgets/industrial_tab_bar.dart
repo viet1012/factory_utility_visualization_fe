@@ -31,7 +31,7 @@ class IndustrialTabBar extends StatelessWidget {
             border: Border.all(color: const Color(0xFF1B2A44)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
+                color: Colors.black.withValues(alpha: 0.25),
                 blurRadius: 14,
                 offset: const Offset(0, 8),
               ),
@@ -39,7 +39,7 @@ class IndustrialTabBar extends StatelessWidget {
           ),
           child: TabBar(
             splashFactory: NoSplash.splashFactory,
-            overlayColor: const MaterialStatePropertyAll(Colors.transparent),
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
             indicatorSize: TabBarIndicatorSize.tab,
             dividerColor: Colors.transparent,
             padding: EdgeInsets.zero,
@@ -50,8 +50,8 @@ class IndustrialTabBar extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFF1B2A44).withOpacity(0.95),
-                  const Color(0xFF223A63).withOpacity(0.95),
+                  const Color(0xFF1B2A44).withValues(alpha: 0.95),
+                  const Color(0xFF223A63).withValues(alpha: 0.95),
                 ],
               ),
               border: Border.all(color: const Color(0xFF2C4A7A)),

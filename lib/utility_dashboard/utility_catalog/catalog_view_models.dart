@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
-
 /// View model noi bo cua Utility Catalog monitor mode.
 ///
 /// Tach ra khoi man hinh de cac widget con dung chung ma khong phai
 /// nam cung mot file.
+library;
+
 // ============================================================
 // FLATTENED TABLE ROW
 // ============================================================
@@ -45,30 +45,19 @@ class CatalogTableRow {
   final String searchBaseText;
 
   CatalogTableRow({
-    required String facility,
-    required String category,
-    required String rawCategory,
-    required String scadaId,
-    required String boxId,
-    required String boxDeviceId,
-    required String plcAddress,
-    required String cateId,
-    required String signalName,
+    required this.facility,
+    required this.category,
+    required this.rawCategory,
+    required this.scadaId,
+    required this.boxId,
+    required this.boxDeviceId,
+    required this.plcAddress,
+    required this.cateId,
+    required this.signalName,
     required this.value,
-    required String unit,
+    required this.unit,
     required this.recordedAt,
-  }) : facility = facility,
-       category = category,
-       rawCategory = rawCategory,
-       scadaId = scadaId,
-       boxId = boxId,
-       boxDeviceId = boxDeviceId,
-       plcAddress = plcAddress,
-       cateId = cateId,
-       signalName = signalName,
-       unit = unit,
-
-       normalizedFacility = facility.trim(),
+  }) : normalizedFacility = facility.trim(),
        normalizedCategory = category.trim(),
        normalizedRawCategory = rawCategory.trim(),
 

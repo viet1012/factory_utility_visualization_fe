@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../setting_security.dart';
 import '../scada/models/utility_scada.dart';
-import 'common_action_buttons.dart';
 
 class ScadaCard extends StatelessWidget {
   final UtilityScada item;
@@ -31,19 +30,19 @@ class ScadaCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(0.055),
-            Colors.white.withOpacity(0.03),
+            Colors.white.withValues(alpha: 0.055),
+            Colors.white.withValues(alpha: 0.03),
           ],
         ),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.20),
+            color: Colors.black.withValues(alpha: 0.20),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
           BoxShadow(
-            color: accent.withOpacity(0.08),
+            color: accent.withValues(alpha: 0.08),
             blurRadius: 18,
             offset: const Offset(0, 4),
           ),
@@ -60,7 +59,6 @@ class ScadaCard extends StatelessWidget {
               const SizedBox(height: 14),
               _buildInfoPanel(),
               const Spacer(),
-              // _EditButton(disabled: disabled, onTap: onEdit),
               ProtectedEditButton(
                 password: SettingSecurity.editPassword,
                 onVerified: onEdit,
@@ -80,9 +78,9 @@ class ScadaCard extends StatelessWidget {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: accent.withOpacity(0.14),
+            color: accent.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: accent.withOpacity(0.18)),
+            border: Border.all(color: accent.withValues(alpha: 0.18)),
           ),
           child: Icon(Icons.hub_outlined, color: accent, size: 18),
         ),
@@ -108,7 +106,7 @@ class ScadaCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.58),
+                  color: Colors.white.withValues(alpha: 0.58),
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -126,7 +124,10 @@ class ScadaCard extends StatelessWidget {
               color: statusColor,
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: statusColor.withOpacity(0.55), blurRadius: 8),
+                BoxShadow(
+                  color: statusColor.withValues(alpha: 0.55),
+                  blurRadius: 8,
+                ),
               ],
             ),
           ),
@@ -139,9 +140,9 @@ class ScadaCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.035),
+        color: Colors.white.withValues(alpha: 0.035),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: Column(
         children: [
@@ -194,14 +195,14 @@ class _InfoLine extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 15, color: Colors.white.withOpacity(0.45)),
+        Icon(icon, size: 15, color: Colors.white.withValues(alpha: 0.45)),
         const SizedBox(width: 8),
         SizedBox(
           width: 52,
           child: Text(
             label,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.56),
+              color: Colors.white.withValues(alpha: 0.56),
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -222,24 +223,6 @@ class _InfoLine extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _EditButton extends StatelessWidget {
-  final bool disabled;
-  final VoidCallback onTap;
-
-  const _EditButton({required this.disabled, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: AppActionButton(
-        type: AppActionType.edit,
-        onPressed: disabled ? null : onTap,
-      ),
     );
   }
 }

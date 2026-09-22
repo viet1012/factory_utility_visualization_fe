@@ -193,7 +193,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
     final allRows = _rows[key] ?? const <MinutePointDto>[];
 
     return List<MinutePointDto>.unmodifiable(
-      allRows.where((item) => (item.plcAddress ?? '').trim() == address),
+      allRows.where((item) => item.plcAddress.trim() == address),
     );
   }
 
@@ -519,8 +519,8 @@ class UtilityMinuteChartController extends ChangeNotifier {
 
   String _rowKey(MinutePointDto item) {
     return '${item.ts.millisecondsSinceEpoch}'
-        '|${(item.boxDeviceId ?? '').trim()}'
-        '|${(item.plcAddress ?? '').trim()}'
+        '|${item.boxDeviceId.trim()}'
+        '|${item.plcAddress.trim()}'
         '|${(item.cateId ?? '').trim()}';
   }
 
@@ -531,9 +531,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
       return timestampCompare;
     }
 
-    final plcCompare = (first.plcAddress ?? '').compareTo(
-      second.plcAddress ?? '',
-    );
+    final plcCompare = first.plcAddress.compareTo(second.plcAddress);
 
     if (plcCompare != 0) {
       return plcCompare;
@@ -598,22 +596,6 @@ class UtilityMinuteChartController extends ChangeNotifier {
     }
 
     return normalized;
-  }
-
-  List<String>? _normalizeCateIds(List<String>? source) {
-    if (source == null || source.isEmpty) {
-      return null;
-    }
-
-    final result =
-        source
-            .map((item) => item.trim())
-            .where((item) => item.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
-
-    return result.isEmpty ? null : List<String>.unmodifiable(result);
   }
 
   bool _hasRequired(_MinuteReq request) {

@@ -195,7 +195,7 @@ class _UtilityDailyTabState extends State<UtilityDailyTab>
                 'No daily data found for '
                 '${widget.boxId ?? "-"} / '
                 '${widget.scadaId ?? "-"}',
-            color: Colors.white.withOpacity(.58),
+            color: Colors.white.withValues(alpha: .58),
           );
         }
 

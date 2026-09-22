@@ -151,9 +151,6 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   // Sau 110 giây không có dữ liệu mới thì xem là stale.
   static const Duration _staleThreshold = Duration(seconds: 110);
 
-  // Ngăn nhiều panel cùng boxDeviceId gọi fetchKeyNow cùng lúc.
-  static final Set<String> _fetchingRequestKeys = <String>{};
-
   static final DateFormat _latestTimeFormat = DateFormat('HH:mm:ss');
   static final DateFormat _axisTimeFormat = DateFormat('HH:mm');
   static final NumberFormat _axisNumberFormat = NumberFormat('0.00');
@@ -235,26 +232,6 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         oldWidget.cate != newWidget.cate ||
         oldWidget.boxDeviceId != newWidget.boxDeviceId ||
         oldWidget.plcAddress != newWidget.plcAddress;
-  }
-
-  bool _sameStringList(List<String>? first, List<String>? second) {
-    if (identical(first, second)) return true;
-
-    if (first == null || second == null) {
-      return first == second;
-    }
-
-    if (first.length != second.length) {
-      return false;
-    }
-
-    for (var i = 0; i < first.length; i++) {
-      if (first[i] != second[i]) {
-        return false;
-      }
-    }
-
-    return true;
   }
 
   void _refreshRequestKey() {
@@ -432,19 +409,22 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       gradient: LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Colors.white.withOpacity(.06), Colors.white.withOpacity(.02)],
+        colors: [
+          Colors.white.withValues(alpha: .06),
+          Colors.white.withValues(alpha: .02),
+        ],
       ),
-      border: Border.all(color: theme.line.withOpacity(.18)),
+      border: Border.all(color: theme.line.withValues(alpha: .18)),
 
       // Giảm blur so với bản cũ để nhẹ GPU hơn.
       boxShadow: [
         BoxShadow(
-          color: theme.line.withOpacity(.18),
+          color: theme.line.withValues(alpha: .18),
           blurRadius: 10,
           offset: const Offset(0, 4),
         ),
         BoxShadow(
-          color: Colors.black.withOpacity(.32),
+          color: Colors.black.withValues(alpha: .32),
           blurRadius: 12,
           offset: const Offset(0, 6),
         ),
@@ -544,9 +524,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.04),
+        color: Colors.white.withValues(alpha: .04),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(.06)),
+        border: Border.all(color: Colors.white.withValues(alpha: .06)),
       ),
       child: Row(
         children: [
@@ -579,14 +559,14 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
                 Container(
                   width: 1,
                   height: 16,
-                  color: Colors.white.withOpacity(.12),
+                  color: Colors.white.withValues(alpha: .12),
                 ),
                 const SizedBox(width: 10),
                 Text(
                   latestTime,
                   maxLines: 1,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(.62),
+                    color: Colors.white.withValues(alpha: .62),
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     height: 1,
@@ -609,9 +589,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       constraints: const BoxConstraints(maxWidth: 170),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: status.color.withOpacity(.12),
+        color: status.color.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: status.color.withOpacity(.28)),
+        border: Border.all(color: status.color.withValues(alpha: .28)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -680,7 +660,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       // Không đặt ValueKey theo data.length hoặc timestamp.
       // Giữ nguyên chart state, tránh dispose/recreate.
       plotAreaBorderWidth: 1,
-      plotAreaBorderColor: Colors.white.withOpacity(.12),
+      plotAreaBorderColor: Colors.white.withValues(alpha: .12),
       tooltipBehavior: _tooltipBehavior,
       zoomPanBehavior: _zoomPanBehavior,
       primaryXAxis: DateTimeAxis(
@@ -691,11 +671,14 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         dateFormat: _axisTimeFormat,
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(.08),
+          color: Colors.white.withValues(alpha: .08),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(.15), width: 1),
+        axisLine: AxisLine(
+          color: Colors.white.withValues(alpha: .15),
+          width: 1,
+        ),
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(.72),
+          color: Colors.white.withValues(alpha: .72),
           fontSize: 12,
         ),
       ),
@@ -705,11 +688,14 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         numberFormat: _axisNumberFormat,
         majorGridLines: MajorGridLines(
           width: 1,
-          color: Colors.white.withOpacity(.08),
+          color: Colors.white.withValues(alpha: .08),
         ),
-        axisLine: AxisLine(color: Colors.white.withOpacity(.15), width: 1),
+        axisLine: AxisLine(
+          color: Colors.white.withValues(alpha: .15),
+          width: 1,
+        ),
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(.72),
+          color: Colors.white.withValues(alpha: .72),
           fontSize: 12,
         ),
       ),

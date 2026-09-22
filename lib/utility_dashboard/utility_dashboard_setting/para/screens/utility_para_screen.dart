@@ -398,9 +398,9 @@ class _ParaFacGroupNode extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.035),
+        color: Colors.white.withValues(alpha: 0.035),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -419,7 +419,7 @@ class _ParaFacGroupNode extends StatelessWidget {
           subtitle: Text(
             '${group.scadas.length} SCADA • $totalBoxes boxes • $totalDevices devices • $totalParas paras',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.62),
+              color: Colors.white.withValues(alpha: 0.62),
               fontSize: 14,
             ),
           ),
@@ -427,7 +427,7 @@ class _ParaFacGroupNode extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(top: 8),
               child: _TreeIndent(
-                color: facColor.withOpacity(0.35),
+                color: facColor.withValues(alpha: 0.35),
                 child: _ParaFacNode(
                   fac: scada,
                   expandAll: expandAll,
@@ -468,9 +468,9 @@ class _ParaFacNode extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.035),
+        color: Colors.white.withValues(alpha: 0.035),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -489,7 +489,7 @@ class _ParaFacNode extends StatelessWidget {
           subtitle: Text(
             '${fac.boxes.length} boxes • $totalDevices devices • $totalParas paras',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.62),
+              color: Colors.white.withValues(alpha: 0.62),
               fontSize: 14,
             ),
           ),
@@ -497,7 +497,7 @@ class _ParaFacNode extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(top: 8),
               child: _TreeIndent(
-                color: facColor.withOpacity(0.35),
+                color: facColor.withValues(alpha: 0.35),
                 child: _ParaBoxNode(box: box, expandAll: expandAll),
               ),
             );
@@ -523,9 +523,9 @@ class _ParaBoxNode extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -546,7 +546,7 @@ class _ParaBoxNode extends StatelessWidget {
           subtitle: Text(
             '${box.devices.length} devices • $totalParas paras',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.60),
+              color: Colors.white.withValues(alpha: 0.60),
               fontSize: 14,
             ),
           ),
@@ -622,9 +622,9 @@ class _ParaDeviceNode extends StatelessWidget {
     final icon = theme.icon;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.025),
+        color: Colors.white.withValues(alpha: 0.025),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -642,7 +642,7 @@ class _ParaDeviceNode extends StatelessWidget {
           subtitle: Text(
             '${device.cate} • ${device.paras.length} paras',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.58),
+              color: Colors.white.withValues(alpha: 0.58),
               fontSize: 14,
             ),
           ),
@@ -715,7 +715,7 @@ class _ParaLeafCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF11151C),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -749,7 +749,7 @@ class _ParaLeafCard extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.65),
+              color: Colors.white.withValues(alpha: 0.65),
               fontSize: 14,
             ),
           ),
@@ -819,7 +819,7 @@ class _NodeIconBox extends StatelessWidget {
       width: 34,
       height: 34,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(icon, color: color, size: 18),
@@ -838,7 +838,7 @@ class _MiniBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -872,19 +872,19 @@ class _TopActionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
+          color: Colors.white.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withOpacity(0.10)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: Colors.white.withOpacity(0.85)),
+            Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.85)),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.90),
+                color: Colors.white.withValues(alpha: 0.90),
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
               ),

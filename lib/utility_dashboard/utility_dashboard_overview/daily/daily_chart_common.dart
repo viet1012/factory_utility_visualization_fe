@@ -361,7 +361,7 @@ class _DailyChartFrameState extends State<DailyChartFrame>
 
             backgroundColor: Colors.transparent,
 
-            borderColor: widget.theme.line.withOpacity(.44),
+            borderColor: widget.theme.line.withValues(alpha: .44),
           ),
 
           const SizedBox(height: 6),
@@ -376,8 +376,10 @@ class _DailyChartFrameState extends State<DailyChartFrame>
               : DecoratedBox(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white.withOpacity(.06)),
-                    color: Colors.black.withOpacity(.05),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: .06),
+                    ),
+                    color: Colors.black.withValues(alpha: .05),
                   ),
                   child: RepaintBoundary(child: widget.chart!),
                 ),
