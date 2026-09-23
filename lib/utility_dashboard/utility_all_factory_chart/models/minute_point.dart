@@ -1,5 +1,16 @@
 class MinutePointDto {
+  /// Minute-bucket timestamp. This is the chart's X-axis value and the key
+  /// used for merge/dedupe - it is always aligned to the start of the minute
+  /// (e.g. `11:15:00`).
   final DateTime ts;
+
+  /// Wall-clock time of the raw sample the backend selected for this bucket
+  /// (e.g. `11:15:46.473` inside the `11:15:00` bucket).
+  ///
+  /// Null when the backend has not sent the field (older deployments); use
+  /// [realSampleTime] instead of reading this directly.
+  final DateTime? sampleRecordedAt;
+
   final double? value;
 
   final String boxDeviceId;
@@ -14,8 +25,15 @@ class MinutePointDto {
   final String? cate;
   final String? unit;
 
+  /// Timestamp to use for freshness / "how old is this reading" maths.
+  ///
+  /// Falls back to the bucket [ts] so behaviour is unchanged against a backend
+  /// that does not yet return `sampleRecordedAt`.
+  DateTime get realSampleTime => sampleRecordedAt ?? ts;
+
   MinutePointDto({
     required this.ts,
+    this.sampleRecordedAt,
     required this.value,
     required this.boxDeviceId,
     required this.plcAddress,
@@ -41,6 +59,7 @@ class MinutePointDto {
 
     return MinutePointDto(
       ts: parseMinuteTimestamp(json['ts']),
+      sampleRecordedAt: parseOptionalMinuteTimestamp(json['sampleRecordedAt']),
       value: v,
       boxDeviceId: (json['boxDeviceId'] ?? '').toString(),
       plcAddress: (json['plcAddress'] ?? '').toString(),
@@ -69,6 +88,26 @@ class MinutePointDto {
 /// local keeps freshness maths correct either way.
 DateTime parseMinuteTimestamp(dynamic raw) {
   final parsed = DateTime.parse(raw.toString());
+
+  return parsed.isUtc ? parsed.toLocal() : parsed;
+}
+
+/// Nullable variant of [parseMinuteTimestamp] with identical local wall-clock
+/// semantics.
+///
+/// Returns null when the field is absent, empty or unparseable, so a malformed
+/// `sampleRecordedAt` degrades to the bucket `ts` fallback instead of throwing
+/// and dropping the whole point.
+DateTime? parseOptionalMinuteTimestamp(dynamic raw) {
+  if (raw == null) return null;
+
+  final text = raw.toString().trim();
+
+  if (text.isEmpty) return null;
+
+  final parsed = DateTime.tryParse(text);
+
+  if (parsed == null) return null;
 
   return parsed.isUtc ? parsed.toLocal() : parsed;
 }

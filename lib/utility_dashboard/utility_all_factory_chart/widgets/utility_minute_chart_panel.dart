@@ -18,6 +18,8 @@ import '../controllers/utility_minute_chart_controller.dart';
 // INTERNAL MODELS
 // ============================================================
 
+/// A plotted point. [time] is always the minute-bucket `ts`, never the raw
+/// sample time, so X-axis positioning and bucket alignment stay unchanged.
 class _ChartPoint {
   final DateTime time;
   final double value;
@@ -358,15 +360,22 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       );
     }
 
+    /*
+     * latestPoint la row cuoi cung co value hop le, tuong ung voi points.last.
+     * Do tuoi lay tu realSampleTime cua chinh row do.
+     */
+    final resolvedLatestPoint = latestPoint ?? rows.last;
+
     final analysis = _analyzePreparedSeries(
       points: points,
+      latestSampleTime: resolvedLatestPoint.realSampleTime,
       minValue: minValue,
       maxValue: maxValue,
     );
 
     return _PreparedSeries(
       points: List<_ChartPoint>.unmodifiable(points),
-      latestPoint: latestPoint ?? rows.last,
+      latestPoint: resolvedLatestPoint,
       analysis: analysis,
       signalName: signalName,
       unit: unit,
@@ -530,7 +539,13 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         : '${value.toStringAsFixed(2)}'
               '${unit.isEmpty ? '' : ' $unit'}';
 
-    final latestTime = _latestTimeFormat.format(latestPoint.ts.toLocal());
+    /*
+     * Hien thi thoi diem thuc cua sample (11:15:46), khong phai moc bucket
+     * (11:15:00), de khop voi con so "No new sample for" ben canh.
+     */
+    final latestTime = _latestTimeFormat.format(
+      latestPoint.realSampleTime.toLocal(),
+    );
 
     return Container(
       height: 42,
@@ -628,7 +643,8 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     );
   }
 
-  /// Compact poll-health suffix, e.g. ` · Poll 12s ago` or ` · Poll failed`.
+  /// Compact refresh-health suffix, e.g. ` · Last refresh 12s ago` or
+  /// ` · Refresh failed`.
   ///
   /// Sample freshness stays the primary signal; this only distinguishes
   /// "source has no new sample" from "polling is failing or not running".
@@ -640,11 +656,12 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         vm.error != null &&
         (lastOk == null || (lastErr != null && lastErr.isAfter(lastOk)));
 
-    if (failedLast) return ' · Poll failed';
+    if (failedLast) return ' · Refresh failed';
 
-    if (lastOk == null) return ' · Poll pending';
+    if (lastOk == null) return ' · Waiting for refresh';
 
-    return ' · Poll ${_formatDuration(DateTime.now().difference(lastOk))} ago';
+    return ' · Last refresh '
+        '${_formatDuration(DateTime.now().difference(lastOk))} ago';
   }
 
   _SignalStatus _resolveSignalStatus(_SeriesAnalysis analysis, _PanelVm vm) {
@@ -653,7 +670,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         type: _SignalStatusType.stale,
         icon: Icons.timer_off_rounded,
         message:
-            'No new data ${_formatDuration(analysis.staleFor!)}'
+            'No new sample for ${_formatDuration(analysis.staleFor!)}'
             '${_pollHealthSuffix(vm)}',
         color: Colors.orange,
       );
@@ -757,8 +774,17 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   // ANALYSIS
   // ============================================================
 
+  /*
+   * [latestSampleTime] la thoi diem THUC cua sample moi nhat
+   * (sampleRecordedAt ?? ts), khong phai moc bucket cua diem cuoi.
+   *
+   * Vi du: bucket ts = 11:15:00 nhung sample thuc te ghi luc 11:15:46.473.
+   * Do tuoi phai tinh tu 11:15:46.473, neu khong moi diem se bi cong them
+   * tuy y toi 59 giay va bao stale som.
+   */
   _SeriesAnalysis _analyzePreparedSeries({
     required List<_ChartPoint> points,
+    required DateTime latestSampleTime,
     required double minValue,
     required double maxValue,
   }) {
@@ -766,9 +792,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       return _SeriesAnalysis.empty;
     }
 
-    final latestTime = points.last.time;
-
-    var staleFor = DateTime.now().difference(latestTime);
+    var staleFor = DateTime.now().difference(latestSampleTime);
 
     // Tránh duration âm nếu clock phía server nhanh hơn client.
     if (staleFor.isNegative) {

@@ -50,6 +50,34 @@ class UtilityMinuteChartController extends ChangeNotifier {
   final Map<String, List<MinutePointDto>> _rows = {};
   final Map<String, Object?> _errors = {};
   final Map<String, bool> _fetching = {};
+  /*
+   * _lastTs = BUCKET ts cua diem moi nhat dang giu trong _rows (khong phai
+   * sampleRecordedAt). Day la chu y co chu dich, khong duoc doi sang
+   * sampleRecordedAt.
+   *
+   * No dieu khien dung hai thu:
+   *
+   * 1. Chon che do fetch trong _tickAll: null => _fetchFullWindow,
+   *    nguoc lai => _fetchIncremental.
+   *
+   * 2. Moc bat dau cua request incremental:
+   *       from = _lastTs - 1 phut   (overlap), to = now
+   *
+   * Vi sao phai giu bucket ts:
+   *
+   * - Backend nhan [from, to) theo moc bucket. Bucket ts luon <= sample time
+   *   thuc cua no, nen from tinh tu bucket ts luon som hon hoac bang from
+   *   tinh tu sampleRecordedAt => khong bao gio bo sot bucket. Neu doi sang
+   *   sampleRecordedAt (vd 11:15:46), from = 11:14:46 se roi vao giua bucket
+   *   11:14 va co the lam backend bo bucket do.
+   *
+   * - Overlap 1 phut duoc thiet ke de fetch lai chinh bucket cuoi cung, vi
+   *   bucket dang chay co the duoc backend cap nhat lai gia tri. _mergeRows
+   *   dedupe theo _rowKey (cung dua tren bucket ts), nen diem fetch lai se
+   *   thay the dung diem cu thay vi tao diem trung.
+   *
+   * Khong co bang chung nao cho thay hanh vi hien tai sai, nen giu nguyen.
+   */
   final Map<String, DateTime?> _lastTs = {};
   final Map<String, bool> _fetchedOnce = {};
   final Map<String, DateTime?> _lastOkAt = {};
@@ -519,6 +547,12 @@ class UtilityMinuteChartController extends ChangeNotifier {
     return result;
   }
 
+  /// Dedupe key cua mot diem: dua tren BUCKET ts, khong phai sampleRecordedAt.
+  ///
+  /// Mot bucket co the duoc backend tra ve lai voi sample khac (va do do
+  /// sampleRecordedAt khac) khi phut do van dang chay. Khoa theo bucket ts
+  /// dam bao lan tra ve sau THAY THE diem cu thay vi them mot diem trung
+  /// tren cung mot moc X.
   String _rowKey(MinutePointDto item) {
     return '${item.ts.millisecondsSinceEpoch}'
         '|${item.boxDeviceId.trim()}'

@@ -2,15 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../shared/widgets/chart_state_widgets.dart';
+import '../api/signal_health_history_api.dart';
+import '../controllers/signal_health_history_controller.dart';
 import '../controllers/signal_health_matrix_controller.dart';
 import '../signal_health_style.dart';
 import '../utils/signal_health_utils.dart';
+import '../widgets/history/signal_health_history_panel.dart';
 import '../widgets/signal_health_detail_panel.dart';
 import '../widgets/signal_health_error_summary.dart';
 import '../widgets/signal_health_filter_row.dart';
 import '../widgets/signal_health_header.dart';
 import '../widgets/signal_health_kpi_row.dart';
 import '../widgets/signal_health_matrix_table.dart';
+
+/// Which dataset the screen is showing.
+///
+/// CURRENT keeps the original realtime matrix untouched; HISTORY swaps the body
+/// for the hourly history panel. The two never render at the same time.
+enum SignalHealthViewMode { current, history }
 
 typedef _SignalHealthRemoteState = ({
   List<Map<String, dynamic>> data,
@@ -40,6 +49,65 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
   String? selectedBoxDeviceId;
 
   Map<String, dynamic>? selected;
+
+  // ============================================================
+  // MODE / HISTORY LIFECYCLE
+  // ============================================================
+
+  SignalHealthViewMode _mode = SignalHealthViewMode.current;
+
+  /*
+   * History controller duoc so huu boi chinh screen nay.
+   *
+   * Ly do: chi man hinh nay dung du lieu history, va no KHONG duoc dang ky
+   * vao PollingCoordinator - history chi fetch khi HISTORY duoc kich hoat,
+   * khi doi filter, hoac khi nguoi dung bam Refresh.
+   *
+   * Realtime polling cua CURRENT van do SignalHealthMatrixController o
+   * MultiProvider cap tren quan ly, khong bi anh huong.
+   */
+  late final SignalHealthHistoryController _historyController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _historyController = SignalHealthHistoryController(
+      SignalHealthHistoryApi(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant SignalHealthMatrixScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Quay lai tab khi dang o HISTORY: nap lai neu filter chua tung load.
+    if (!oldWidget.isActive &&
+        widget.isActive &&
+        _mode == SignalHealthViewMode.history) {
+      _historyController.ensureLoaded();
+    }
+  }
+
+  @override
+  void dispose() {
+    _historyController.dispose();
+
+    super.dispose();
+  }
+
+  void _setMode(SignalHealthViewMode next) {
+    if (_mode == next) return;
+
+    setState(() {
+      _mode = next;
+    });
+
+    // Fetch lan dau khi HISTORY tro thanh active.
+    if (next == SignalHealthViewMode.history) {
+      _historyController.ensureLoaded();
+    }
+  }
 
   Map<String, dynamic>? _findSelectedDevice(
     List<Map<String, dynamic>> data,
@@ -148,7 +216,109 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
       );
   }
 
+  /// Dispatches to the active mode. CURRENT keeps its original code path
+  /// untouched; HISTORY renders the history panel instead.
   Widget _body(_SignalHealthRemoteState state) {
+    return switch (_mode) {
+      SignalHealthViewMode.current => _currentBody(state),
+      SignalHealthViewMode.history => _historyBody(state),
+    };
+  }
+
+  /// HISTORY mode.
+  ///
+  /// Reuses the CURRENT dataset only to populate the facet dropdown options, so
+  /// both modes offer the same Facility/Category/SCADA/Device vocabulary. All
+  /// history data, aggregation and fetching live in the history controller,
+  /// panel and utils.
+  Widget _historyBody(_SignalHealthRemoteState state) {
+    final data = state.data;
+
+    List<String> withoutAll(List<String> options) {
+      return options
+          .where((value) => value != 'ALL' && value.trim().isNotEmpty)
+          .toList(growable: false);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(6),
+      child: Column(
+        children: [
+          _modeHeader(),
+          const SizedBox(height: 8),
+          Expanded(
+            child: AnimatedBuilder(
+              animation: _historyController,
+              builder: (context, _) {
+                return SignalHealthHistoryPanel(
+                  controller: _historyController,
+                  facOptions: withoutAll(_facOptions(data)),
+                  cateOptions: withoutAll(_cateOptions(data)),
+                  scadaOptions: withoutAll(_scadaOptions(data)),
+                  boxDeviceOptions: withoutAll(_boxDeviceOptions(data)),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Compact header for HISTORY mode: title, last-loaded stamp, mode switch.
+  Widget _modeHeader() {
+    return AnimatedBuilder(
+      animation: _historyController,
+      builder: (context, _) {
+        final loadedAt = _historyController.lastLoadedAt;
+
+        return Row(
+          children: [
+            Container(
+              height: 36,
+              width: 36,
+              decoration: BoxDecoration(
+                color: kBlue.withValues(alpha: .18),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: kBlue.withValues(alpha: .35)),
+              ),
+              child: const Icon(Icons.history_rounded, color: kBlue, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Signal Health History',
+              style: TextStyle(
+                fontSize: 20,
+                height: 1.1,
+                fontWeight: FontWeight.w800,
+                color: kText,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              loadedAt == null
+                  ? 'Not loaded yet'
+                  : 'Loaded: ${_formatClock(loadedAt)}',
+              style: const TextStyle(fontSize: 11, color: kSubText),
+            ),
+            const SizedBox(width: 10),
+            _ModeSwitch(value: _mode, onChanged: _setMode),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _formatClock(DateTime value) {
+    final local = value.toLocal();
+
+    String two(int number) => number.toString().padLeft(2, '0');
+
+    return '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
+  }
+
+  /// CURRENT mode: the original realtime matrix, unchanged.
+  Widget _currentBody(_SignalHealthRemoteState state) {
     final data = state.data;
     final filteredRows = _filteredData(data);
     final errorSummary = buildErrorSummary(filteredRows);
@@ -189,13 +359,27 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
       padding: const EdgeInsets.all(6),
       child: Column(
         children: [
-          SignalHealthHeader(
-            lastUpdated: state.refreshing
-                ? 'Refreshing...'
-                : _lastUpdated(data),
-            onRefresh: context.read<SignalHealthMatrixController>().refresh,
-            onExport: _handleExport,
-            exporting: state.exporting,
+          /*
+           * Mode switch dat canh header goc. SignalHealthHeader giu nguyen
+           * khong doi, nen toan bo UI/behaviour cua CURRENT khong thay doi.
+           */
+          Row(
+            children: [
+              Expanded(
+                child: SignalHealthHeader(
+                  lastUpdated: state.refreshing
+                      ? 'Refreshing...'
+                      : _lastUpdated(data),
+                  onRefresh: context
+                      .read<SignalHealthMatrixController>()
+                      .refresh,
+                  onExport: _handleExport,
+                  exporting: state.exporting,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _ModeSwitch(value: _mode, onChanged: _setMode),
+            ],
           ),
           const SizedBox(height: 4),
           SignalHealthKpiRow(
@@ -323,6 +507,95 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
       builder: (_, state, _) {
         return Scaffold(backgroundColor: kBg, body: _body(state));
       },
+    );
+  }
+}
+
+/// CURRENT | HISTORY segmented switch.
+///
+/// Presentation only: the screen owns the mode and decides what a change means.
+class _ModeSwitch extends StatelessWidget {
+  final SignalHealthViewMode value;
+  final ValueChanged<SignalHealthViewMode> onChanged;
+
+  const _ModeSwitch({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: kCard,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ModeButton(
+            label: 'Current',
+            icon: Icons.sensors_rounded,
+            selected: value == SignalHealthViewMode.current,
+            onTap: () => onChanged(SignalHealthViewMode.current),
+          ),
+          const SizedBox(width: 3),
+          _ModeButton(
+            label: 'History',
+            icon: Icons.history_rounded,
+            selected: value == SignalHealthViewMode.history,
+            onTap: () => onChanged(SignalHealthViewMode.history),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ModeButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: 30,
+        decoration: BoxDecoration(
+          color: selected ? kBlue.withValues(alpha: .20) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? kBlue.withValues(alpha: .55) : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: selected ? kBlue : kSubText),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? kBlue : kSubText,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
