@@ -88,6 +88,59 @@ class UtilityChartCatalogController extends ChangeNotifier {
 
   bool get hasData => _allItems.isNotEmpty;
 
+  /// Canonical catalog request identity.
+  ///
+  /// These are exactly the parameters that change the catalog the API returns,
+  /// so this single helper is the only place the signature is built. Callers
+  /// use it to tell whether [charts] belong to the request they are rendering.
+  static String buildRequestSignature({
+    required String facId,
+    required String cate,
+    required int importantOnly,
+  }) {
+    return '${facId.trim().toLowerCase()}|'
+        '${cate.trim().toLowerCase()}|'
+        '${importantOnly == 1 ? 1 : 0}';
+  }
+
+  /// Signature of the request that produced the currently stored [charts].
+  ///
+  /// Only assigned once a response has been applied, never when a load starts,
+  /// so stale charts are never attributed to the incoming request.
+  String? get loadedRequestSignature => _loadedRequestSignature;
+
+  /// Signature of the request currently in flight, if any.
+  String? get loadingRequestSignature => _loadingRequestSignature;
+
+  String? _loadedRequestSignature;
+  String? _loadingRequestSignature;
+
+  /// True when a non-expired cache entry already backs this exact request and
+  /// the data is loaded.
+  ///
+  /// Screen re-entry uses this to skip a reload that would otherwise flip
+  /// [loading] twice and rebuild the whole chart tree for identical data.
+  bool isFresh({
+    required String facId,
+    required String cate,
+    int importantOnly = 0,
+  }) {
+    final normalizedFac = _normalizeRequired(facId);
+    final normalizedCate = _normalizeRequired(cate);
+
+    if (normalizedFac.isEmpty || normalizedCate.isEmpty) return false;
+    if (_loading || _error != null || _allItems.isEmpty) return false;
+
+    final cached =
+        _cache[_buildCacheKey(
+          facId: normalizedFac,
+          cate: normalizedCate,
+          importantOnly: importantOnly == 1 ? 1 : 0,
+        )];
+
+    return cached != null && !cached.isExpired(_cacheTtl);
+  }
+
   // ============================================================
   // LOAD
   // ============================================================
@@ -121,6 +174,10 @@ class UtilityChartCatalogController extends ChangeNotifier {
 
     _loading = true;
     _error = null;
+    // Mark what is in flight, but do NOT touch _loadedRequestSignature: the
+    // stored charts still belong to the previous request until a response is
+    // applied below.
+    _loadingRequestSignature = cacheKey;
     _safeNotifyListeners();
 
     try {
@@ -135,6 +192,9 @@ class UtilityChartCatalogController extends ChangeNotifier {
       if (!_isCurrentRequest(token)) return;
 
       _allItems = items;
+
+      // Charts now genuinely belong to this request.
+      _loadedRequestSignature = cacheKey;
 
       _restoreSelections(
         previousScada: previousScada,
@@ -151,6 +211,7 @@ class UtilityChartCatalogController extends ChangeNotifier {
     } finally {
       if (_isCurrentRequest(token)) {
         _loading = false;
+        _loadingRequestSignature = null;
         _safeNotifyListeners();
       }
     }
@@ -470,9 +531,11 @@ class UtilityChartCatalogController extends ChangeNotifier {
     required String cate,
     required int importantOnly,
   }) {
-    return '${facId.toLowerCase()}|'
-        '${cate.toLowerCase()}|'
-        '$importantOnly';
+    return buildRequestSignature(
+      facId: facId,
+      cate: cate,
+      importantOnly: importantOnly,
+    );
   }
 
   // D100 phải đứng trước D20 nếu sort text thường.

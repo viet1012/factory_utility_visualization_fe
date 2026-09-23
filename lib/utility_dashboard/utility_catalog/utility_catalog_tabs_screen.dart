@@ -39,6 +39,9 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
   String? _selectedTreeKey;
   String? _selectedDeviceKey;
 
+  /// Selection da reconcile dang cho ghi vao state sau frame hien tai.
+  _CatalogSelection? _pendingSelection;
+
   int _devicePage = 0;
 
   static const int _devicePageSize = 50;
@@ -92,10 +95,15 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
   Future<void> _refresh() async {
     final provider = _latestProvider;
 
-    if (provider == null || provider.loading || provider.refreshing) {
+    if (provider == null || provider.loading) {
       return;
     }
 
+    /*
+     * Khong chan theo provider.refreshing nua: refreshAll da tu coalesce,
+     * nen neu polling dang chay thi nut Refresh se await chung request do
+     * thay vi khong lam gi ca.
+     */
     await provider.refreshAll();
   }
 
@@ -117,7 +125,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
       _selectedBox = null;
       _selectedStatus = null;
 
-      // Bo loc xong, _ensureNormalSelection se chon lai o lan build ke tiep.
+      // Bo loc xong, _resolveNormalSelection chon lai ngay trong build nay.
       _devicePage = 0;
     });
   }
@@ -527,26 +535,25 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     return result;
   }
 
-  /// Chon mac dinh cho normal mode. Caller phai tu kiem tra khong o
-  /// global filter mode truoc khi goi.
-  void _ensureNormalSelection({
+  /*
+   * Selection duoc reconcile ngay trong build, khong qua addPostFrameCallback.
+   *
+   * Ly do: sau mot lan refresh, dataset co the khong con chua tree/device
+   * dang chon. Neu doi den frame sau moi sua, frame hien tai se render bang
+   * key da chet -> detail panel trong, device list trong, tree va detail
+   * khong khop nhau trong mot frame.
+   *
+   * Ham nay chi TINH ra selection hop le cho dataset hien tai va tra ve cho
+   * build dung ngay. Viec ghi lai vao state (de cac callback nhu onSelected,
+   * phan trang doc dung gia tri) duoc hoan sang sau frame qua
+   * _persistSelection, nen khong co setState nao chay trong luc build.
+   */
+  _CatalogSelection _resolveNormalSelection({
     required List<CatalogTreeGroup> treeGroups,
     required List<CatalogDeviceGroup> devices,
   }) {
     if (treeGroups.isEmpty) {
-      if (_selectedTreeKey != null || _selectedDeviceKey != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-
-          setState(() {
-            _selectedTreeKey = null;
-            _selectedDeviceKey = null;
-            _devicePage = 0;
-          });
-        });
-      }
-
-      return;
+      return const _CatalogSelection(treeKey: null, deviceKey: null);
     }
 
     final treeExists = treeGroups.any((item) => item.key == _selectedTreeKey);
@@ -568,34 +575,56 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
         ? null
         : visibleDevices.first.key;
 
-    if (nextTreeKey == _selectedTreeKey &&
-        nextDeviceKey == _selectedDeviceKey) {
+    return _CatalogSelection(treeKey: nextTreeKey, deviceKey: nextDeviceKey);
+  }
+
+  /// Ghi selection da reconcile vao state sau khi frame hien tai ket thuc.
+  ///
+  /// Frame hien tai da render bang chinh cac gia tri nay, nen setState o day
+  /// khong lam thay doi giao dien, chi dong bo lai state cho cac tuong tac
+  /// tiep theo.
+  void _persistSelection(_CatalogSelection selection) {
+    if (selection.treeKey == _selectedTreeKey &&
+        selection.deviceKey == _selectedDeviceKey) {
       return;
     }
+
+    if (_pendingSelection == selection) {
+      return;
+    }
+
+    _pendingSelection = selection;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
+      if (_pendingSelection != selection) return;
+
+      _pendingSelection = null;
+
+      if (selection.treeKey == _selectedTreeKey &&
+          selection.deviceKey == _selectedDeviceKey) {
+        return;
+      }
+
       setState(() {
-        _selectedTreeKey = nextTreeKey;
-        _selectedDeviceKey = nextDeviceKey;
+        _selectedTreeKey = selection.treeKey;
+        _selectedDeviceKey = selection.deviceKey;
         _devicePage = 0;
       });
     });
   }
 
-  List<CatalogDeviceGroup> _devicesForSelectedTree(
+  List<CatalogDeviceGroup> _devicesForTree(
     List<CatalogDeviceGroup> devices,
+    String? treeKey,
   ) {
-    final selectedTreeKey = _selectedTreeKey;
-
-    if (selectedTreeKey == null) {
+    if (treeKey == null) {
       return const <CatalogDeviceGroup>[];
     }
 
     return devices.where((device) {
-      return _treeKey(scadaId: device.scadaId, boxId: device.boxId) ==
-          selectedTreeKey;
+      return _treeKey(scadaId: device.scadaId, boxId: device.boxId) == treeKey;
     }).toList();
   }
 
@@ -621,6 +650,18 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
     return devices.sublist(start, end);
   }
 
+  /*
+   * LAST UPDATED = sample timestamp moi nhat trong cac row DANG HIEN THI.
+   *
+   * Giu nguyen ngu nghia cu: toan bo cum header (devices / online / stale)
+   * deu tinh theo rows da loc, nen LAST UPDATED cung phai theo rows da loc
+   * thi con so moi nhat quan.
+   *
+   * Han che: neu backend tra ve dung timestamp cu, mot lan refresh thanh cong
+   * se khong lam gia tri nay doi. Vi vay thoi diem refresh thanh cong duoc
+   * hien thi rieng o tooltip cua nut refresh (lastRefreshAt), khong tron
+   * vao con so nay.
+   */
   DateTime? _latestTime(List<CatalogTableRow> rows) {
     DateTime? latest;
 
@@ -660,13 +701,15 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
           error: provider.error,
           items: provider.items,
           dataVersion: provider.dataVersion,
+          lastRefreshAt: provider.lastRefreshAt,
         );
       },
       shouldRebuild: (previous, next) {
         return previous.loading != next.loading ||
             previous.refreshing != next.refreshing ||
             previous.error != next.error ||
-            previous.dataVersion != next.dataVersion;
+            previous.dataVersion != next.dataVersion ||
+            previous.lastRefreshAt != next.lastRefreshAt;
       },
       builder: (context, vm, _) {
         if (vm.loading && vm.items.isEmpty) {
@@ -688,18 +731,36 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
         final treeGroups = _buildTreeGroups(allDevices);
 
+        /*
+         * Global filter mode khong dung navigation selection, nen giu nguyen
+         * key da luu. Normal mode reconcile ngay tai day de frame hien tai
+         * luon render bang selection hop le voi dataset vua nhan.
+         */
+        final selection = isGlobalFilterMode
+            ? _CatalogSelection(
+                treeKey: _selectedTreeKey,
+                deviceKey: _selectedDeviceKey,
+              )
+            : _resolveNormalSelection(
+                treeGroups: treeGroups,
+                devices: allDevices,
+              );
+
         if (!isGlobalFilterMode) {
-          _ensureNormalSelection(treeGroups: treeGroups, devices: allDevices);
+          _persistSelection(selection);
         }
 
-        final devicesForTree = _devicesForSelectedTree(allDevices);
+        final effectiveTreeKey = selection.treeKey;
+        final effectiveDeviceKey = selection.deviceKey;
+
+        final devicesForTree = _devicesForTree(allDevices, effectiveTreeKey);
 
         final pagedDevices = _pagedDevices(devicesForTree);
 
         final selectedDevice = allDevices
             .cast<CatalogDeviceGroup?>()
             .firstWhere(
-              (item) => item?.key == _selectedDeviceKey,
+              (item) => item?.key == effectiveDeviceKey,
               orElse: () => null,
             );
 
@@ -744,6 +805,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                 error: vm.error,
                 summary: summary,
                 lastUpdated: _latestTime(rows),
+                lastRefreshAt: vm.lastRefreshAt,
                 onRefresh: _refresh,
                 viewMode: _viewMode,
                 onViewModeChanged: (value) {
@@ -817,7 +879,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                             width: 230,
                             child: CatalogScadaBoxTreePanel(
                               groups: treeGroups,
-                              selectedKey: _selectedTreeKey,
+                              selectedKey: effectiveTreeKey,
                               onSelected: (key) {
                                 setState(() {
                                   _selectedTreeKey = key;
@@ -838,7 +900,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                             width: 310,
                             child: CatalogDeviceListPanel(
                               devices: pagedDevices,
-                              selectedDeviceKey: _selectedDeviceKey,
+                              selectedDeviceKey: effectiveDeviceKey,
                               totalDevices: devicesForTree.length,
                               currentPage: _devicePage,
                               pageSize: _devicePageSize,
@@ -915,6 +977,25 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 // VIEW MODEL
 // ============================================================
 
+/// Cap tree/device da duoc reconcile cho dataset hien tai.
+@immutable
+class _CatalogSelection {
+  final String? treeKey;
+  final String? deviceKey;
+
+  const _CatalogSelection({required this.treeKey, required this.deviceKey});
+
+  @override
+  bool operator ==(Object other) {
+    return other is _CatalogSelection &&
+        other.treeKey == treeKey &&
+        other.deviceKey == deviceKey;
+  }
+
+  @override
+  int get hashCode => Object.hash(treeKey, deviceKey);
+}
+
 class _CatalogVm {
   final bool loading;
   final bool refreshing;
@@ -928,12 +1009,16 @@ class _CatalogVm {
    */
   final int dataVersion;
 
+  /// Thoi diem refresh thanh cong gan nhat, dung cho tooltip nut refresh.
+  final DateTime? lastRefreshAt;
+
   const _CatalogVm({
     required this.loading,
     required this.refreshing,
     required this.error,
     required this.items,
     required this.dataVersion,
+    required this.lastRefreshAt,
   });
 }
 
@@ -1026,6 +1111,7 @@ class _SignalMonitorTopBar extends StatelessWidget {
   final Object? error;
   final CatalogSummary summary;
   final DateTime? lastUpdated;
+  final DateTime? lastRefreshAt;
   final Future<void> Function() onRefresh;
   final UtilityCatalogViewMode viewMode;
   final ValueChanged<UtilityCatalogViewMode> onViewModeChanged;
@@ -1035,6 +1121,7 @@ class _SignalMonitorTopBar extends StatelessWidget {
     required this.error,
     required this.summary,
     required this.lastUpdated,
+    required this.lastRefreshAt,
     required this.onRefresh,
     required this.viewMode,
     required this.onViewModeChanged,
@@ -1144,7 +1231,7 @@ class _SignalMonitorTopBar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Tooltip(
-            message: error == null ? 'Refresh all data' : 'Last refresh failed',
+            message: _refreshTooltip(),
             child: SizedBox.square(
               dimension: 42,
               child: Material(
@@ -1177,6 +1264,24 @@ class _SignalMonitorTopBar extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /*
+   * Loi refresh khi da co data duoc bao o day (icon + tooltip), khong thay
+   * the noi dung man hinh. _CatalogErrorState chi dung khi chua co data nao.
+   */
+  String _refreshTooltip() {
+    if (refreshing) {
+      return 'Refreshing...';
+    }
+
+    final stamp = lastRefreshAt == null ? 'never' : _formatTime(lastRefreshAt);
+
+    if (error != null) {
+      return 'Last refresh failed - showing data from $stamp';
+    }
+
+    return 'Refresh all data (last refresh $stamp)';
   }
 
   static String _formatTime(DateTime? time) {

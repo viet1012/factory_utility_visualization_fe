@@ -40,7 +40,7 @@ class MinutePointDto {
     }
 
     return MinutePointDto(
-      ts: DateTime.parse(json['ts'].toString()),
+      ts: parseMinuteTimestamp(json['ts']),
       value: v,
       boxDeviceId: (json['boxDeviceId'] ?? '').toString(),
       plcAddress: (json['plcAddress'] ?? '').toString(),
@@ -52,4 +52,23 @@ class MinutePointDto {
       unit: json['unit']?.toString(),
     );
   }
+}
+
+/// Parses a minute-series timestamp into **local** time.
+///
+/// Backend contract (verified against [UtilityChartApi]): `from`/`to` are sent
+/// as ISO-8601 local wall-clock strings with no `Z` and no offset
+/// (`_toIsoNoZ`), and responses come back in the same shape. `DateTime.parse`
+/// already treats an offset-less string as local, so that case is preserved
+/// exactly as before.
+///
+/// The only added behaviour is defensive: if the backend ever starts emitting
+/// `Z` or an explicit offset, `DateTime.parse` would return a UTC instant and
+/// every comparison against `DateTime.now()` would be skewed by the timezone
+/// offset - making samples look permanently stale. Converting those back to
+/// local keeps freshness maths correct either way.
+DateTime parseMinuteTimestamp(dynamic raw) {
+  final parsed = DateTime.parse(raw.toString());
+
+  return parsed.isUtc ? parsed.toLocal() : parsed;
 }

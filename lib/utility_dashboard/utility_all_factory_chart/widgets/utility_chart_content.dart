@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../tabs/utility_chart_tab_body.dart';
 import '../tabs/utility_chart_view.dart';
+import '../controllers/utility_chart_catalog_controller.dart';
 import '../controllers/utility_chart_controller.dart';
-import 'utility_chart_filters.dart';
+import 'utility_chart_filters_section.dart';
 
 class UtilityChartContent extends StatelessWidget {
   final UtilityChartController controller;
@@ -22,6 +23,19 @@ class UtilityChartContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final catalog = controller.catalog;
+
+    /*
+     * Catalog đang lưu có thể thuộc request trước đó (ví dụ Water) trong khi
+     * người dùng đã chọn Electricity. Khi đó không được suy ra selection từ
+     * dữ liệu cũ, tránh truyền SCADA/BOX/DEVICE sai xuống các tab con.
+     */
+    final catalogMatches =
+        catalog.loadedRequestSignature ==
+        UtilityChartCatalogController.buildRequestSignature(
+          facId: controller.selectedFac,
+          cate: controller.selectedCate,
+          importantOnly: controller.importantValue,
+        );
 
     // ============================================================
     // SAFE INDEXES
@@ -46,21 +60,28 @@ class UtilityChartContent extends StatelessWidget {
     // SELECTED VALUES
     // ============================================================
 
-    final selectedScada = controller.valueAt(catalog.scadaIds, scadaIndex);
+    final selectedScada = catalogMatches
+        ? controller.valueAt(catalog.scadaIds, scadaIndex)
+        : null;
 
-    final selectedBoxId = controller.valueAt(catalog.boxIds, boxIdIndex);
+    final selectedBoxId = catalogMatches
+        ? controller.valueAt(catalog.boxIds, boxIdIndex)
+        : null;
 
-    final selectedDevice = controller.selectedAllDevices
+    final selectedDevice = !catalogMatches || controller.selectedAllDevices
         ? null
         : controller.valueAt(catalog.boxDeviceIds, deviceIndex);
 
-    final selectedScadaDisplay = selectedScada ?? 'Not configured';
+    final selectedScadaDisplay = catalogMatches
+        ? (selectedScada ?? 'Not configured')
+        : 'Loading...';
 
-    final selectedBoxDisplay =
-        selectedDevice ??
-        (selectedBoxId == null
-            ? 'Not configured'
-            : '$selectedBoxId (ALL DEVICES)');
+    final selectedBoxDisplay = !catalogMatches
+        ? 'Loading...'
+        : selectedDevice ??
+              (selectedBoxId == null
+                  ? 'Not configured'
+                  : '$selectedBoxId (ALL DEVICES)');
 
     // ============================================================
     // LOADING STATE
@@ -123,37 +144,7 @@ class UtilityChartContent extends StatelessWidget {
 
         const SizedBox(height: 8),
 
-        UtilityChartFilters(
-          expanded: controller.filtersExpanded,
-
-          cateTabs: UtilityChartController.cateTabs,
-          facTabs: UtilityChartController.facTabs,
-
-          scadaTabs: catalog.scadaIds,
-          boxIdTabs: catalog.boxIds,
-          boxDeviceTabs: catalog.boxDeviceIds,
-
-          loadingScadas: initialLoading,
-          loadingBoxes: initialLoading,
-
-          selectedCateIndex: controller.selectedCateIndex,
-          selectedFacIndex: controller.selectedFacIndex,
-          selectedScadaIndex: scadaIndex,
-          selectedBoxIdIndex: boxIdIndex,
-          selectedBoxDeviceIndex: deviceIndex,
-
-          selectedAllDevices: controller.selectedAllDevices,
-
-          onCateChanged: controller.changeCate,
-          onFacChanged: controller.changeFacility,
-          onScadaChanged: controller.changeScada,
-          onBoxIdChanged: controller.changeBoxId,
-          onBoxDeviceChanged: controller.changeDevice,
-
-          onAllDevicesSelected: controller.selectAllDevices,
-
-          theme: theme,
-        ),
+        UtilityChartFiltersSection(controller: controller, theme: theme),
 
         const SizedBox(height: 6),
 
@@ -164,7 +155,13 @@ class UtilityChartContent extends StatelessWidget {
             selectedScada: selectedScada,
             selectedBoxId: selectedBoxId,
             selectedBoxDeviceId: selectedDevice,
-            boxDeviceIds: List<String>.from(catalog.boxDeviceIds),
+            // Pass the controller's list directly: copying it here allocated a
+            // new object every rebuild, so downstream identity checks could
+            // never short-circuit. Gated so a previous category's devices are
+            // never handed to the tabs.
+            boxDeviceIds: catalogMatches
+                ? catalog.boxDeviceIds
+                : const <String>[],
           ),
         ),
       ],

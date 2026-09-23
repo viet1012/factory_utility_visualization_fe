@@ -41,6 +41,24 @@ class UtilityChartController extends ChangeNotifier {
     await loadCatalog();
   }
 
+  /// True when the catalog already holds valid, non-expired data for the
+  /// current selection, so re-entering the screen needs no network round trip.
+  bool get hasFreshCatalog => catalog.isFresh(
+    facId: selectedFac,
+    cate: selectedCate,
+    importantOnly: importantValue,
+  );
+
+  /// Reloads only when the cached catalog is stale.
+  ///
+  /// Used on screen re-entry: an unconditional [loadCatalog] would toggle the
+  /// catalog's loading flag twice and rebuild the entire chart tree even on a
+  /// cache hit.
+  Future<void> refreshIfStale() async {
+    if (hasFreshCatalog) return;
+    await loadCatalog();
+  }
+
   void _onCatalogChanged() {
     syncIndexesFromProvider();
     notifyListeners();

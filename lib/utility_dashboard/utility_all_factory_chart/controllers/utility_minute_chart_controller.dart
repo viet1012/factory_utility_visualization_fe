@@ -387,8 +387,9 @@ class UtilityMinuteChartController extends ChangeNotifier {
        * Không xóa rows cũ khi request lỗi.
        */
     } finally {
+      _clearFetching(key);
+
       if (_isValidKeyRequest(key, version)) {
-        _fetching[key] = false;
         _safeNotify();
       }
     }
@@ -483,8 +484,9 @@ class UtilityMinuteChartController extends ChangeNotifier {
        * Giữ dữ liệu cũ khi refresh lỗi.
        */
     } finally {
+      _clearFetching(key);
+
       if (_isValidKeyRequest(key, version)) {
-        _fetching[key] = false;
         _safeNotify();
       }
     }
@@ -565,6 +567,19 @@ class UtilityMinuteChartController extends ChangeNotifier {
   // ============================================================
   // VERSION CONTROL
   // ============================================================
+
+  /// Clears the in-flight marker for [key] unconditionally.
+  ///
+  /// Cleanup must never be gated on the request version: if a key was
+  /// invalidated mid-flight and the marker stayed true, every later poll for
+  /// that key would early-return and the series would freeze permanently.
+  ///
+  /// Uses containsKey so a key removed by removeKey/clear is not resurrected.
+  void _clearFetching(String key) {
+    if (_fetching.containsKey(key)) {
+      _fetching[key] = false;
+    }
+  }
 
   int _currentVersion(String key) {
     return _versions[key] ?? 0;

@@ -87,10 +87,17 @@ class _PanelVm {
   final Object? error;
   final bool hasFetchedOnce;
 
+  /// Poll health, kept separate from sample freshness: these describe when the
+  /// controller last talked to the API, not how new the data is.
+  final DateTime? lastOkAt;
+  final DateTime? lastErrAt;
+
   const _PanelVm({
     required this.rows,
     required this.error,
     required this.hasFetchedOnce,
+    required this.lastOkAt,
+    required this.lastErrAt,
   });
 }
 
@@ -262,12 +269,16 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
           rows: provider.getRowsForPlc(_requestKey, _plcAddressOrEmpty),
           error: provider.getError(_requestKey),
           hasFetchedOnce: provider.hasFetchedOnce(_requestKey),
+          lastOkAt: provider.lastOkAt(_requestKey),
+          lastErrAt: provider.lastErrAt(_requestKey),
         );
       },
       shouldRebuild: (previous, next) {
         return !identical(previous.rows, next.rows) ||
             previous.error != next.error ||
-            previous.hasFetchedOnce != next.hasFetchedOnce;
+            previous.hasFetchedOnce != next.hasFetchedOnce ||
+            previous.lastOkAt != next.lastOkAt ||
+            previous.lastErrAt != next.lastErrAt;
       },
       builder: (context, vm, _) {
         _prepareRowsIfNeeded(vm.rows);
@@ -492,7 +503,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildLatestInfoBar(latestPoint, prepared.analysis),
+        _buildLatestInfoBar(latestPoint, prepared.analysis, vm),
         const SizedBox(height: 6),
         Expanded(child: _buildChart(prepared.points, prepared.analysis)),
       ],
@@ -506,8 +517,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   Widget _buildLatestInfoBar(
     MinutePointDto latestPoint,
     _SeriesAnalysis analysis,
+    _PanelVm vm,
   ) {
-    final status = _resolveSignalStatus(analysis);
+    final status = _resolveSignalStatus(analysis, vm);
 
     final unit = latestPoint.unit?.trim() ?? '';
 
@@ -616,12 +628,33 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     );
   }
 
-  _SignalStatus _resolveSignalStatus(_SeriesAnalysis analysis) {
+  /// Compact poll-health suffix, e.g. ` · Poll 12s ago` or ` · Poll failed`.
+  ///
+  /// Sample freshness stays the primary signal; this only distinguishes
+  /// "source has no new sample" from "polling is failing or not running".
+  String _pollHealthSuffix(_PanelVm vm) {
+    final lastOk = vm.lastOkAt;
+    final lastErr = vm.lastErrAt;
+
+    final failedLast =
+        vm.error != null &&
+        (lastOk == null || (lastErr != null && lastErr.isAfter(lastOk)));
+
+    if (failedLast) return ' · Poll failed';
+
+    if (lastOk == null) return ' · Poll pending';
+
+    return ' · Poll ${_formatDuration(DateTime.now().difference(lastOk))} ago';
+  }
+
+  _SignalStatus _resolveSignalStatus(_SeriesAnalysis analysis, _PanelVm vm) {
     if (analysis.isStale) {
       return _SignalStatus(
         type: _SignalStatusType.stale,
         icon: Icons.timer_off_rounded,
-        message: 'No new data ${_formatDuration(analysis.staleFor!)}',
+        message:
+            'No new data ${_formatDuration(analysis.staleFor!)}'
+            '${_pollHealthSuffix(vm)}',
         color: Colors.orange,
       );
     }

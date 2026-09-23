@@ -64,6 +64,11 @@ class LatestProvider extends ChangeNotifier {
 
   int get dataVersion => _dataVersion;
 
+  DateTime? _lastRefreshAt;
+
+  /// Thoi diem response tree/SCADA moi nhat duoc apply thanh cong.
+  DateTime? get lastRefreshAt => _lastRefreshAt;
+
   // ============================================================
   // INITIAL LOAD
   // ============================================================
@@ -86,6 +91,7 @@ class LatestProvider extends ChangeNotifier {
 
       _items = List<LatestFacilityDto>.unmodifiable(result);
       _dataVersion++;
+      _lastRefreshAt = DateTime.now();
       _treeError = null;
     } catch (error, stackTrace) {
       if (!_isCurrentTreeRequest(token)) return;
@@ -141,11 +147,36 @@ class LatestProvider extends ChangeNotifier {
   // REFRESH ALL
   // ============================================================
 
-  Future<void> refreshAll() async {
-    if (_disposed || _loading || _treeRefreshing) {
-      return;
+  /*
+   * Request tree dang chay duoc chia se cho moi caller (nut Refresh va
+   * PollingCoordinator). Caller den sau khong bi bo qua im lang ma se
+   * await chung ket qua cua request dang chay.
+   */
+  Future<void>? _treeInFlight;
+
+  Future<void> refreshAll() {
+    if (_disposed || _loading) {
+      return Future<void>.value();
     }
 
+    final inFlight = _treeInFlight;
+
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final request = _runRefreshAll();
+
+    _treeInFlight = request;
+
+    return request.whenComplete(() {
+      if (identical(_treeInFlight, request)) {
+        _treeInFlight = null;
+      }
+    });
+  }
+
+  Future<void> _runRefreshAll() async {
     final token = ++_treeRequestToken;
 
     _treeRefreshing = true;
@@ -158,6 +189,7 @@ class LatestProvider extends ChangeNotifier {
       if (!_isCurrentTreeRequest(token)) return;
       _items = List<LatestFacilityDto>.unmodifiable(result);
       _dataVersion++;
+      _lastRefreshAt = DateTime.now();
       _treeError = null;
     } catch (error, stackTrace) {
       if (!_isCurrentTreeRequest(token)) return;
@@ -283,6 +315,7 @@ class LatestProvider extends ChangeNotifier {
 
       _mergeCategory(fac: fac, cate: cate, incoming: result);
 
+      _lastRefreshAt = DateTime.now();
       _treeError = null;
     } catch (error, stackTrace) {
       if (!_isCurrentTreeRequest(token)) return;
@@ -335,6 +368,7 @@ class LatestProvider extends ChangeNotifier {
       facilities.add(LatestFacilityDto(fac: fac, categories: [replacement]));
 
       _items = List<LatestFacilityDto>.unmodifiable(facilities);
+      _dataVersion++;
       return;
     }
 

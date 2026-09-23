@@ -10,7 +10,7 @@ import '../shared/polling/polling_coordinator.dart';
 import '../shared/polling/polling_scope.dart';
 import 'tabs/utility_chart_view.dart';
 import '../utility_dashboard_common/chart_theme.dart';
-import 'widgets/utility_industrial_motion_background.dart';
+import 'widgets/utility_chart_background.dart';
 
 class UtilityChartScreen extends StatefulWidget {
   final bool isCurrentScreen;
@@ -97,7 +97,8 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
 
     try {
       if (_controllerInitialized) {
-        await controller.loadCatalog();
+        // Re-entry: only hit the network when the cached catalog has expired.
+        await controller.refreshIfStale();
       } else {
         _controllerInitialized = true;
         await controller.initialize();
@@ -244,7 +245,7 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
                   fit: StackFit.expand,
                   children: [
                     RepaintBoundary(
-                      child: _UtilityBackgroundLayer(
+                      child: UtilityChartBackground(
                         controller: controller,
                         animated: animationEnabled,
                       ),
@@ -283,85 +284,13 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
 }
 
 // ============================================================
-// BACKGROUND
-// Chỉ cập nhật khi category hoặc trạng thái animated thay đổi.
-// ============================================================
-class _UtilityBackgroundLayer extends StatefulWidget {
-  final UtilityChartController controller;
-  final bool animated;
-
-  const _UtilityBackgroundLayer({
-    required this.controller,
-    required this.animated,
-  });
-
-  @override
-  State<_UtilityBackgroundLayer> createState() =>
-      _UtilityBackgroundLayerState();
-}
-
-class _UtilityBackgroundLayerState extends State<_UtilityBackgroundLayer> {
-  late String _category;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _category = widget.controller.selectedCate;
-
-    widget.controller.addListener(_handleControllerChanged);
-  }
-
-  @override
-  void didUpdateWidget(covariant _UtilityBackgroundLayer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_handleControllerChanged);
-
-      _category = widget.controller.selectedCate;
-
-      widget.controller.addListener(_handleControllerChanged);
-    }
-  }
-
-  void _handleControllerChanged() {
-    final nextCategory = widget.controller.selectedCate;
-
-    if (!mounted || nextCategory == _category) {
-      return;
-    }
-
-    setState(() {
-      _category = nextCategory;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ChartThemes.byCate(_category);
-
-    return IgnorePointer(
-      child: UtilityIndustrialMotionBackground(
-        key: ValueKey('utility-background-$_category'),
-        cate: _category,
-        color: theme.line,
-        animated: widget.animated,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_handleControllerChanged);
-
-    super.dispose();
-  }
-}
-// ============================================================
 // CONTENT
 // ============================================================
 
+/// Subscribes to the controller and rebuilds the chart content.
+///
+/// Kept as a separate widget so the rebuild stays below the background layer
+/// and the animation [TickerMode], which must not rebuild on controller data.
 class _UtilityContentLayer extends StatelessWidget {
   final UtilityChartController controller;
   final bool isActive;
@@ -376,8 +305,7 @@ class _UtilityContentLayer extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, child) {
-        final category = controller.selectedCate;
-        final theme = ChartThemes.byCate(category);
+        final theme = ChartThemes.byCate(controller.selectedCate);
 
         return UtilityChartContent(
           controller: controller,

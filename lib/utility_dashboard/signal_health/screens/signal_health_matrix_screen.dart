@@ -17,6 +17,7 @@ typedef _SignalHealthRemoteState = ({
   bool loading,
   bool refreshing,
   Object? error,
+  bool exporting,
 });
 
 class SignalHealthMatrixScreen extends StatefulWidget {
@@ -123,6 +124,30 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
     selectedBoxDeviceId = null;
   }
 
+  /// Runs the export and surfaces the outcome without blocking the screen.
+  ///
+  /// All download/API work lives in the controller: the screen only wires the
+  /// callback and reports the result.
+  Future<void> _handleExport() async {
+    final controller = context.read<SignalHealthMatrixController>();
+
+    final success = await controller.exportExcel();
+
+    if (!mounted) return;
+
+    // Chỉ báo lỗi export, không đụng tới lỗi tải ma trận.
+    if (success) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          duration: Duration(seconds: 3),
+          content: Text('Excel export failed. Please try again.'),
+        ),
+      );
+  }
+
   Widget _body(_SignalHealthRemoteState state) {
     final data = state.data;
     final filteredRows = _filteredData(data);
@@ -169,6 +194,8 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
                 ? 'Refreshing...'
                 : _lastUpdated(data),
             onRefresh: context.read<SignalHealthMatrixController>().refresh,
+            onExport: _handleExport,
+            exporting: state.exporting,
           ),
           const SizedBox(height: 4),
           SignalHealthKpiRow(
@@ -291,6 +318,7 @@ class _SignalHealthMatrixScreenState extends State<SignalHealthMatrixScreen> {
         loading: controller.loading,
         refreshing: controller.refreshing,
         error: controller.error,
+        exporting: controller.exporting,
       ),
       builder: (_, state, _) {
         return Scaffold(backgroundColor: kBg, body: _body(state));

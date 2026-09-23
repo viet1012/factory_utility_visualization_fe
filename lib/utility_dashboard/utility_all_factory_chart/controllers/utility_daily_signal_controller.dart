@@ -32,6 +32,15 @@ class UtilityDailySignalController extends ChangeNotifier {
 
   bool get hasData => _series.isNotEmpty;
 
+  /// Loads daily series for [boxDeviceIds] in [month].
+  ///
+  /// Request identity is exactly (sorted unique [boxDeviceIds], [month]).
+  ///
+  /// - Different identity: the old series belongs to other devices/month, so it
+  ///   is cleared immediately and `loading` is set. Showing it would render
+  ///   another device's data under the new selection.
+  /// - Same identity: the existing series stays visible and `refreshing` is set
+  ///   instead, so a refresh never blanks the chart.
   Future<void> load({
     required List<String> boxDeviceIds,
     required String month,

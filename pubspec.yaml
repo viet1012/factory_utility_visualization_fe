@@ -48,6 +48,7 @@ dependencies:
   dio: ^5.9.1
   syncfusion_flutter_datagrid: 30.1.42
   io: ^1.0.5
+  web: ^1.1.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

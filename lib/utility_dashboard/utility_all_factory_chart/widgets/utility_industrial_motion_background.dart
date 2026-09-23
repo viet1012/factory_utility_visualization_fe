@@ -27,6 +27,10 @@ class _UtilityIndustrialMotionBackgroundState
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
+  /// Outlives painter instances so cached paths/metrics are not thrown away on
+  /// every widget rebuild.
+  final _BackgroundGeometryCache _geometryCache = _BackgroundGeometryCache();
+
   UtilityPaintType get _type {
     final value = widget.cate.trim().toLowerCase();
 
@@ -105,6 +109,7 @@ class _UtilityIndustrialMotionBackgroundState
                     animation: _controller,
                     drawStatic: false,
                     drawMotion: true,
+                    geometryCache: _geometryCache,
                   ),
                 ),
             ],
@@ -115,6 +120,65 @@ class _UtilityIndustrialMotionBackgroundState
   }
 }
 
+/// Immutable geometry for one continuous sagging wire.
+///
+/// Built once per (size, type) and reused every frame: only the animation
+/// progress varies, so the path and its metric never need rebuilding.
+class _WireGeometry {
+  final PathMetric metric;
+  final double length;
+  final int row;
+  final bool strong;
+
+  const _WireGeometry({
+    required this.metric,
+    required this.length,
+    required this.row,
+    required this.strong,
+  });
+}
+
+/// Cached feeder line running into the main tower, one per lane.
+class _FeederGeometry {
+  final PathMetric metric;
+  final double length;
+
+  const _FeederGeometry({required this.metric, required this.length});
+}
+
+/// Size/type-keyed geometry cache owned by the widget State.
+///
+/// The painter is recreated on every widget build, so the cache deliberately
+/// lives one level up and is handed to the painter. Nothing here depends on
+/// animation progress.
+class _BackgroundGeometryCache {
+  Size? _size;
+  UtilityPaintType? _type;
+
+  List<_WireGeometry>? _wires;
+  List<_FeederGeometry>? _feeders;
+
+  /// Drops cached geometry when a geometry-affecting input changes.
+  ///
+  /// Uses exact [Size] equality, so a resize can never leave stale paths.
+  void invalidateIfNeeded(Size size, UtilityPaintType type) {
+    if (_size == size && _type == type) return;
+
+    _size = size;
+    _type = type;
+    _wires = null;
+    _feeders = null;
+  }
+
+  List<_WireGeometry> wires(List<_WireGeometry> Function() build) {
+    return _wires ??= build();
+  }
+
+  List<_FeederGeometry> feeders(List<_FeederGeometry> Function() build) {
+    return _feeders ??= build();
+  }
+}
+
 class _UtilityPremiumBackgroundPainter extends CustomPainter {
   final Color color;
   final UtilityPaintType type;
@@ -122,12 +186,17 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
   final bool drawStatic;
   final bool drawMotion;
 
+  /// Size-keyed geometry cache owned by the State, so it survives the painter
+  /// instances that are recreated on every widget build.
+  final _BackgroundGeometryCache? geometryCache;
+
   _UtilityPremiumBackgroundPainter({
     required this.color,
     required this.type,
     this.animation,
     this.drawStatic = true,
     this.drawMotion = false,
+    this.geometryCache,
   }) : super(repaint: animation);
 
   double get t => animation?.value ?? 0.0;
@@ -153,6 +222,10 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Drop cached geometry before any of it is read when the canvas size or
+    // utility type changed, so a resize can never render stale paths.
+    geometryCache?.invalidateIfNeeded(size, type);
+
     if (drawStatic) {
       _drawAmbientGlow(canvas, size);
       _drawBlueprintGrid(canvas, size);
@@ -1802,6 +1875,22 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     );
   }
 
+  /// Builds the three invariant feeder paths for [size] and precomputes their
+  /// metrics. Only the travelling trail position depends on progress.
+  List<_FeederGeometry> _buildFeederGeometry(Size size) {
+    final result = <_FeederGeometry>[];
+
+    for (int lane = 0; lane < 3; lane++) {
+      final path = _buildMainTowerFeederPath(size, lane: lane);
+
+      for (final metric in path.computeMetrics()) {
+        result.add(_FeederGeometry(metric: metric, length: metric.length));
+      }
+    }
+
+    return result;
+  }
+
   void _drawMainTowerCurrent(Canvas canvas, Size size) {
     final progress = _electricProgressForRow(0);
 
@@ -1828,42 +1917,44 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    for (int lane = 0; lane < 3; lane++) {
-      final path = _buildMainTowerFeederPath(size, lane: lane);
+    final cache = geometryCache;
 
-      for (final metric in path.computeMetrics()) {
-        final len = metric.length;
-        if (len <= 0) continue;
+    final feeders = cache == null
+        ? _buildFeederGeometry(size)
+        : cache.feeders(() => _buildFeederGeometry(size));
 
-        final center = progress * len;
+    for (final feeder in feeders) {
+      final len = feeder.length;
+      if (len <= 0) continue;
 
-        // Dài hơn để thấy nó đi tới tận tháp lớn.
-        const trailLen = 420.0;
+      final center = progress * len;
 
-        _drawWrappedMetricPart(
-          canvas,
-          metric,
-          center - trailLen * .72,
-          center + trailLen * .28,
-          outerGlow,
-        );
+      // Dài hơn để thấy nó đi tới tận tháp lớn.
+      const trailLen = 420.0;
 
-        _drawWrappedMetricPart(
-          canvas,
-          metric,
-          center - trailLen * .58,
-          center + trailLen * .22,
-          glow,
-        );
+      _drawWrappedMetricPart(
+        canvas,
+        feeder.metric,
+        center - trailLen * .72,
+        center + trailLen * .28,
+        outerGlow,
+      );
 
-        _drawWrappedMetricPart(
-          canvas,
-          metric,
-          center - trailLen * .44,
-          center + trailLen * .16,
-          core,
-        );
-      }
+      _drawWrappedMetricPart(
+        canvas,
+        feeder.metric,
+        center - trailLen * .58,
+        center + trailLen * .22,
+        glow,
+      );
+
+      _drawWrappedMetricPart(
+        canvas,
+        feeder.metric,
+        center - trailLen * .44,
+        center + trailLen * .16,
+        core,
+      );
     }
   }
 
@@ -1932,12 +2023,18 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
     _drawMetricPart(canvas, metric, start, end, paint);
   }
 
-  void _drawElectricTravelingCurrent(Canvas canvas, Size size) {
+  /// Builds the invariant wire geometry for [size].
+  ///
+  /// Point lists, sagging paths and their PathMetrics depend only on the
+  /// canvas size, so this runs once per geometry state instead of per frame.
+  List<_WireGeometry> _buildWireGeometry(Size size) {
     const stepX = 245.0;
     const stepY = 185.0;
 
     final rows = (size.height / stepY).ceil() + 2;
     final cols = (size.width / stepX).ceil() + 3;
+
+    final result = <_WireGeometry>[];
 
     for (int row = -1; row < rows; row++) {
       final y = row * stepY + 150;
@@ -1960,60 +2057,84 @@ class _UtilityPremiumBackgroundPainter extends CustomPainter {
         );
       }
 
-      _drawCurrentOnContinuousWire(canvas, topWire, row: row, strong: true);
+      result.addAll(_wireGeometryFor(topWire, row: row, strong: true));
 
       // Chỉ vẽ dây phụ xen kẽ, giảm gần một nửa workload.
       if (row.isEven) {
-        _drawCurrentOnContinuousWire(
-          canvas,
-          secondaryWire,
-          row: row,
-          strong: false,
-        );
+        result.addAll(_wireGeometryFor(secondaryWire, row: row, strong: false));
       }
+    }
+
+    return result;
+  }
+
+  List<_WireGeometry> _wireGeometryFor(
+    List<Offset> points, {
+    required int row,
+    required bool strong,
+  }) {
+    if (points.length < 2) return const <_WireGeometry>[];
+
+    final path = _buildContinuousSaggingWirePath(points);
+
+    return path
+        .computeMetrics()
+        .map(
+          (metric) => _WireGeometry(
+            metric: metric,
+            length: metric.length,
+            row: row,
+            strong: strong,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  void _drawElectricTravelingCurrent(Canvas canvas, Size size) {
+    final cache = geometryCache;
+
+    final wires = cache == null
+        ? _buildWireGeometry(size)
+        : cache.wires(() => _buildWireGeometry(size));
+
+    // Paints are invariant per strength, so build one pair instead of one per
+    // wire as before.
+    final strongGlow = _wireGlowPaint(strong: true);
+    final strongCore = _wireCorePaint(strong: true);
+    final weakGlow = _wireGlowPaint(strong: false);
+    final weakCore = _wireCorePaint(strong: false);
+
+    for (final wire in wires) {
+      if (wire.length <= 0) continue;
+
+      _drawCurrentMetric(
+        canvas: canvas,
+        metric: wire.metric,
+        progress: _electricProgressForRow(wire.row),
+        trailLength: wire.strong ? 320.0 : 250.0,
+        glowPaint: wire.strong ? strongGlow : weakGlow,
+        corePaint: wire.strong ? strongCore : weakCore,
+      );
     }
   }
 
-  void _drawCurrentOnContinuousWire(
-    Canvas canvas,
-    List<Offset> points, {
-    required int row,
-    bool strong = false,
-  }) {
-    if (points.length < 2) return;
-
-    final path = _buildContinuousSaggingWirePath(points);
-    final metrics = path.computeMetrics();
-
-    final progress = _electricProgressForRow(row);
-
-    final glowPaint = Paint()
+  Paint _wireGlowPaint({required bool strong}) {
+    return Paint()
       ..color = color.withValues(alpha: strong ? .11 : .060)
       ..strokeWidth = strong ? 3.0 : 2.1
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.2);
+  }
 
-    final corePaint = Paint()
+  Paint _wireCorePaint({required bool strong}) {
+    return Paint()
       ..color = color.withValues(alpha: strong ? .68 : .40)
       ..strokeWidth = strong ? 1.2 : .85
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-
-    final trailLength = strong ? 320.0 : 250.0;
-
-    for (final metric in metrics) {
-      _drawCurrentMetric(
-        canvas: canvas,
-        metric: metric,
-        progress: progress,
-        trailLength: trailLength,
-        glowPaint: glowPaint,
-        corePaint: corePaint,
-      );
-    }
   }
 
   void _drawCurrentMetric({

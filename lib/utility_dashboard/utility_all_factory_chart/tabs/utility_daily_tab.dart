@@ -175,7 +175,10 @@ class _UtilityDailyTabState extends State<UtilityDailyTab>
       },
       builder: (context, vm, _) {
         if (vm.loading && vm.series.isEmpty) {
-          return UtilityChartLoadingState(cate: widget.cate);
+          return UtilityChartLoadingState(
+            cate: widget.cate,
+            message: 'Loading daily data...',
+          );
         }
 
         if (vm.error != null && vm.series.isEmpty) {

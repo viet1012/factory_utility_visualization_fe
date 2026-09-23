@@ -54,35 +54,44 @@ class UtilityChartTabBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final minutesVisible = controller.selectedView == UtilityChartView.minutes;
+
+    // IndexedStack keeps both tabs mounted so switching is instant and chart
+    // state survives. TickerMode makes sure the hidden tab cannot keep a
+    // ticker running, so preserved state never turns into background CPU.
     return IndexedStack(
       index: controller.selectedView.index,
       children: [
-        UtilityMinutesTab(
-          isActive:
-              isActive && controller.selectedView == UtilityChartView.minutes,
-          facId: controller.selectedFac,
-          cate: controller.selectedCate,
-          scadaId: selectedScada,
+        TickerMode(
+          enabled: minutesVisible,
+          child: UtilityMinutesTab(
+            isActive: isActive && minutesVisible,
+            facId: controller.selectedFac,
+            cate: controller.selectedCate,
+            scadaId: selectedScada,
 
-          /// Phải truyền ALL hoặc device thật.
-          /// Không truyền selectedBoxId = DB-03.
-          selectedBox: _selectedDevice,
+            /// Phải truyền ALL hoặc device thật.
+            /// Không truyền selectedBoxId = DB-03.
+            selectedBox: _selectedDevice,
 
-          importantOnly: controller.importantOnly,
+            importantOnly: controller.importantOnly,
+          ),
         ),
 
-        UtilityDailyTab(
-          isActive:
-              isActive && controller.selectedView == UtilityChartView.daily,
-          facId: controller.selectedFac,
-          cate: controller.selectedCate,
-          scadaId: selectedScada,
+        TickerMode(
+          enabled: !minutesVisible,
+          child: UtilityDailyTab(
+            isActive: isActive && !minutesVisible,
+            facId: controller.selectedFac,
+            cate: controller.selectedCate,
+            scadaId: selectedScada,
 
-          /// Daily vẫn có thể dùng BOX GROUP.
-          boxId: selectedBoxId,
+            /// Daily vẫn có thể dùng BOX GROUP.
+            boxId: selectedBoxId,
 
-          selectedBoxDeviceId: selectedBoxDeviceId,
-          boxDeviceIds: boxDeviceIds,
+            selectedBoxDeviceId: selectedBoxDeviceId,
+            boxDeviceIds: boxDeviceIds,
+          ),
         ),
       ],
     );

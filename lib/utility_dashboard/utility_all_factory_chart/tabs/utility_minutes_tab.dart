@@ -48,15 +48,21 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
 
     final sourceChanged =
         oldWidget.facId.trim() != widget.facId.trim() ||
+        oldWidget.cate.trim() != widget.cate.trim() ||
         (oldWidget.scadaId ?? '').trim() != (widget.scadaId ?? '').trim() ||
         oldWidget.selectedBox.trim().toUpperCase() !=
-            widget.selectedBox.trim().toUpperCase();
+            widget.selectedBox.trim().toUpperCase() ||
+        oldWidget.importantOnly != widget.importantOnly;
 
+    /*
+     * Chỉ reset khi request thật sự đổi.
+     *
+     * Trước đây tab này còn reset khi isActive chuyển false -> true,
+     * nên mỗi lần quay lại Minutes đều fetch lại dù request không đổi.
+     * Signature đã bao gồm đầy đủ tham số request nên không cần reset
+     * theo trạng thái active nữa.
+     */
     if (sourceChanged) {
-      _lastLoadSignature = '';
-    }
-
-    if (!oldWidget.isActive && widget.isActive) {
       _lastLoadSignature = '';
     }
   }
@@ -81,8 +87,19 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
         .toList(growable: false);
   }
 
-  void _scheduleLoad(List<SignalChartConfig> charts) {
+  void _scheduleLoad(List<SignalChartConfig> charts, String desiredSignature) {
     if (!widget.isActive) {
+      return;
+    }
+
+    /*
+     * Chốt chặn cuối: chỉ nhận charts thuộc đúng request hiện tại.
+     *
+     * Tránh trường hợp trộn cate mới với deviceIds của catalog cũ.
+     */
+    final catalog = context.read<UtilityChartCatalogController>();
+
+    if (catalog.loadedRequestSignature != desiredSignature) {
       return;
     }
 
@@ -92,10 +109,13 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
       return;
     }
 
+    // Request identity: mọi tham số ảnh hưởng tới dữ liệu Minutes.
     final signature = [
       widget.facId.trim(),
+      widget.cate.trim(),
       (widget.scadaId ?? '').trim(),
       widget.selectedBox.trim().toUpperCase(),
+      widget.importantOnly ? '1' : '0',
       ...deviceIds,
     ].join('|');
 
@@ -107,6 +127,14 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !widget.isActive) return;
+
+      // Category có thể đã đổi giữa lúc schedule và lúc callback chạy.
+      if (context
+              .read<UtilityChartCatalogController>()
+              .loadedRequestSignature !=
+          desiredSignature) {
+        return;
+      }
 
       unawaited(_loadDevices(deviceIds));
     });
@@ -150,22 +178,67 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
 
   @override
   Widget build(BuildContext context) {
+    // Catalog identity this tab currently wants to render.
+    final desiredSignature =
+        UtilityChartCatalogController.buildRequestSignature(
+          facId: widget.facId,
+          cate: widget.cate,
+          importantOnly: widget.importantOnly ? 1 : 0,
+        );
+
     return Selector<UtilityChartCatalogController, CatalogBodyVm>(
       selector: (_, provider) {
         return CatalogBodyVm(
           loading: provider.loading,
           error: provider.error,
           charts: provider.charts,
+          loadedRequestSignature: provider.loadedRequestSignature,
+          loadingRequestSignature: provider.loadingRequestSignature,
         );
       },
       shouldRebuild: (previous, next) {
         return previous.loading != next.loading ||
             previous.error != next.error ||
+            previous.loadedRequestSignature != next.loadedRequestSignature ||
+            previous.loadingRequestSignature != next.loadingRequestSignature ||
             !identical(previous.charts, next.charts);
       },
       builder: (context, vm, _) {
+        /*
+         * Charts đang lưu có thể thuộc category trước đó.
+         *
+         * Ví dụ Water -> Electricity: widget.cate đã là Electricity nhưng
+         * vm.charts vẫn là Water cho tới khi response mới được áp dụng.
+         * Khi signature không khớp thì tuyệt đối không dùng vm.charts.
+         */
+        final chartsMatchRequest = vm.matches(desiredSignature);
+
+        if (!chartsMatchRequest) {
+          if (vm.error != null && !vm.loading) {
+            return ChartApiErrorState(
+              color: ChartThemes.byCate(widget.cate).line,
+              onRetry: () {
+                context.read<UtilityChartCatalogController>().loadCatalog(
+                  facId: widget.facId,
+                  cate: widget.cate,
+                  importantOnly: widget.importantOnly ? 1 : 0,
+                  forceRefresh: true,
+                );
+              },
+            );
+          }
+
+          return UtilityChartLoadingState(
+            cate: widget.cate,
+            message: 'Loading ${widget.cate} data...',
+          );
+        }
+
         if (vm.loading && vm.charts.isEmpty) {
-          return UtilityChartLoadingState(cate: widget.cate);
+          return UtilityChartLoadingState(
+            cate: widget.cate,
+            message: 'Loading minute data...',
+          );
         }
 
         if (vm.error != null && vm.charts.isEmpty) {
@@ -203,7 +276,7 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
          *
          * => đúng 2 request.
          */
-        _scheduleLoad(vm.charts);
+        _scheduleLoad(vm.charts, desiredSignature);
 
         return UtilityMinuteChartGrid(
           charts: vm.charts,

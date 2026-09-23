@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../shared/download/file_download.dart';
 import '../api/signal_health_api.dart';
 
 class SignalHealthMatrixController extends ChangeNotifier {
@@ -28,6 +29,15 @@ class SignalHealthMatrixController extends ChangeNotifier {
   bool fetching = false;
 
   Object? error;
+
+  /*
+   * Export là thao tác độc lập.
+   *
+   * Không dùng chung loading/refreshing để tránh việc export làm
+   * ẩn hoặc reset dữ liệu Signal Health đang hiển thị.
+   */
+  bool exporting = false;
+  Object? exportError;
 
   int _requestId = 0;
 
@@ -144,6 +154,57 @@ class SignalHealthMatrixController extends ChangeNotifier {
 
   Future<void> retry() {
     return refresh();
+  }
+
+  // ============================================================
+  // EXPORT
+  // ============================================================
+
+  /// Downloads the Signal Health Excel export.
+  ///
+  /// Independent of [loading]/[refreshing]: a failed or in-flight export never
+  /// hides the matrix data that is already on screen.
+  ///
+  /// Returns true when the file was handed to the browser.
+  Future<bool> exportExcel() async {
+    // Chặn double-click: chỉ cho phép một export tại một thời điểm.
+    if (_disposed || exporting) {
+      return false;
+    }
+
+    exporting = true;
+    exportError = null;
+    _safeNotify();
+
+    try {
+      final file = await api.getSignalHealthExport().timeout(requestTimeout);
+
+      if (_disposed) {
+        return false;
+      }
+
+      downloadBytes(
+        bytes: file.bytes,
+        filename: file.filename,
+        mimeType: SignalHealthApi.xlsxMimeType,
+      );
+
+      return true;
+    } catch (error, stackTrace) {
+      if (_disposed) {
+        return false;
+      }
+
+      exportError = error;
+
+      debugPrint('SignalHealthMatrixController.exportExcel error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      return false;
+    } finally {
+      exporting = false;
+      _safeNotify();
+    }
   }
 
   // ============================================================

@@ -105,7 +105,9 @@ class UtilityChartApi {
     try {
       final response = await _dio.get(path, queryParameters: query);
       return _asList(response.data, path)
-          .map((item) => MinutePointDto.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => MinutePointDto.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList();
     } catch (error) {
       debugPrint('âŒ API ERROR: $path');

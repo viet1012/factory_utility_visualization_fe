@@ -6,10 +6,17 @@ class SignalHealthHeader extends StatelessWidget {
   final String lastUpdated;
   final VoidCallback onRefresh;
 
+  /// Triggers the Excel export. Disabled while [exporting] is true.
+  final VoidCallback onExport;
+
+  final bool exporting;
+
   const SignalHealthHeader({
     super.key,
     required this.lastUpdated,
     required this.onRefresh,
+    required this.onExport,
+    this.exporting = false,
   });
 
   @override
@@ -48,6 +55,38 @@ class SignalHealthHeader extends StatelessWidget {
         ),
 
         const SizedBox(width: 10),
+
+        SizedBox(
+          height: 34,
+          child: OutlinedButton.icon(
+            // Khoá nút khi đang export để tránh gọi trùng request.
+            onPressed: exporting ? null : onExport,
+            icon: exporting
+                ? const SizedBox.square(
+                    dimension: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: kGreen,
+                    ),
+                  )
+                : const Icon(Icons.file_download_outlined, size: 17),
+            label: Text(
+              exporting ? 'Exporting...' : 'Export Excel',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: kGreen,
+              disabledForegroundColor: kGreen.withValues(alpha: .55),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              side: BorderSide(color: kGreen.withValues(alpha: .45)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 8),
 
         SizedBox(
           height: 34,
