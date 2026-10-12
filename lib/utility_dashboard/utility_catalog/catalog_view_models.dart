@@ -4,6 +4,8 @@
 /// nam cung mot file.
 library;
 
+import 'catalog_value_format.dart';
+
 // ============================================================
 // FLATTENED TABLE ROW
 // ============================================================
@@ -132,21 +134,7 @@ class CatalogTableRow {
   }
 
   String get displayValue {
-    final currentValue = value;
-
-    if (currentValue == null || !currentValue.isFinite) {
-      return '--';
-    }
-
-    final valueText = currentValue.abs() >= 1000
-        ? currentValue.toStringAsFixed(1)
-        : currentValue.toStringAsFixed(2);
-
-    if (normalizedUnit.isEmpty) {
-      return valueText;
-    }
-
-    return '$valueText $normalizedUnit';
+    return formatCatalogValueWithUnit(value, normalizedUnit);
   }
 
   String get displayTime {

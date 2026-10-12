@@ -1,0 +1,496 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
+
+import '../api/signal_history_repository.dart';
+import '../models/signal_history_models.dart';
+
+enum CatalogDetailViewMode { table, chart }
+
+/// State cua che do Chart trong panel chi tiet thiet bi.
+///
+/// Khong dang ky voi PollingCoordinator: chart reload theo `revision`
+/// (dataVersion cua LatestProvider) ma view truyen vao qua [bind], nen nut
+/// Refresh va polling hien co tu dong keo theo chart.
+///
+/// Trang thai tai (xem [initialLoading], [switching], [refreshing]):
+/// - lan tai dau cua device, chua co gi de hien: skeleton;
+/// - doi range: giu chart cu (lam mo) + progress bar, khong ve skeleton;
+/// - polling / refresh cung range: tai ngam, chart giu nguyen.
+class SignalHistoryController extends ChangeNotifier {
+  final SignalHistoryRepository repository;
+
+  SignalHistoryController({required this.repository});
+
+  /// Qua thoi gian nay ma chua co response: huy request, hien error state.
+  static const Duration requestTimeout = Duration(seconds: 15);
+
+  /// Cache theo (device, range) trong phien: quay lai range da xem trong
+  /// khoang nay thi hien ngay, roi lam moi ngam (stale-while-revalidate).
+  static const Duration cacheTtl = Duration(seconds: 60);
+  static const int _cacheCapacity = 24;
+
+  bool _disposed = false;
+  bool _notifyScheduled = false;
+
+  int _requestId = 0;
+
+  /// Request dang chay (null = khong co). Doi device / range thi huy.
+  CancelToken? _cancelToken;
+
+  CatalogDetailViewMode _viewMode = CatalogDetailViewMode.table;
+
+  HistoryRange _range = HistoryRange.h1;
+
+  /// Khi khac null, uu tien hon [_range].
+  HistoryWindow? _customWindow;
+
+  // Target dang duoc view yeu cau.
+  String? _deviceKey;
+  List<String> _signalIds = const <String>[];
+  int _revision = 0;
+
+  /// Key (device + range + signals) cua data DANG HIEN THI va revision cua no.
+  String? _displayedKey;
+  int? _displayedRevision;
+
+  List<SignalHistorySeries> _series = const <SignalHistorySeries>[];
+  HistoryAggregation? _aggregation;
+
+  /// Range cua data dang hien thi (null = custom window). Co the khac
+  /// [range] trong luc dang doi range.
+  HistoryRange? _displayedRange;
+
+  Object? _error;
+
+  final Map<String, _CacheEntry> _cache = <String, _CacheEntry>{};
+
+  // ============================================================
+  // GETTERS
+  // ============================================================
+
+  CatalogDetailViewMode get viewMode => _viewMode;
+
+  HistoryRange get range => _range;
+
+  HistoryWindow? get customWindow => _customWindow;
+
+  List<SignalHistorySeries> get series => _series;
+
+  /// Cach gop diem cua [series] dang hien thi; null khi chua co ket qua.
+  HistoryAggregation? get aggregation => _aggregation;
+
+  /// Range cua [series] dang hien thi, quyet dinh kieu chart (line / cot).
+  HistoryRange? get displayedRange => _displayedRange;
+
+  Object? get error => _error;
+
+  bool get hasData => _series.isNotEmpty;
+
+  String? get deviceKey => _deviceKey;
+
+  /// Co request dang chay.
+  bool get fetching => _cancelToken != null;
+
+  /// Data dang hien thi dung la cua device + range dang chon.
+  bool get showingCurrent => _displayedKey != null && _displayedKey == _dataKey;
+
+  /// Chua co gi de hien va dang tai: skeleton.
+  bool get initialLoading => fetching && !hasData;
+
+  /// Dang tai range moi, tam hien chart cua range truoc (lam mo).
+  bool get switching => fetching && hasData && !showingCurrent;
+
+  /// Dang lam moi ngam data cua chinh range dang hien.
+  bool get refreshing => fetching && hasData && showingCurrent;
+
+  // ============================================================
+  // VIEW STATE
+  // ============================================================
+
+  void setViewMode(CatalogDetailViewMode mode) {
+    if (_disposed || mode == _viewMode) return;
+
+    _viewMode = mode;
+    _safeNotify();
+
+    _loadIfNeeded();
+  }
+
+  void setRange(HistoryRange range) {
+    if (_disposed) return;
+    if (range == _range && _customWindow == null) return;
+
+    _range = range;
+    _customWindow = null;
+    _safeNotify();
+
+    _loadIfNeeded();
+  }
+
+  /// Range tu chon. Chua co UI picker, nhung API da san sang.
+  void setCustomWindow(DateTime from, DateTime to) {
+    if (_disposed || !to.isAfter(from)) return;
+
+    final next = HistoryWindow(from: from, to: to);
+    if (next == _customWindow) return;
+
+    _customWindow = next;
+    _safeNotify();
+
+    _loadIfNeeded();
+  }
+
+  // ============================================================
+  // BINDING
+  // ============================================================
+
+  /// Goi tu view moi khi device dang chon hoac revision du lieu thay doi.
+  void bind({
+    required String deviceKey,
+    required List<String> signalIds,
+    required int revision,
+  }) {
+    if (_disposed) return;
+
+    final sameDevice =
+        deviceKey == _deviceKey && _sameIds(signalIds, _signalIds);
+
+    if (sameDevice && revision == _revision) return;
+
+    _deviceKey = deviceKey;
+    _signalIds = List<String>.unmodifiable(signalIds);
+    _revision = revision;
+
+    /*
+     * Chi revision doi (polling / refresh) ma request truoc chua xong:
+     * bo qua luot nay, khong chay chong. Luot polling sau se lay lai.
+     */
+    if (sameDevice && fetching) {
+      if (kDebugMode) {
+        debugPrint('[SIGNAL HISTORY] skip poll rev=$revision (in flight)');
+      }
+      return;
+    }
+
+    _loadIfNeeded();
+  }
+
+  Future<void> retry() => _load();
+
+  // ============================================================
+  // LOAD
+  // ============================================================
+
+  String? get _dataKey {
+    final device = _deviceKey;
+    if (device == null) return null;
+
+    final custom = _customWindow;
+    final rangeKey = custom == null
+        ? _range.name
+        : '${custom.from.millisecondsSinceEpoch}-'
+              '${custom.to.millisecondsSinceEpoch}';
+
+    return '$device#$rangeKey#${_signalIds.join(',')}';
+  }
+
+  void _loadIfNeeded() {
+    if (_viewMode != CatalogDetailViewMode.chart) return;
+
+    final key = _dataKey;
+    if (key == null) return;
+
+    if (key == _displayedKey && _revision == _displayedRevision) return;
+
+    _load();
+  }
+
+  String get _rangeLabel {
+    final custom = _customWindow;
+    if (custom == null) return _range.label;
+
+    return 'custom(${custom.from.toIso8601String()}..'
+        '${custom.to.toIso8601String()})';
+  }
+
+  HistoryWindow _resolveWindow() {
+    final custom = _customWindow;
+    if (custom != null) return custom;
+
+    final now = DateTime.now();
+
+    /*
+     * 7d gop theo ngay local: bat dau tu 00:00 cua 6 ngay truoc -> dung 7
+     * cot (6 ngay du + hom nay chua du). Cua so van > 24h nen bucket=auto
+     * cua backend van tra HOURLY_SNAPSHOT.
+     */
+    if (_range == HistoryRange.d7) {
+      final today = DateTime(now.year, now.month, now.day);
+      return HistoryWindow(
+        from: DateTime(today.year, today.month, today.day - 6),
+        to: now,
+      );
+    }
+
+    return HistoryWindow(from: now.subtract(_range.duration), to: now);
+  }
+
+  Future<void> _load() async {
+    if (_disposed) return;
+
+    final key = _dataKey;
+    if (key == null) return;
+
+    final ids = _signalIds;
+    final revision = _revision;
+    final window = _resolveWindow();
+    final range = _customWindow == null ? _range : null;
+    final bucket = range?.requestBucket ?? 'auto';
+
+    final requestId = ++_requestId;
+
+    // Huy request cu (range / device truoc) de khong ton bang thong.
+    _cancelToken?.cancel('superseded by request #$requestId');
+    final cancelToken = CancelToken();
+    _cancelToken = cancelToken;
+
+    _prepareDisplay(key);
+
+    _error = null;
+    _safeNotify();
+
+    if (ids.isEmpty) {
+      _applyResult(
+        key,
+        revision,
+        range,
+        const SignalHistoryResult(
+          series: <SignalHistorySeries>[],
+          source: DataSource.api,
+        ),
+      );
+      _finish(requestId);
+      return;
+    }
+
+    final stopwatch = Stopwatch()..start();
+
+    if (kDebugMode) {
+      debugPrint(
+        '[SIGNAL HISTORY] #$requestId start device=$_deviceKey '
+        'range=$_rangeLabel bucket=$bucket signals=${ids.length} '
+        'rev=$revision',
+      );
+    }
+
+    try {
+      final result = await repository
+          .fetchHistory(
+            signalIds: ids,
+            from: window.from,
+            to: window.to,
+            bucket: bucket,
+            cancelToken: cancelToken,
+          )
+          .timeout(requestTimeout);
+
+      // Response cua device / range cu ve muon: bo qua.
+      if (!_isCurrent(requestId)) return;
+
+      _applyResult(key, revision, range, result);
+      _cache[key] = _CacheEntry(result, range, DateTime.now());
+      _trimCache();
+
+      if (kDebugMode) {
+        final points = result.series.fold<int>(
+          0,
+          (total, series) => total + series.points.length,
+        );
+
+        debugPrint(
+          '[SIGNAL HISTORY] #$requestId done device=$_deviceKey '
+          'range=$_rangeLabel source=${result.source.name} '
+          'aggregation=${result.aggregation.name} '
+          'bucket=${result.bucket?.inMinutes ?? '?'}m '
+          'series=${result.series.length} points=$points '
+          'elapsed=${stopwatch.elapsedMilliseconds}ms',
+        );
+      }
+    } catch (error, stackTrace) {
+      if (!_isCurrent(requestId)) return;
+
+      if (error is TimeoutException) {
+        cancelToken.cancel('timeout after ${requestTimeout.inSeconds}s');
+      }
+
+      _error = error;
+
+      /*
+       * Loi khi lam moi CUNG range: giu chart dang co + icon canh bao.
+       * Loi khi doi sang range / device KHAC: khong de chart cua range cu
+       * dung ten range moi -> xoa de UI hien error state + Retry.
+       */
+      if (!showingCurrent) {
+        _clearDisplay();
+      } else {
+        _displayedRevision = revision;
+      }
+
+      debugPrint(
+        '[SIGNAL HISTORY CHART ERROR] #$requestId device=$_deviceKey '
+        'range=$_rangeLabel elapsed=${stopwatch.elapsedMilliseconds}ms '
+        'error=$error',
+      );
+      if (error is! TimeoutException) {
+        debugPrintStack(stackTrace: stackTrace);
+      }
+    } finally {
+      _finish(requestId);
+    }
+  }
+
+  /// Chuan bi noi dung hien thi truoc khi request chay.
+  void _prepareDisplay(String key) {
+    // Quay lai (device, range) da xem gan day: hien ngay ban cache.
+    final cached = _cache[key];
+
+    if (cached != null &&
+        DateTime.now().difference(cached.fetchedAt) <= cacheTtl &&
+        _displayedKey != key) {
+      _showResult(key, cached.result, cached.range);
+      // Revision cu: request nay van chay de lam moi ngam.
+      _displayedRevision = null;
+      return;
+    }
+
+    // Doi device: khong bao gio hien data cua device truoc.
+    if (_displayedKey != null &&
+        _deviceOf(_displayedKey!) != _deviceOf(key)) {
+      _clearDisplay();
+    }
+
+    // Cung device, khac range: giu chart cu (view lam mo + progress bar).
+  }
+
+  void _applyResult(
+    String key,
+    int revision,
+    HistoryRange? range,
+    SignalHistoryResult result,
+  ) {
+    _showResult(key, result, range);
+    _displayedRevision = revision;
+  }
+
+  void _showResult(
+    String key,
+    SignalHistoryResult result,
+    HistoryRange? range,
+  ) {
+    _series = result.series;
+    _aggregation = result.aggregation;
+    _displayedRange = range;
+    _displayedKey = key;
+  }
+
+  void _clearDisplay() {
+    _series = const <SignalHistorySeries>[];
+    _aggregation = null;
+    _displayedRange = null;
+    _displayedKey = null;
+    _displayedRevision = null;
+  }
+
+  void _finish(int requestId) {
+    if (!_isCurrent(requestId)) return;
+
+    _cancelToken = null;
+    _safeNotify();
+  }
+
+  void _trimCache() {
+    final now = DateTime.now();
+
+    _cache.removeWhere(
+      (_, entry) => now.difference(entry.fetchedAt) > cacheTtl,
+    );
+
+    while (_cache.length > _cacheCapacity) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
+
+  static String _deviceOf(String key) => key.split('#').first;
+
+  bool _isCurrent(int requestId) => !_disposed && requestId == _requestId;
+
+  static bool _sameIds(List<String> first, List<String> second) {
+    if (identical(first, second)) return true;
+    if (first.length != second.length) return false;
+
+    for (var i = 0; i < first.length; i++) {
+      if (first[i] != second[i]) return false;
+    }
+
+    return true;
+  }
+
+  // ============================================================
+  // SAFE NOTIFY
+  // ============================================================
+
+  /// [bind] duoc goi tu didUpdateWidget (trong build phase), nen notify phai
+  /// hoan sang sau frame giong SignalHealthHistoryController.
+  void _safeNotify() {
+    if (_disposed) return;
+
+    final binding = WidgetsBinding.instance;
+    final phase = binding.schedulerPhase;
+
+    final isBuilding =
+        phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks;
+
+    if (!isBuilding) {
+      notifyListeners();
+      return;
+    }
+
+    if (_notifyScheduled) return;
+
+    _notifyScheduled = true;
+
+    binding.addPostFrameCallback((_) {
+      _notifyScheduled = false;
+
+      if (_disposed) return;
+
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_disposed) return;
+
+    _disposed = true;
+    _requestId++;
+
+    _cancelToken?.cancel('disposed');
+    _cancelToken = null;
+
+    super.dispose();
+  }
+}
+
+class _CacheEntry {
+  final SignalHistoryResult result;
+  final HistoryRange? range;
+  final DateTime fetchedAt;
+
+  const _CacheEntry(this.result, this.range, this.fetchedAt);
+}

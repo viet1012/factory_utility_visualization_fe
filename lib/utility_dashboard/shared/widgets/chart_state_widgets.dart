@@ -31,11 +31,15 @@ class EmptyChartState extends StatelessWidget {
 class ChartApiErrorState extends StatelessWidget {
   final VoidCallback onRetry;
   final Color color;
+  final String title;
+  final String message;
 
   const ChartApiErrorState({
     super.key,
     required this.onRetry,
     this.color = Colors.redAccent,
+    this.title = 'Unable to Load Data',
+    this.message = 'Please check your connection or try again.',
   });
 
   @override
@@ -44,8 +48,8 @@ class ChartApiErrorState extends StatelessWidget {
       icon: Icons.cloud_off_rounded,
       iconColor: color,
       iconBackground: color.withValues(alpha: 0.12),
-      title: 'Unable to Load Data',
-      message: 'Please check your connection or try again.',
+      title: title,
+      message: message,
       action: SizedBox(
         height: 32,
         child: ElevatedButton.icon(

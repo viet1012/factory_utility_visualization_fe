@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
 import '../catalog_view_models.dart';
+import '../providers/latest_provider.dart';
+import '../providers/signal_history_controller.dart';
+import 'signal_chart/signal_chart_view.dart';
 
 class CatalogSignalDetail extends StatelessWidget {
   final CatalogDeviceGroup? device;
@@ -52,6 +56,17 @@ class CatalogSignalDetail extends StatelessWidget {
               '  •  ${selectedDevice.boxId}';
 
     final isEmpty = globalMode ? rows.isEmpty : selectedDevice!.signals.isEmpty;
+
+    /*
+     * Chart chi co nghia cho mot device: global filter mode luon hien bang
+     * (toggle bi an), nhung lua chon cua nguoi dung van duoc giu trong
+     * controller cho lan quay lai normal mode.
+     */
+    final viewMode = context.select<SignalHistoryController, CatalogDetailViewMode>(
+      (controller) => controller.viewMode,
+    );
+
+    final showChart = !globalMode && viewMode == CatalogDetailViewMode.chart;
 
     return Container(
       color: const Color(0xFF07111F),
@@ -108,12 +123,27 @@ class CatalogSignalDetail extends StatelessWidget {
                   label: '$staleCount Stale',
                   color: Colors.orangeAccent,
                 ),
+                if (!globalMode) ...[
+                  const SizedBox(width: 12),
+                  _DetailViewToggle(
+                    value: viewMode,
+                    onChanged: context.read<SignalHistoryController>().setViewMode,
+                  ),
+                ],
               ],
             ),
           ),
           Expanded(
             child: isEmpty
                 ? const _CatalogEmptyState()
+                : showChart
+                ? Selector<LatestProvider, int>(
+                    selector: (_, provider) => provider.dataVersion,
+                    builder: (_, revision, _) => SignalChartView(
+                      device: selectedDevice!,
+                      revision: revision,
+                    ),
+                  )
                 : CatalogSignalGrid(source: dataSource, globalMode: globalMode),
           ),
         ],
@@ -223,6 +253,89 @@ class _DetailBadge extends StatelessWidget {
     );
   }
 }
+/// Toggle Table | Chart o header panel chi tiet.
+class _DetailViewToggle extends StatelessWidget {
+  final CatalogDetailViewMode value;
+  final ValueChanged<CatalogDetailViewMode> onChanged;
+
+  const _DetailViewToggle({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFF07111F),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _DetailViewButton(
+            icon: Icons.table_rows_rounded,
+            label: 'Table',
+            selected: value == CatalogDetailViewMode.table,
+            onTap: () => onChanged(CatalogDetailViewMode.table),
+          ),
+          _DetailViewButton(
+            icon: Icons.show_chart_rounded,
+            label: 'Chart',
+            selected: value == CatalogDetailViewMode.chart,
+            onTap: () => onChanged(CatalogDetailViewMode.chart),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailViewButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _DetailViewButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? Colors.white : const Color(0xFF71869F);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF155E75) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ============================================================
 // DATA GRID
 // ============================================================

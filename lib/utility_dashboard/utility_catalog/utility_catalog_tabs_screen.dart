@@ -9,6 +9,7 @@ import 'widgets/catalog_left_panels.dart';
 import 'widgets/catalog_signal_detail.dart';
 import 'models/latest_tree_response.dart';
 import 'providers/latest_provider.dart';
+import 'providers/signal_history_providers.dart';
 
 // ============================================================
 // SCREEN
@@ -693,6 +694,11 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Chart mode cua panel chi tiet (view mode, range, history series).
+    return SignalHistoryScope(child: _buildMonitor());
+  }
+
+  Widget _buildMonitor() {
     return Selector<LatestProvider, _CatalogVm>(
       selector: (_, provider) {
         return _CatalogVm(

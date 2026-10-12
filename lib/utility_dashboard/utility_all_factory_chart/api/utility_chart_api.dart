@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../../../utility_api/dio_client.dart';
 import '../models/chart_catalog_response.dart';
 import '../models/minute_point.dart';
+import '../models/series_history_response.dart';
 import '../models/utility_daily_models.dart';
 
 class UtilityChartApi {
@@ -111,6 +112,66 @@ class UtilityChartApi {
           .toList();
     } catch (error) {
       debugPrint('âŒ API ERROR: $path');
+      debugPrint('PARAMS: $query');
+      debugPrint('ERROR: $error');
+      rethrow;
+    }
+  }
+
+  /// ISO-8601 kem offset cua may, vd: 2026-10-12T08:00:00+07:00.
+  /// Dio tu encode query component, nen '+' duoc gui dung la %2B.
+  String _toIsoWithOffset(DateTime dateTime) {
+    final local = dateTime.toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+
+    final offset = local.timeZoneOffset;
+    final sign = offset.isNegative ? '-' : '+';
+    final abs = offset.abs();
+
+    return '${local.year}-${two(local.month)}-${two(local.day)}'
+        'T${two(local.hour)}:${two(local.minute)}:${two(local.second)}'
+        '$sign${two(abs.inHours)}:${two(abs.inMinutes % 60)}';
+  }
+
+  /// Lich su theo bucket cua mot device. [plcAddresses] rong = moi PLC.
+  /// Backend tu chon bucket khi [bucket] = 'auto'.
+  Future<SeriesHistoryResponse> getSeriesHistory({
+    required String boxDeviceId,
+    required DateTime from,
+    required DateTime to,
+    List<String>? plcAddresses,
+    String bucket = 'auto',
+    CancelToken? cancelToken,
+  }) async {
+    const path = '/api/utility/series/history';
+    final plcs = _cleanList(plcAddresses);
+    final query = _qp({
+      'boxDeviceId': _clean(boxDeviceId),
+      if (plcs.isNotEmpty) 'plcAddress': plcs.join(','),
+      'from': _toIsoWithOffset(from),
+      'to': _toIsoWithOffset(to),
+      'bucket': bucket,
+    });
+
+    try {
+      final response = await _dio.get<dynamic>(
+        path,
+        queryParameters: query,
+        cancelToken: cancelToken,
+      );
+      final data = response.data;
+      if (data is! Map) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          message: '$path: expected Map but got ${data.runtimeType}',
+          type: DioExceptionType.badResponse,
+        );
+      }
+      return SeriesHistoryResponse.fromJson(Map<String, dynamic>.from(data));
+    } catch (error) {
+      // Huy chu dong (doi range / timeout) khong phai loi API.
+      if (error is DioException && CancelToken.isCancel(error)) rethrow;
+      debugPrint('❌ API ERROR: $path');
       debugPrint('PARAMS: $query');
       debugPrint('ERROR: $error');
       rethrow;
