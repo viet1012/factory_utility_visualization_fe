@@ -51,23 +51,32 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
     controller = UtilityChartController(
       catalog: context.read<UtilityChartCatalogController>(),
     );
-    controller.addListener(_syncMinutePolling);
+    controller.addListener(_syncViewPolling);
     _animationEnabledNotifier = ValueNotifier<bool>(_animationEnabled);
 
-    _syncMinutePolling();
+    _syncViewPolling();
 
     _scheduleActivation();
   }
 
-  void _syncMinutePolling() {
-    final shouldPoll =
-        widget.isCurrentScreen &&
-        controller.selectedView == UtilityChartView.minutes;
+  /// Polling scope cua tung tab; tab khong co polling (Daily) thi khong co.
+  static const Map<UtilityChartView, PollingScope> _viewScopes = {
+    UtilityChartView.minutes: PollingScope.chartsMinutes,
+    UtilityChartView.hours: PollingScope.chartsHourly,
+  };
 
-    if (shouldPoll) {
-      _pollingCoordinator.activateScope(PollingScope.chartsMinutes);
-    } else {
-      _pollingCoordinator.deactivateScope(PollingScope.chartsMinutes);
+  /// Chi bat scope cua tab dang xem (khi screen dang hien), tat moi scope khac.
+  void _syncViewPolling() {
+    final activeScope = widget.isCurrentScreen
+        ? _viewScopes[controller.selectedView]
+        : null;
+
+    for (final scope in _viewScopes.values) {
+      if (scope == activeScope) {
+        _pollingCoordinator.activateScope(scope);
+      } else {
+        _pollingCoordinator.deactivateScope(scope);
+      }
     }
   }
 
@@ -141,7 +150,7 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.isCurrentScreen != widget.isCurrentScreen) {
-      _syncMinutePolling();
+      _syncViewPolling();
 
       if (widget.isCurrentScreen) {
         _scheduleActivation();
@@ -275,8 +284,10 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
     WidgetsBinding.instance.removeObserver(this);
 
     _animationEnabledNotifier.dispose();
-    _pollingCoordinator.deactivateScope(PollingScope.chartsMinutes);
-    controller.removeListener(_syncMinutePolling);
+    for (final scope in _viewScopes.values) {
+      _pollingCoordinator.deactivateScope(scope);
+    }
+    controller.removeListener(_syncViewPolling);
     controller.dispose();
 
     super.dispose();

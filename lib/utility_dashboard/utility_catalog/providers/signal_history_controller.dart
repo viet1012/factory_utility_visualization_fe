@@ -221,22 +221,8 @@ class SignalHistoryController extends ChangeNotifier {
     final custom = _customWindow;
     if (custom != null) return custom;
 
-    final now = DateTime.now();
-
-    /*
-     * 7d gop theo ngay local: bat dau tu 00:00 cua 6 ngay truoc -> dung 7
-     * cot (6 ngay du + hom nay chua du). Cua so van > 24h nen bucket=auto
-     * cua backend van tra HOURLY_SNAPSHOT.
-     */
-    if (_range == HistoryRange.d7) {
-      final today = DateTime(now.year, now.month, now.day);
-      return HistoryWindow(
-        from: DateTime(today.year, today.month, today.day - 6),
-        to: now,
-      );
-    }
-
-    return HistoryWindow(from: now.subtract(_range.duration), to: now);
+    // 7d can 00:00 cua 6 ngay truoc (xem HistoryRange.windowEndingAt).
+    return _range.windowEndingAt(DateTime.now());
   }
 
   Future<void> _load() async {

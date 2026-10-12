@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../utility_all_factory_chart/api/utility_chart_api.dart';
 import '../api/api_signal_history_repository.dart';
 import '../api/signal_history_repository.dart';
+import 'filter_chart_controller.dart';
+import 'filter_sparkline_controller.dart';
 import 'latest_provider.dart';
 import 'signal_history_controller.dart';
 
@@ -24,7 +26,8 @@ Provider<SignalHistoryRepository> signalHistoryRepositoryProvider() {
   );
 }
 
-/// Cung cap repository + SignalHistoryController cho cay Utility Catalog.
+/// Cung cap repository + SignalHistoryController (chart panel device) +
+/// FilterSparklineController (bang Filter results) cho cay Utility Catalog.
 class SignalHistoryScope extends StatelessWidget {
   final Widget child;
 
@@ -38,6 +41,18 @@ class SignalHistoryScope extends StatelessWidget {
         ChangeNotifierProvider<SignalHistoryController>(
           create: (context) => SignalHistoryController(
             repository: context.read<SignalHistoryRepository>(),
+          ),
+        ),
+        ChangeNotifierProvider<FilterSparklineController>(
+          create: (context) => FilterSparklineController(
+            repository: context.read<SignalHistoryRepository>(),
+          ),
+        ),
+        // Che do Chart cua Filter results; 1h dung lai cache sparkline.
+        ChangeNotifierProvider<FilterChartController>(
+          create: (context) => FilterChartController(
+            repository: context.read<SignalHistoryRepository>(),
+            sparklines: context.read<FilterSparklineController>(),
           ),
         ),
       ],

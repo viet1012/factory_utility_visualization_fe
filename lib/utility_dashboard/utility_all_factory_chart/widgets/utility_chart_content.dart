@@ -133,8 +133,10 @@ class UtilityChartContent extends StatelessWidget {
 
           onToggleFilters: controller.toggleFilters,
 
+          // Minutes va Hourly cung lay danh sach signal tu catalog.
           showImportantSwitch:
-              controller.selectedView == UtilityChartView.minutes,
+              controller.selectedView == UtilityChartView.minutes ||
+              controller.selectedView == UtilityChartView.hours,
 
           importantEnabled: !initialLoading,
           refreshing: refreshing,

@@ -57,3 +57,21 @@ abstract final class SignalChartColors {
     return ChartThemes.byCate(rawCategory).line;
   }
 }
+
+/// Mau on dinh cho mot ma trang thai: cung ma -> cung mau o moi noi
+/// (badge "Code N", sparkline STATUS, step chart STATUS cua panel device).
+Color statusCodeColor(int code) {
+  const palette = <Color>[
+    Color(0xFF64748B), // 0
+    Color(0xFF4ADE80),
+    Color(0xFF60A5FA),
+    Color(0xFFFBBF24),
+    Color(0xFFF472B6),
+    Color(0xFFA78BFA),
+    Color(0xFF22D3EE),
+    Color(0xFFFB923C),
+    Color(0xFF2DD4BF),
+  ];
+
+  return palette[code.abs() % palette.length];
+}

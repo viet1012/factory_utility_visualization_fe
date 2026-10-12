@@ -186,6 +186,13 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
             xValueMapper: (point, _) => point.ts,
             // STATUS: trang thai cuoi bucket (last), thieu thi avg.
             yValueMapper: (point, _) => series.plotValue(point),
+            // Moi doan to theo ma trang thai, cung mau voi badge / sparkline.
+            pointColorMapper: (point, _) {
+              final code = series.plotValue(point);
+              return code == null
+                  ? SignalChartColors.status
+                  : statusCodeColor(code.round());
+            },
             emptyPointSettings: const EmptyPointSettings(
               mode: EmptyPointMode.gap,
             ),

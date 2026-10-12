@@ -8,6 +8,7 @@ abstract final class PollingTaskIds {
   static const String mapDailyDashboard = 'map.daily-dashboard';
   static const String mapMonthlySummary = 'map.monthly-summary';
   static const String chartsMinuteSeries = 'charts.minute-series';
+  static const String chartsHourlySeries = 'charts.hourly-series';
   static const String mapSolarMonthly = 'map.solar-monthly';
   static const String mapWeather = 'map.weather';
 

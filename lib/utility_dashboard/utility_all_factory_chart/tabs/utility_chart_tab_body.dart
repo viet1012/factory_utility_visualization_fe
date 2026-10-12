@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../tabs/utility_daily_tab.dart';
+import '../tabs/utility_hourly_tab.dart';
 import '../tabs/utility_minutes_tab.dart';
 import '../controllers/utility_chart_controller.dart';
 import 'utility_chart_view.dart';
@@ -55,10 +56,13 @@ class UtilityChartTabBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final minutesVisible = controller.selectedView == UtilityChartView.minutes;
+    final hoursVisible = controller.selectedView == UtilityChartView.hours;
+    final dailyVisible = controller.selectedView == UtilityChartView.daily;
 
-    // IndexedStack keeps both tabs mounted so switching is instant and chart
-    // state survives. TickerMode makes sure the hidden tab cannot keep a
+    // IndexedStack keeps every tab mounted so switching is instant and chart
+    // state survives. TickerMode makes sure a hidden tab cannot keep a
     // ticker running, so preserved state never turns into background CPU.
+    // Children must follow the declaration order of UtilityChartView.
     return IndexedStack(
       index: controller.selectedView.index,
       children: [
@@ -79,9 +83,24 @@ class UtilityChartTabBody extends StatelessWidget {
         ),
 
         TickerMode(
-          enabled: !minutesVisible,
+          enabled: hoursVisible,
+          child: UtilityHourlyTab(
+            isActive: isActive && hoursVisible,
+            facId: controller.selectedFac,
+            cate: controller.selectedCate,
+            scadaId: selectedScada,
+
+            /// Giong Minutes: ALL hoac device that, khong phai BOX GROUP.
+            selectedBox: _selectedDevice,
+
+            importantOnly: controller.importantOnly,
+          ),
+        ),
+
+        TickerMode(
+          enabled: dailyVisible,
           child: UtilityDailyTab(
-            isActive: isActive && !minutesVisible,
+            isActive: isActive && dailyVisible,
             facId: controller.selectedFac,
             cate: controller.selectedCate,
             scadaId: selectedScada,

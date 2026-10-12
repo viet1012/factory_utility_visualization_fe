@@ -30,6 +30,7 @@ import '../utility_api/dio_client.dart';
 import 'utility_dashboard_fac_details/api/utility_facade_service.dart';
 import 'utility_all_factory_chart/controllers/utility_chart_catalog_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_daily_signal_controller.dart';
+import 'utility_all_factory_chart/controllers/utility_hourly_chart_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_minute_chart_controller.dart';
 import 'utility_dashboard_overview/utility_dashboard_overview.dart';
 
@@ -42,9 +43,9 @@ class UtilityDashboardScreen extends StatefulWidget {
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin {
-  // static const String _baseUrl = 'http://192.168.122.16:9093';
+  static const String _baseUrl = 'http://192.168.122.16:9093';
 
-  static const _baseUrl = 'http://localhost:9999';
+  // static const _baseUrl = 'http://localhost:9999';
 
   static const int _tabCount = 5;
 
@@ -84,6 +85,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityMonthlySummaryProvider monthlySummaryProvider;
 
   late final UtilityDailySignalController dailySignalProvider;
+  late final UtilityHourlyChartController hourlyChartProvider;
 
   late final TabController _tabController;
 
@@ -147,6 +149,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     );
 
     dailySignalProvider = UtilityDailySignalController(api: chartApi);
+
+    hourlyChartProvider = UtilityHourlyChartController(api: chartApi);
 
     chartCatalogProvider = UtilityChartCatalogController(chartApi);
 
@@ -219,9 +223,17 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         action: minuteSeriesProvider.poll,
         runImmediately: true,
       )
+      // Tab Hourly tu tai khi mo (co cache 60s), polling chi lam moi dinh ky.
+      ..register(
+        id: PollingTaskIds.chartsHourlySeries,
+        scope: PollingScope.chartsHourly,
+        interval: DashboardPollingIntervals.chartsHourlySeries,
+        action: hourlyChartProvider.poll,
+      )
       ..start(PollingTaskIds.signalHealthMap)
       ..start(PollingTaskIds.signalHealthAlarms)
-      ..start(PollingTaskIds.chartsMinuteSeries);
+      ..start(PollingTaskIds.chartsMinuteSeries)
+      ..start(PollingTaskIds.chartsHourlySeries);
   }
 
   void _initializeTabController() {
@@ -334,6 +346,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
         ChangeNotifierProvider<UtilityDailySignalController>.value(
           value: dailySignalProvider,
+        ),
+
+        ChangeNotifierProvider<UtilityHourlyChartController>.value(
+          value: hourlyChartProvider,
         ),
 
         ChangeNotifierProvider<UtilityChartCatalogController>.value(
@@ -476,6 +492,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     pollingCoordinator.dispose();
     latestProvider.dispose();
     dailySignalProvider.dispose();
+    hourlyChartProvider.dispose();
 
     signalHealthController.dispose();
 

@@ -52,6 +52,22 @@ enum HistoryRange {
 
   const HistoryRange(this.label, this.duration, this.requestBucket);
 
+  /// Cua so thoi gian ket thuc o [now].
+  ///
+  /// 7d gop theo ngay local: bat dau tu 00:00 cua 6 ngay truoc -> dung 7
+  /// ngay (6 ngay du + hom nay chua du). Cua so van > 24h nen bucket=auto
+  /// cua backend van tra HOURLY_SNAPSHOT.
+  HistoryWindow windowEndingAt(DateTime now) {
+    if (this == HistoryRange.d7) {
+      return HistoryWindow(
+        from: DateTime(now.year, now.month, now.day - 6),
+        to: now,
+      );
+    }
+
+    return HistoryWindow(from: now.subtract(duration), to: now);
+  }
+
   /// Range ve bang cot (tru STATUS): 24h theo gio, 7d theo ngay.
   SignalBarPeriod? get barPeriod => switch (this) {
     HistoryRange.h24 => SignalBarPeriod.hour,

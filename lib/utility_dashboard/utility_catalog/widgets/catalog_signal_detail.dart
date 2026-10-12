@@ -4,7 +4,11 @@ import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
 import '../catalog_view_models.dart';
 import '../providers/latest_provider.dart';
+import '../providers/filter_chart_controller.dart';
 import '../providers/signal_history_controller.dart';
+import 'filter_results/catalog_filter_results_grid.dart';
+import 'filter_results/chart/filter_chart_view.dart';
+import 'filter_results/filter_over_threshold_badge.dart';
 import 'signal_chart/signal_chart_view.dart';
 
 class CatalogSignalDetail extends StatelessWidget {
@@ -14,14 +18,39 @@ class CatalogSignalDetail extends StatelessWidget {
   /// Dang hien thi ket qua loc toan cuc thay vi mot device.
   final bool globalMode;
 
-  /// Cac dong dang hien thi, dung de tinh badge trong global mode.
+  /// Moi dong khop filter, dung de tinh badge trong global mode.
   final List<CatalogTableRow> rows;
+
+  /// Dong cua cac device tren trang hien tai: noi dung bang Filter results.
+  final List<CatalogTableRow> pageRows;
+
+  /// So device khop filter / so device cua trang hien tai.
+  final int deviceCount;
+  final int pageDeviceCount;
+
+  /// Khac null khi dang xem mot device mo tu Filter results.
+  final VoidCallback? onBackToResults;
+
+  /// Dang loc va da chon mot nhom tree: nhan chip (vd "Box: X") va ham
+  /// bo chon de quay ve moi device khop filter.
+  final String? groupFilterLabel;
+  final VoidCallback? onClearGroupFilter;
+
+  /// Mo panel device tu Filter results (legend cua che do Chart).
+  final ValueChanged<String>? onOpenDevice;
 
   const CatalogSignalDetail({
     required this.device,
     required this.dataSource,
     this.globalMode = false,
     this.rows = const <CatalogTableRow>[],
+    this.pageRows = const <CatalogTableRow>[],
+    this.deviceCount = 0,
+    this.pageDeviceCount = 0,
+    this.onBackToResults,
+    this.groupFilterLabel,
+    this.onClearGroupFilter,
+    this.onOpenDevice,
   });
 
   @override
@@ -48,8 +77,17 @@ class CatalogSignalDetail extends StatelessWidget {
         ? 'FILTER RESULTS'
         : selectedDevice!.boxDeviceId;
 
+    // Moi dong cung mot SCADA: an cot SCADA, ghi SCADA o header.
+    final pageScadas = {for (final row in pageRows) row.scadaId};
+    final singleScada = pageScadas.length == 1 ? pageScadas.first : null;
+
     final subtitleText = globalMode
-        ? 'All matching signals across facilities'
+        ? [
+            if (singleScada != null) 'SCADA $singleScada',
+            '$deviceCount devices',
+            if (pageDeviceCount < deviceCount)
+              'showing $pageDeviceCount on this page',
+          ].join('  •  ')
         : '${selectedDevice!.facility}'
               '  •  ${selectedDevice.category}'
               '  •  ${selectedDevice.scadaId}'
@@ -68,6 +106,15 @@ class CatalogSignalDetail extends StatelessWidget {
 
     final showChart = !globalMode && viewMode == CatalogDetailViewMode.chart;
 
+    // Filter results co toggle Table | Chart rieng (nhieu device / nhom).
+    final filterViewMode = context
+        .select<FilterChartController, CatalogDetailViewMode>(
+          (controller) => controller.viewMode,
+        );
+
+    final showFilterChart =
+        globalMode && filterViewMode == CatalogDetailViewMode.chart;
+
     return Container(
       color: const Color(0xFF07111F),
       child: Column(
@@ -81,6 +128,17 @@ class CatalogSignalDetail extends StatelessWidget {
             ),
             child: Row(
               children: [
+                if (onBackToResults != null) ...[
+                  IconButton(
+                    tooltip: 'Back to filter results',
+                    onPressed: onBackToResults,
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Color(0xFFA6B8CC),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,6 +167,16 @@ class CatalogSignalDetail extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (globalMode &&
+                    groupFilterLabel != null &&
+                    onClearGroupFilter != null) ...[
+                  _GroupFilterChip(
+                    label: groupFilterLabel!,
+                    onClear: onClearGroupFilter!,
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                if (globalMode) FilterOverThresholdBadge(rows: rows),
                 _DetailBadge(
                   label: '$signalCount Signals',
                   color: const Color(0xFF60A5FA),
@@ -123,13 +191,17 @@ class CatalogSignalDetail extends StatelessWidget {
                   label: '$staleCount Stale',
                   color: Colors.orangeAccent,
                 ),
-                if (!globalMode) ...[
-                  const SizedBox(width: 12),
+                const SizedBox(width: 12),
+                if (globalMode)
+                  _DetailViewToggle(
+                    value: filterViewMode,
+                    onChanged: context.read<FilterChartController>().setViewMode,
+                  )
+                else
                   _DetailViewToggle(
                     value: viewMode,
                     onChanged: context.read<SignalHistoryController>().setViewMode,
                   ),
-                ],
               ],
             ),
           ),
@@ -144,7 +216,17 @@ class CatalogSignalDetail extends StatelessWidget {
                       revision: revision,
                     ),
                   )
-                : CatalogSignalGrid(source: dataSource, globalMode: globalMode),
+                : showFilterChart
+                ? FilterChartView(
+                    rows: rows,
+                    onOpenDevice: onOpenDevice ?? (_) {},
+                  )
+                : globalMode
+                ? CatalogFilterResultsGrid(
+                    rows: pageRows,
+                    showScada: singleScada == null,
+                  )
+                : CatalogSignalGrid(source: dataSource),
           ),
         ],
       ),
@@ -253,6 +335,51 @@ class _DetailBadge extends StatelessWidget {
     );
   }
 }
+/// Chip nhom tree dang chon trong Filter results; bam × de bo chon.
+class _GroupFilterChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onClear;
+
+  const _GroupFilterChip({required this.label, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFF67E8F9);
+
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.only(left: 10, right: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: .30)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Show all matching devices',
+            onPressed: onClear,
+            iconSize: 15,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 26, height: 26),
+            icon: const Icon(Icons.close_rounded, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Toggle Table | Chart o header panel chi tiet.
 class _DetailViewToggle extends StatelessWidget {
   final CatalogDetailViewMode value;

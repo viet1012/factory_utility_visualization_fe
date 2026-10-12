@@ -85,6 +85,12 @@ class CatalogTableRow {
          unit,
        ].join('|').toLowerCase();
 
+  /// Khoa device cua dong: fac | category | scada | box | device.
+  /// Trung voi CatalogDeviceGroup.key.
+  String get deviceKey {
+    return [facility, category, scadaId, boxId, boxDeviceId].join('|');
+  }
+
   // ============================================================
   // STATUS
   // ============================================================

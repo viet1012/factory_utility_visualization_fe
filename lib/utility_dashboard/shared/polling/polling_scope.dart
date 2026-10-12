@@ -5,6 +5,7 @@ enum PollingScope {
   mapHourly(parent: PollingScope.map),
   charts,
   chartsMinutes(parent: PollingScope.charts),
+  chartsHourly(parent: PollingScope.charts),
   scadaTable,
   alarms,
   facilityDetail;

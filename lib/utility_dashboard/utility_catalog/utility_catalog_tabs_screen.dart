@@ -52,15 +52,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
   List<CatalogTableRow> _cachedRows = const [];
 
-  String _deviceKey(CatalogTableRow row) {
-    return [
-      row.facility,
-      row.category,
-      row.scadaId,
-      row.boxId,
-      row.boxDeviceId,
-    ].join('|');
-  }
+  String _deviceKey(CatalogTableRow row) => row.deviceKey;
 
   UtilityCatalogViewMode _viewMode = UtilityCatalogViewMode.monitor;
 
@@ -761,7 +753,15 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
         final devicesForTree = _devicesForTree(allDevices, effectiveTreeKey);
 
-        final pagedDevices = _pagedDevices(devicesForTree);
+        /*
+         * Global filter mode: device list = moi device khop filter (hoac chi
+         * nhom tree vua bam), thay vi danh sach rong theo tree key da reset.
+         */
+        final listDevices = isGlobalFilterMode && effectiveTreeKey == null
+            ? allDevices
+            : devicesForTree;
+
+        final pagedDevices = _pagedDevices(listDevices);
 
         final selectedDevice = allDevices
             .cast<CatalogDeviceGroup?>()
@@ -773,12 +773,32 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
         final selectedSignals =
             selectedDevice?.signals ?? const <CatalogTableRow>[];
 
-        final visibleSignals = isGlobalFilterMode ? rows : selectedSignals;
+        // Filter results khi chua chon device; bam device -> panel device.
+        final showFilterResults = isGlobalFilterMode && selectedDevice == null;
 
-        final dataSource = CatalogDataSource(
-          rows: visibleSignals,
-          globalMode: isGlobalFilterMode,
-        );
+        final dataSource = CatalogDataSource(rows: selectedSignals);
+
+        // Dem cho header: moi signal cua cac device dang liet ke.
+        final filterRows = showFilterResults
+            ? <CatalogTableRow>[
+                for (final device in listDevices) ...device.signals,
+              ]
+            : const <CatalogTableRow>[];
+
+        // Dang loc va da bam mot nhom tree: chip "Box: <ten> ×" de bo chon.
+        final selectedGroup = isGlobalFilterMode && effectiveTreeKey != null
+            ? treeGroups.cast<CatalogTreeGroup?>().firstWhere(
+                (group) => group?.key == effectiveTreeKey,
+                orElse: () => null,
+              )
+            : null;
+
+        // Bang: chi signal cua cac device tren trang hien tai.
+        final filterPageRows = showFilterResults
+            ? <CatalogTableRow>[
+                for (final device in pagedDevices) ...device.signals,
+              ]
+            : const <CatalogTableRow>[];
 
         final summary = CatalogSummary.fromRows(rows);
 
@@ -907,7 +927,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                             child: CatalogDeviceListPanel(
                               devices: pagedDevices,
                               selectedDeviceKey: effectiveDeviceKey,
-                              totalDevices: devicesForTree.length,
+                              totalDevices: listDevices.length,
                               currentPage: _devicePage,
                               pageSize: _devicePageSize,
                               onSelected: (key) {
@@ -928,8 +948,38 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                             child: CatalogSignalDetail(
                               device: selectedDevice,
                               dataSource: dataSource,
-                              globalMode: isGlobalFilterMode,
-                              rows: visibleSignals,
+                              globalMode: showFilterResults,
+                              rows: filterRows,
+                              pageRows: filterPageRows,
+                              deviceCount: listDevices.length,
+                              pageDeviceCount: pagedDevices.length,
+                              // Legend chart Filter results: mo panel device.
+                              onOpenDevice: (key) {
+                                setState(() {
+                                  _selectedDeviceKey = key;
+                                });
+                              },
+                              groupFilterLabel: selectedGroup == null
+                                  ? null
+                                  : 'Box: ${selectedGroup.boxId}',
+                              onClearGroupFilter: selectedGroup == null
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _selectedTreeKey = null;
+                                        _selectedDeviceKey = null;
+                                        _devicePage = 0;
+                                      });
+                                    },
+                              // Dang xem 1 device tu Filter results: nut quay lai.
+                              onBackToResults:
+                                  isGlobalFilterMode && selectedDevice != null
+                                  ? () {
+                                      setState(() {
+                                        _selectedDeviceKey = null;
+                                      });
+                                    }
+                                  : null,
                             ),
                           ),
                         ],
@@ -942,7 +992,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
 
               if (_viewMode == UtilityCatalogViewMode.monitor)
                 _DevicePaginationBar(
-                  totalItems: devicesForTree.length,
+                  totalItems: listDevices.length,
                   currentPage: _devicePage,
                   pageSize: _devicePageSize,
                   onPrevious: _devicePage <= 0
@@ -953,7 +1003,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                             _selectedDeviceKey = null;
                           });
                         },
-                  onNext: _devicePage >= _pageCount(devicesForTree.length) - 1
+                  onNext: _devicePage >= _pageCount(listDevices.length) - 1
                       ? null
                       : () {
                           setState(() {
