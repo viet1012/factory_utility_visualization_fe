@@ -59,6 +59,23 @@ class FilterChartController extends ChangeNotifier {
   final Map<String, CancelToken> _inFlight = <String, CancelToken>{};
 
   Timer? _refreshTimer;
+
+  /// Chart Filter results dang that su hien tren man hinh; false thi dung
+  /// nhip lam moi 30s (xem [setOnScreen]).
+  bool _onScreen = true;
+
+  void setOnScreen(bool onScreen) {
+    if (_disposed || _onScreen == onScreen) return;
+
+    _onScreen = onScreen;
+
+    if (onScreen && _viewMode == CatalogDetailViewMode.chart) {
+      // Hien lai: lam moi ngay phan da qua han.
+      _evict();
+      _enqueue();
+    }
+    _ensureTimer();
+  }
   int _requestCount = 0;
 
   // ============================================================
@@ -344,7 +361,9 @@ class FilterChartController extends ChangeNotifier {
   }
 
   void _ensureTimer() {
-    if (_viewMode != CatalogDetailViewMode.chart || _devices.isEmpty) {
+    if (!_onScreen ||
+        _viewMode != CatalogDetailViewMode.chart ||
+        _devices.isEmpty) {
       _stopTimer();
       return;
     }

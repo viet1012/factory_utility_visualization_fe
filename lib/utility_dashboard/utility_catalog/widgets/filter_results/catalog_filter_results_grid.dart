@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
+import '../../../shared/polling/polling_coordinator.dart';
+import '../../../shared/polling/polling_scope.dart';
 import '../../catalog_view_models.dart';
 import '../../providers/filter_sparkline_controller.dart';
 import '../signal_chart/signal_chart_palette.dart';
@@ -43,6 +45,7 @@ class _CatalogFilterResultsGridState extends State<CatalogFilterResultsGrid> {
 
   /// Giu tham chieu de dispose khong phai tra cuu context.
   late final FilterSparklineController _sparklines;
+  late final PollingCoordinator _coordinator;
 
   Timer? _viewportTimer;
 
@@ -54,6 +57,12 @@ class _CatalogFilterResultsGridState extends State<CatalogFilterResultsGrid> {
     super.initState();
 
     _sparklines = context.read<FilterSparklineController>();
+
+    // Nhip lam moi 30s chi chay khi bang that su hien (cung gating voi
+    // polling cua tab SCADA TABLE).
+    _coordinator = context.read<PollingCoordinator>();
+    _coordinator.activity.addListener(_syncOnScreen);
+    _syncOnScreen();
 
     _source = _FilterResultsSource(
       rows: widget.rows,
@@ -96,6 +105,12 @@ class _CatalogFilterResultsGridState extends State<CatalogFilterResultsGrid> {
     }
 
     _scheduleViewportSync();
+  }
+
+  void _syncOnScreen() {
+    _sparklines.setOnScreen(
+      _coordinator.isScopeActive(PollingScope.scadaTable),
+    );
   }
 
   void _scheduleViewportSync() {
@@ -149,6 +164,7 @@ class _CatalogFilterResultsGridState extends State<CatalogFilterResultsGrid> {
   @override
   void dispose() {
     _viewportTimer?.cancel();
+    _coordinator.activity.removeListener(_syncOnScreen);
     _verticalController.removeListener(_scheduleViewportSync);
     _verticalController.dispose();
 

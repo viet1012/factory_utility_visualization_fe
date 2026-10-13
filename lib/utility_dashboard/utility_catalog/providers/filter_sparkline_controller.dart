@@ -63,6 +63,11 @@ class FilterSparklineController extends ChangeNotifier {
 
   Timer? _refreshTimer;
 
+  /// Bang Filter results dang that su hien tren man hinh (tab SCADA TABLE
+  /// dang hien, tab trinh duyet khong an, khong bi route khac che). Do view
+  /// bao qua [setOnScreen]; false thi dung nhip lam moi 30s.
+  bool _onScreen = true;
+
   /// Tong so request da gui (log debug, de do muc tai).
   int _requestCount = 0;
 
@@ -105,6 +110,16 @@ class FilterSparklineController extends ChangeNotifier {
 
     _evict();
     _enqueueStale();
+    _ensureTimer();
+  }
+
+  void setOnScreen(bool onScreen) {
+    if (_disposed || _onScreen == onScreen) return;
+
+    _onScreen = onScreen;
+
+    // Hien lai: lam moi ngay cac device da qua han thay vi doi nhip 30s.
+    if (onScreen) _enqueueStale();
     _ensureTimer();
   }
 
@@ -151,7 +166,7 @@ class FilterSparklineController extends ChangeNotifier {
   }
 
   void _ensureTimer() {
-    if (_visible.isEmpty) {
+    if (_visible.isEmpty || !_onScreen) {
       _refreshTimer?.cancel();
       _refreshTimer = null;
       return;

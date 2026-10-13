@@ -28,6 +28,7 @@ import 'package:provider/provider.dart';
 
 import '../utility_api/dio_client.dart';
 import 'utility_dashboard_fac_details/api/utility_facade_service.dart';
+import 'shared/visibility/app_visibility.dart';
 import 'utility_all_factory_chart/controllers/utility_chart_catalog_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_daily_signal_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_hourly_chart_controller.dart';
@@ -42,10 +43,10 @@ class UtilityDashboardScreen extends StatefulWidget {
 }
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
-    with SingleTickerProviderStateMixin {
-  static const String _baseUrl = 'http://192.168.122.16:9093';
+    with SingleTickerProviderStateMixin, RouteAware {
+  // static const String _baseUrl = 'http://192.168.122.16:9093';
 
-  // static const _baseUrl = 'http://localhost:9999';
+  static const _baseUrl = 'http://localhost:9999';
 
   static const int _tabCount = 5;
 
@@ -101,10 +102,53 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     _initializeProviders();
     _initializeTabController();
 
+    AppVisibility.instance.addListener(_syncVisibility);
+    _syncVisibility();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _syncInitialTopLevelPollingScopes();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final route = ModalRoute.of(context);
+    if (route is PageRoute<dynamic>) {
+      appRouteObserver.subscribe(this, route);
+    }
+  }
+
+  // ============================================================
+  // VISIBILITY
+  // ============================================================
+
+  /// Facility detail / Solar detail duoc push len tren dashboard.
+  @override
+  void didPushNext() {
+    AppVisibility.instance.setDashboardCovered(true);
+  }
+
+  /// Route che dashboard da dong.
+  @override
+  void didPopNext() {
+    AppVisibility.instance.setDashboardCovered(false);
+  }
+
+  /// Tab trinh duyet an: dung moi polling. Dashboard bi che: dung scope cua
+  /// dashboard (MAP, CHARTS, SCADA TABLE, ALARMS), scope cua route chi tiet
+  /// van chay. Hien lai: PollingCoordinator chay ngay mot luot cho scope dang
+  /// hien (task chu ky dai chi chay khi da qua han).
+  void _syncVisibility() {
+    final visibility = AppVisibility.instance;
+
+    pollingCoordinator.setPaused(!visibility.pageVisible);
+    pollingCoordinator.setSuppressed(
+      PollingScope.dashboardScopes,
+      visibility.dashboardCovered,
+    );
   }
 
   // ============================================================
@@ -206,14 +250,20 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         id: PollingTaskIds.mapDailyDashboard,
         scope: PollingScope.map,
         interval: DashboardPollingIntervals.mapDailyDashboard,
-        action: dailyDashboardProvider.refresh,
+        action: () => _refreshReportingErrors(
+          dailyDashboardProvider.refresh,
+          () => dailyDashboardProvider.error,
+        ),
         runImmediately: true,
       )
       ..register(
         id: PollingTaskIds.mapMonthlySummary,
         scope: PollingScope.map,
         interval: DashboardPollingIntervals.mapMonthlySummary,
-        action: monthlySummaryProvider.refresh,
+        action: () => _refreshReportingErrors(
+          monthlySummaryProvider.refresh,
+          () => monthlySummaryProvider.error,
+        ),
         runImmediately: true,
       )
       ..register(
@@ -298,6 +348,19 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     } else if (wasScadaTableTab) {
       pollingCoordinator.deactivateScope(PollingScope.scadaTable);
     }
+  }
+
+  /// Provider tu bat loi va giu data cu; nem lai loi de PollingCoordinator
+  /// khong tinh la lan chay thanh cong. Task chu ky >= 1h dua vao lan thanh
+  /// cong gan nhat de quyet dinh co tai ngay khi quay lai MAP hay khong.
+  Future<void> _refreshReportingErrors(
+    Future<void> Function() refresh,
+    Object? Function() readError,
+  ) async {
+    await refresh();
+
+    final error = readError();
+    if (error != null) throw error;
   }
 
   Future<void> _refreshLatestFullTree() async {
@@ -483,6 +546,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
   @override
   void dispose() {
+    appRouteObserver.unsubscribe(this);
+    AppVisibility.instance.removeListener(_syncVisibility);
+    AppVisibility.instance.setDashboardCovered(false);
+
     _tabController.removeListener(_handleTabChanged);
 
     _tabController.dispose();

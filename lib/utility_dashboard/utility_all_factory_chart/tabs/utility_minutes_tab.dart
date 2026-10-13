@@ -106,6 +106,11 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
     final deviceIds = _resolveDeviceIds(charts);
 
     if (deviceIds.isEmpty) {
+      // Lua chon moi khong co device: dung poll cac device cu.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !widget.isActive) return;
+        context.read<UtilityMinuteChartController>().retainOnly(const {});
+      });
       return;
     }
 
@@ -147,6 +152,19 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
     if (!widget.isActive || deviceIds.isEmpty) return;
 
     final provider = context.read<UtilityMinuteChartController>();
+
+    /*
+     * Bo request cua lua chon cu (fac/cate/box/device khac) truoc khi them
+     * request moi, de poll moi phut chi chay cho device dang hien thi.
+     */
+    provider.retainOnly({
+      for (final boxDeviceId in deviceIds)
+        provider.buildKey(
+          facId: widget.facId,
+          scadaId: widget.scadaId,
+          boxDeviceId: boxDeviceId,
+        ),
+    });
 
     final futures = <Future<void>>[];
 

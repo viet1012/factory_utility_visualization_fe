@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
@@ -83,6 +85,9 @@ class UtilityMinuteChartController extends ChangeNotifier {
   final Map<String, DateTime?> _lastOkAt = {};
   final Map<String, DateTime?> _lastErrAt = {};
 
+  /// Request dang chay theo key; huy khi key bi bo / doi request.
+  final Map<String, CancelToken> _cancelTokens = {};
+
   // ============================================================
   // GETTERS
   // ============================================================
@@ -148,6 +153,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
 
     if (changed && oldRequest != null) {
       _invalidateKey(normalizedKey);
+      _cancelRequest(normalizedKey, 'request changed');
 
       _rows[normalizedKey] = const <MinutePointDto>[];
       _errors[normalizedKey] = null;
@@ -169,6 +175,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
     if (normalizedKey.isEmpty) return;
 
     _invalidateKey(normalizedKey);
+    _cancelRequest(normalizedKey, 'key removed');
 
     _reqs.remove(normalizedKey);
     _rows.remove(normalizedKey);
@@ -183,11 +190,28 @@ class UtilityMinuteChartController extends ChangeNotifier {
     _safeNotify();
   }
 
+  /// Bo moi request khong thuoc [keys] (lua chon fac/cate/box/device hien
+  /// tai), de [poll] chi lam moi device dang hien thi. Request dang chay cua
+  /// cac key bi bo duoc huy.
+  void retainOnly(Set<String> keys) {
+    if (_disposed) return;
+
+    final keep = keys.map((key) => key.trim()).toSet();
+    final stale = _reqs.keys
+        .where((key) => !keep.contains(key))
+        .toList(growable: false);
+
+    for (final key in stale) {
+      removeKey(key);
+    }
+  }
+
   void clear() {
     if (_disposed) return;
 
     for (final key in _reqs.keys.toList(growable: false)) {
       _invalidateKey(key);
+      _cancelRequest(key, 'cleared');
     }
 
     _reqs.clear();
@@ -366,19 +390,23 @@ class UtilityMinuteChartController extends ChangeNotifier {
 
     _safeNotify();
 
+    final cancelToken = _startRequest(key);
+
     try {
       final to = DateTime.now();
       final from = to.subtract(window);
 
-      final result = await api
-          .getSeriesMinute(
-            from: from,
-            to: to,
-            boxDeviceId: request.boxDeviceId!.trim(),
-            plcAddress: null,
-            cateIds: null,
-          )
-          .timeout(requestTimeout);
+      final result = await _withTimeout(
+        api.getSeriesMinute(
+          from: from,
+          to: to,
+          boxDeviceId: request.boxDeviceId!.trim(),
+          plcAddress: null,
+          cateIds: null,
+          cancelToken: cancelToken,
+        ),
+        cancelToken,
+      );
 
       if (!_isValidKeyRequest(key, version)) {
         return;
@@ -396,6 +424,9 @@ class UtilityMinuteChartController extends ChangeNotifier {
       _fetchedOnce[key] = true;
       _lastOkAt[key] = DateTime.now();
     } catch (error, stackTrace) {
+      // Huy chu dong (key bi bo / doi request): khong phai loi.
+      if (error is DioException && CancelToken.isCancel(error)) return;
+
       if (!_isValidKeyRequest(key, version)) {
         return;
       }
@@ -415,6 +446,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
        * Không xóa rows cũ khi request lỗi.
        */
     } finally {
+      _finishRequest(key, cancelToken);
       _clearFetching(key);
 
       if (_isValidKeyRequest(key, version)) {
@@ -451,6 +483,8 @@ class UtilityMinuteChartController extends ChangeNotifier {
 
     _safeNotify();
 
+    final cancelToken = _startRequest(key);
+
     try {
       /*
        * Lùi một phút để tránh mất dữ liệu do lệch thời gian
@@ -460,15 +494,17 @@ class UtilityMinuteChartController extends ChangeNotifier {
 
       final to = DateTime.now();
 
-      final result = await api
-          .getSeriesMinute(
-            from: from,
-            to: to,
-            boxDeviceId: request.boxDeviceId!.trim(),
-            plcAddress: null,
-            cateIds: null,
-          )
-          .timeout(requestTimeout);
+      final result = await _withTimeout(
+        api.getSeriesMinute(
+          from: from,
+          to: to,
+          boxDeviceId: request.boxDeviceId!.trim(),
+          plcAddress: null,
+          cateIds: null,
+          cancelToken: cancelToken,
+        ),
+        cancelToken,
+      );
 
       if (!_isValidKeyRequest(key, version)) {
         return;
@@ -493,6 +529,9 @@ class UtilityMinuteChartController extends ChangeNotifier {
       _fetchedOnce[key] = true;
       _lastOkAt[key] = DateTime.now();
     } catch (error, stackTrace) {
+      // Huy chu dong (key bi bo / doi request): khong phai loi.
+      if (error is DioException && CancelToken.isCancel(error)) return;
+
       if (!_isValidKeyRequest(key, version)) {
         return;
       }
@@ -512,6 +551,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
        * Giữ dữ liệu cũ khi refresh lỗi.
        */
     } finally {
+      _finishRequest(key, cancelToken);
       _clearFetching(key);
 
       if (_isValidKeyRequest(key, version)) {
@@ -596,6 +636,40 @@ class UtilityMinuteChartController extends ChangeNotifier {
     _rows[key] = List<MinutePointDto>.unmodifiable(trimmed);
 
     _lastTs[key] = trimmed.isNotEmpty ? trimmed.last.ts : null;
+  }
+
+  // ============================================================
+  // CANCELLATION
+  // ============================================================
+
+  CancelToken _startRequest(String key) {
+    _cancelRequest(key, 'superseded');
+
+    final token = CancelToken();
+    _cancelTokens[key] = token;
+    return token;
+  }
+
+  void _finishRequest(String key, CancelToken token) {
+    if (identical(_cancelTokens[key], token)) {
+      _cancelTokens.remove(key);
+    }
+  }
+
+  void _cancelRequest(String key, String reason) {
+    final token = _cancelTokens.remove(key);
+    if (token != null && !token.isCancelled) token.cancel(reason);
+  }
+
+  /// Timeout cung huy request that, khong de no chay toi receiveTimeout.
+  Future<T> _withTimeout<T>(Future<T> request, CancelToken cancelToken) {
+    return request.timeout(
+      requestTimeout,
+      onTimeout: () {
+        cancelToken.cancel('timeout');
+        throw TimeoutException('Minute request timed out', requestTimeout);
+      },
+    );
   }
 
   // ============================================================
@@ -696,6 +770,9 @@ class UtilityMinuteChartController extends ChangeNotifier {
     _disposed = true;
     for (final key in _versions.keys.toList()) {
       _invalidateKey(key);
+    }
+    for (final key in _cancelTokens.keys.toList()) {
+      _cancelRequest(key, 'disposed');
     }
 
     super.dispose();

@@ -12,9 +12,10 @@ enum CatalogDetailViewMode { table, chart }
 
 /// State cua che do Chart trong panel chi tiet thiet bi.
 ///
-/// Khong dang ky voi PollingCoordinator: chart reload theo `revision`
-/// (dataVersion cua LatestProvider) ma view truyen vao qua [bind], nen nut
-/// Refresh va polling hien co tu dong keo theo chart.
+/// Khong con reload theo LatestProvider.dataVersion. View (SignalChartView)
+/// dang ky mot task PollingCoordinator goi [refresh] theo chu ky cua range
+/// ([autoRefreshInterval]); task thuoc scope scadaTable nen chi chay khi
+/// panel o Chart mode, tab SCADA TABLE dang hien va khong bi route khac che.
 ///
 /// Trang thai tai (xem [initialLoading], [switching], [refreshing]):
 /// - lan tai dau cua device, chua co gi de hien: skeleton;
@@ -27,6 +28,15 @@ class SignalHistoryController extends ChangeNotifier {
 
   /// Qua thoi gian nay ma chua co response: huy request, hien error state.
   static const Duration requestTimeout = Duration(seconds: 15);
+
+  /// Chu ky tu lam moi cua chart theo range.
+  static Duration autoRefreshInterval(HistoryRange range) {
+    return switch (range) {
+      HistoryRange.h1 => const Duration(minutes: 1),
+      HistoryRange.h6 => const Duration(minutes: 2),
+      HistoryRange.h24 || HistoryRange.d7 => const Duration(minutes: 5),
+    };
+  }
 
   /// Cache theo (device, range) trong phien: quay lai range da xem trong
   /// khoang nay thi hien ngay, roi lam moi ngam (stale-while-revalidate).
@@ -51,11 +61,9 @@ class SignalHistoryController extends ChangeNotifier {
   // Target dang duoc view yeu cau.
   String? _deviceKey;
   List<String> _signalIds = const <String>[];
-  int _revision = 0;
 
-  /// Key (device + range + signals) cua data DANG HIEN THI va revision cua no.
+  /// Key (device + range + signals) cua data DANG HIEN THI.
   String? _displayedKey;
-  int? _displayedRevision;
 
   List<SignalHistorySeries> _series = const <SignalHistorySeries>[];
   HistoryAggregation? _aggregation;
@@ -148,38 +156,36 @@ class SignalHistoryController extends ChangeNotifier {
   // BINDING
   // ============================================================
 
-  /// Goi tu view moi khi device dang chon hoac revision du lieu thay doi.
-  void bind({
-    required String deviceKey,
-    required List<String> signalIds,
-    required int revision,
-  }) {
+  /// Goi tu view moi khi device dang chon (hoac tap signal) thay doi.
+  void bind({required String deviceKey, required List<String> signalIds}) {
     if (_disposed) return;
 
     final sameDevice =
         deviceKey == _deviceKey && _sameIds(signalIds, _signalIds);
 
-    if (sameDevice && revision == _revision) return;
+    if (sameDevice) return;
 
     _deviceKey = deviceKey;
     _signalIds = List<String>.unmodifiable(signalIds);
-    _revision = revision;
-
-    /*
-     * Chi revision doi (polling / refresh) ma request truoc chua xong:
-     * bo qua luot nay, khong chay chong. Luot polling sau se lay lai.
-     */
-    if (sameDevice && fetching) {
-      if (kDebugMode) {
-        debugPrint('[SIGNAL HISTORY] skip poll rev=$revision (in flight)');
-      }
-      return;
-    }
 
     _loadIfNeeded();
   }
 
   Future<void> retry() => _load();
+
+  /// Lam moi ngam data dang hien (polling theo range). Request truoc chua
+  /// xong thi bo qua luot nay, khong chay chong.
+  Future<void> refresh() async {
+    if (_disposed || _viewMode != CatalogDetailViewMode.chart) return;
+    if (_dataKey == null) return;
+
+    if (fetching) {
+      if (kDebugMode) debugPrint('[SIGNAL HISTORY] skip refresh (in flight)');
+      return;
+    }
+
+    await _load();
+  }
 
   // ============================================================
   // LOAD
@@ -204,9 +210,22 @@ class SignalHistoryController extends ChangeNotifier {
     final key = _dataKey;
     if (key == null) return;
 
-    if (key == _displayedKey && _revision == _displayedRevision) return;
+    // Da hien dung data nay va con moi: lam moi la viec cua [refresh].
+    // Quay lai Chart sau mot luc (data cu hon chu ky) thi tai lai ngay.
+    if (key == _displayedKey && !_isDisplayStale(key)) return;
 
     _load();
+  }
+
+  bool _isDisplayStale(String key) {
+    final fetchedAt = _cache[key]?.fetchedAt;
+    if (fetchedAt == null) return true;
+
+    final maxAge = _customWindow == null
+        ? autoRefreshInterval(_range)
+        : cacheTtl;
+
+    return DateTime.now().difference(fetchedAt) >= maxAge;
   }
 
   String get _rangeLabel {
@@ -232,7 +251,6 @@ class SignalHistoryController extends ChangeNotifier {
     if (key == null) return;
 
     final ids = _signalIds;
-    final revision = _revision;
     final window = _resolveWindow();
     final range = _customWindow == null ? _range : null;
     final bucket = range?.requestBucket ?? 'auto';
@@ -250,14 +268,13 @@ class SignalHistoryController extends ChangeNotifier {
     _safeNotify();
 
     if (ids.isEmpty) {
-      _applyResult(
+      _showResult(
         key,
-        revision,
-        range,
         const SignalHistoryResult(
           series: <SignalHistorySeries>[],
           source: DataSource.api,
         ),
+        range,
       );
       _finish(requestId);
       return;
@@ -268,8 +285,7 @@ class SignalHistoryController extends ChangeNotifier {
     if (kDebugMode) {
       debugPrint(
         '[SIGNAL HISTORY] #$requestId start device=$_deviceKey '
-        'range=$_rangeLabel bucket=$bucket signals=${ids.length} '
-        'rev=$revision',
+        'range=$_rangeLabel bucket=$bucket signals=${ids.length}',
       );
     }
 
@@ -287,7 +303,7 @@ class SignalHistoryController extends ChangeNotifier {
       // Response cua device / range cu ve muon: bo qua.
       if (!_isCurrent(requestId)) return;
 
-      _applyResult(key, revision, range, result);
+      _showResult(key, result, range);
       _cache[key] = _CacheEntry(result, range, DateTime.now());
       _trimCache();
 
@@ -320,11 +336,7 @@ class SignalHistoryController extends ChangeNotifier {
        * Loi khi doi sang range / device KHAC: khong de chart cua range cu
        * dung ten range moi -> xoa de UI hien error state + Retry.
        */
-      if (!showingCurrent) {
-        _clearDisplay();
-      } else {
-        _displayedRevision = revision;
-      }
+      if (!showingCurrent) _clearDisplay();
 
       debugPrint(
         '[SIGNAL HISTORY CHART ERROR] #$requestId device=$_deviceKey '
@@ -347,9 +359,8 @@ class SignalHistoryController extends ChangeNotifier {
     if (cached != null &&
         DateTime.now().difference(cached.fetchedAt) <= cacheTtl &&
         _displayedKey != key) {
+      // Request nay van chay de lam moi ngam.
       _showResult(key, cached.result, cached.range);
-      // Revision cu: request nay van chay de lam moi ngam.
-      _displayedRevision = null;
       return;
     }
 
@@ -360,16 +371,6 @@ class SignalHistoryController extends ChangeNotifier {
     }
 
     // Cung device, khac range: giu chart cu (view lam mo + progress bar).
-  }
-
-  void _applyResult(
-    String key,
-    int revision,
-    HistoryRange? range,
-    SignalHistoryResult result,
-  ) {
-    _showResult(key, result, range);
-    _displayedRevision = revision;
   }
 
   void _showResult(
@@ -388,7 +389,6 @@ class SignalHistoryController extends ChangeNotifier {
     _aggregation = null;
     _displayedRange = null;
     _displayedKey = null;
-    _displayedRevision = null;
   }
 
   void _finish(int requestId) {

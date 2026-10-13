@@ -284,8 +284,11 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) =>
-                  SolarDetailScreen(facId: widget.facId, month: widget.month),
+              builder: (_) => SolarDetailScreen(
+                facId: widget.facId,
+                month: widget.month,
+                pollingCoordinator: _pollingCoordinator,
+              ),
             ),
           );
         },

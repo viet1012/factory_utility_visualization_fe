@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../shared/polling/polling_coordinator.dart';
+import '../../../shared/polling/polling_scope.dart';
+import '../../../shared/polling/polling_task_ids.dart';
 import '../../../shared/widgets/chart_state_widgets.dart';
 import '../../api/signal_history_repository.dart';
 import '../../catalog_view_models.dart';
@@ -14,17 +17,15 @@ import 'signal_chart_palette.dart';
 
 /// Che do Chart cua panel chi tiet: hang chip range + grid the signal.
 ///
-/// [revision] = LatestProvider.dataVersion: moi lan refresh / polling thanh
-/// cong se tang, keo theo chart reload im lang.
+/// Widget chi ton tai khi panel o Chart mode. No dang ky mot task polling
+/// (scope scadaTable) goi [SignalHistoryController.refresh] theo chu ky cua
+/// range: 1h = 1 phut, 6h = 2 phut, 24h / 7d = 5 phut. Scope scadaTable chi
+/// hieu luc khi tab SCADA TABLE dang hien, tab trinh duyet khong an va
+/// dashboard khong bi route khac che.
 class SignalChartView extends StatefulWidget {
   final CatalogDeviceGroup device;
-  final int revision;
 
-  const SignalChartView({
-    super.key,
-    required this.device,
-    required this.revision,
-  });
+  const SignalChartView({super.key, required this.device});
 
   @override
   State<SignalChartView> createState() => _SignalChartViewState();
@@ -37,12 +38,53 @@ class _SignalChartViewState extends State<SignalChartView> {
   late List<String> _signalIds;
   late Map<String, CatalogTableRow> _rowsById;
 
+  late final SignalHistoryController _controller;
+  late final PollingCoordinator _coordinator;
+  late final String _taskId = PollingTaskIds.catalogDeviceChart(this);
+
+  /// Chu ky cua task dang dang ky (null = chua dang ky).
+  Duration? _taskInterval;
+
   @override
   void initState() {
     super.initState();
 
+    _controller = context.read<SignalHistoryController>();
+    _coordinator = context.read<PollingCoordinator>();
+
     _indexRows();
     _bind();
+
+    _controller.addListener(_syncPolling);
+    _syncPolling();
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_syncPolling);
+    _coordinator.unregister(_taskId);
+    super.dispose();
+  }
+
+  /// Dang ky lai task khi range doi chu ky. Lich moi bat dau tu bay gio vi
+  /// doi range da tu tai data moi.
+  void _syncPolling() {
+    final interval = SignalHistoryController.autoRefreshInterval(
+      _controller.range,
+    );
+
+    if (interval == _taskInterval) return;
+
+    _coordinator.unregister(_taskId);
+    _coordinator.register(
+      id: _taskId,
+      scope: PollingScope.scadaTable,
+      interval: interval,
+      action: _controller.refresh,
+    );
+    _coordinator.start(_taskId);
+
+    _taskInterval = interval;
   }
 
   @override
@@ -54,7 +96,6 @@ class _SignalChartViewState extends State<SignalChartView> {
     }
 
     if (oldWidget.device.key != widget.device.key ||
-        oldWidget.revision != widget.revision ||
         !identical(oldWidget.device, widget.device)) {
       _bind();
     }
@@ -83,11 +124,7 @@ class _SignalChartViewState extends State<SignalChartView> {
   }
 
   void _bind() {
-    context.read<SignalHistoryController>().bind(
-      deviceKey: widget.device.key,
-      signalIds: _signalIds,
-      revision: widget.revision,
-    );
+    _controller.bind(deviceKey: widget.device.key, signalIds: _signalIds);
   }
 
   @override

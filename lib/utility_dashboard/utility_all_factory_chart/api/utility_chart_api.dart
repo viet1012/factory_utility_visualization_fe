@@ -92,6 +92,7 @@ class UtilityChartApi {
     String? boxDeviceId,
     String? plcAddress,
     List<String>? cateIds,
+    CancelToken? cancelToken,
   }) async {
     const path = '/api/utility/series/minute';
     final query = _qp({
@@ -104,13 +105,18 @@ class UtilityChartApi {
     });
 
     try {
-      final response = await _dio.get(path, queryParameters: query);
+      final response = await _dio.get(
+        path,
+        queryParameters: query,
+        cancelToken: cancelToken,
+      );
       return _asList(response.data, path)
           .map(
             (item) => MinutePointDto.fromJson(Map<String, dynamic>.from(item)),
           )
           .toList();
     } catch (error) {
+      if (error is DioException && CancelToken.isCancel(error)) rethrow;
       debugPrint('âŒ API ERROR: $path');
       debugPrint('PARAMS: $query');
       debugPrint('ERROR: $error');

@@ -4,6 +4,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../../utility_api/dio_client.dart';
+import '../../shared/polling/dashboard_polling_intervals.dart';
+import '../../shared/polling/polling_coordinator.dart';
+import '../../shared/polling/polling_scope.dart';
+import '../../shared/polling/polling_task_ids.dart';
 import 'api/solar_api.dart';
 import 'helpers/solar_detail_formatters.dart';
 import 'models/solar_detail_data.dart';
@@ -21,10 +25,14 @@ class SolarDetailScreen extends StatefulWidget {
   /// Ví dụ: 202608
   final String month;
 
+  /// Route duoc push ngoai MultiProvider cua dashboard nen nhan truc tiep.
+  final PollingCoordinator pollingCoordinator;
+
   const SolarDetailScreen({
     super.key,
     required this.facId,
     required this.month,
+    required this.pollingCoordinator,
   });
 
   @override
@@ -51,11 +59,8 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
 
   int _requestVersion = 0;
 
-  Timer? _refreshTimer;
-
-  /// Detail không cần query liên tục.
-  /// 1 tiếng refresh một lần.
-  static const Duration _refreshInterval = Duration(hours: 1);
+  /// Moi instance mot task id (route co the bi push hai lan).
+  late final String _pollingTaskId = PollingTaskIds.solarDetail(this);
 
   // ============================================================
   // INIT
@@ -67,7 +72,7 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
 
     _load();
 
-    _startRefreshTimer();
+    _startPolling();
   }
 
   @override
@@ -85,23 +90,40 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
     }
   }
 
-  void _startRefreshTimer() {
-    _refreshTimer?.cancel();
+  /// Detail khong can query lien tuc: 1 tieng mot lan, qua PollingCoordinator
+  /// de dung khi tab trinh duyet an. Chu ky >= 1h nen hien lai chi tai ngay
+  /// khi lan thanh cong gan nhat da qua 1h (khong reset lich).
+  void _startPolling() {
+    final coordinator = widget.pollingCoordinator;
 
-    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
-      if (!mounted || _refreshing) {
-        return;
-      }
+    coordinator.register(
+      id: _pollingTaskId,
+      scope: PollingScope.solarDetail,
+      interval: DashboardPollingIntervals.solarDetail,
+      action: _poll,
+    );
+    coordinator.activateScope(PollingScope.solarDetail);
+    coordinator.start(_pollingTaskId);
+  }
 
-      _load(silent: true);
-    });
+  Future<void> _poll() async {
+    if (!mounted || _refreshing) return;
+
+    await _load(silent: true);
+
+    // _load tu bat loi; nem lai de PollingCoordinator khong tinh la lan
+    // thanh cong (quy tac chay bu dua tren lan thanh cong gan nhat).
+    final error = _error;
+    if (error != null) throw StateError(error);
   }
 
   @override
   void dispose() {
     _requestVersion++;
 
-    _refreshTimer?.cancel();
+    final coordinator = widget.pollingCoordinator;
+    coordinator.unregister(_pollingTaskId);
+    coordinator.deactivateScope(PollingScope.solarDetail);
 
     super.dispose();
   }

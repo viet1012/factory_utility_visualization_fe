@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../shared/polling/polling_coordinator.dart';
+import '../../../../shared/polling/polling_scope.dart';
 import '../../../catalog_view_models.dart';
 import '../../../models/signal_history_models.dart';
 import '../../../providers/filter_chart_controller.dart';
@@ -31,6 +33,7 @@ class FilterChartView extends StatefulWidget {
 
 class _FilterChartViewState extends State<FilterChartView> {
   late FilterChartController _controller;
+  late final PollingCoordinator _coordinator;
 
   late Map<String, List<String>> _signalsByDevice;
 
@@ -39,8 +42,20 @@ class _FilterChartViewState extends State<FilterChartView> {
     super.initState();
 
     _controller = context.read<FilterChartController>();
+
+    // Nhip lam moi 30s chi chay khi chart that su hien.
+    _coordinator = context.read<PollingCoordinator>();
+    _coordinator.activity.addListener(_syncOnScreen);
+    _syncOnScreen();
+
     _indexDevices();
     _sync();
+  }
+
+  void _syncOnScreen() {
+    _controller.setOnScreen(
+      _coordinator.isScopeActive(PollingScope.scadaTable),
+    );
   }
 
   @override
@@ -68,6 +83,8 @@ class _FilterChartViewState extends State<FilterChartView> {
 
   @override
   void dispose() {
+    _coordinator.activity.removeListener(_syncOnScreen);
+
     // Roi Filter results / ve Table: huy request, dung lam moi. Cache giu lai
     // (60s) de quay lai nhanh.
     _controller.sync(const <SparklineDeviceRequest>[]);

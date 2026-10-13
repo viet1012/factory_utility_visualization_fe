@@ -12,6 +12,16 @@ abstract final class PollingTaskIds {
   static const String mapSolarMonthly = 'map.solar-monthly';
   static const String mapWeather = 'map.weather';
 
+  /// Moi instance mot id: route co the duoc push hai lan (bam dup).
+  static String solarDetail(Object owner) {
+    return 'solar.detail.${identityHashCode(owner)}';
+  }
+
+  /// Chart thiet bi o SCADA TABLE; interval doi theo range.
+  static String catalogDeviceChart(Object owner) {
+    return 'scada.device-chart.${identityHashCode(owner)}';
+  }
+
   static String mapMonthlyBox(String facId) {
     return 'map.monthly-box.${facId.trim()}';
   }

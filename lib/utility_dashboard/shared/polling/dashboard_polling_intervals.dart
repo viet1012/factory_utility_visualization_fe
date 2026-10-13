@@ -9,7 +9,8 @@ abstract final class DashboardPollingIntervals {
   static const Duration mapMonthlySummary = Duration(hours: 6);
   static const Duration chartsMinuteSeries = Duration(minutes: 1);
   static const Duration chartsHourlySeries = Duration(minutes: 5);
-  static const Duration mapSolarMonthly = Duration(minutes: 1);
+  static const Duration mapSolarMonthly = Duration(minutes: 10);
+  static const Duration solarDetail = Duration(hours: 1);
   static const Duration mapMonthlyBox = Duration(hours: 1);
   static const Duration mapWeather = Duration(minutes: 45);
 }

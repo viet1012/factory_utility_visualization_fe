@@ -8,7 +8,18 @@ enum PollingScope {
   chartsHourly(parent: PollingScope.charts),
   scadaTable,
   alarms,
-  facilityDetail;
+  facilityDetail,
+  solarDetail;
+
+  /// Scopes owned by the dashboard screen itself. They are held while a
+  /// detail route (Facility detail, Solar detail) covers the dashboard; the
+  /// detail scopes keep running.
+  static const Set<PollingScope> dashboardScopes = {
+    PollingScope.map,
+    PollingScope.charts,
+    PollingScope.scadaTable,
+    PollingScope.alarms,
+  };
 
   const PollingScope({this.parent});
 

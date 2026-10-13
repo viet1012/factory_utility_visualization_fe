@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
 import '../catalog_view_models.dart';
-import '../providers/latest_provider.dart';
 import '../providers/filter_chart_controller.dart';
 import '../providers/signal_history_controller.dart';
 import 'filter_results/catalog_filter_results_grid.dart';
@@ -209,13 +208,9 @@ class CatalogSignalDetail extends StatelessWidget {
             child: isEmpty
                 ? const _CatalogEmptyState()
                 : showChart
-                ? Selector<LatestProvider, int>(
-                    selector: (_, provider) => provider.dataVersion,
-                    builder: (_, revision, _) => SignalChartView(
-                      device: selectedDevice!,
-                      revision: revision,
-                    ),
-                  )
+                // Chart tu lam moi theo range (xem SignalChartView), khong
+                // reload theo moi lan /latest cap nhat.
+                ? SignalChartView(device: selectedDevice!)
                 : showFilterChart
                 ? FilterChartView(
                     rows: rows,
