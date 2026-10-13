@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../shared/charts/signal_chart_spec.dart';
+import '../../shared/charts/signal_chart_spec_registry.dart';
 import '../api/utility_chart_api.dart';
 import '../models/chart_catalog_item.dart';
 
@@ -87,6 +89,59 @@ class UtilityChartCatalogController extends ChangeNotifier {
   String? get selectedBoxDeviceId => _selectedBoxDeviceId;
 
   bool get hasData => _allItems.isNotEmpty;
+
+  // ============================================================
+  // SIGNAL SPEC
+  // ============================================================
+
+  /// Item catalog theo (boxDeviceId, plcAddress), gop tu moi response da tai
+  /// trong phien (moi fac / cate / important). Chi la metadata (code, unit,
+  /// ten) nen giu ca khi cache het han.
+  final Map<String, ChartCatalogItem> _signalIndex = {};
+
+  static String _signalKey(String boxDeviceId, String plcAddress) {
+    return '${boxDeviceId.trim().toUpperCase()}|'
+        '${plcAddress.trim().toUpperCase()}';
+  }
+
+  void _indexSignals(List<ChartCatalogItem> items) {
+    for (final item in items) {
+      _signalIndex[_signalKey(item.boxDeviceId, item.plcAddress)] = item;
+    }
+  }
+
+  /// Item catalog cua mot signal (null = chua co trong catalog da tai).
+  ChartCatalogItem? catalogItemFor(String boxDeviceId, String plcAddress) {
+    return _signalIndex[_signalKey(boxDeviceId, plcAddress)];
+  }
+
+  /// SignalChartSpec cua mot signal, thong nhat cho Minutes / Hourly / Daily.
+  ///
+  /// Code (cateId), unit, ten lay tu item /chart-catalog theo (box, plc);
+  /// thieu thi dung [fallbackCode] / [unit] / [name] tu response. Kind lay tu
+  /// response ([kind]), thieu thi lay kind cua item catalog.
+  SignalChartSpec resolveSpecForSignal(
+    String boxDeviceId,
+    String plcAddress, {
+    String? fallbackCode,
+    String? unit,
+    String? kind,
+    String? name,
+  }) {
+    final item = catalogItemFor(boxDeviceId, plcAddress);
+
+    String? pick(String? primary, String? fallback) {
+      final value = primary?.trim() ?? '';
+      return value.isNotEmpty ? value : fallback;
+    }
+
+    return SignalChartSpecRegistry.resolve(
+      code: pick(item?.cateId, fallbackCode),
+      unit: pick(item?.unit, unit),
+      kind: pick(kind, item?.kind),
+      name: pick(item?.nameEn, name),
+    );
+  }
 
   /// Canonical catalog request identity.
   ///
@@ -253,6 +308,7 @@ class UtilityChartCatalogController extends ChangeNotifier {
         createdAt: DateTime.now(),
         items: items,
       );
+      _indexSignals(items);
 
       return items;
     } finally {

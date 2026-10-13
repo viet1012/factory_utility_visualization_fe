@@ -202,6 +202,7 @@ class _UtilityCatalogTabsScreenState extends State<UtilityCatalogTabsScreen> {
                   value: signal.value,
                   unit: signal.unit,
                   recordedAt: signal.recordedAt,
+                  kind: signal.kind,
                 );
 
                 if (_selectedStatus != null &&

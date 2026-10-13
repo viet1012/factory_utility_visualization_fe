@@ -9,7 +9,17 @@ import '../models/minute_point.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
 import '../../utility_dashboard_fac_details/widgets/hover_box_panel/hover_flow_painters.dart';
+import '../../shared/charts/axis_planner.dart';
+import '../../shared/charts/chart_animation.dart';
+import '../../shared/charts/chart_downsample.dart';
+import '../../shared/charts/chart_hover_style.dart';
+import '../../shared/charts/signal_chart_spec.dart';
+import '../../shared/charts/signal_chart_spec_registry.dart';
+import '../controllers/utility_chart_catalog_controller.dart';
+import '../../shared/charts/value_format.dart';
+import '../../shared/widgets/chart_loading_widgets.dart';
 import '../../shared/widgets/chart_state_widgets.dart';
+import '../../shared/widgets/lazy_chart_gate.dart';
 import '../../shared/widgets/scada_panel_frame.dart';
 import '../../utility_dashboard_widgets/center_message.dart';
 import '../controllers/utility_minute_chart_controller.dart';
@@ -20,12 +30,38 @@ import '../controllers/utility_minute_chart_controller.dart';
 
 /// A plotted point. [time] is always the minute-bucket `ts`, never the raw
 /// sample time, so X-axis positioning and bucket alignment stay unchanged.
+///
+/// [value] = gia tri ve; null = khong ve.
 class _ChartPoint {
   final DateTime time;
-  final double value;
+  final double? value;
 
   const _ChartPoint({required this.time, required this.value});
 }
+
+/// Mot cot usage 5 phut cua signal COUNTER (spec bar).
+class _UsageBar {
+  final DateTime start;
+  final DateTime end;
+
+  /// Gia tri cuoi khoang nay - gia tri cuoi khoang truoc; null = khong ve
+  /// (thieu du lieu mot trong hai khoang, hoac am do counter reset).
+  final double? value;
+
+  /// Khac null khi khoang dang dien ra: du lieu moi tinh den thoi diem nay.
+  final DateTime? until;
+
+  const _UsageBar({
+    required this.start,
+    required this.end,
+    required this.value,
+    this.until,
+  });
+
+  DateTime get center => start.add(_usageStep ~/ 2);
+}
+
+const Duration _usageStep = Duration(minutes: 5);
 
 class _SeriesAnalysis {
   final bool isStale;
@@ -63,6 +99,9 @@ class _PreparedSeries {
   final String? signalName;
   final String? unit;
 
+  /// Ma signal (cateId cua row), dung chon SignalChartSpec.
+  final String? code;
+
   final bool hidden;
 
   const _PreparedSeries({
@@ -71,6 +110,7 @@ class _PreparedSeries {
     required this.analysis,
     required this.signalName,
     required this.unit,
+    required this.code,
     required this.hidden,
   });
 
@@ -80,6 +120,7 @@ class _PreparedSeries {
     analysis: _SeriesAnalysis.empty,
     signalName: null,
     unit: null,
+    code: null,
     hidden: false,
   );
 }
@@ -138,6 +179,11 @@ class UtilityMinuteChartPanel extends StatefulWidget {
 
   final List<String>? cateIds;
 
+  /// Ten / unit / ma tu catalog: hien khung the ngay, khong cho du lieu.
+  final String? signalName;
+  final String? unit;
+  final String? code;
+
   const UtilityMinuteChartPanel({
     super.key,
     required this.facId,
@@ -146,6 +192,9 @@ class UtilityMinuteChartPanel extends StatefulWidget {
     this.boxDeviceId,
     this.plcAddress,
     this.cateIds,
+    this.signalName,
+    this.unit,
+    this.code,
     this.width = 520,
     this.height,
   });
@@ -162,13 +211,19 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
 
   static final DateFormat _latestTimeFormat = DateFormat('HH:mm:ss');
   static final DateFormat _axisTimeFormat = DateFormat('HH:mm');
-  static final NumberFormat _axisNumberFormat = NumberFormat('0.00');
+  static final DateFormat _hoverTimeFormat = DateFormat('dd/MM HH:mm');
 
   static const Animation<double> _staticFlowAnimation =
       AlwaysStoppedAnimation<double>(0.35);
 
-  late final TooltipBehavior _tooltipBehavior;
+  late final TrackballBehavior _trackball;
   late final ZoomPanBehavior _zoomPanBehavior;
+  final FirstPaintAnimation _animation = FirstPaintAnimation();
+
+  /// Spec + diem dang ve, de trackball tra lai diem goc tu x.
+  SignalChartSpec _spec = SignalChartSpecRegistry.fallback;
+  Map<int, _ChartPoint> _pointsByTime = const {};
+  Map<int, _UsageBar> _barsByCenter = const {};
 
   late String _requestKey;
 
@@ -191,14 +246,24 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   void initState() {
     super.initState();
 
-    _tooltipBehavior = TooltipBehavior(
-      enable: true,
-      canShowMarker: true,
-      header: '',
-      textStyle: const TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.w700,
-      ),
+    _trackball = ChartHoverStyle.trackball(
+      markerColor: _theme.line,
+      builder: (context, details) {
+        final x = details.point?.x;
+        if (x is! DateTime) return const SizedBox.shrink();
+
+        final bar = _barsByCenter[x.millisecondsSinceEpoch];
+        if (bar != null) {
+          return bar.value == null
+              ? const SizedBox.shrink()
+              : _usageHoverCard(bar);
+        }
+
+        final point = _pointsByTime[x.millisecondsSinceEpoch];
+        if (point == null) return const SizedBox.shrink();
+
+        return _hoverCard(point);
+      },
     );
 
     _zoomPanBehavior = ZoomPanBehavior(
@@ -311,6 +376,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
 
     String? signalName;
     String? unit;
+    String? code;
 
     final points = <_ChartPoint>[];
 
@@ -327,6 +393,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       signalName = nameEn.isNotEmpty ? nameEn : row.cateId;
 
       unit = row.unit;
+      code = row.cateId;
 
       final value = row.value;
 
@@ -356,6 +423,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         analysis: _SeriesAnalysis.empty,
         signalName: signalName,
         unit: unit,
+        code: code,
         hidden: hidden,
       );
     }
@@ -379,8 +447,104 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       analysis: analysis,
       signalName: signalName,
       unit: unit,
+      code: code,
       hidden: hidden,
     );
+  }
+
+  /// Spec qua catalog (code / unit / ten theo box + PLC), fallback response.
+  SignalChartSpec _resolveSpec(_PreparedSeries prepared) {
+    return context.read<UtilityChartCatalogController>().resolveSpecForSignal(
+      widget.boxDeviceId ?? '',
+      _plcAddressOrEmpty,
+      fallbackCode: prepared.code ?? widget.code,
+      unit: prepared.unit ?? widget.unit,
+      name: prepared.signalName ?? widget.signalName,
+    );
+  }
+
+  /// COUNTER: gop gia tri doc theo khoang 5 phut (gio dia phuong).
+  ///
+  /// Cot cua khoang k = gia tri cuoi khoang k - gia tri cuoi khoang k-1.
+  /// Khoang thieu du lieu (hoac khoang truoc thieu), hay hieu am (reset):
+  /// khong ve cot. Khoang dang dien ra hien gia tri tam, [_UsageBar.until] =
+  /// thoi diem doc cuoi cung.
+  static List<_UsageBar> _usageBars(List<_ChartPoint> readings, DateTime now) {
+    if (readings.isEmpty) return const <_UsageBar>[];
+
+    DateTime floor(DateTime time) => DateTime(
+      time.year,
+      time.month,
+      time.day,
+      time.hour,
+      time.minute - time.minute % _usageStep.inMinutes,
+    );
+
+    // Gia tri cuoi + thoi diem cuoi cua moi khoang.
+    final lastByBucket = <DateTime, _ChartPoint>{};
+    for (final point in readings) {
+      if (point.value == null) continue;
+      final bucket = floor(point.time);
+      final current = lastByBucket[bucket];
+      if (current == null || !point.time.isBefore(current.time)) {
+        lastByBucket[bucket] = point;
+      }
+    }
+
+    if (lastByBucket.isEmpty) return const <_UsageBar>[];
+
+    final buckets = lastByBucket.keys.toList()..sort();
+    final bars = <_UsageBar>[];
+
+    for (
+      var start = buckets.first;
+      !start.isAfter(buckets.last);
+      start = start.add(_usageStep)
+    ) {
+      final end = start.add(_usageStep);
+      final last = lastByBucket[start];
+      final previous = lastByBucket[start.subtract(_usageStep)];
+
+      final delta = last == null || previous == null
+          ? null
+          : last.value! - previous.value!;
+
+      final value = delta != null && delta >= 0 ? delta : null;
+
+      bars.add(
+        _UsageBar(
+          start: start,
+          end: end,
+          value: value,
+          until: end.isAfter(now) && value != null ? last!.time : null,
+        ),
+      );
+    }
+
+    return bars;
+  }
+
+  /// Tong usage cua cua so 60 phut = gia tri cuoi - gia tri dau. Co reset
+  /// (gia tri giam) thi cong cac doan tang: tong cac buoc tang giua hai lan
+  /// doc lien tiep (khong reset thi bang dung cuoi - dau).
+  static double? _usageTotal(List<_ChartPoint> readings, DateTime now) {
+    final from = now.subtract(const Duration(minutes: 60));
+
+    double? previous;
+    double? total;
+
+    for (final point in readings) {
+      final value = point.value;
+      if (value == null || point.time.isBefore(from)) continue;
+
+      if (previous != null) {
+        final step = value - previous;
+        total = (total ?? 0) + (step > 0 ? step : 0);
+      }
+      previous = value;
+    }
+
+    return total;
   }
 
   Widget _buildPanel(_PanelVm vm) {
@@ -394,6 +558,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
 
     final isLoading = _canFetch && !vm.hasFetchedOnce && !hasError;
 
+    final spec = _resolveSpec(prepared);
+    final unit = spec.resolveUnit(prepared.unit ?? widget.unit);
+
     return Container(
       width: widget.width,
       height: widget.height ?? 320,
@@ -405,9 +572,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
           UtilityInfoBoxWidgets.header(
             facilityColor: _theme.fillTop,
             facTitle: widget.facId,
-            boxDeviceId: prepared.signalName,
+            boxDeviceId: prepared.signalName ?? widget.signalName,
             plcAddress: widget.plcAddress,
-            unit: prepared.unit,
+            unit: unit,
             isLoading: isLoading,
             hasError: hasError,
             err: vm.error,
@@ -415,7 +582,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(10),
-              child: _buildBody(vm: vm, prepared: prepared),
+              child: _buildBody(vm: vm, prepared: prepared, spec: spec),
             ),
           ),
         ],
@@ -452,7 +619,11 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     );
   }
 
-  Widget _buildBody({required _PanelVm vm, required _PreparedSeries prepared}) {
+  Widget _buildBody({
+    required _PanelVm vm,
+    required _PreparedSeries prepared,
+    required SignalChartSpec spec,
+  }) {
     if (!_canRenderSignal) {
       return EmptyChartState(
         icon: Icons.settings_input_component_rounded,
@@ -464,16 +635,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
 
     final hasError = vm.error != null;
 
+    // Lan dau: khung the + skeleton, khong spinner.
     if (!vm.hasFetchedOnce && !hasError) {
-      return Center(
-        child: SizedBox.square(
-          dimension: 26,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.4,
-            color: _theme.line,
-          ),
-        ),
-      );
+      return ChartBodySkeleton(color: _theme.line);
     }
 
     if (hasError && vm.rows.isEmpty) {
@@ -512,9 +676,17 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildLatestInfoBar(latestPoint, prepared.analysis, vm),
+        _buildLatestInfoBar(latestPoint, prepared.analysis, vm, spec),
         const SizedBox(height: 6),
-        Expanded(child: _buildChart(prepared.points, prepared.analysis)),
+        Expanded(
+          child: LazyChartGate(
+            placeholder: ChartBodySkeleton(
+              color: _theme.line,
+              withSummary: false,
+            ),
+            builder: (_) => _buildChart(prepared, spec),
+          ),
+        ),
       ],
     );
   }
@@ -527,17 +699,18 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     MinutePointDto latestPoint,
     _SeriesAnalysis analysis,
     _PanelVm vm,
+    SignalChartSpec spec,
   ) {
     final status = _resolveSignalStatus(analysis, vm);
+    final unit = spec.resolveUnit(latestPoint.unit ?? widget.unit);
 
-    final unit = latestPoint.unit?.trim() ?? '';
+    // COUNTER: the tom tat hien tong usage cua cua so 60 phut.
+    final isUsage = spec.style == ChartStyle.bar;
 
-    final value = latestPoint.value;
-
-    final latestValue = value == null
-        ? '--'
-        : '${value.toStringAsFixed(2)}'
-              '${unit.isEmpty ? '' : ' $unit'}';
+    final latestValue = isUsage
+        ? '${formatWithUnit(_usageTotal(_preparedSeries.points, DateTime.now()), unit, decimals: spec.decimals)}'
+              ' / 60 min'
+        : formatWithUnit(latestPoint.value, unit, decimals: spec.decimals);
 
     /*
      * Hien thi thoi diem thuc cua sample (11:15:46), khong phai moc bucket
@@ -697,21 +870,57 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   // CHART
   // ============================================================
 
-  Widget _buildChart(List<_ChartPoint> data, _SeriesAnalysis analysis) {
-    if (data.length < 2) {
+  Widget _buildChart(_PreparedSeries prepared, SignalChartSpec spec) {
+    final readings = prepared.points;
+
+    if (readings.length < 2) {
       return const CenterMessage(message: 'Not enough points');
     }
 
-    final yBounds = _computeYAxisBoundsFromAnalysis(analysis);
+    final style = spec.style;
+    final isUsage = style == ChartStyle.bar;
 
-    final xBounds = _computeXAxisBounds(data);
+    final bars = isUsage
+        ? _usageBars(readings, DateTime.now())
+        : const <_UsageBar>[];
+
+    final data = isUsage
+        ? const <_ChartPoint>[]
+        : downsampleMinMax(readings, value: (point) => point.value);
+
+    _spec = spec;
+    _pointsByTime = {
+      for (final point in data) point.time.millisecondsSinceEpoch: point,
+    };
+    _barsByCenter = {
+      for (final bar in bars) bar.center.millisecondsSinceEpoch: bar,
+    };
+
+    final unit = spec.resolveUnit(prepared.unit ?? widget.unit);
+    final axis = planAxis(
+      values: isUsage
+          ? bars.map((bar) => bar.value)
+          : data.map((point) => point.value),
+      spec: spec,
+    );
+
+    final xBounds = isUsage && bars.isNotEmpty
+        ? (
+            minX: bars.first.start,
+            maxX: bars.last.end,
+            intervalMinutes: _computeXAxisBounds(readings).intervalMinutes,
+          )
+        : _computeXAxisBounds(readings);
+    final animationMs = _animation.duration();
+
+    const gap = EmptyPointSettings(mode: EmptyPointMode.gap);
 
     return SfCartesianChart(
       // Không đặt ValueKey theo data.length hoặc timestamp.
       // Giữ nguyên chart state, tránh dispose/recreate.
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withValues(alpha: .12),
-      tooltipBehavior: _tooltipBehavior,
+      trackballBehavior: _trackball,
       zoomPanBehavior: _zoomPanBehavior,
       primaryXAxis: DateTimeAxis(
         minimum: xBounds.minX,
@@ -733,9 +942,22 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         ),
       ),
       primaryYAxis: NumericAxis(
-        minimum: yBounds.minY,
-        maximum: yBounds.maxY,
-        numberFormat: _axisNumberFormat,
+        minimum: axis.min,
+        maximum: axis.max,
+        interval: axis.interval,
+        axisLabelFormatter: (details) => ChartAxisLabel(
+          axis.label(details.value),
+          TextStyle(color: Colors.white.withValues(alpha: .72), fontSize: 12),
+        ),
+        title: isUsage && unit.isNotEmpty
+            ? AxisTitle(
+                text: '$unit/5 min',
+                textStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: .52),
+                  fontSize: 10,
+                ),
+              )
+            : const AxisTitle(),
         majorGridLines: MajorGridLines(
           width: 1,
           color: Colors.white.withValues(alpha: .08),
@@ -749,24 +971,96 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
           fontSize: 12,
         ),
       ),
-      series: <CartesianSeries<_ChartPoint, DateTime>>[
-        SplineAreaSeries<_ChartPoint, DateTime>(
-          animationDuration: 0,
-          dataSource: data,
-          xValueMapper: (point, _) => point.time,
-          yValueMapper: (point, _) => point.value,
-          splineType: SplineType.natural,
-          color: _theme.line,
-          borderColor: _theme.accent,
-          borderWidth: 2,
-          gradient: LinearGradient(
-            colors: [_theme.fillTop, _theme.fillBottom],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+      series: <CartesianSeries<dynamic, DateTime>>[
+        switch (style) {
+          ChartStyle.area => AreaSeries<_ChartPoint, DateTime>(
+            animationDuration: animationMs,
+            dataSource: data,
+            xValueMapper: (point, _) => point.time,
+            yValueMapper: (point, _) => point.value,
+            borderColor: _theme.accent,
+            borderWidth: 2,
+            borderDrawMode: BorderDrawMode.top,
+            gradient: LinearGradient(
+              colors: [_theme.fillTop, _theme.fillBottom],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            emptyPointSettings: gap,
           ),
-          markerSettings: const MarkerSettings(isVisible: false),
-        ),
+          // Cot dat giua khoang 5 phut.
+          ChartStyle.bar => ColumnSeries<_UsageBar, DateTime>(
+            animationDuration: animationMs,
+            dataSource: bars,
+            xValueMapper: (bar, _) => bar.center,
+            yValueMapper: (bar, _) => bar.value,
+            width: .7,
+            color: _theme.line,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+            emptyPointSettings: gap,
+          ),
+          ChartStyle.step => StepLineSeries<_ChartPoint, DateTime>(
+            animationDuration: animationMs,
+            dataSource: data,
+            xValueMapper: (point, _) => point.time,
+            yValueMapper: (point, _) => point.value,
+            color: _theme.line,
+            width: 2,
+            emptyPointSettings: gap,
+          ),
+          ChartStyle.lineBand => LineSeries<_ChartPoint, DateTime>(
+            animationDuration: animationMs,
+            dataSource: data,
+            xValueMapper: (point, _) => point.time,
+            yValueMapper: (point, _) => point.value,
+            color: _theme.line,
+            width: 2,
+            emptyPointSettings: gap,
+          ),
+        },
       ],
+    );
+  }
+
+  Widget _hoverCard(_ChartPoint point) {
+    final spec = _spec;
+    final unit = spec.resolveUnit(_preparedSeries.unit ?? widget.unit);
+
+    return ChartHoverCard(
+      title: _hoverTimeFormat.format(point.time),
+      rows: ChartHoverStyle.rows(
+        kind: spec.style == ChartStyle.step
+            ? HoverKind.status
+            : HoverKind.analog,
+        value: point.value,
+        unit: unit,
+        decimals: spec.decimals,
+        isSnapshot: true,
+      ),
+    );
+  }
+
+  /// Tooltip cot usage: khoang thoi gian (+ "den hh:mm" neu dang dien ra)
+  /// va Usage kem unit.
+  Widget _usageHoverCard(_UsageBar bar) {
+    final spec = _spec;
+    final unit = spec.resolveUnit(_preparedSeries.unit ?? widget.unit);
+    final until = bar.until;
+
+    final range =
+        '${_hoverTimeFormat.format(bar.start)}–'
+        '${_axisTimeFormat.format(bar.end)}';
+
+    return ChartHoverCard(
+      title: until == null
+          ? range
+          : '$range (đến ${_axisTimeFormat.format(until)})',
+      rows: ChartHoverStyle.rows(
+        kind: HoverKind.counter,
+        value: bar.value,
+        unit: unit,
+        decimals: spec.decimals,
+      ),
     );
   }
 
@@ -834,30 +1128,6 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     }
 
     return '${duration.inSeconds}s';
-  }
-
-  ({double minY, double maxY}) _computeYAxisBoundsFromAnalysis(
-    _SeriesAnalysis analysis,
-  ) {
-    final minValue = analysis.minValue;
-    final maxValue = analysis.maxValue;
-    final range = analysis.delta;
-
-    final rangePadding = range * .20;
-
-    final magnitude = minValue.abs() > maxValue.abs()
-        ? minValue.abs()
-        : maxValue.abs();
-
-    final minimumPadding = magnitude * .01;
-
-    final padding = rangePadding > 0
-        ? rangePadding
-        : minimumPadding > .01
-        ? minimumPadding
-        : .01;
-
-    return (minY: minValue - padding, maxY: maxValue + padding);
   }
 
   ({DateTime minX, DateTime maxX, int intervalMinutes}) _computeXAxisBounds(

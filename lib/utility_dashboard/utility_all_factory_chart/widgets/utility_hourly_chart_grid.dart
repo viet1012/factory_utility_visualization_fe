@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/widgets/debounced_layout_builder.dart';
 import '../controllers/utility_chart_catalog_controller.dart';
 import 'utility_hourly_chart_panel.dart';
 
@@ -58,7 +59,8 @@ class UtilityHourlyChartGrid extends StatelessWidget {
       );
     }
 
-    return LayoutBuilder(
+    // Resize: giu grid cu 150ms roi moi tinh lai so cot.
+    return DebouncedLayoutBuilder(
       builder: (context, constraints) {
         return GridView.builder(
           key: PageStorageKey<String>(

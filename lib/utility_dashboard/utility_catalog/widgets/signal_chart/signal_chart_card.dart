@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/charts/value_format.dart';
+import '../../../shared/widgets/chart_loading_widgets.dart';
+import '../../../shared/widgets/lazy_chart_gate.dart';
 import '../../catalog_view_models.dart';
 import '../../models/signal_history_models.dart';
 import 'signal_chart_bar_plot.dart';
@@ -32,7 +35,11 @@ class SignalChartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final row = current;
+    final spec = signalSpecOf(series);
+    final unit = spec.resolveUnit(series.unit);
     final stats = SignalHistoryStats.of(series);
+
+    String fmt(double? value) => formatValue(value, decimals: spec.decimals);
     final isCounter = series.kind == SignalKind.counter;
     final hasPoints = series.points.any(
       (point) => (isCounter ? point.delta : point.value) != null,
@@ -40,7 +47,7 @@ class SignalChartCard extends StatelessWidget {
 
     /*
      * Chi lay tu dong cua bang (/api/utility/latest), khong fallback ve diem
-     * cuoi cua series: value null thi hien "--" giong cot VALUE.
+     * cuoi cua series. So le / format theo SignalChartSpec cua signal.
      */
     final currentValue = row?.value;
     final hasValue = currentValue != null && currentValue.isFinite;
@@ -96,7 +103,7 @@ class SignalChartCard extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                formatSignalValue(currentValue),
+                fmt(currentValue),
                 style: TextStyle(
                   color: outOfRange
                       ? SignalChartColors.alert
@@ -105,11 +112,11 @@ class SignalChartCard extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              // Giong bang: khong gan unit sau "--".
-              if (hasValue && series.unit != null) ...[
+              // Khong gan unit sau gia tri thieu.
+              if (hasValue && unit.isNotEmpty) ...[
                 const SizedBox(width: 5),
                 Text(
-                  series.unit!,
+                  unit,
                   style: const TextStyle(
                     color: SignalChartColors.subText,
                     fontSize: 13,
@@ -125,11 +132,11 @@ class SignalChartCard extends StatelessWidget {
               Flexible(
                 child: Text(
                   isCounter
-                      ? 'total ${formatSignalValueWithUnit(stats.total, series.unit)}'
+                      ? 'total ${formatWithUnit(stats.total, unit, decimals: spec.decimals)}'
                             ' in range'
-                      : 'min ${formatSignalValue(stats.min)}'
-                            '  ·  avg ${formatSignalValue(stats.avg)}'
-                            '  ·  max ${formatSignalValue(stats.max)}',
+                      : 'min ${fmt(stats.min)}'
+                            '  ·  avg ${fmt(stats.avg)}'
+                            '  ·  max ${fmt(stats.max)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -158,10 +165,17 @@ class SignalChartCard extends StatelessWidget {
             child: series.error != null
                 ? _SignalErrorBody(message: series.error!, onRetry: onRetry)
                 : hasPoints
-                ? _signalPlot(
-                    series,
-                    range,
-                    SignalChartColors.line(row?.rawCategory ?? ''),
+                // Chart chi tao khi the vao khung nhin lan dau.
+                ? LazyChartGate(
+                    placeholder: ChartBodySkeleton(
+                      color: SignalChartColors.line(row?.rawCategory ?? ''),
+                      withSummary: false,
+                    ),
+                    builder: (_) => _signalPlot(
+                      series,
+                      range,
+                      SignalChartColors.line(row?.rawCategory ?? ''),
+                    ),
                   )
                 : const Center(
                     child: Text(

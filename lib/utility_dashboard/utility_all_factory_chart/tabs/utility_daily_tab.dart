@@ -4,9 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../controllers/utility_daily_signal_controller.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
+import '../../shared/widgets/chart_loading_widgets.dart';
 import '../../shared/widgets/chart_state_widgets.dart';
 import '../models/utility_daily_models.dart';
-import '../widgets/utility_chart_loading_state.dart';
 import '../widgets/utility_daily_chart_grid.dart';
 
 class UtilityDailyTab extends StatefulWidget {
@@ -41,6 +41,10 @@ class _UtilityDailyTabState extends State<UtilityDailyTab>
   @override
   bool get wantKeepAlive => true;
 
+  /// Series da hien lan truoc. Doi Box / Device: controller xoa series ngay,
+  /// tab giu series cu mo kem progress bar cho toi khi data moi ve.
+  List<UtilityDailySeries> _lastSeries = const <UtilityDailySeries>[];
+
   List<String> get _requestedDeviceIds {
     final selectedDevice = widget.selectedBoxDeviceId?.trim();
 
@@ -62,18 +66,6 @@ class _UtilityDailyTabState extends State<UtilityDailyTab>
 
     return '${now.year}'
         '${now.month.toString().padLeft(2, '0')}';
-  }
-
-  String get _requestKey {
-    final devices = List<String>.from(_requestedDeviceIds)..sort();
-
-    return <String>[
-      widget.facId,
-      widget.cate,
-      widget.scadaId ?? '',
-      widget.boxId ?? '',
-      ...devices,
-    ].join('|');
   }
 
   @override
@@ -174,12 +166,19 @@ class _UtilityDailyTabState extends State<UtilityDailyTab>
             previous.dataVersion != next.dataVersion;
       },
       builder: (context, vm, _) {
+        final color = ChartThemes.byCate(widget.cate).line;
+
         if (vm.loading && vm.series.isEmpty) {
-          return UtilityChartLoadingState(
-            cate: widget.cate,
-            message: 'Loading daily data...',
+          if (_lastSeries.isEmpty) return ChartGridSkeleton(color: color);
+
+          return ChartBusyOverlay(
+            busy: true,
+            color: color,
+            child: _grid(_lastSeries),
           );
         }
+
+        _lastSeries = vm.series;
 
         if (vm.error != null && vm.series.isEmpty) {
           return ChartApiErrorState(
@@ -202,27 +201,34 @@ class _UtilityDailyTabState extends State<UtilityDailyTab>
           );
         }
 
-        return Stack(
-          children: [
-            UtilityDailyChartGrid(
-              key: ValueKey('$_requestKey-${vm.dataVersion}'),
-              series: vm.series,
-              facId: widget.facId,
-              cate: widget.cate,
-              scadaId: widget.scadaId,
-              boxDeviceId:
-                  widget.selectedBoxDeviceId ?? widget.boxId ?? 'ALL DEVICES',
-            ),
+        return ChartBusyOverlay(
+          busy: false,
+          color: color,
+          child: Stack(
+            children: [
+              _grid(vm.series),
 
-            if (vm.refreshing)
-              const Positioned(
-                top: 10,
-                right: 12,
-                child: _DailyRefreshingBadge(),
-              ),
-          ],
+              if (vm.refreshing)
+                const Positioned(
+                  top: 10,
+                  right: 12,
+                  child: _DailyRefreshingBadge(),
+                ),
+            ],
+          ),
         );
       },
+    );
+  }
+
+  /// Khong key theo dataVersion: refresh chi cap nhat the, khong tao lai grid.
+  Widget _grid(List<UtilityDailySeries> series) {
+    return UtilityDailyChartGrid(
+      series: series,
+      facId: widget.facId,
+      cate: widget.cate,
+      scadaId: widget.scadaId,
+      boxDeviceId: widget.selectedBoxDeviceId ?? widget.boxId ?? 'ALL DEVICES',
     );
   }
 }

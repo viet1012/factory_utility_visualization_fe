@@ -2,16 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-import '../../../catalog_value_format.dart';
+import '../../../../shared/charts/axis_planner.dart';
+import '../../../../shared/charts/chart_animation.dart';
+import '../../../../shared/charts/chart_downsample.dart';
+import '../../../../shared/charts/chart_hover_style.dart';
+import '../../../../shared/charts/chart_thresholds.dart';
+import '../../../../shared/charts/signal_chart_spec.dart';
+import '../../../../shared/charts/signal_chart_spec_registry.dart';
+import '../../../../shared/charts/value_format.dart';
 import '../../../models/signal_history_models.dart';
-import '../../signal_chart/signal_chart_axis.dart';
 import '../../signal_chart/signal_chart_gaps.dart';
 import '../../signal_chart/signal_chart_palette.dart';
 import 'filter_chart_groups.dart';
 
-/// Chart chung cho mot nhom nhieu device:
-/// - ANALOG: moi device mot duong avg (ca 24h / 7d, khong dung thanh noi),
-///   mot truc Y, duong nguong net dut khi ca nhom cung nguong;
+/// Chart chung cho mot nhom nhieu device (cung code + unit), kieu ve / truc /
+/// so le theo SignalChartSpec cua nhom:
+/// - ANALOG: moi device mot duong avg (area khi spec la area va nhom chi co
+///   1 device), mot truc Y,
+///   duong nguong net dut khi ca nhom cung nguong;
 /// - COUNTER: cot nhom theo delta, bat dau tu 0.
 /// Tooltip (trackball) hien gia tri moi device tai cung thoi diem.
 class FilterChartCartesian extends StatefulWidget {
@@ -32,30 +40,25 @@ class FilterChartCartesian extends StatefulWidget {
 
 class _FilterChartCartesianState extends State<FilterChartCartesian> {
   late final TrackballBehavior _trackball;
+  final FirstPaintAnimation _animation = FirstPaintAnimation();
 
   /// Device theo dung thu tu series dang ve (de doi seriesIndex -> device).
   List<FilterChartMember> _drawn = const <FilterChartMember>[];
+  SignalChartSpec _spec = SignalChartSpecRegistry.fallback;
 
   @override
   void initState() {
     super.initState();
 
-    _trackball = TrackballBehavior(
-      enable: true,
-      activationMode: ActivationMode.singleTap,
-      tooltipDisplayMode: TrackballDisplayMode.groupAllPoints,
-      lineColor: Colors.white.withValues(alpha: .25),
-      lineWidth: 1,
-      markerSettings: const TrackballMarkerSettings(
-        markerVisibility: TrackballVisibilityMode.visible,
-        height: 5,
-        width: 5,
-        borderWidth: 0,
-      ),
+    _trackball = ChartHoverStyle.trackball(
+      // Marker lay mau cua tung device.
+      markerColor: null,
+      displayMode: TrackballDisplayMode.groupAllPoints,
       builder: (context, details) => _GroupTooltip(
         details: details,
         members: _drawn,
         group: widget.group,
+        spec: _spec,
       ),
     );
   }
@@ -65,44 +68,52 @@ class _FilterChartCartesianState extends State<FilterChartCartesian> {
     final group = widget.group;
     final isCounter = group.kind == SignalKind.counter;
 
+    final spec = filterGroupSpecOf(group);
+    _spec = spec;
+
+    final unit = spec.resolveUnit(group.unit);
+
     _drawn = [
       for (final member in widget.members)
         if (member.series != null) member,
     ];
 
+    // Area chong nhau khi >= 2 device: ve line khong to nen (giu mau + kieu
+    // net tung device). Nhom 1 device giu area.
+    final style = isCounter
+        ? ChartStyle.bar
+        : spec.style == ChartStyle.area && _drawn.length >= 2
+        ? ChartStyle.lineBand
+        : spec.style;
+
     // Noi qua lo ngan (chu ky ghi ~65s), chi ngat duong o khoang dai.
     final plotted = <FilterChartMember, List<SignalHistoryPoint>>{
       for (final member in _drawn)
-        member: isCounter
-            ? member.series!.points
-            : SignalPlotData.of(
-                member.series!.points,
-                bucket: member.series!.bucket,
-              ).points,
+        member: downsampleMinMax(
+          isCounter
+              ? member.series!.points
+              : SignalPlotData.of(
+                  member.series!.points,
+                  bucket: member.series!.bucket,
+                ).points,
+          value: isCounter
+              ? (SignalHistoryPoint point) => point.delta
+              : member.series!.plotValue,
+        ),
     };
 
     final common = group.commonThresholds;
-    final showThresholds = !isCounter && common != null;
+    final showThresholds = spec.showThreshold && !isCounter && common != null;
 
-    final axis = YAxisPlan.fromValues(
-      [
+    final axis = planAxis(
+      values: [
         for (final entry in plotted.entries)
           for (final point in entry.value)
             isCounter ? point.delta : entry.key.series!.plotValue(point),
       ],
-      series: SignalHistorySeries(
-        signalId: group.key,
-        plc: '',
-        name: group.title,
-        code: null,
-        unit: group.unit,
-        kind: group.kind,
-        thresholdLow: common?.low,
-        thresholdHigh: common?.high,
-        points: const <SignalHistoryPoint>[],
-      ),
-      showThresholds: showThresholds,
-      zeroBaseline: isCounter,
+      spec: spec,
+      thresholdLow: showThresholds ? common.low : null,
+      thresholdHigh: showThresholds ? common.high : null,
     );
 
     DateTime? first;
@@ -120,6 +131,9 @@ class _FilterChartCartesianState extends State<FilterChartCartesian> {
         first != null &&
         last != null &&
         last.difference(first) > const Duration(days: 1);
+
+    final animationMs = _animation.duration();
+    const gap = EmptyPointSettings(mode: EmptyPointMode.gap);
 
     final chart = SfCartesianChart(
       margin: const EdgeInsets.fromLTRB(0, 6, 8, 0),
@@ -141,10 +155,14 @@ class _FilterChartCartesianState extends State<FilterChartCartesian> {
       primaryYAxis: NumericAxis(
         minimum: axis.min,
         maximum: axis.max,
-        axisLabelFormatter: signalValueAxisLabel,
+        interval: axis.interval,
+        axisLabelFormatter: (details) => ChartAxisLabel(
+          axis.label(details.value),
+          const TextStyle(color: SignalChartColors.mutedText, fontSize: 10.5),
+        ),
         title: isCounter
             ? AxisTitle(
-                text: group.unit.isEmpty ? 'Δ / bucket' : '${group.unit} / bucket',
+                text: unit.isEmpty ? 'Δ / bucket' : '$unit / bucket',
                 textStyle: const TextStyle(
                   color: SignalChartColors.mutedText,
                   fontSize: 10,
@@ -157,47 +175,77 @@ class _FilterChartCartesianState extends State<FilterChartCartesian> {
         ),
         axisLine: const AxisLine(width: 0),
         majorTickLines: const MajorTickLines(size: 0),
-        plotBands: [
-          for (final line in axis.visibleThresholds)
-            thresholdPlotBand(line, group.unit),
-        ],
+        plotBands: thresholdPlotBands(axis, unit),
       ),
       series: <CartesianSeries<SignalHistoryPoint, DateTime>>[
         for (final member in _drawn)
-          if (isCounter)
-            ColumnSeries<SignalHistoryPoint, DateTime>(
+          switch (style) {
+            ChartStyle.bar => ColumnSeries<SignalHistoryPoint, DateTime>(
               name: member.label,
               dataSource: plotted[member]!,
-              animationDuration: 0,
+              animationDuration: animationMs,
               color: member.color,
               spacing: .1,
               xValueMapper: (point, _) => point.ts,
               yValueMapper: (point, _) => point.delta,
-              emptyPointSettings: const EmptyPointSettings(
-                mode: EmptyPointMode.gap,
-              ),
-            )
-          else
-            LineSeries<SignalHistoryPoint, DateTime>(
+              emptyPointSettings: gap,
+            ),
+            ChartStyle.area => AreaSeries<SignalHistoryPoint, DateTime>(
               name: member.label,
               dataSource: plotted[member]!,
-              animationDuration: 0,
-              color: member.overThreshold
-                  ? Color.lerp(member.color, SignalChartColors.alert, .35)
-                  : member.color,
+              animationDuration: animationMs,
+              color: member.color.withValues(alpha: .10),
+              borderColor: _lineColor(member),
+              borderWidth: member.overThreshold ? 2.2 : 1.6,
+              borderDrawMode: BorderDrawMode.top,
+              xValueMapper: (point, _) => point.ts,
+              yValueMapper: (point, _) => member.series!.plotValue(point),
+              emptyPointSettings: gap,
+            ),
+            ChartStyle.step => StepLineSeries<SignalHistoryPoint, DateTime>(
+              name: member.label,
+              dataSource: plotted[member]!,
+              animationDuration: animationMs,
+              color: _lineColor(member),
+              width: 1.6,
+              dashArray: member.dash,
+              xValueMapper: (point, _) => point.ts,
+              yValueMapper: (point, _) => member.series!.plotValue(point),
+              emptyPointSettings: gap,
+            ),
+            ChartStyle.lineBand => LineSeries<SignalHistoryPoint, DateTime>(
+              name: member.label,
+              dataSource: plotted[member]!,
+              animationDuration: animationMs,
+              color: _lineColor(member),
               width: member.overThreshold ? 2.2 : 1.6,
               dashArray: member.dash,
               xValueMapper: (point, _) => point.ts,
               yValueMapper: (point, _) => member.series!.plotValue(point),
-              emptyPointSettings: const EmptyPointSettings(
-                mode: EmptyPointMode.gap,
-              ),
+              emptyPointSettings: gap,
             ),
+          },
       ],
     );
 
-    return withOffscaleThresholds(chart, axis, group.unit);
+    return withOffscaleThresholds(chart, axis, unit);
   }
+
+  static Color _lineColor(FilterChartMember member) {
+    return member.overThreshold
+        ? Color.lerp(member.color, SignalChartColors.alert, .35)!
+        : member.color;
+  }
+}
+
+/// Spec cua mot nhom Filter results: code = title khi nhom theo code.
+SignalChartSpec filterGroupSpecOf(FilterChartGroup group) {
+  return SignalChartSpecRegistry.resolve(
+    code: group.subtitle != null ? group.title : null,
+    unit: group.unit,
+    kind: group.kind.name.toUpperCase(),
+    name: group.subtitle ?? group.title,
+  );
 }
 
 /// Tooltip cua trackball: thoi diem + gia tri moi device trong nhom.
@@ -205,12 +253,16 @@ class _GroupTooltip extends StatelessWidget {
   final TrackballDetails details;
   final List<FilterChartMember> members;
   final FilterChartGroup group;
+  final SignalChartSpec spec;
 
   const _GroupTooltip({
     required this.details,
     required this.members,
     required this.group,
+    required this.spec,
   });
+
+  static final DateFormat _timeFormat = DateFormat('dd/MM HH:mm');
 
   @override
   Widget build(BuildContext context) {
@@ -218,10 +270,13 @@ class _GroupTooltip extends StatelessWidget {
     if (info == null || info.points.isEmpty) return const SizedBox.shrink();
 
     final isCounter = group.kind == SignalKind.counter;
+    final unit = spec.resolveUnit(group.unit);
     final x = info.points.first.x;
     final time = x is DateTime ? x : null;
 
-    final lines = <Widget>[];
+    final rows = <(String, String)>[];
+    final swatches = <Color?>[];
+    final alerts = <int>{};
 
     for (var i = 0; i < info.points.length; i++) {
       final seriesIndex = i < info.visibleSeriesIndices.length
@@ -239,65 +294,20 @@ class _GroupTooltip extends StatelessWidget {
           ((member.thresholdHigh != null && value > member.thresholdHigh!) ||
               (member.thresholdLow != null && value < member.thresholdLow!));
 
-      lines.add(
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 8, height: 8, color: member.color),
-              const SizedBox(width: 6),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: Text(
-                  member.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: SignalChartColors.subText,
-                    fontSize: 10.5,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '${isCounter ? 'Δ ' : ''}'
-                '${formatCatalogValueWithUnit(value, group.unit)}',
-                style: TextStyle(
-                  color: out ? SignalChartColors.alert : SignalChartColors.text,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+      if (out) alerts.add(rows.length);
+      swatches.add(member.color);
+      rows.add((
+        member.label,
+        '${isCounter ? 'Δ ' : ''}'
+            '${formatWithUnit(value, unit, decimals: spec.decimals)}',
+      ));
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-      decoration: BoxDecoration(
-        color: SignalChartColors.card,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: SignalChartColors.cardBorder),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (time != null)
-            Text(
-              DateFormat('dd/MM HH:mm').format(time.toLocal()),
-              style: const TextStyle(
-                color: SignalChartColors.mutedText,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ...lines,
-        ],
-      ),
+    return ChartHoverCard(
+      title: time == null ? '' : _timeFormat.format(time.toLocal()),
+      rows: rows,
+      swatches: swatches,
+      alerts: alerts,
     );
   }
 }

@@ -1,11 +1,24 @@
-import '../../catalog_value_format.dart';
+import '../../../shared/charts/chart_hover_style.dart';
+import '../../../shared/charts/signal_chart_spec.dart';
+import '../../../shared/charts/signal_chart_spec_registry.dart';
+import '../../models/signal_history_models.dart';
 
-/// Gia tri tren chart dung CHUNG quy tac voi cot VALUE cua bang
-/// (xem catalog_value_format.dart), ke ca signal status.
-String formatSignalValue(double? value) => formatCatalogValue(value);
+/// Spec hien thi cua mot series lich su (chart panel device va Filter results).
+SignalChartSpec signalSpecOf(SignalHistorySeries series) {
+  return SignalChartSpecRegistry.resolve(
+    code: series.code,
+    unit: series.unit,
+    kind: series.kind.name.toUpperCase(),
+    name: series.name,
+  );
+}
 
-String formatSignalValueWithUnit(double? value, String? unit) {
-  return formatCatalogValueWithUnit(value, unit);
+HoverKind hoverKindOf(SignalKind kind) {
+  return switch (kind) {
+    SignalKind.analog => HoverKind.analog,
+    SignalKind.counter => HoverKind.counter,
+    SignalKind.status => HoverKind.status,
+  };
 }
 
 /// dd/MM/yyyy HH:mm, gio dia phuong.

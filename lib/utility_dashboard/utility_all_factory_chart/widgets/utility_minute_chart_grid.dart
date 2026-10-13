@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/widgets/debounced_layout_builder.dart';
 import '../controllers/utility_chart_catalog_controller.dart';
 import 'utility_minute_chart_panel.dart';
 
@@ -58,7 +59,8 @@ class UtilityMinuteChartGrid extends StatelessWidget {
       );
     }
 
-    return LayoutBuilder(
+    // Resize: giu grid cu 150ms roi moi tinh lai so cot.
+    return DebouncedLayoutBuilder(
       builder: (context, constraints) {
         return GridView.builder(
           key: PageStorageKey<String>(
@@ -99,6 +101,9 @@ class UtilityMinuteChartGrid extends StatelessWidget {
                 cate: cate,
                 boxDeviceId: boxDeviceId,
                 plcAddress: plcAddress,
+                signalName: chart.nameEn,
+                unit: chart.unit,
+                code: chart.cateId,
               ),
             );
           },

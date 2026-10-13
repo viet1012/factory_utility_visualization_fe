@@ -6,10 +6,10 @@ import 'package:provider/provider.dart';
 import '../controllers/utility_chart_catalog_controller.dart';
 import '../controllers/utility_hourly_chart_controller.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
+import '../../shared/widgets/chart_loading_widgets.dart';
 import '../../shared/widgets/chart_state_widgets.dart';
 import '../models/utility_chart_models.dart';
 import '../models/utility_hourly_models.dart';
-import '../widgets/utility_chart_loading_state.dart';
 import '../widgets/utility_glass_tab_row.dart';
 import '../widgets/utility_hourly_chart_grid.dart';
 
@@ -40,6 +40,23 @@ class UtilityHourlyTab extends StatefulWidget {
 
 class _UtilityHourlyTabState extends State<UtilityHourlyTab> {
   String _lastLoadSignature = '';
+
+  /// Grid da ve lan truoc (catalog khop). Doi filter: giu grid nay mo kem
+  /// progress bar cho toi khi catalog moi ve, khong nhay ve skeleton.
+  Widget? _lastGrid;
+
+  /// Catalog chua khop request hien tai.
+  Widget _pendingBody(Color color) {
+    final last = _lastGrid;
+    if (last == null) return ChartGridSkeleton(color: color);
+
+    return ChartBusyOverlay(busy: true, color: color, child: last);
+  }
+
+  Widget _showGrid(Widget grid, Color color) {
+    _lastGrid = grid;
+    return ChartBusyOverlay(busy: false, color: color, child: grid);
+  }
 
   @override
   void didUpdateWidget(covariant UtilityHourlyTab oldWidget) {
@@ -196,10 +213,7 @@ class _UtilityHourlyTabState extends State<UtilityHourlyTab> {
             );
           }
 
-          return UtilityChartLoadingState(
-            cate: widget.cate,
-            message: 'Loading ${widget.cate} data...',
-          );
+          return _pendingBody(theme.line);
         }
 
         if (vm.error != null && vm.charts.isEmpty) {
@@ -220,12 +234,15 @@ class _UtilityHourlyTabState extends State<UtilityHourlyTab> {
 
         _scheduleLoad(vm.charts, desiredSignature, range);
 
-        return UtilityHourlyChartGrid(
-          charts: vm.charts,
-          facId: widget.facId,
-          cate: widget.cate,
-          scadaId: widget.scadaId,
-          selectedBox: widget.selectedBox,
+        return _showGrid(
+          UtilityHourlyChartGrid(
+            charts: vm.charts,
+            facId: widget.facId,
+            cate: widget.cate,
+            scadaId: widget.scadaId,
+            selectedBox: widget.selectedBox,
+          ),
+          theme.line,
         );
       },
     );

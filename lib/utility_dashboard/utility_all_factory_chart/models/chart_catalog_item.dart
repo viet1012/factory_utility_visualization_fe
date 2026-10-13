@@ -9,7 +9,11 @@ class ChartCatalogItem {
   final int? paraId;
   final String plcAddress;
 
+  /// Kieu du lieu (INT / FLOAT...), khong phai kind.
   final String? valueType;
+
+  /// "ANALOG" | "COUNTER" | "STATUS" (null khi backend khong tra).
+  final String? kind;
   final String? unit;
   final String? cateId;
 
@@ -31,6 +35,7 @@ class ChartCatalogItem {
     required this.paraId,
     required this.plcAddress,
     required this.valueType,
+    this.kind,
     required this.unit,
     required this.cateId,
     required this.nameVi,
@@ -83,6 +88,7 @@ class ChartCatalogItem {
       paraId: nullableInt(json['paraId']),
       plcAddress: requiredText(json['plcAddress']),
       valueType: nullableText(json['valueType']),
+      kind: nullableText(json['kind'])?.toUpperCase(),
       unit: nullableText(json['unit']),
       cateId: nullableText(json['cateId']),
       nameVi: nullableText(json['nameVi']),

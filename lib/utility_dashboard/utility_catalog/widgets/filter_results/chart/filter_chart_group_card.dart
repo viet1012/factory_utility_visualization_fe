@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../shared/widgets/chart_loading_widgets.dart';
+import '../../../../shared/widgets/lazy_chart_gate.dart';
 import '../../../models/signal_history_models.dart';
 import '../../../providers/filter_chart_controller.dart';
 import '../../signal_chart/signal_chart_palette.dart';
@@ -32,8 +34,69 @@ class _FilterChartGroupCardState extends State<FilterChartGroupCard> {
 
   bool _showAll = false;
 
+  /// Noi dung da build. Polling / device khac tra ve tao danh sach nhom moi;
+  /// nhom nay khong doi du lieu thi tra lai dung instance cu, Flutter bo qua
+  /// ca cay con (chart khong build lai).
+  Widget? _body;
+  bool _bodyStale = true;
+
+  @override
+  void didUpdateWidget(covariant FilterChartGroupCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.onOpenDevice != widget.onOpenDevice ||
+        !_sameGroup(oldWidget.group, widget.group)) {
+      _bodyStale = true;
+    }
+  }
+
+  void _update(VoidCallback change) {
+    setState(() {
+      change();
+      _bodyStale = true;
+    });
+  }
+
+  static bool _sameGroup(FilterChartGroup a, FilterChartGroup b) {
+    if (identical(a, b)) return true;
+
+    if (a.key != b.key ||
+        a.kind != b.kind ||
+        a.unit != b.unit ||
+        a.title != b.title ||
+        a.members.length != b.members.length) {
+      return false;
+    }
+
+    for (var i = 0; i < a.members.length; i++) {
+      final x = a.members[i];
+      final y = b.members[i];
+
+      if (!identical(x.series, y.series) ||
+          x.state != y.state ||
+          x.deviceKey != y.deviceKey ||
+          x.label != y.label ||
+          x.row.value != y.row.value ||
+          x.thresholdLow != y.thresholdLow ||
+          x.thresholdHigh != y.thresholdHigh) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_bodyStale || _body == null) {
+      _body = _buildBody();
+      _bodyStale = false;
+    }
+
+    return _body!;
+  }
+
+  Widget _buildBody() {
     final group = widget.group;
 
     final shown = _showAll ? group.members : group.priorityMembers;
@@ -77,7 +140,14 @@ class _FilterChartGroupCardState extends State<FilterChartGroupCard> {
     } else if (isStatus) {
       chart = FilterStatusTimeline(members: drawn);
     } else {
-      chart = FilterChartCartesian(group: group, members: drawn);
+      // Chart chi tao khi the vao khung nhin lan dau.
+      chart = LazyChartGate(
+        placeholder: const ChartBodySkeleton(
+          color: SignalChartColors.mutedText,
+          withSummary: false,
+        ),
+        builder: (_) => FilterChartCartesian(group: group, members: drawn),
+      );
     }
 
     return Container(
@@ -102,7 +172,7 @@ class _FilterChartGroupCardState extends State<FilterChartGroupCard> {
             group: group,
             members: shown,
             hidden: _hidden,
-            onToggle: (key) => setState(() {
+            onToggle: (key) => _update(() {
               if (!_hidden.remove(key)) _hidden.add(key);
             }),
             onOpenDevice: widget.onOpenDevice,
@@ -111,7 +181,7 @@ class _FilterChartGroupCardState extends State<FilterChartGroupCard> {
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton(
-                onPressed: () => setState(() => _showAll = !_showAll),
+                onPressed: () => _update(() => _showAll = !_showAll),
                 child: Text(
                   _showAll
                       ? 'Show fewer'

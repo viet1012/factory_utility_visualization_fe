@@ -75,7 +75,9 @@ class _FilterChartViewState extends State<FilterChartView> {
     final map = <String, List<String>>{};
 
     for (final row in widget.rows) {
-      map.putIfAbsent(row.deviceKey, () => <String>[]).add(filterSignalIdOf(row));
+      map
+          .putIfAbsent(row.deviceKey, () => <String>[])
+          .add(filterSignalIdOf(row));
     }
 
     _signalsByDevice = map;
@@ -181,10 +183,12 @@ class _FilterChartViewState extends State<FilterChartView> {
                     padding: const EdgeInsets.all(12),
                     itemCount: groups.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) => FilterChartGroupCard(
+                    itemBuilder: (context, index) => RepaintBoundary(
                       key: ValueKey(groups[index].key),
-                      group: groups[index],
-                      onOpenDevice: widget.onOpenDevice,
+                      child: FilterChartGroupCard(
+                        group: groups[index],
+                        onOpenDevice: widget.onOpenDevice,
+                      ),
                     ),
                   ),
           ),

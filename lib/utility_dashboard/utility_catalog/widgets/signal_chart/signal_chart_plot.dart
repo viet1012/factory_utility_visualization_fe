@@ -1,19 +1,24 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
+import '../../../shared/charts/axis_planner.dart';
+import '../../../shared/charts/chart_animation.dart';
+import '../../../shared/charts/chart_downsample.dart';
+import '../../../shared/charts/chart_hover_style.dart';
+import '../../../shared/charts/chart_thresholds.dart';
+import '../../../shared/charts/signal_chart_spec.dart';
 import '../../models/signal_history_models.dart';
-import 'signal_chart_axis.dart';
 import 'signal_chart_format.dart';
 import 'signal_chart_gaps.dart';
 import 'signal_chart_palette.dart';
 
-/// Bieu do cua MOT signal (mot don vi, mot truc Y).
-///
-/// - ANALOG: LineSeries theo avg (+ dai min..max khi MIN_AVG_MAX);
-/// - STATUS: StepLineSeries theo avg;
-/// - COUNTER: ColumnSeries theo delta (delta null -> khong ve bar);
+/// Bieu do cua MOT signal (mot don vi, mot truc Y), kieu ve theo
+/// SignalChartSpec:
+/// - lineBand: line theo avg (+ dai min..max khi MIN_AVG_MAX);
+/// - area: area tu 0 theo avg;
+/// - step (STATUS): bac thang theo last, to mau theo ma;
+/// - bar (COUNTER): cot theo delta (delta null -> khong ve cot);
 /// - khoang null chi ngat duong + to xam khi dai hon kSignalGapBreakThreshold;
 /// - nguong: duong ngang net dut + nhan; diem vuot nguong cham do.
 class SignalChartPlot extends StatefulWidget {
@@ -31,26 +36,26 @@ class SignalChartPlot extends StatefulWidget {
 }
 
 class _SignalChartPlotState extends State<SignalChartPlot> {
-  late final TooltipBehavior _tooltipBehavior;
+  late final TrackballBehavior _trackball;
+  final FirstPaintAnimation _animation = FirstPaintAnimation();
+
+  /// Diem theo ts (ms) de trackball tra lai diem goc tu x.
+  Map<int, SignalHistoryPoint> _pointsByTime = const {};
 
   @override
   void initState() {
     super.initState();
 
-    _tooltipBehavior = TooltipBehavior(
-      enable: true,
-      color: SignalChartColors.card,
-      borderColor: SignalChartColors.cardBorder,
-      borderWidth: 1,
-      elevation: 0,
-      canShowMarker: false,
-      tooltipPosition: TooltipPosition.auto,
-      builder: (data, point, series, pointIndex, seriesIndex) {
-        final source = data is _ExceedMark ? data.point : data;
+    _trackball = ChartHoverStyle.trackball(
+      markerColor: widget.lineColor,
+      builder: (context, details) {
+        final x = details.point?.x;
+        final point = x is DateTime
+            ? _pointsByTime[x.millisecondsSinceEpoch]
+            : null;
+        if (point == null) return const SizedBox.shrink();
 
-        if (source is! SignalHistoryPoint) return const SizedBox.shrink();
-
-        return _PointTooltip(point: source, series: widget.series);
+        return _PointTooltip(point: point, series: widget.series);
       },
     );
   }
@@ -58,13 +63,40 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
   @override
   Widget build(BuildContext context) {
     final series = widget.series;
-    final isCounter = series.kind == SignalKind.counter;
+    final spec = signalSpecOf(series);
+    final style = series.kind == SignalKind.counter
+        ? ChartStyle.bar
+        : spec.style;
+    final isBar = style == ChartStyle.bar;
 
     final plot = SignalPlotData.of(series.points, bucket: series.bucket);
-    final points = plot.points;
 
-    // Nguong ap dung cho gia tri do (avg), khong ap cho delta cua COUNTER.
-    final showThresholds = !isCounter && series.hasThreshold;
+    final hasBand =
+        style == ChartStyle.lineBand &&
+        series.kind == SignalKind.analog &&
+        series.aggregation == HistoryAggregation.minAvgMax &&
+        plot.points.any((point) => point.min != null && point.max != null);
+
+    // Bar dung toan bo bucket (chi phu thuoc delta, khong noi duong).
+    final points = downsampleMinMax(
+      isBar ? series.points : plot.points,
+      value: isBar
+          ? (SignalHistoryPoint point) => point.delta
+          : series.plotValue,
+      low: hasBand
+          ? (SignalHistoryPoint point) => point.min ?? point.value
+          : null,
+      high: hasBand
+          ? (SignalHistoryPoint point) => point.max ?? point.value
+          : null,
+    );
+
+    _pointsByTime = {
+      for (final point in points) point.ts.millisecondsSinceEpoch: point,
+    };
+
+    // Nguong ap cho gia tri do, khong ap cho delta cua COUNTER.
+    final showThresholds = spec.showThreshold && !isBar && series.hasThreshold;
 
     final exceeded = showThresholds
         ? <_ExceedMark>[
@@ -74,39 +106,26 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
           ]
         : const <_ExceedMark>[];
 
-    final hasBand =
-        series.kind == SignalKind.analog &&
-        series.aggregation == HistoryAggregation.minAvgMax &&
-        points.any((point) => point.min != null && point.max != null);
-
-    final axis = YAxisPlan.fromValues(
-      isCounter
-          ? series.points.map((point) => point.delta)
-          : [
-              for (final point in points) ...[
-                series.plotValue(point),
-                if (hasBand) ...[point.min, point.max],
-              ],
-            ],
-      series: series,
-      showThresholds: showThresholds,
-      // Bar COUNTER bat dau tu 0, khong dem xuong duoi.
-      zeroBaseline: isCounter,
+    final axis = planAxis(
+      values: [
+        for (final point in points) ...[
+          isBar ? point.delta : series.plotValue(point),
+          if (hasBand) ...[point.min, point.max],
+        ],
+      ],
+      spec: spec,
+      thresholdLow: showThresholds ? series.thresholdLow : null,
+      thresholdHigh: showThresholds ? series.thresholdHigh : null,
     );
 
-    if (kDebugMode) {
-      debugPrint(
-        '[SIGNAL CHART] render plc=${series.plc} kind=${series.kind.name} '
-        'points=${points.length}/${series.points.length} '
-        'gaps=${plot.gaps.length} bucket=${plot.bucket.inMinutes}m '
-        'y=[${axis.min}, ${axis.max}]',
-      );
-    }
+    final unit = spec.resolveUnit(series.unit);
+    final animationMs = _animation.duration();
+    const gap = EmptyPointSettings(mode: EmptyPointMode.gap);
 
     final chart = SfCartesianChart(
       margin: const EdgeInsets.fromLTRB(0, 6, 6, 0),
       plotAreaBorderWidth: 0,
-      tooltipBehavior: _tooltipBehavior,
+      trackballBehavior: _trackball,
       primaryXAxis: DateTimeAxis(
         minimum: series.points.isEmpty ? null : series.points.first.ts,
         maximum: series.points.isEmpty ? null : series.points.last.ts,
@@ -132,19 +151,18 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
       primaryYAxis: NumericAxis(
         minimum: axis.min,
         maximum: axis.max,
-        interval: series.kind == SignalKind.status ? 1 : null,
-        // Moi so tren truc di qua ham format chung voi bang.
-        axisLabelFormatter: signalValueAxisLabel,
+        interval: axis.interval,
+        axisLabelFormatter: (details) => ChartAxisLabel(
+          axis.label(details.value),
+          const TextStyle(color: SignalChartColors.mutedText, fontSize: 10.5),
+        ),
         majorGridLines: MajorGridLines(
           width: 1,
           color: SignalChartColors.gridLine,
         ),
         axisLine: const AxisLine(width: 0),
         majorTickLines: const MajorTickLines(size: 0),
-        plotBands: [
-          for (final line in axis.visibleThresholds)
-            thresholdPlotBand(line, series.unit),
-        ],
+        plotBands: thresholdPlotBands(axis, unit),
       ),
       series: <CartesianSeries<dynamic, DateTime>>[
         if (hasBand)
@@ -152,6 +170,7 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
             dataSource: points,
             animationDuration: 0,
             enableTooltip: false,
+            enableTrackball: false,
             color: widget.lineColor.withValues(alpha: .14),
             borderWidth: 0,
             xValueMapper: (point, _) => point.ts,
@@ -159,28 +178,22 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
                 point.value == null ? null : point.max,
             lowValueMapper: (point, _) =>
                 point.value == null ? null : point.min,
-            emptyPointSettings: const EmptyPointSettings(
-              mode: EmptyPointMode.gap,
-            ),
+            emptyPointSettings: gap,
           ),
-        if (isCounter)
-          ColumnSeries<SignalHistoryPoint, DateTime>(
-            // Dung toan bo bucket: bar chi phu thuoc delta, khong noi duong.
-            dataSource: series.points,
-            animationDuration: 0,
+        switch (style) {
+          ChartStyle.bar => ColumnSeries<SignalHistoryPoint, DateTime>(
+            dataSource: points,
+            animationDuration: animationMs,
             color: widget.lineColor,
             width: .7,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
             xValueMapper: (point, _) => point.ts,
             yValueMapper: (point, _) => point.delta,
-            emptyPointSettings: const EmptyPointSettings(
-              mode: EmptyPointMode.gap,
-            ),
-          )
-        else if (series.kind == SignalKind.status)
-          StepLineSeries<SignalHistoryPoint, DateTime>(
+            emptyPointSettings: gap,
+          ),
+          ChartStyle.step => StepLineSeries<SignalHistoryPoint, DateTime>(
             dataSource: points,
-            animationDuration: 0,
+            animationDuration: animationMs,
             color: SignalChartColors.status,
             width: 1.8,
             xValueMapper: (point, _) => point.ts,
@@ -193,26 +206,41 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
                   ? SignalChartColors.status
                   : statusCodeColor(code.round());
             },
-            emptyPointSettings: const EmptyPointSettings(
-              mode: EmptyPointMode.gap,
-            ),
-          )
-        else
-          LineSeries<SignalHistoryPoint, DateTime>(
+            emptyPointSettings: gap,
+          ),
+          ChartStyle.area => AreaSeries<SignalHistoryPoint, DateTime>(
             dataSource: points,
-            animationDuration: 0,
+            animationDuration: animationMs,
+            gradient: LinearGradient(
+              colors: [
+                widget.lineColor.withValues(alpha: .38),
+                widget.lineColor.withValues(alpha: .03),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderColor: widget.lineColor,
+            borderWidth: 1.6,
+            borderDrawMode: BorderDrawMode.top,
+            xValueMapper: (point, _) => point.ts,
+            yValueMapper: (point, _) => series.plotValue(point),
+            emptyPointSettings: gap,
+          ),
+          ChartStyle.lineBand => LineSeries<SignalHistoryPoint, DateTime>(
+            dataSource: points,
+            animationDuration: animationMs,
             color: widget.lineColor,
             width: 1.6,
             xValueMapper: (point, _) => point.ts,
-            yValueMapper: (point, _) => point.value,
-            emptyPointSettings: const EmptyPointSettings(
-              mode: EmptyPointMode.gap,
-            ),
+            yValueMapper: (point, _) => series.plotValue(point),
+            emptyPointSettings: gap,
           ),
+        },
         if (exceeded.isNotEmpty)
           ScatterSeries<_ExceedMark, DateTime>(
             dataSource: exceeded,
             animationDuration: 0,
+            enableTrackball: false,
             color: SignalChartColors.alert,
             xValueMapper: (mark, _) => mark.point.ts,
             yValueMapper: (mark, _) => mark.value,
@@ -227,7 +255,7 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
     );
 
     // Nguong qua xa dai du lieu: khong keo truc, chi hien nhan o mep.
-    return withOffscaleThresholds(chart, axis, series.unit);
+    return withOffscaleThresholds(chart, axis, unit);
   }
 
   DateFormat _axisFormat(List<SignalHistoryPoint> points) {
@@ -258,73 +286,33 @@ class _PointTooltip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final spec = signalSpecOf(series);
     final isCounter = series.kind == SignalKind.counter;
-    final isStatus = series.kind == SignalKind.status;
-    final primary = isCounter ? point.delta : series.plotValue(point);
-
-    final exceeding = isCounter ? null : series.exceedingValue(point);
-
-    final primaryText = isCounter
-        ? 'Δ ${formatSignalValueWithUnit(primary, series.unit)}'
-        : isStatus && point.last != null
-        ? 'last ${formatSignalValueWithUnit(primary, series.unit)}'
-        : formatSignalValueWithUnit(primary, series.unit);
-
-    final hasEnvelope =
+    final envelope =
         !isCounter &&
         series.aggregation == HistoryAggregation.minAvgMax &&
         point.min != null &&
         point.max != null;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-      constraints: const BoxConstraints(maxWidth: 220),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            formatSignalTimestamp(point.ts),
-            style: const TextStyle(
-              color: SignalChartColors.subText,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            primaryText,
-            style: TextStyle(
-              color: exceeding != null
-                  ? SignalChartColors.alert
-                  : SignalChartColors.text,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          if (hasEnvelope)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                'min ${formatSignalValue(point.min)}'
-                ' · max ${formatSignalValue(point.max)}',
-                style: const TextStyle(
-                  color: SignalChartColors.mutedText,
-                  fontSize: 10.5,
-                ),
-              ),
-            ),
-          if (point.count != null &&
-              series.aggregation == HistoryAggregation.minAvgMax)
-            Text(
-              '${point.count} samples',
-              style: const TextStyle(
-                color: SignalChartColors.mutedText,
-                fontSize: 10,
-              ),
-            ),
-        ],
-      ),
+    final rows = ChartHoverStyle.rows(
+      kind: hoverKindOf(series.kind),
+      value: isCounter ? point.delta : series.plotValue(point),
+      unit: spec.resolveUnit(series.unit),
+      decimals: spec.decimals,
+      min: envelope ? point.min : null,
+      max: envelope ? point.max : null,
+      samples: series.aggregation == HistoryAggregation.minAvgMax
+          ? point.count
+          : null,
+      isSnapshot: series.aggregation == HistoryAggregation.snapshot,
+    );
+
+    final exceeding = isCounter ? null : series.exceedingValue(point);
+
+    return ChartHoverCard(
+      title: formatSignalTimestamp(point.ts),
+      rows: rows,
+      alerts: exceeding != null ? const {0} : const <int>{},
     );
   }
 }

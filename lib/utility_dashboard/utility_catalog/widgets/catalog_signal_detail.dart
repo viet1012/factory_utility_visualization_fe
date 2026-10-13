@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
+import '../../shared/charts/value_format.dart';
 import '../catalog_view_models.dart';
 import '../providers/filter_chart_controller.dart';
 import '../providers/signal_history_controller.dart';
 import 'filter_results/catalog_filter_results_grid.dart';
 import 'filter_results/chart/filter_chart_view.dart';
 import 'filter_results/filter_over_threshold_badge.dart';
+import 'filter_results/filter_result_cells.dart';
 import 'signal_chart/signal_chart_view.dart';
 
 class CatalogSignalDetail extends StatelessWidget {
@@ -685,6 +687,22 @@ class CatalogDataSource extends DataGridSource {
   }
 
   Widget _valueCell(CatalogTableRow row) {
+    final value = row.value;
+
+    // STATUS (kind tu /latest): badge "Code N" giong Filter results.
+    if (row.isStatus) {
+      return Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: value != null && value.isFinite
+            ? StatusCodeBadge(code: value.round(), stale: row.isStale)
+            : const Text(
+                kMissingValue,
+                style: TextStyle(color: Color(0xFF6F859F)),
+              ),
+      );
+    }
+
     return Container(
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: 12),

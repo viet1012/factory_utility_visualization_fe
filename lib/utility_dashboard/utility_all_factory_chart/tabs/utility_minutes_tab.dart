@@ -1,8 +1,6 @@
 import 'dart:async';
 
 import 'package:factory_utility_visualization/utility_dashboard/'
-    'utility_all_factory_chart/widgets/utility_chart_loading_state.dart';
-import 'package:factory_utility_visualization/utility_dashboard/'
     'utility_all_factory_chart/widgets/utility_minute_chart_grid.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../controllers/utility_chart_catalog_controller.dart';
 import '../controllers/utility_minute_chart_controller.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
+import '../../shared/widgets/chart_loading_widgets.dart';
 import '../../shared/widgets/chart_state_widgets.dart';
 import '../models/utility_chart_models.dart';
 
@@ -41,6 +40,23 @@ class UtilityMinutesTab extends StatefulWidget {
 
 class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
   String _lastLoadSignature = '';
+
+  /// Grid da ve lan truoc (catalog khop). Doi filter: giu grid nay mo kem
+  /// progress bar cho toi khi catalog moi ve, khong nhay ve skeleton.
+  Widget? _lastGrid;
+
+  /// Catalog chua khop request hien tai.
+  Widget _pendingBody(Color color) {
+    final last = _lastGrid;
+    if (last == null) return ChartGridSkeleton(color: color);
+
+    return ChartBusyOverlay(busy: true, color: color, child: last);
+  }
+
+  Widget _showGrid(Widget grid, Color color) {
+    _lastGrid = grid;
+    return ChartBusyOverlay(busy: false, color: color, child: grid);
+  }
 
   @override
   void didUpdateWidget(covariant UtilityMinutesTab oldWidget) {
@@ -246,17 +262,11 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
             );
           }
 
-          return UtilityChartLoadingState(
-            cate: widget.cate,
-            message: 'Loading ${widget.cate} data...',
-          );
+          return _pendingBody(ChartThemes.byCate(widget.cate).line);
         }
 
         if (vm.loading && vm.charts.isEmpty) {
-          return UtilityChartLoadingState(
-            cate: widget.cate,
-            message: 'Loading minute data...',
-          );
+          return _pendingBody(ChartThemes.byCate(widget.cate).line);
         }
 
         if (vm.error != null && vm.charts.isEmpty) {
@@ -296,12 +306,15 @@ class _UtilityMinutesTabState extends State<UtilityMinutesTab> {
          */
         _scheduleLoad(vm.charts, desiredSignature);
 
-        return UtilityMinuteChartGrid(
-          charts: vm.charts,
-          facId: widget.facId,
-          cate: widget.cate,
-          scadaId: widget.scadaId,
-          selectedBox: widget.selectedBox,
+        return _showGrid(
+          UtilityMinuteChartGrid(
+            charts: vm.charts,
+            facId: widget.facId,
+            cate: widget.cate,
+            scadaId: widget.scadaId,
+            selectedBox: widget.selectedBox,
+          ),
+          ChartThemes.byCate(widget.cate).line,
         );
       },
     );

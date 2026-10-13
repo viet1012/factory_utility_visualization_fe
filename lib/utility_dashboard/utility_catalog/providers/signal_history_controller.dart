@@ -88,6 +88,20 @@ class SignalHistoryController extends ChangeNotifier {
 
   List<SignalHistorySeries> get series => _series;
 
+  List<SignalHistorySeries>? _indexedSeries;
+  Map<String, SignalHistorySeries> _seriesById = const {};
+
+  /// Series cua mot signal trong [series] dang hien (null = khong co).
+  /// Cho phep moi the chart chi lang nghe du lieu cua chinh no.
+  SignalHistorySeries? seriesById(String signalId) {
+    if (!identical(_indexedSeries, _series)) {
+      _indexedSeries = _series;
+      _seriesById = {for (final item in _series) item.signalId: item};
+    }
+
+    return _seriesById[signalId];
+  }
+
   /// Cach gop diem cua [series] dang hien thi; null khi chua co ket qua.
   HistoryAggregation? get aggregation => _aggregation;
 

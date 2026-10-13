@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'series_history_response.dart';
 
 // ============================================================
@@ -98,6 +96,9 @@ class HourlySignalSeries {
   final String boxDeviceId;
   final String plcAddress;
   final String name;
+
+  /// Ma signal backend (vd E_Temp), dung chon SignalChartSpec.
+  final String code;
   final String unit;
   final HourlySignalKind kind;
 
@@ -114,6 +115,7 @@ class HourlySignalSeries {
     required this.boxDeviceId,
     required this.plcAddress,
     required this.name,
+    required this.code,
     required this.unit,
     required this.kind,
     required this.thresholdLow,
@@ -192,6 +194,7 @@ class HourlySignalSeries {
       boxDeviceId: dto.boxDeviceId,
       plcAddress: dto.plcAddress,
       name: dto.name.isNotEmpty ? dto.name : dto.code,
+      code: dto.code,
       unit: dto.unit,
       kind: kind,
       thresholdLow: dto.thresholdLow,
@@ -298,21 +301,6 @@ class HourlySeriesSummary {
       statusChanges: statusChanges,
     );
   }
-}
-
-// ============================================================
-// AXIS
-// ============================================================
-
-/// Phang khi bien do <= max(1e-9 x |gia tri|, 1e-6).
-///
-/// Cung quy tac voi YAxisPlan._isFlat ben utility_catalog (ham do private va
-/// gan voi model cua module kia nen khong import duoc). Bien do ~1e-14 do sai
-/// so double neu dua vao truc se lam Syncfusion chon interval nho hon buoc
-/// lam tron double -> vong lap label khong tang -> treo main thread.
-bool hourlyIsFlat(double lo, double hi) {
-  final magnitude = math.max(lo.abs(), hi.abs());
-  return (hi - lo).abs() <= math.max(magnitude * 1e-9, 1e-6);
 }
 
 double _round6(double value) => (value * 1e6).roundToDouble() / 1e6;

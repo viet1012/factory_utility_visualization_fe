@@ -5,11 +5,22 @@ import 'package:factory_utility_visualization/'
     'models/utility_daily_models.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
+import '../../shared/charts/axis_planner.dart';
+import '../../shared/charts/chart_animation.dart';
+import '../../shared/charts/chart_downsample.dart';
+import '../../shared/charts/chart_hover_style.dart';
+import '../../shared/charts/signal_chart_spec.dart';
+import '../../shared/charts/value_format.dart';
+import '../../shared/widgets/chart_loading_widgets.dart';
+import '../../shared/widgets/debounced_layout_builder.dart';
+import '../../shared/widgets/lazy_chart_gate.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
 import '../../shared/widgets/scada_panel_frame.dart';
+import '../controllers/utility_chart_catalog_controller.dart';
 
 class UtilityDailyChartGrid extends StatelessWidget {
   final List<UtilityDailySeries> series;
@@ -37,12 +48,10 @@ class UtilityDailyChartGrid extends StatelessWidget {
       return const _DailyGridEmptyState();
     }
 
-    return LayoutBuilder(
+    // Resize: giu grid cu 150ms roi moi tinh lai so cot / chieu cao.
+    return DebouncedLayoutBuilder(
       builder: (context, constraints) {
         final columnCount = _columnCount(constraints.maxWidth);
-
-        final cardWidth =
-            (constraints.maxWidth - ((columnCount - 1) * 10)) / columnCount;
 
         final cardHeight = _cardHeight(
           availableHeight: constraints.maxHeight,
@@ -67,15 +76,12 @@ class UtilityDailyChartGrid extends StatelessWidget {
                 ? item.boxDeviceId.trim()
                 : boxDeviceId;
 
+            // Key on dinh theo signal: refresh / resize khong tao lai the.
             return RepaintBoundary(
+              key: ValueKey(
+                '$currentBoxDeviceId|${item.plcAddress}|${item.nameEn}',
+              ),
               child: _DailySignalChartCard(
-                key: ValueKey(
-                  '$currentBoxDeviceId|'
-                  '${item.plcAddress}|'
-                  '${item.nameEn}|'
-                  '${item.dailyValues.length}|'
-                  '$cardWidth',
-                ),
                 series: item,
                 facId: facId,
                 cate: cate,
@@ -203,7 +209,6 @@ class _DailySignalChartCard extends StatelessWidget {
   final String boxDeviceId;
 
   const _DailySignalChartCard({
-    super.key,
     required this.series,
     required this.facId,
     required this.cate,
@@ -224,6 +229,8 @@ class _DailySignalChartCard extends StatelessWidget {
 
     final summary = _DailySeriesSummary.from(series: series, points: points);
 
+    final spec = dailySpecOf(context, series, boxDeviceId);
+
     return ScadaPanelFrame(
       color: theme.accent,
       child: Container(
@@ -237,7 +244,9 @@ class _DailySignalChartCard extends StatelessWidget {
               facTitle: facId,
               boxDeviceId: _displaySignalName(series.nameEn),
               plcAddress: series.plcAddress,
-              unit: series.unit.trim().isEmpty ? null : series.unit.trim(),
+              unit: spec.resolveUnit(series.unit).isEmpty
+                  ? null
+                  : spec.resolveUnit(series.unit),
               isLoading: false,
               hasError: false,
               err: null,
@@ -247,6 +256,7 @@ class _DailySignalChartCard extends StatelessWidget {
               latestPoint: latestPoint,
               series: series,
               summary: summary,
+              spec: spec,
               boxDeviceId: boxDeviceId,
               color: theme.accent,
             ),
@@ -256,10 +266,14 @@ class _DailySignalChartCard extends StatelessWidget {
                   ? const _DailyChartEmptyState()
                   : Padding(
                       padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
-                      child: _DailyChart(
-                        series: series,
-                        points: points,
-                        lineColor: theme.line,
+                      child: LazyChartGate(
+                        placeholder: ChartBodySkeleton(color: theme.line),
+                        builder: (_) => _DailyChart(
+                          series: series,
+                          spec: spec,
+                          points: points,
+                          lineColor: theme.line,
+                        ),
                       ),
                     ),
             ),
@@ -276,6 +290,41 @@ class _DailySignalChartCard extends StatelessWidget {
 
     return point.avgValue != null || point.lastValue != null;
   }
+}
+
+/// Daily: COUNTER (DAILY_DELTA) ve cot theo ngay, ANALOG ve lineBand theo
+/// ngay; truc / so le / format lay tu SignalChartSpec. API daily khong tra
+/// code nen code / unit / ten tra qua /chart-catalog theo (box, plc).
+SignalChartSpec dailySpecOf(
+  BuildContext context,
+  UtilityDailySeries series,
+  String boxDeviceId,
+) {
+  final energy = series.isEnergyConsumption;
+
+  final spec = context
+      .read<UtilityChartCatalogController>()
+      .resolveSpecForSignal(
+        series.boxDeviceId.trim().isNotEmpty ? series.boxDeviceId : boxDeviceId,
+        series.plcAddress,
+        unit: series.unit,
+        kind: energy ? 'COUNTER' : 'ANALOG',
+        name: series.nameEn,
+      );
+
+  final style = energy ? ChartStyle.bar : ChartStyle.lineBand;
+  if (spec.style == style) return spec;
+
+  return SignalChartSpec(
+    style: style,
+    axis: energy ? AxisMode.zeroBased : spec.axis,
+    fixedMin: spec.fixedMin,
+    fixedMax: spec.fixedMax,
+    decimals: spec.decimals,
+    showThreshold: spec.showThreshold,
+    hideTrivialLowerThreshold: spec.hideTrivialLowerThreshold,
+    unitOverride: spec.unitOverride,
+  );
 }
 
 // ============================================================
@@ -312,6 +361,7 @@ class _DailyLatestInfoBar extends StatelessWidget {
   final UtilityDailyPoint? latestPoint;
   final UtilityDailySeries series;
   final _DailySeriesSummary summary;
+  final SignalChartSpec spec;
   final String boxDeviceId;
   final Color color;
 
@@ -319,13 +369,14 @@ class _DailyLatestInfoBar extends StatelessWidget {
     required this.latestPoint,
     required this.series,
     required this.summary,
+    required this.spec,
     required this.boxDeviceId,
     required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    final unit = series.unit.trim();
+    final unit = spec.resolveUnit(series.unit);
 
     return Container(
       height: 42,
@@ -360,7 +411,7 @@ class _DailyLatestInfoBar extends StatelessWidget {
               children: [
                 Flexible(
                   child: Text(
-                    _formatNumber(summary.latestValue),
+                    formatValue(summary.latestValue, decimals: spec.decimals),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -444,11 +495,13 @@ class _DailyLatestInfoBar extends StatelessWidget {
 
 class _DailyChart extends StatefulWidget {
   final UtilityDailySeries series;
+  final SignalChartSpec spec;
   final List<UtilityDailyPoint> points;
   final Color lineColor;
 
   const _DailyChart({
     required this.series,
+    required this.spec,
     required this.points,
     required this.lineColor,
   });
@@ -459,12 +512,15 @@ class _DailyChart extends StatefulWidget {
 
 class _DailyChartState extends State<_DailyChart> {
   static final DateFormat _axisDateFormat = DateFormat('dd/MM');
+  static final DateFormat _hoverDateFormat = DateFormat('EEE dd/MM', 'en_US');
+
+  late final TrackballBehavior _trackball;
+  final FirstPaintAnimation _animation = FirstPaintAnimation();
 
   int? _selectedPointIndex;
-  late TooltipBehavior _tooltipBehavior;
-  late TrackballBehavior _trackballBehavior;
-  late _DailyChartBounds _bounds;
-  late List<UtilityDailyPoint> _rangePoints;
+
+  /// Diem theo ngay (ms) de trackball tra lai diem goc tu x.
+  Map<int, UtilityDailyPoint> _pointsByDay = const {};
 
   UtilityDailyPoint? get _selectedPoint {
     final index = _selectedPointIndex;
@@ -480,7 +536,19 @@ class _DailyChartState extends State<_DailyChart> {
   void initState() {
     super.initState();
 
-    _prepareChartState();
+    _trackball = ChartHoverStyle.trackball(
+      markerColor: widget.lineColor,
+      builder: (context, details) {
+        final x = details.point?.x;
+        final point = x is DateTime
+            ? _pointsByDay[x.millisecondsSinceEpoch]
+            : null;
+        if (point == null) return const SizedBox.shrink();
+
+        return _hoverCard(point);
+      },
+    );
+
     _selectLatestPoint();
   }
 
@@ -494,41 +562,7 @@ class _DailyChartState extends State<_DailyChart> {
         oldWidget.series.nameEn != widget.series.nameEn ||
         !identical(oldWidget.points, widget.points);
 
-    if (!dataChanged && oldWidget.lineColor == widget.lineColor) {
-      return;
-    }
-
-    _prepareChartState();
-    if (dataChanged) {
-      _selectLatestPoint();
-    }
-  }
-
-  void _prepareChartState() {
-    _tooltipBehavior = TooltipBehavior(enable: false);
-    _trackballBehavior = TrackballBehavior(
-      enable: true,
-      activationMode: ActivationMode.singleTap,
-      tooltipDisplayMode: TrackballDisplayMode.none,
-      lineType: TrackballLineType.vertical,
-      lineColor: widget.lineColor.withValues(alpha: .55),
-      lineWidth: 1,
-      markerSettings: TrackballMarkerSettings(
-        markerVisibility: TrackballVisibilityMode.visible,
-        width: 8,
-        height: 8,
-        borderWidth: 2,
-        borderColor: widget.lineColor,
-        color: const Color(0xFF0B1727),
-      ),
-    );
-    _bounds = _DailyChartBounds.from(
-      series: widget.series,
-      points: widget.points,
-    );
-    _rangePoints = widget.points
-        .where((point) => point.minValue != null && point.maxValue != null)
-        .toList(growable: false);
+    if (dataChanged) _selectLatestPoint();
   }
 
   void _selectLatestPoint() {
@@ -547,15 +581,73 @@ class _DailyChartState extends State<_DailyChart> {
     setState(() => _selectedPointIndex = index);
   }
 
+  double? _mainValue(UtilityDailyPoint point) {
+    return widget.series.isEnergyConsumption
+        ? point.consumption
+        : point.avgValue ?? point.lastValue;
+  }
+
+  Widget _hoverCard(UtilityDailyPoint point) {
+    final energy = widget.series.isEnergyConsumption;
+    final hasRange = point.minValue != null && point.maxValue != null;
+
+    return ChartHoverCard(
+      title: _hoverDateFormat.format(point.recordDate),
+      rows: ChartHoverStyle.rows(
+        kind: energy ? HoverKind.counter : HoverKind.analog,
+        value: _mainValue(point),
+        unit: widget.spec.resolveUnit(widget.series.unit),
+        decimals: widget.spec.decimals,
+        min: hasRange ? point.minValue : null,
+        max: hasRange ? point.maxValue : null,
+        samples: point.sampleCount > 0 ? point.sampleCount : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final energy = widget.series.isEnergyConsumption;
+    final spec = widget.spec;
+
+    final hasBand =
+        !energy &&
+        widget.points.any((p) => p.minValue != null && p.maxValue != null);
+
+    final points = downsampleMinMax(
+      widget.points,
+      value: _mainValue,
+      low: hasBand
+          ? (UtilityDailyPoint p) => p.minValue ?? _mainValue(p)
+          : null,
+      high: hasBand
+          ? (UtilityDailyPoint p) => p.maxValue ?? _mainValue(p)
+          : null,
+    );
+
+    _pointsByDay = {
+      for (final point in points)
+        point.recordDate.millisecondsSinceEpoch: point,
+    };
+
+    final axis = planAxis(
+      values: [
+        for (final point in points) ...[
+          _mainValue(point),
+          if (hasBand) ...[point.minValue, point.maxValue],
+        ],
+      ],
+      spec: spec,
+    );
+
+    final animationMs = _animation.duration();
 
     return Column(
       children: [
         _DailySelectedPointPanel(
           point: _selectedPoint,
           series: widget.series,
+          spec: spec,
           energy: energy,
           color: widget.lineColor,
         ),
@@ -567,13 +659,11 @@ class _DailyChartState extends State<_DailyChart> {
             margin: const EdgeInsets.fromLTRB(4, 2, 8, 0),
             plotAreaBorderWidth: 0,
 
-            tooltipBehavior: _tooltipBehavior,
-
-            trackballBehavior: _trackballBehavior,
+            trackballBehavior: _trackball,
 
             primaryXAxis: DateTimeCategoryAxis(
               dateFormat: _axisDateFormat,
-              interval: _xAxisInterval(widget.points.length),
+              interval: _xAxisInterval(points.length),
               labelRotation: -35,
               edgeLabelPlacement: EdgeLabelPlacement.shift,
               labelIntersectAction: AxisLabelIntersectAction.hide,
@@ -591,8 +681,9 @@ class _DailyChartState extends State<_DailyChart> {
             ),
 
             primaryYAxis: NumericAxis(
-              minimum: _bounds.minimum,
-              maximum: _bounds.maximum,
+              minimum: axis.min,
+              maximum: axis.max,
+              interval: axis.interval,
               rangePadding: ChartRangePadding.none,
               axisLine: const AxisLine(width: 0),
               majorTickLines: const MajorTickLines(size: 0),
@@ -607,13 +698,15 @@ class _DailyChartState extends State<_DailyChart> {
               ),
               axisLabelFormatter: (AxisLabelRenderDetails details) {
                 return ChartAxisLabel(
-                  _compactAxisNumber(details.value),
+                  axis.label(details.value),
                   details.textStyle,
                 );
               },
             ),
 
-            series: energy ? _buildEnergySeries() : _buildMeasuredSeries(),
+            series: energy
+                ? _buildEnergySeries(points, animationMs)
+                : _buildMeasuredSeries(points, animationMs, hasBand: hasBand),
           ),
         ),
       ],
@@ -636,10 +729,13 @@ class _DailyChartState extends State<_DailyChart> {
     return 4;
   }
 
-  List<CartesianSeries<UtilityDailyPoint, DateTime>> _buildEnergySeries() {
+  List<CartesianSeries<UtilityDailyPoint, DateTime>> _buildEnergySeries(
+    List<UtilityDailyPoint> points,
+    double animationMs,
+  ) {
     return [
       ColumnSeries<UtilityDailyPoint, DateTime>(
-        dataSource: widget.points,
+        dataSource: points,
         xValueMapper: (point, _) => point.recordDate,
         yValueMapper: (point, _) => point.consumption,
 
@@ -659,40 +755,55 @@ class _DailyChartState extends State<_DailyChart> {
         spacing: .16,
 
         enableTooltip: false,
-        animationDuration: 300,
+        animationDuration: animationMs,
 
         dataLabelSettings: DataLabelSettings(
-          isVisible: widget.points.length <= 8,
+          isVisible: points.length <= 8,
           labelAlignment: ChartDataLabelAlignment.top,
-          textStyle: const TextStyle(
-            color: Color(0xFFCBD5E1),
-            fontSize: 8,
-            fontWeight: FontWeight.w700,
+          builder: (data, point, series, pointIndex, seriesIndex) => Text(
+            formatValue(
+              (data as UtilityDailyPoint).consumption,
+              decimals: widget.spec.decimals,
+            ),
+            style: const TextStyle(
+              color: Color(0xFFCBD5E1),
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),
     ];
   }
 
-  List<CartesianSeries<UtilityDailyPoint, DateTime>> _buildMeasuredSeries() {
+  List<CartesianSeries<UtilityDailyPoint, DateTime>> _buildMeasuredSeries(
+    List<UtilityDailyPoint> points,
+    double animationMs, {
+    required bool hasBand,
+  }) {
     return [
-      RangeAreaSeries<UtilityDailyPoint, DateTime>(
-        dataSource: _rangePoints,
-        xValueMapper: (point, _) => point.recordDate,
-        lowValueMapper: (point, _) => point.minValue,
-        highValueMapper: (point, _) => point.maxValue,
-        color: widget.lineColor.withValues(alpha: .10),
-        borderColor: widget.lineColor.withValues(alpha: .22),
-        borderWidth: .8,
-        name: 'Min - Max',
-        enableTooltip: false,
-        animationDuration: 0,
-      ),
+      if (hasBand)
+        RangeAreaSeries<UtilityDailyPoint, DateTime>(
+          dataSource: points,
+          xValueMapper: (point, _) => point.recordDate,
+          lowValueMapper: (point, _) => point.minValue,
+          highValueMapper: (point, _) => point.maxValue,
+          color: widget.lineColor.withValues(alpha: .10),
+          borderColor: widget.lineColor.withValues(alpha: .22),
+          borderWidth: .8,
+          name: 'Min - Max',
+          enableTooltip: false,
+          enableTrackball: false,
+          animationDuration: 0,
+          emptyPointSettings: const EmptyPointSettings(
+            mode: EmptyPointMode.gap,
+          ),
+        ),
 
-      SplineSeries<UtilityDailyPoint, DateTime>(
-        dataSource: widget.points,
+      LineSeries<UtilityDailyPoint, DateTime>(
+        dataSource: points,
         xValueMapper: (point, _) => point.recordDate,
-        yValueMapper: (point, _) => point.avgValue ?? point.lastValue,
+        yValueMapper: (point, _) => _mainValue(point),
 
         // Click marker AVG để đổi ngày.
         onPointTap: _handlePointTap,
@@ -706,15 +817,15 @@ class _DailyChartState extends State<_DailyChart> {
 
         markerSettings: MarkerSettings(
           isVisible: true,
-          width: widget.points.length <= 16 ? 7 : 5,
-          height: widget.points.length <= 16 ? 7 : 5,
+          width: points.length <= 16 ? 7 : 5,
+          height: points.length <= 16 ? 7 : 5,
           shape: DataMarkerType.circle,
           color: widget.lineColor,
           borderWidth: 1.7,
           borderColor: const Color(0xFF0B1727),
         ),
 
-        animationDuration: 300,
+        animationDuration: animationMs,
       ),
     ];
   }
@@ -726,12 +837,14 @@ class _DailyChartState extends State<_DailyChart> {
 class _DailySelectedPointPanel extends StatelessWidget {
   final UtilityDailyPoint? point;
   final UtilityDailySeries series;
+  final SignalChartSpec spec;
   final bool energy;
   final Color color;
 
   const _DailySelectedPointPanel({
     required this.point,
     required this.series,
+    required this.spec,
     required this.energy,
     required this.color,
   });
@@ -739,7 +852,8 @@ class _DailySelectedPointPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedPoint = point;
-    final unit = series.unit.trim();
+    final unit = spec.resolveUnit(series.unit);
+    final decimals = spec.decimals;
 
     if (selectedPoint == null) {
       return Container(
@@ -854,6 +968,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                     label: 'Consumption',
                     value: selectedPoint.consumption,
                     unit: unit,
+                    decimals: decimals,
                     color: color,
                     centered: false,
                   ),
@@ -868,6 +983,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                           value:
                               selectedPoint.avgValue ?? selectedPoint.lastValue,
                           unit: unit,
+                          decimals: decimals,
                           color: color,
                         ),
                       ),
@@ -879,6 +995,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                           label: 'MIN',
                           value: selectedPoint.minValue,
                           unit: unit,
+                          decimals: decimals,
                         ),
                       ),
 
@@ -889,6 +1006,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                           label: 'MAX',
                           value: selectedPoint.maxValue,
                           unit: unit,
+                          decimals: decimals,
                         ),
                       ),
 
@@ -899,6 +1017,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                           label: 'LATEST',
                           value: selectedPoint.lastValue,
                           unit: unit,
+                          decimals: decimals,
                         ),
                       ),
                     ],
@@ -971,6 +1090,7 @@ class _SelectedMetric extends StatelessWidget {
   final String label;
   final double? value;
   final String unit;
+  final int decimals;
   final Color? color;
   final bool centered;
 
@@ -978,6 +1098,7 @@ class _SelectedMetric extends StatelessWidget {
     required this.label,
     required this.value,
     required this.unit,
+    required this.decimals,
     this.color,
     this.centered = true,
   });
@@ -1012,7 +1133,7 @@ class _SelectedMetric extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                _formatDailyValue(value),
+                formatValue(value, decimals: decimals),
                 maxLines: 1,
                 style: TextStyle(
                   color: color ?? Colors.white.withValues(alpha: .90),
@@ -1044,79 +1165,6 @@ class _SelectedMetric extends StatelessWidget {
     );
   }
 }
-// ============================================================
-// Y AXIS BOUNDS
-// ============================================================
-
-class _DailyChartBounds {
-  final double minimum;
-  final double maximum;
-
-  const _DailyChartBounds({required this.minimum, required this.maximum});
-
-  factory _DailyChartBounds.from({
-    required UtilityDailySeries series,
-    required List<UtilityDailyPoint> points,
-  }) {
-    final values = <double>[];
-
-    if (series.isEnergyConsumption) {
-      values.addAll(
-        points.map((point) => point.consumption).whereType<double>(),
-      );
-    } else {
-      for (final point in points) {
-        final min = point.minValue;
-        final max = point.maxValue;
-        final avg = point.avgValue ?? point.lastValue;
-
-        if (min != null && min.isFinite) {
-          values.add(min);
-        }
-
-        if (max != null && max.isFinite) {
-          values.add(max);
-        }
-
-        if (avg != null && avg.isFinite) {
-          values.add(avg);
-        }
-      }
-    }
-
-    if (values.isEmpty) {
-      return const _DailyChartBounds(minimum: 0, maximum: 1);
-    }
-
-    final rawMin = values.reduce(math.min);
-
-    final rawMax = values.reduce(math.max);
-
-    if (rawMin == rawMax) {
-      final padding = rawMin.abs() < 1 ? .5 : rawMin.abs() * .08;
-
-      return _DailyChartBounds(
-        minimum: rawMin - padding,
-        maximum: rawMax + padding,
-      );
-    }
-
-    final difference = rawMax - rawMin;
-
-    final padding = difference * .14;
-
-    var minimum = rawMin - padding;
-
-    final maximum = rawMax + padding;
-
-    if (series.isEnergyConsumption && minimum > 0) {
-      minimum = 0;
-    }
-
-    return _DailyChartBounds(minimum: minimum, maximum: maximum);
-  }
-}
-
 // ============================================================
 // FOOTER
 // ============================================================
@@ -1192,7 +1240,7 @@ class _DailySeriesSummary {
       return null;
     }
 
-    return values.reduce(math.min);
+    return values.reduce((a, b) => a < b ? a : b);
   }
 
   static double? _maxOrNull(List<double> values) {
@@ -1200,7 +1248,7 @@ class _DailySeriesSummary {
       return null;
     }
 
-    return values.reduce(math.max);
+    return values.reduce((a, b) => a > b ? a : b);
   }
 }
 
@@ -1342,47 +1390,6 @@ String _displaySignalName(String name) {
     default:
       return value.isEmpty ? 'Unknown Signal' : value;
   }
-}
-
-String _formatDailyValue(double? value) {
-  if (value == null || !value.isFinite) {
-    return '--';
-  }
-
-  return NumberFormat('#,##0.0').format(value);
-}
-
-String _compactAxisNumber(num value) {
-  final number = value.toDouble();
-  final absolute = number.abs();
-
-  if (absolute >= 1000000) {
-    return '${(number / 1000000).toStringAsFixed(1)}M';
-  }
-
-  if (absolute >= 1000) {
-    return '${(number / 1000).toStringAsFixed(1)}K';
-  }
-
-  return number.toStringAsFixed(1);
-}
-
-String _formatNumber(double? value) {
-  if (value == null || !value.isFinite) {
-    return '--';
-  }
-
-  final absolute = value.abs();
-
-  if (absolute >= 1000000) {
-    return '${(value / 1000000).toStringAsFixed(1)}M';
-  }
-
-  if (absolute >= 1000) {
-    return '${(value / 1000).toStringAsFixed(1)}K';
-  }
-
-  return NumberFormat('#,##0.0').format(value);
 }
 
 // ============================================================

@@ -3,10 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../shared/charts/value_format.dart';
 import '../../catalog_value_format.dart';
 import '../../catalog_view_models.dart';
 import '../../models/signal_history_models.dart';
 import '../../providers/filter_sparkline_controller.dart';
+import '../signal_chart/signal_chart_format.dart';
 import '../signal_chart/signal_chart_palette.dart';
 import 'signal_sparkline.dart';
 
@@ -22,9 +24,10 @@ String filterSignalIdOf(CatalogTableRow row) {
   );
 }
 
-/// Signal trang thai: kind STATUS tu API, hoac (khi chua tai xong lich su)
-/// ten bat dau bang "Slave".
+/// Signal trang thai, theo thu tu: kind cua /latest (row.kind) -> kind cua
+/// /series/history -> ten bat dau bang "Slave".
 bool isStatusSignal(CatalogTableRow row, SignalHistorySeries? series) {
+  if (row.kind != null) return row.isStatus;
   if (series != null) return series.kind == SignalKind.status;
 
   return row.displaySignalName.toLowerCase().startsWith('slave');
@@ -235,10 +238,17 @@ class FilterValueCell extends StatelessWidget {
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: hasValue
-            ? _CodeBadge(code: value.round(), stale: row.isStale)
-            : const Text('--', style: TextStyle(color: SignalChartColors.mutedText)),
+            ? StatusCodeBadge(code: value.round(), stale: row.isStale)
+            : const Text(
+                kMissingValue,
+                style: TextStyle(color: SignalChartColors.mutedText),
+              ),
       );
     }
+
+    // Co lich su: spec theo code / kind cua /series/history (giong card
+    // chart); chua co: spec cua dong latest.
+    final spec = series == null ? row.spec : signalSpecOf(series);
 
     final low = series?.thresholdLow;
     final high = series?.thresholdHigh;
@@ -259,7 +269,7 @@ class FilterValueCell extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            formatCatalogValueWithUnit(value, row.unit),
+            formatCatalogValueWithUnit(value, row.unit, spec),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -272,8 +282,8 @@ class FilterValueCell extends StatelessWidget {
             const SizedBox(height: 5),
             Tooltip(
               message:
-                  'Low ${formatCatalogValueWithUnit(low, row.unit)}'
-                  '  ·  High ${formatCatalogValueWithUnit(high, row.unit)}',
+                  'Low ${formatCatalogValueWithUnit(low, row.unit, spec)}'
+                  '  ·  High ${formatCatalogValueWithUnit(high, row.unit, spec)}',
               child: _ThresholdPositionBar(
                 value: value,
                 low: low,
@@ -288,11 +298,12 @@ class FilterValueCell extends StatelessWidget {
   }
 }
 
-class _CodeBadge extends StatelessWidget {
+/// Badge "Code N" cua signal STATUS (Filter results, bang device).
+class StatusCodeBadge extends StatelessWidget {
   final int code;
   final bool stale;
 
-  const _CodeBadge({required this.code, required this.stale});
+  const StatusCodeBadge({super.key, required this.code, required this.stale});
 
   @override
   Widget build(BuildContext context) {

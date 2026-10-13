@@ -4,6 +4,8 @@
 /// nam cung mot file.
 library;
 
+import '../shared/charts/signal_chart_spec.dart';
+import '../shared/charts/signal_chart_spec_registry.dart';
 import 'catalog_value_format.dart';
 
 // ============================================================
@@ -26,6 +28,9 @@ class CatalogTableRow {
   final double? value;
   final String unit;
   final DateTime? recordedAt;
+
+  /// Kind tu /latest ("ANALOG" | "COUNTER" | "STATUS"), null khi khong co.
+  final String? kind;
 
   /*
    * Các giá trị đã chuẩn hóa.
@@ -59,6 +64,7 @@ class CatalogTableRow {
     required this.value,
     required this.unit,
     required this.recordedAt,
+    this.kind,
   }) : normalizedFacility = facility.trim(),
        normalizedCategory = category.trim(),
        normalizedRawCategory = rawCategory.trim(),
@@ -139,8 +145,19 @@ class CatalogTableRow {
     return '--';
   }
 
+  /// Spec cua signal theo code (cateId) / unit / kind / ten cua /latest.
+  late final SignalChartSpec spec = SignalChartSpecRegistry.resolve(
+    code: normalizedCateId,
+    unit: normalizedUnit,
+    kind: kind,
+    name: normalizedSignalName,
+  );
+
+  /// Signal STATUS theo kind cua /latest.
+  bool get isStatus => kind == 'STATUS';
+
   String get displayValue {
-    return formatCatalogValueWithUnit(value, normalizedUnit);
+    return formatCatalogValueWithUnit(value, normalizedUnit, spec);
   }
 
   String get displayTime {

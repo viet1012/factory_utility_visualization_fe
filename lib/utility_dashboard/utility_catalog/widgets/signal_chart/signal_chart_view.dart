@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
@@ -8,6 +9,7 @@ import '../../../shared/polling/polling_coordinator.dart';
 import '../../../shared/polling/polling_scope.dart';
 import '../../../shared/polling/polling_task_ids.dart';
 import '../../../shared/widgets/chart_state_widgets.dart';
+import '../../../shared/widgets/debounced_layout_builder.dart';
 import '../../api/signal_history_repository.dart';
 import '../../catalog_view_models.dart';
 import '../../models/signal_history_models.dart';
@@ -129,22 +131,28 @@ class _SignalChartViewState extends State<SignalChartView> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.watch<SignalHistoryController>();
+    /*
+     * Chi lang nghe trang thai chung (range / dang tai / loi / danh sach
+     * signal). Du lieu tung signal do moi the tu Selector rieng
+     * (_SignalCardSlot), nen polling cap nhat the khong build lai ca grid.
+     */
+    final vm = context.select<SignalHistoryController, _ViewVm>(
+      (controller) => _ViewVm.of(controller),
+    );
+    final controller = context.read<SignalHistoryController>();
 
     // Doi range: chart cu van hien (lam mo) kem progress bar manh o tren.
-    final switching = controller.switching;
+    final switching = vm.switching;
 
     return Column(
       children: [
         _RangeBar(
-          range: controller.customWindow == null ? controller.range : null,
+          range: vm.range,
           // Spinner tren chip cua range dang tai (lan dau hoac dang doi).
-          rangeLoading: controller.initialLoading || switching,
-          refreshing: controller.refreshing,
-          staleError: controller.hasData && controller.error != null,
-          hourlySnapshot:
-              controller.showingCurrent &&
-              controller.aggregation == HistoryAggregation.snapshot,
+          rangeLoading: vm.initialLoading || switching,
+          refreshing: vm.refreshing,
+          staleError: vm.staleError,
+          hourlySnapshot: vm.hourlySnapshot,
           onSelected: controller.setRange,
         ),
         SizedBox(
@@ -163,7 +171,7 @@ class _SignalChartViewState extends State<SignalChartView> {
             duration: const Duration(milliseconds: 150),
             child: IgnorePointer(
               ignoring: switching,
-              child: _buildContent(controller),
+              child: _buildContent(vm, controller),
             ),
           ),
         ),
@@ -171,12 +179,12 @@ class _SignalChartViewState extends State<SignalChartView> {
     );
   }
 
-  Widget _buildContent(SignalHistoryController controller) {
+  Widget _buildContent(_ViewVm vm, SignalHistoryController controller) {
     // Controller con giu data cua device khac (frame truoc khi bind chay).
-    final bound = controller.deviceKey == widget.device.key;
+    final bound = vm.deviceKey == widget.device.key;
 
     // Skeleton CHI o lan tai dau cua device (chua co gi de hien).
-    if (!bound || controller.initialLoading) {
+    if (!bound || vm.initialLoading) {
       return _ChartGridLayout(
         itemCount: widget.device.signals.isEmpty
             ? 2
@@ -191,9 +199,9 @@ class _SignalChartViewState extends State<SignalChartView> {
       );
     }
 
-    final error = controller.error;
+    final error = vm.error;
 
-    if (error != null && !controller.hasData) {
+    if (error != null && !vm.hasData) {
       // 400: hien message cua backend; loi khac: message chung.
       if (error is SignalHistoryRequestException) {
         return ChartApiErrorState(
@@ -215,26 +223,135 @@ class _SignalChartViewState extends State<SignalChartView> {
       return ChartApiErrorState(onRetry: controller.retry);
     }
 
-    if (!controller.hasData) {
+    if (!vm.hasData) {
       return const EmptyChartState(
         title: 'No History',
         message: 'No history data for this device in the selected range.',
       );
     }
 
-    final series = controller.series;
+    final ids = vm.signalIds;
 
     return _ChartGridLayout(
-      itemCount: series.length,
+      itemCount: ids.length,
       extent: _cardExtent,
-      itemBuilder: (index) => SignalChartCard(
-        key: ValueKey(series[index].signalId),
-        series: series[index],
-        current: _rowsById[series[index].signalId],
-        onRetry: controller.retry,
-        // Range cua data dang hien (co the khac range dang chon khi dang doi).
-        range: controller.displayedRange,
+      itemBuilder: (index) => RepaintBoundary(
+        key: ValueKey(ids[index]),
+        child: _SignalCardSlot(
+          signalId: ids[index],
+          current: _rowsById[ids[index]],
+          onRetry: controller.retry,
+          // Range cua data dang hien (co the khac range dang chon khi doi).
+          range: vm.displayedRange,
+        ),
       ),
+    );
+  }
+}
+
+/// Trang thai chung cua che do Chart (khong gom du lieu tung signal).
+class _ViewVm {
+  final String? deviceKey;
+  final HistoryRange? range;
+  final HistoryRange? displayedRange;
+  final bool initialLoading;
+  final bool switching;
+  final bool refreshing;
+  final bool hasData;
+  final bool hourlySnapshot;
+  final Object? error;
+  final List<String> signalIds;
+
+  const _ViewVm({
+    required this.deviceKey,
+    required this.range,
+    required this.displayedRange,
+    required this.initialLoading,
+    required this.switching,
+    required this.refreshing,
+    required this.hasData,
+    required this.hourlySnapshot,
+    required this.error,
+    required this.signalIds,
+  });
+
+  factory _ViewVm.of(SignalHistoryController controller) {
+    return _ViewVm(
+      deviceKey: controller.deviceKey,
+      range: controller.customWindow == null ? controller.range : null,
+      displayedRange: controller.displayedRange,
+      initialLoading: controller.initialLoading,
+      switching: controller.switching,
+      refreshing: controller.refreshing,
+      hasData: controller.hasData,
+      hourlySnapshot:
+          controller.showingCurrent &&
+          controller.aggregation == HistoryAggregation.snapshot,
+      error: controller.error,
+      signalIds: [for (final item in controller.series) item.signalId],
+    );
+  }
+
+  bool get staleError => hasData && error != null;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _ViewVm &&
+        other.deviceKey == deviceKey &&
+        other.range == range &&
+        other.displayedRange == displayedRange &&
+        other.initialLoading == initialLoading &&
+        other.switching == switching &&
+        other.refreshing == refreshing &&
+        other.hasData == hasData &&
+        other.hourlySnapshot == hourlySnapshot &&
+        other.error == error &&
+        listEquals(other.signalIds, signalIds);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    deviceKey,
+    range,
+    displayedRange,
+    initialLoading,
+    switching,
+    refreshing,
+    hasData,
+    error,
+    signalIds.length,
+  );
+}
+
+/// Mot the: chi build lai khi series cua chinh signal nay doi.
+class _SignalCardSlot extends StatelessWidget {
+  final String signalId;
+  final CatalogTableRow? current;
+  final VoidCallback onRetry;
+  final HistoryRange? range;
+
+  const _SignalCardSlot({
+    required this.signalId,
+    required this.current,
+    required this.onRetry,
+    required this.range,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<SignalHistoryController, SignalHistorySeries?>(
+      selector: (_, controller) => controller.seriesById(signalId),
+      shouldRebuild: (previous, next) => !identical(previous, next),
+      builder: (context, series, _) {
+        if (series == null) return const SizedBox.shrink();
+
+        return SignalChartCard(
+          series: series,
+          current: current,
+          onRetry: onRetry,
+          range: range,
+        );
+      },
     );
   }
 }
@@ -255,7 +372,8 @@ class _ChartGridLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
+    // Resize: giu grid cu 150ms roi moi tinh lai so cot.
+    return DebouncedLayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
 

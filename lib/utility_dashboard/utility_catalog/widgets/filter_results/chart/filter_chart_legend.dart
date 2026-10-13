@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/charts/value_format.dart';
 import '../../../models/signal_history_models.dart';
 import '../../signal_chart/signal_chart_palette.dart';
 import 'filter_chart_groups.dart';
@@ -64,7 +65,7 @@ class _LegendChip extends StatelessWidget {
     final hasValue = value != null && value.isFinite;
 
     final valueText = !hasValue
-        ? '--'
+        ? kMissingValue
         : isStatus
         ? 'Code ${value.round()}'
         : member.row.displayValue;

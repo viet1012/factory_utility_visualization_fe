@@ -76,6 +76,9 @@ class LatestSignalDto {
   final String unit;
   final DateTime? recordedAt;
 
+  /// "ANALOG" | "COUNTER" | "STATUS" (null khi backend khong tra).
+  final String? kind;
+
   const LatestSignalDto({
     required this.plcAddress,
     required this.cateId,
@@ -83,6 +86,7 @@ class LatestSignalDto {
     required this.value,
     required this.unit,
     required this.recordedAt,
+    this.kind,
   });
 
   factory LatestSignalDto.fromJson(Map<String, dynamic> json) {
@@ -93,6 +97,10 @@ class LatestSignalDto {
       value: _readDouble(json['value']),
       unit: _readString(json['unit']),
       recordedAt: _readDateTime(json['recordedAt']),
+      kind: switch (_readString(json['kind']).toUpperCase()) {
+        '' => null,
+        final kind => kind,
+      },
     );
   }
 }

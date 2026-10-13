@@ -1,17 +1,26 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
+import '../../shared/charts/axis_planner.dart';
+import '../../shared/charts/chart_animation.dart';
+import '../../shared/charts/chart_downsample.dart';
+import '../../shared/charts/chart_hover_style.dart';
+import '../../shared/charts/chart_thresholds.dart';
+import '../../shared/charts/signal_chart_spec.dart';
+import '../../shared/charts/value_format.dart';
+import '../../shared/widgets/chart_loading_widgets.dart';
 import '../../shared/widgets/chart_state_widgets.dart';
+import '../../shared/widgets/lazy_chart_gate.dart';
 import '../../shared/widgets/scada_panel_frame.dart';
 import '../../utility_catalog/widgets/signal_chart/signal_chart_palette.dart'
     show statusCodeColor;
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
+import '../controllers/utility_chart_catalog_controller.dart';
 import '../controllers/utility_hourly_chart_controller.dart';
 import '../models/utility_hourly_models.dart';
 
@@ -19,28 +28,34 @@ import '../models/utility_hourly_models.dart';
 // FORMAT
 // ============================================================
 
-final NumberFormat _largeFormat = NumberFormat('#,##0.0');
-final NumberFormat _mediumFormat = NumberFormat('0.00');
-final NumberFormat _smallFormat = NumberFormat('0.####');
-
 final DateFormat _hourAxisFormat = DateFormat('HH:00');
 final DateFormat _dayAxisFormat = DateFormat('dd/MM');
 final DateFormat _tooltipFormat = DateFormat('dd/MM HH:00');
 final DateFormat _latestFormat = DateFormat('dd/MM HH:00');
+final DateFormat _hourEndFormat = DateFormat('HH:00');
 
-String _fmt(double? value) {
-  if (value == null || !value.isFinite) return '--';
-
-  final magnitude = value.abs();
-  if (magnitude >= 1000) return _largeFormat.format(value);
-  if (magnitude >= 1) return _mediumFormat.format(value);
-  return _smallFormat.format(value);
+/// Spec qua catalog (code / unit / ten theo box + PLC), fallback response.
+SignalChartSpec _specOf(
+  BuildContext context,
+  String boxDeviceId,
+  HourlySignalSeries series,
+) {
+  return context.read<UtilityChartCatalogController>().resolveSpecForSignal(
+    boxDeviceId,
+    series.plcAddress,
+    fallbackCode: series.code,
+    unit: series.unit,
+    kind: series.kind.name.toUpperCase(),
+    name: series.name,
+  );
 }
 
-String _withUnit(double? value, String unit) {
-  final text = _fmt(value);
-  if (text == '--' || unit.trim().isEmpty) return text;
-  return '$text ${unit.trim()}';
+HoverKind _hoverKindOf(HourlySignalKind kind) {
+  return switch (kind) {
+    HourlySignalKind.analog => HoverKind.analog,
+    HourlySignalKind.counter => HoverKind.counter,
+    HourlySignalKind.status => HoverKind.status,
+  };
 }
 
 /// An nhan khong nam o gio boi so cua 3 (00:00, 03:00, 06:00...).
@@ -56,8 +71,8 @@ DateTime _floorHour(DateTime time) {
 }
 
 const Color _alertColor = Colors.redAccent;
-const Color _thresholdColor = Color(0xFFFCA5A5);
 const Duration _halfHour = Duration(minutes: 30);
+const Duration _oneHour = Duration(hours: 1);
 
 String _errorMessage(Object? error) {
   if (error is HourlyRequestException) return error.message;
@@ -68,6 +83,31 @@ String _errorMessage(Object? error) {
 // ============================================================
 // PANEL
 // ============================================================
+
+/// Phan cua [HourlyBoxState] ma mot the can: state cua box (loading /
+/// error / refreshing) va series cua chinh PLC nay.
+class _PanelVm {
+  final HourlyBoxState state;
+  final HourlySignalSeries? series;
+
+  const _PanelVm(this.state, this.series);
+
+  factory _PanelVm.of(HourlyBoxState state, String plcAddress) {
+    return _PanelVm(state, state.data?.signals[plcAddress]);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is _PanelVm &&
+        identical(other.series, series) &&
+        other.state.loading == state.loading &&
+        other.state.error == state.error &&
+        identical(other.state.data, state.data);
+  }
+
+  @override
+  int get hashCode => Object.hash(series, state.loading, state.error);
+}
 
 class UtilityHourlyChartPanel extends StatelessWidget {
   final String facId;
@@ -93,11 +133,16 @@ class UtilityHourlyChartPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<UtilityHourlyChartController, HourlyBoxState>(
-      selector: (_, controller) => controller.boxState(boxDeviceId),
-      shouldRebuild: (previous, next) => !identical(previous, next),
-      builder: (context, state, _) {
-        final series = state.data?.signals[plcAddress];
+    // Chi lang nghe phan du lieu cua chinh signal nay trong box.
+    return Selector<UtilityHourlyChartController, _PanelVm>(
+      selector: (_, controller) =>
+          _PanelVm.of(controller.boxState(boxDeviceId), plcAddress),
+      builder: (context, vm, _) {
+        final state = vm.state;
+        final series = vm.series;
+        final spec = series == null
+            ? null
+            : _specOf(context, boxDeviceId, series);
 
         final name = (series?.name.isNotEmpty ?? false)
             ? series!.name
@@ -105,9 +150,10 @@ class UtilityHourlyChartPanel extends StatelessWidget {
             ? signalName!.trim()
             : plcAddress;
 
-        final resolvedUnit = (series?.unit.isNotEmpty ?? false)
+        final rawUnit = (series?.unit.isNotEmpty ?? false)
             ? series!.unit
             : (unit ?? '');
+        final resolvedUnit = spec?.resolveUnit(rawUnit) ?? rawUnit;
 
         return RepaintBoundary(
           child: ScadaPanelFrame(
@@ -133,7 +179,7 @@ class UtilityHourlyChartPanel extends StatelessWidget {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(10),
-                      child: _buildBody(context, state, series),
+                      child: _buildBody(context, state, series, spec),
                     ),
                   ),
                 ],
@@ -149,6 +195,7 @@ class UtilityHourlyChartPanel extends StatelessWidget {
     BuildContext context,
     HourlyBoxState state,
     HourlySignalSeries? series,
+    SignalChartSpec? spec,
   ) {
     final data = state.data;
 
@@ -162,12 +209,12 @@ class UtilityHourlyChartPanel extends StatelessWidget {
       }
 
       // Lan dau: skeleton (dang tai hoac sap tai).
-      return _HourlySkeleton(color: _theme.line);
+      return ChartBodySkeleton(color: _theme.line);
     }
 
     final Widget content;
 
-    if (series == null) {
+    if (series == null || spec == null) {
       content = EmptyChartState(
         icon: Icons.schedule_rounded,
         title: 'No Hourly Data',
@@ -192,32 +239,31 @@ class UtilityHourlyChartPanel extends StatelessWidget {
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _HourlySummaryBar(series: series, theme: _theme, cate: cate),
+          _HourlySummaryBar(series: series, spec: spec, theme: _theme),
           const SizedBox(height: 6),
           Expanded(
-            child: _HourlyChart(series: series, data: data, theme: _theme),
+            child: LazyChartGate(
+              placeholder: ChartBodySkeleton(
+                color: _theme.line,
+                withSummary: false,
+              ),
+              builder: (_) => _HourlyChart(
+                series: series,
+                spec: spec,
+                data: data,
+                theme: _theme,
+              ),
+            ),
           ),
         ],
       );
     }
 
-    if (!state.refreshing) return content;
-
-    // Doi range / poll: giu chart cu mo kem progress bar.
-    return Stack(
-      children: [
-        Positioned.fill(child: Opacity(opacity: .4, child: content)),
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: LinearProgressIndicator(
-            minHeight: 2,
-            color: _theme.line,
-            backgroundColor: _theme.line.withValues(alpha: .12),
-          ),
-        ),
-      ],
+    // Doi range: giu chart cu mo kem progress bar.
+    return ChartBusyOverlay(
+      busy: state.refreshing,
+      color: _theme.line,
+      child: content,
     );
   }
 
@@ -255,41 +301,47 @@ class UtilityHourlyChartPanel extends StatelessWidget {
 
 class _HourlySummaryBar extends StatelessWidget {
   final HourlySignalSeries series;
+  final SignalChartSpec spec;
   final ChartTheme theme;
-  final String cate;
 
   const _HourlySummaryBar({
     required this.series,
+    required this.spec,
     required this.theme,
-    required this.cate,
   });
 
   @override
   Widget build(BuildContext context) {
     final summary = HourlySeriesSummary.of(series);
-    final unit = series.unit;
+    final unit = spec.resolveUnit(series.unit);
     final latest = summary.latest;
+
+    String fmt(double? value) => formatValue(value, decimals: spec.decimals);
+    String withUnit(double? value, String unit) =>
+        formatWithUnit(value, unit, decimals: spec.decimals);
 
     final latestText = switch (series.kind) {
       HourlySignalKind.status =>
-        latest?.value == null ? '--' : 'Code ${latest!.value!.round()}',
-      HourlySignalKind.counter => _withUnit(
+        latest?.value == null
+            ? kMissingValue
+            : 'Code ${latest!.value!.round()}',
+      HourlySignalKind.counter => withUnit(
         latest?.value,
         unit.isEmpty ? '' : '$unit/h',
       ),
-      HourlySignalKind.analog => _withUnit(latest?.value, unit),
+      HourlySignalKind.analog => withUnit(latest?.value, unit),
     };
 
     final metrics = <Widget>[
       if (series.kind == HourlySignalKind.analog) ...[
-        _Metric(label: 'Min', value: _fmt(summary.min)),
-        _Metric(label: 'Avg', value: _fmt(summary.avg)),
-        _Metric(label: 'Max', value: _fmt(summary.max)),
+        _Metric(label: 'Min', value: fmt(summary.min)),
+        _Metric(label: 'Avg', value: fmt(summary.avg)),
+        _Metric(label: 'Max', value: fmt(summary.max)),
       ],
       if (series.kind == HourlySignalKind.counter)
         _Metric(
           label: 'Total',
-          value: _withUnit(summary.total, unit),
+          value: withUnit(summary.total, unit),
           highlight: theme.line,
         ),
       if (series.kind == HourlySignalKind.status)
@@ -446,21 +498,15 @@ class _BreachMark {
   const _BreachMark(this.point, this.value);
 }
 
-class _YAxisPlan {
-  final double? min;
-  final double? max;
-  final List<({double value, bool isHigh})> thresholds;
-
-  const _YAxisPlan({this.min, this.max, this.thresholds = const []});
-}
-
 class _HourlyChart extends StatefulWidget {
   final HourlySignalSeries series;
+  final SignalChartSpec spec;
   final HourlyBoxData data;
   final ChartTheme theme;
 
   const _HourlyChart({
     required this.series,
+    required this.spec,
     required this.data,
     required this.theme,
   });
@@ -470,41 +516,83 @@ class _HourlyChart extends StatefulWidget {
 }
 
 class _HourlyChartState extends State<_HourlyChart> {
-  late final TooltipBehavior _tooltipBehavior;
+  late final TrackballBehavior _trackball;
+  final FirstPaintAnimation _animation = FirstPaintAnimation();
+
+  /// Bucket theo moc gio (ms) de trackball tim lai diem goc tu x.
+  Map<int, HourlyPoint> _pointsByHour = const {};
 
   @override
   void initState() {
     super.initState();
 
-    _tooltipBehavior = TooltipBehavior(
-      enable: true,
-      color: const Color(0xFF0B1728),
-      borderColor: const Color(0xFF20344D),
-      borderWidth: 1,
-      elevation: 0,
-      canShowMarker: false,
-      tooltipPosition: TooltipPosition.auto,
-      builder: (data, point, series, pointIndex, seriesIndex) {
-        final source = data is _BreachMark ? data.point : data;
-        if (source is! HourlyPoint) return const SizedBox.shrink();
+    _trackball = ChartHoverStyle.trackball(
+      markerColor: widget.theme.line,
+      builder: (context, details) {
+        final point = _pointAt(details.point?.x);
+        if (point == null) return const SizedBox.shrink();
 
-        return _HourlyTooltip(point: source, series: widget.series);
+        return _HourlyTooltip(
+          point: point,
+          series: widget.series,
+          spec: widget.spec,
+        );
       },
     );
+  }
+
+  HourlyPoint? _pointAt(Object? x) {
+    final time = switch (x) {
+      DateTime value => value,
+      num value => DateTime.fromMillisecondsSinceEpoch(value.toInt()),
+      _ => null,
+    };
+    if (time == null) return null;
+
+    // Cot (bar) dat giua gio: floor ve dau gio.
+    return _pointsByHour[_floorHour(time).millisecondsSinceEpoch];
   }
 
   @override
   Widget build(BuildContext context) {
     final series = widget.series;
+    final spec = widget.spec;
     final theme = widget.theme;
     final window = widget.data.window;
     final multiDay = widget.data.range.isMultiDay;
 
-    final isCounter = series.kind == HourlySignalKind.counter;
-    final isStatus = series.kind == HourlySignalKind.status;
-    final showBand = series.showRangeBand;
+    _pointsByHour = {
+      for (final point in series.points)
+        _floorHour(point.ts).millisecondsSinceEpoch: point,
+    };
 
-    final breaches = series.showThresholds
+    final unit = spec.resolveUnit(series.unit);
+    final animationMs = _animation.duration();
+    final style = spec.style;
+    final isBar = style == ChartStyle.bar;
+    final showBand = style == ChartStyle.lineBand && series.showRangeBand;
+    final showThresholds = series.showThresholds && spec.showThreshold;
+
+    final points = downsampleMinMax(
+      series.points,
+      value: (point) => point.value,
+      low: showBand ? (HourlyPoint point) => point.min ?? point.value : null,
+      high: showBand ? (HourlyPoint point) => point.max ?? point.value : null,
+    );
+
+    final axis = planAxis(
+      values: [
+        for (final point in points) ...[
+          point.value,
+          if (showBand) ...[point.min, point.max],
+        ],
+      ],
+      spec: spec,
+      thresholdLow: showThresholds ? series.thresholdLow : null,
+      thresholdHigh: showThresholds ? series.thresholdHigh : null,
+    );
+
+    final breaches = showThresholds
         ? <_BreachMark>[
             for (final point in series.points)
               if (series.breachValue(point) case final value?)
@@ -512,26 +600,26 @@ class _HourlyChartState extends State<_HourlyChart> {
           ]
         : const <_BreachMark>[];
 
-    final axis = _planYAxis(series, showBand: showBand);
-
     /*
      * Truc X phu ca range (khong chi phan co du lieu), de bucket dau chua
      * co du lieu chi la khoang trong, khong to xam.
-     * COUNTER: cot dat giua gio [ts, ts+1h) nen truc mo rong them 1h.
+     * Bar: cot dat giua gio [ts, ts+1h) nen truc mo rong them 1h.
      */
     final xMin = multiDay ? window.from : _floorHour(window.from);
     var xMax = _floorHour(window.to);
-    if (isCounter) xMax = xMax.add(const Duration(hours: 1));
-    if (!xMax.isAfter(xMin)) xMax = xMin.add(const Duration(hours: 1));
+    if (isBar) xMax = xMax.add(_oneHour);
+    if (!xMax.isAfter(xMin)) xMax = xMin.add(_oneHour);
 
     // Diem le (hai ben la bucket rong) chi thay duoc khi co marker.
     final showMarkers = !multiDay;
 
-    return SfCartesianChart(
+    const gap = EmptyPointSettings(mode: EmptyPointMode.gap);
+
+    final chart = SfCartesianChart(
       margin: const EdgeInsets.fromLTRB(0, 6, 6, 0),
       plotAreaBorderWidth: 1,
       plotAreaBorderColor: Colors.white.withValues(alpha: .12),
-      tooltipBehavior: _tooltipBehavior,
+      trackballBehavior: _trackball,
       primaryXAxis: DateTimeAxis(
         minimum: xMin,
         maximum: xMax,
@@ -566,11 +654,9 @@ class _HourlyChartState extends State<_HourlyChart> {
       primaryYAxis: NumericAxis(
         minimum: axis.min,
         maximum: axis.max,
-        interval: isStatus ? 1 : null,
+        interval: axis.interval,
         axisLabelFormatter: (details) => ChartAxisLabel(
-          isStatus
-              ? details.value.round().toString()
-              : _fmt(details.value.toDouble()),
+          axis.label(details.value),
           TextStyle(color: Colors.white.withValues(alpha: .72), fontSize: 11),
         ),
         majorGridLines: MajorGridLines(
@@ -582,50 +668,26 @@ class _HourlyChartState extends State<_HourlyChart> {
           width: 1,
         ),
         majorTickLines: const MajorTickLines(size: 0),
-        plotBands: [
-          for (final line in axis.thresholds)
-            PlotBand(
-              start: line.value,
-              end: line.value,
-              color: Colors.transparent,
-              borderColor: _thresholdColor,
-              borderWidth: 1,
-              dashArray: const <double>[4, 3],
-              shouldRenderAboveSeries: true,
-              text:
-                  '${line.isHigh ? 'High' : 'Low'} '
-                  '${_withUnit(line.value, series.unit)}',
-              textStyle: const TextStyle(
-                color: _thresholdColor,
-                fontSize: 9.5,
-                fontWeight: FontWeight.w800,
-              ),
-              horizontalTextAlignment: TextAnchor.end,
-              verticalTextAlignment: line.isHigh
-                  ? TextAnchor.end
-                  : TextAnchor.start,
-            ),
-        ],
+        plotBands: thresholdPlotBands(axis, unit),
       ),
       series: <CartesianSeries<dynamic, DateTime>>[
         if (showBand)
           RangeAreaSeries<HourlyPoint, DateTime>(
-            dataSource: series.points,
-            animationDuration: 0,
+            dataSource: points,
+            animationDuration: animationMs,
             enableTooltip: false,
+            enableTrackball: false,
             color: theme.line.withValues(alpha: .16),
             borderWidth: 0,
             xValueMapper: (point, _) => point.ts,
             highValueMapper: (point, _) => point.hasValue ? point.max : null,
             lowValueMapper: (point, _) => point.hasValue ? point.min : null,
-            emptyPointSettings: const EmptyPointSettings(
-              mode: EmptyPointMode.gap,
-            ),
+            emptyPointSettings: gap,
           ),
-        if (isCounter)
-          ColumnSeries<HourlyPoint, DateTime>(
-            dataSource: series.points,
-            animationDuration: 0,
+        switch (style) {
+          ChartStyle.bar => ColumnSeries<HourlyPoint, DateTime>(
+            dataSource: points,
+            animationDuration: animationMs,
             width: .7,
             color: theme.line,
             gradient: LinearGradient(
@@ -636,14 +698,11 @@ class _HourlyChartState extends State<_HourlyChart> {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
             xValueMapper: (point, _) => point.ts.add(_halfHour),
             yValueMapper: (point, _) => point.value,
-            emptyPointSettings: const EmptyPointSettings(
-              mode: EmptyPointMode.gap,
-            ),
-          )
-        else if (isStatus)
-          StepLineSeries<HourlyPoint, DateTime>(
-            dataSource: series.points,
-            animationDuration: 0,
+            emptyPointSettings: gap,
+          ),
+          ChartStyle.step => StepLineSeries<HourlyPoint, DateTime>(
+            dataSource: points,
+            animationDuration: animationMs,
             width: 2.2,
             color: theme.line,
             xValueMapper: (point, _) => point.ts,
@@ -658,14 +717,36 @@ class _HourlyChartState extends State<_HourlyChart> {
               width: 3,
               borderWidth: 0,
             ),
-            emptyPointSettings: const EmptyPointSettings(
-              mode: EmptyPointMode.gap,
+            emptyPointSettings: gap,
+          ),
+          ChartStyle.area => AreaSeries<HourlyPoint, DateTime>(
+            dataSource: points,
+            animationDuration: animationMs,
+            gradient: LinearGradient(
+              colors: [
+                theme.line.withValues(alpha: .42),
+                theme.line.withValues(alpha: .04),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
-          )
-        else
-          LineSeries<HourlyPoint, DateTime>(
-            dataSource: series.points,
-            animationDuration: 0,
+            borderColor: theme.line,
+            borderWidth: 2,
+            borderDrawMode: BorderDrawMode.top,
+            xValueMapper: (point, _) => point.ts,
+            yValueMapper: (point, _) => point.value,
+            markerSettings: MarkerSettings(
+              isVisible: showMarkers,
+              height: 3,
+              width: 3,
+              color: theme.line,
+              borderWidth: 0,
+            ),
+            emptyPointSettings: gap,
+          ),
+          ChartStyle.lineBand => LineSeries<HourlyPoint, DateTime>(
+            dataSource: points,
+            animationDuration: animationMs,
             width: 2,
             color: theme.line,
             xValueMapper: (point, _) => point.ts,
@@ -677,14 +758,14 @@ class _HourlyChartState extends State<_HourlyChart> {
               color: theme.line,
               borderWidth: 0,
             ),
-            emptyPointSettings: const EmptyPointSettings(
-              mode: EmptyPointMode.gap,
-            ),
+            emptyPointSettings: gap,
           ),
+        },
         if (breaches.isNotEmpty)
           ScatterSeries<_BreachMark, DateTime>(
             dataSource: breaches,
-            animationDuration: 0,
+            animationDuration: animationMs,
+            enableTrackball: false,
             color: _alertColor,
             xValueMapper: (mark, _) => mark.point.ts,
             yValueMapper: (mark, _) => mark.value,
@@ -697,86 +778,9 @@ class _HourlyChartState extends State<_HourlyChart> {
           ),
       ],
     );
-  }
 
-  /// Truc Y luon co min/max ro rang; tin hieu phang duoc noi rong de
-  /// Syncfusion khong chon interval nho hon sai so double (treo main thread).
-  _YAxisPlan _planYAxis(HourlySignalSeries series, {required bool showBand}) {
-    double? lo;
-    double? hi;
-
-    void include(double? value) {
-      if (value == null || !value.isFinite) return;
-      if (lo == null || value < lo!) lo = value;
-      if (hi == null || value > hi!) hi = value;
-    }
-
-    final isCounter = series.kind == HourlySignalKind.counter;
-
-    // COUNTER: cot bat dau tu 0.
-    if (isCounter) include(0);
-
-    for (final point in series.points) {
-      include(point.value);
-      if (showBand) {
-        include(point.min);
-        include(point.max);
-      }
-    }
-
-    final dataLo = lo;
-    final dataHi = hi;
-    if (dataLo == null || dataHi == null) return const _YAxisPlan();
-
-    if (series.kind == HourlySignalKind.status) {
-      return _YAxisPlan(
-        min: dataLo.floorToDouble() - .5,
-        max: dataHi.ceilToDouble() + .5,
-      );
-    }
-
-    final dataSpan = hourlyIsFlat(dataLo, dataHi)
-        ? _flatSpan(dataLo, dataHi)
-        : dataHi - dataLo;
-
-    // Nguong chi keo vao truc khi nam gan dai du lieu (<= 2 x bien do).
-    final thresholds = <({double value, bool isHigh})>[];
-
-    if (series.showThresholds) {
-      for (final line in [
-        if (series.thresholdHigh case final high?) (value: high, isHigh: true),
-        if (series.thresholdLow case final low?) (value: low, isHigh: false),
-      ]) {
-        final distance = line.value > dataHi
-            ? line.value - dataHi
-            : line.value < dataLo
-            ? dataLo - line.value
-            : 0.0;
-
-        if (distance <= dataSpan * 2) {
-          thresholds.add(line);
-          include(line.value);
-        }
-      }
-    }
-
-    final axisLo = lo!;
-    final axisHi = hi!;
-
-    final pad = hourlyIsFlat(axisLo, axisHi)
-        ? _flatSpan(axisLo, axisHi)
-        : (axisHi - axisLo) * .12;
-
-    return _YAxisPlan(
-      min: isCounter && axisLo >= 0 ? 0 : axisLo - pad,
-      max: axisHi + pad,
-      thresholds: thresholds,
-    );
-  }
-
-  /// Bien do gia dinh cho tin hieu phang: 10% gia tri, toi thieu 1.
-  static double _flatSpan(double lo, double hi) {
-    return math.max(math.max(lo.abs(), hi.abs()) * .1, 1.0);
+    // Nguong qua xa du lieu: khong keo truc, chi hien nhan o mep.
+    return withOffscaleThresholds(chart, axis, unit);
   }
 }
 
@@ -787,131 +791,32 @@ class _HourlyChartState extends State<_HourlyChart> {
 class _HourlyTooltip extends StatelessWidget {
   final HourlyPoint point;
   final HourlySignalSeries series;
+  final SignalChartSpec spec;
 
-  const _HourlyTooltip({required this.point, required this.series});
+  const _HourlyTooltip({
+    required this.point,
+    required this.series,
+    required this.spec,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final unit = series.unit;
-    final end = point.ts.add(const Duration(hours: 1));
+    final end = point.ts.add(_oneHour);
 
-    final rows = <(String, String)>[
-      switch (series.kind) {
-        HourlySignalKind.analog => (
-          series.isSnapshot ? 'Value' : 'Avg',
-          _withUnit(point.value, unit),
-        ),
-        HourlySignalKind.counter => ('Usage', _withUnit(point.value, unit)),
-        HourlySignalKind.status => (
-          'Code',
-          point.value == null ? '--' : '${point.value!.round()}',
-        ),
-      },
-      if (point.hasRange)
-        ('Min – Max', '${_fmt(point.min)} – ${_withUnit(point.max, unit)}'),
-      if (point.count != null) ('Samples', '${point.count}'),
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${_tooltipFormat.format(point.ts)} – '
-            '${DateFormat('HH:00').format(end)}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          for (final (label, value) in rows)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                '$label: $value',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: .82),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-        ],
+    return ChartHoverCard(
+      title:
+          '${_tooltipFormat.format(point.ts)} – '
+          '${_hourEndFormat.format(end)}',
+      rows: ChartHoverStyle.rows(
+        kind: _hoverKindOf(series.kind),
+        value: point.value,
+        unit: spec.resolveUnit(series.unit),
+        decimals: spec.decimals,
+        min: point.hasRange ? point.min : null,
+        max: point.hasRange ? point.max : null,
+        samples: point.count,
+        isSnapshot: series.isSnapshot,
       ),
-    );
-  }
-}
-
-// ============================================================
-// SKELETON
-// ============================================================
-
-class _HourlySkeleton extends StatelessWidget {
-  final Color color;
-
-  const _HourlySkeleton({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final block = Colors.white.withValues(alpha: .05);
-
-    // Tinh (khong animation) de khong ton CPU khi nhieu card cung tai.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          height: 42,
-          decoration: BoxDecoration(
-            color: block,
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .025),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final factor in const [
-                  .35,
-                  .5,
-                  .42,
-                  .6,
-                  .55,
-                  .72,
-                  .64,
-                  .48,
-                  .58,
-                  .4,
-                  .52,
-                  .66,
-                ])
-                  Expanded(
-                    child: FractionallySizedBox(
-                      heightFactor: factor,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 3),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: .08),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
