@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../utility_api/dio_client.dart';
 import '../../shared/polling/dashboard_polling_intervals.dart';
@@ -11,11 +12,12 @@ import '../../shared/polling/polling_task_ids.dart';
 import 'api/solar_api.dart';
 import 'helpers/solar_detail_formatters.dart';
 import 'models/solar_detail_data.dart';
+import 'models/solar_hourly_by_facility.dart';
 import 'widgets/solar_daily_generation_panel.dart';
 import 'widgets/solar_detail_header.dart';
 import 'widgets/solar_detail_kpi_section.dart';
 import 'widgets/solar_energy_source_panel.dart';
-import 'widgets/solar_hourly_profile_panel.dart';
+import 'widgets/solar_hourly_by_facility_panel.dart';
 import 'widgets/solar_impact_panel.dart';
 
 class SolarDetailScreen extends StatefulWidget {
@@ -59,6 +61,17 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
 
   int _requestVersion = 0;
 
+  /// Hourly by facility: tai rieng theo ngay, doi ngay khong tai lai detail.
+  late DateTime _hourlyDate = _defaultHourlyDate();
+
+  SolarHourlyByFacility? _hourly;
+
+  bool _hourlyLoading = false;
+
+  String? _hourlyError;
+
+  int _hourlyVersion = 0;
+
   /// Moi instance mot task id (route co the bi push hai lan).
   late final String _pollingTaskId = PollingTaskIds.solarDetail(this);
 
@@ -71,6 +84,8 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
     super.initState();
 
     _load();
+
+    _loadHourly();
 
     _startPolling();
   }
@@ -87,6 +102,10 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
       _requestVersion++;
 
       _load(mainLoading: true);
+
+      if (monthChanged) _hourlyDate = _defaultHourlyDate();
+
+      _loadHourly();
     }
   }
 
@@ -109,7 +128,13 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
   Future<void> _poll() async {
     if (!mounted || _refreshing) return;
 
+    // Hourly chi lam moi khi dang xem hom nay; ngay da qua khong doi.
+    final hourly = _isViewingHourlyToday
+        ? _loadHourly(silent: true)
+        : Future<void>.value();
+
     await _load(silent: true);
+    await hourly;
 
     // _load tu bat loi; nem lai de PollingCoordinator khong tinh la lan
     // thanh cong (quy tac chay bu dua tren lan thanh cong gan nhat).
@@ -120,6 +145,7 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
   @override
   void dispose() {
     _requestVersion++;
+    _hourlyVersion++;
 
     final coordinator = widget.pollingCoordinator;
     coordinator.unregister(_pollingTaskId);
@@ -206,6 +232,150 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
     }
   }
 
+  // ============================================================
+  // HOURLY BY FACILITY
+  // ============================================================
+
+  static DateTime _today() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  /// yyyyMM -> ngay 1 cua thang; null khi sai dinh dang.
+  DateTime? _monthStart() {
+    final value = widget.month.trim();
+    if (value.length != 6) return null;
+
+    final year = int.tryParse(value.substring(0, 4));
+    final month = int.tryParse(value.substring(4, 6));
+    if (year == null || month == null || month < 1 || month > 12) return null;
+
+    return DateTime(year, month);
+  }
+
+  DateTime _hourlyFirstDate() => _monthStart() ?? _today();
+
+  /// Ngay cuoi chon duoc: cuoi thang, khong qua hom nay.
+  DateTime _hourlyLastDate() {
+    final start = _monthStart();
+    if (start == null) return _today();
+
+    final monthEnd = DateTime(start.year, start.month + 1, 0);
+    final today = _today();
+
+    if (!monthEnd.isAfter(today)) return monthEnd;
+
+    // Thang hien tai (hoac tuong lai): dung o hom nay, khong truoc ngay 1.
+    return today.isBefore(start) ? start : today;
+  }
+
+  /// Hom nay neu thang dang chon la thang hien tai, nguoc lai ngay cuoi thang.
+  DateTime _defaultHourlyDate() {
+    final start = _monthStart();
+    final today = _today();
+
+    if (start == null) return today;
+
+    if (start.year == today.year && start.month == today.month) return today;
+
+    return DateTime(start.year, start.month + 1, 0);
+  }
+
+  bool get _isViewingHourlyToday => _hourlyDate == _today();
+
+  void _onHourlyDateChanged(DateTime value) {
+    final day = DateTime(value.year, value.month, value.day);
+    final first = _hourlyFirstDate();
+    final last = _hourlyLastDate();
+
+    if (day.isBefore(first) || day.isAfter(last)) return;
+    if (day == _hourlyDate) return;
+
+    setState(() => _hourlyDate = day);
+
+    _loadHourly();
+  }
+
+  Future<void> _loadHourly({bool silent = false}) async {
+    if (!mounted) return;
+
+    final version = ++_hourlyVersion;
+
+    final fac = widget.facId.trim().isEmpty ? 'KVH' : widget.facId.trim();
+
+    final date = DateFormat('yyyy-MM-dd').format(_hourlyDate);
+
+    if (!silent) {
+      setState(() {
+        _hourlyLoading = true;
+        _hourlyError = null;
+      });
+    }
+
+    try {
+      final result = await _api.getHourly(facId: fac, date: date);
+
+      if (!mounted || version != _hourlyVersion) return;
+
+      setState(() {
+        _hourly = _onlySelectedFac(result, fac);
+        _hourlyLoading = false;
+        _hourlyError = null;
+      });
+    } catch (e) {
+      if (!mounted || version != _hourlyVersion) return;
+
+      setState(() {
+        _hourlyLoading = false;
+
+        // Poll loi: giu chart dang co, lan poll sau thu lai.
+        if (!silent || _hourly == null) {
+          _hourlyError = e is DioException
+              ? _hourlyDioError(e)
+              : 'Cannot load hourly solar data';
+        }
+      });
+    }
+  }
+
+  /// Header chon 1 fac thi chi giu fac do (backend thuong da loc san).
+  SolarHourlyByFacility _onlySelectedFac(
+    SolarHourlyByFacility data,
+    String fac,
+  ) {
+    if (fac.toUpperCase() == 'KVH') return data;
+
+    final matched = data.facilities
+        .where((f) => f.facId.toUpperCase() == fac.toUpperCase())
+        .toList(growable: false);
+
+    if (matched.isEmpty || matched.length == data.facilities.length) {
+      return data;
+    }
+
+    return SolarHourlyByFacility(
+      date: data.date,
+      facId: data.facId,
+      facilities: matched,
+      totalHours: data.totalHours,
+      totalKwh: data.totalKwh,
+      peakKwh: data.peakKwh,
+      peakHour: data.peakHour,
+    );
+  }
+
+  /// Loi 400 co truong `message`; con lai dung thong bao chung.
+  String _hourlyDioError(DioException error) {
+    final body = error.response?.data;
+
+    if (body is Map) {
+      final message = body['message']?.toString().trim() ?? '';
+      if (message.isNotEmpty) return message;
+    }
+
+    return _dioError(error);
+  }
+
   String _dioError(DioException error) {
     final code = error.response?.statusCode;
 
@@ -242,7 +412,10 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
                   monthLabel: SolarDetailFormatters.monthLabel(widget.month),
                   refreshing: _refreshing,
                   onBack: () => Navigator.of(context).pop(),
-                  onRefresh: () => _load(),
+                  onRefresh: () {
+                    _load();
+                    _loadHourly();
+                  },
                 ),
 
                 Expanded(child: _body()),
@@ -323,6 +496,7 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
                   child: SolarDailyGenerationPanel(
                     data: data,
                     month: widget.month,
+                    onDaySelected: _onHourlyDateChanged,
                   ),
                 ),
 
@@ -345,7 +519,19 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(flex: 6, child: SolarHourlyProfilePanel(data: data)),
+                Expanded(
+                  flex: 6,
+                  child: SolarHourlyByFacilityPanel(
+                    data: _hourly,
+                    date: _hourlyDate,
+                    firstDate: _hourlyFirstDate(),
+                    lastDate: _hourlyLastDate(),
+                    loading: _hourlyLoading,
+                    error: _hourlyError,
+                    onDateChanged: _onHourlyDateChanged,
+                    onRetry: _loadHourly,
+                  ),
+                ),
 
                 const SizedBox(width: 7),
 

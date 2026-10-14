@@ -3,14 +3,12 @@ class SolarDetailData {
   final List<SolarDailyTrend> dailyTrend;
   final SolarCostImpact costImpact;
   final SolarEnvironmentalImpact environmentalImpact;
-  final SolarHourlyProfile hourlyProfile;
 
   const SolarDetailData({
     required this.summary,
     required this.dailyTrend,
     required this.costImpact,
     required this.environmentalImpact,
-    required this.hourlyProfile,
   });
 
   factory SolarDetailData.fromJson(Map<String, dynamic> json) {
@@ -30,7 +28,6 @@ class SolarDetailData {
       environmentalImpact: SolarEnvironmentalImpact.fromJson(
         _map(json['environmentalImpact']),
       ),
-      hourlyProfile: SolarHourlyProfile.fromJson(_map(json['hourlyProfile'])),
     );
   }
 
@@ -132,56 +129,6 @@ class SolarEnvironmentalImpact {
   }
 }
 
-class SolarHourlyProfile {
-  final DateTime date;
-  final double totalEnergyKwh;
-  final double peakEnergyKwh;
-  final int? peakHour;
-  final List<SolarHourlyPoint> points;
-
-  const SolarHourlyProfile({
-    required this.date,
-    required this.totalEnergyKwh,
-    required this.peakEnergyKwh,
-    required this.peakHour,
-    required this.points,
-  });
-
-  factory SolarHourlyProfile.fromJson(Map<String, dynamic> json) {
-    final raw = json['points'];
-
-    return SolarHourlyProfile(
-      date: DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime.now(),
-      totalEnergyKwh: _num(json['totalEnergyKwh']),
-      peakEnergyKwh: _num(json['peakEnergyKwh']),
-      peakHour: _intOrNull(json['peakHour']),
-      points: raw is List
-          ? raw
-                .whereType<Map>()
-                .map(
-                  (e) =>
-                      SolarHourlyPoint.fromJson(Map<String, dynamic>.from(e)),
-                )
-                .toList(growable: false)
-          : const [],
-    );
-  }
-}
-
-class SolarHourlyPoint {
-  final int hour;
-  final double energyKwh;
-
-  const SolarHourlyPoint({required this.hour, required this.energyKwh});
-
-  factory SolarHourlyPoint.fromJson(Map<String, dynamic> json) {
-    return SolarHourlyPoint(
-      hour: _intOrNull(json['hour']) ?? 0,
-      energyKwh: _num(json['energyKwh']),
-    );
-  }
-}
-
 double _num(dynamic value) {
   if (value == null) {
     return 0;
@@ -192,20 +139,4 @@ double _num(dynamic value) {
   }
 
   return double.tryParse(value.toString()) ?? 0;
-}
-
-int? _intOrNull(dynamic value) {
-  if (value == null) {
-    return null;
-  }
-
-  if (value is int) {
-    return value;
-  }
-
-  if (value is num) {
-    return value.toInt();
-  }
-
-  return int.tryParse(value.toString());
 }

@@ -13,11 +13,25 @@ class SolarDailyGenerationPanel extends StatelessWidget {
   /// yyyyMM, dung cho tieu de panel.
   final String month;
 
+  /// Bam cot ngay: chuyen chart Hourly sang ngay do.
+  final ValueChanged<DateTime>? onDaySelected;
+
   const SolarDailyGenerationPanel({
     super.key,
     required this.data,
     required this.month,
+    this.onDaySelected,
   });
+
+  void _onPointTap(ChartPointDetails details) {
+    final index = details.pointIndex;
+    final callback = onDaySelected;
+
+    if (callback == null || index == null) return;
+    if (index < 0 || index >= data.dailyTrend.length) return;
+
+    callback(data.dailyTrend[index].date);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +139,8 @@ class SolarDailyGenerationPanel extends StatelessWidget {
 
               enableTooltip: true,
 
+              onPointTap: _onPointTap,
+
               // ============================
               // HIỂN THỊ VALUE
               // ============================
@@ -159,6 +175,8 @@ class SolarDailyGenerationPanel extends StatelessWidget {
               spacing: 0.10,
 
               enableTooltip: true,
+
+              onPointTap: _onPointTap,
 
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(4),

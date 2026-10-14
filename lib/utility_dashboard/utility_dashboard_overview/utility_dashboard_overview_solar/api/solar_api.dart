@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../models/solar_dashboard_data.dart';
 import '../models/solar_detail_data.dart';
+import '../models/solar_hourly_by_facility.dart';
 
 class SolarApi {
   SolarApi(this._dio);
@@ -40,6 +41,25 @@ class SolarApi {
     }
 
     return SolarDetailData.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  /// [date]: yyyy-MM-dd.
+  Future<SolarHourlyByFacility> getHourly({
+    required String facId,
+    required String date,
+  }) async {
+    final response = await _dio.get<dynamic>(
+      '/api/solar/hourly',
+      queryParameters: {'facId': facId, 'date': date},
+    );
+
+    if (response.data is! Map) {
+      throw const FormatException('Invalid Solar hourly response');
+    }
+
+    return SolarHourlyByFacility.fromJson(
       Map<String, dynamic>.from(response.data as Map),
     );
   }

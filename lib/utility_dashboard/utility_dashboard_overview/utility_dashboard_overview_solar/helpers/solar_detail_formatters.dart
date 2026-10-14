@@ -18,6 +18,22 @@ abstract final class SolarDetailColors {
   static const Color green = Color(0xff63f06d);
 
   static const Color border = Color(0xff17415d);
+
+  static const Color orange = Color(0xffff7a1a);
+
+  /// Mau co dinh cua tung fac tren chart Solar (khong dung cyan cua Grid).
+  static const List<Color> _facilityPalette = [yellow, orange, green];
+
+  static Color facility(String facId, {int fallbackIndex = 0}) {
+    final index = switch (facId.trim().toUpperCase()) {
+      'FAC_A' => 0,
+      'FAC_B' => 1,
+      'FAC_C' => 2,
+      _ => fallbackIndex,
+    };
+
+    return _facilityPalette[index % _facilityPalette.length];
+  }
 }
 
 /// Cac ham format dung chung cho nhieu panel cua Solar Detail.

@@ -13,11 +13,15 @@ class SolarDetailPanel extends StatelessWidget {
 
   final Widget child;
 
+  /// Dieu khien dat ben phai tieu de (tuy chon).
+  final Widget? trailing;
+
   const SolarDetailPanel({
     super.key,
     required this.title,
     required this.titleColor,
     required this.child,
+    this.trailing,
   });
 
   @override
@@ -30,16 +34,24 @@ class SolarDetailPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: titleColor,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              letterSpacing: .2,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: titleColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .2,
+                  ),
+                ),
+              ),
+
+              if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+            ],
           ),
 
           const SizedBox(height: 5),
