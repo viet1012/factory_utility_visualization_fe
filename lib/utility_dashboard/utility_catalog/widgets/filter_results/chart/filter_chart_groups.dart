@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/charts/signal_thresholds.dart';
 import '../../../catalog_view_models.dart';
 import '../../../models/signal_history_models.dart';
 import '../../../providers/filter_chart_controller.dart';
@@ -42,9 +43,9 @@ class FilterChartMember {
   final SignalHistorySeries? series;
   final FilterChartLoadState? state;
 
-  /// Nguong / kind tu lich su (range dang ve, hoac cache sparkline 1h).
-  final double? thresholdLow;
-  final double? thresholdHigh;
+  /// Nguong tu lich su (range dang ve, hoac cache sparkline 1h):
+  /// SignalHistorySeries.chartThresholds (chi ANALOG, bo trivial).
+  final List<SignalThreshold> thresholds;
 
   const FilterChartMember({
     required this.row,
@@ -53,8 +54,7 @@ class FilterChartMember {
     required this.styleIndex,
     required this.series,
     required this.state,
-    required this.thresholdLow,
-    required this.thresholdHigh,
+    required this.thresholds,
   });
 
   String get deviceKey => row.deviceKey;
@@ -77,10 +77,7 @@ class FilterChartMember {
     final value = row.value;
     if (value == null || !value.isFinite) return false;
 
-    final low = thresholdLow;
-    final high = thresholdHigh;
-
-    return (low != null && value < low) || (high != null && value > high);
+    return thresholdBreachLevel(thresholds, value: value) != null;
   }
 }
 
@@ -124,9 +121,9 @@ class FilterChartGroup {
 
   /// Nguong chung cua ca nhom (moi device co cung nguong), de ve duong
   /// nguong tren truc chung. Nguong khac nhau giua device -> null.
-  ({double? low, double? high})? get commonThresholds {
+  List<SignalThreshold>? get commonThresholds {
     final withThreshold = members.where(
-      (member) => member.thresholdLow != null || member.thresholdHigh != null,
+      (member) => member.thresholds.isNotEmpty,
     );
 
     if (withThreshold.isEmpty) return null;
@@ -134,19 +131,14 @@ class FilterChartGroup {
     final first = withThreshold.first;
 
     for (final member in withThreshold) {
-      if (member.thresholdLow != first.thresholdLow ||
-          member.thresholdHigh != first.thresholdHigh) {
-        return null;
-      }
+      if (!sameThresholds(member.thresholds, first.thresholds)) return null;
     }
 
-    return (low: first.thresholdLow, high: first.thresholdHigh);
+    return first.thresholds;
   }
 
   bool get thresholdsDiffer {
-    final hasAny = members.any(
-      (member) => member.thresholdLow != null || member.thresholdHigh != null,
-    );
+    final hasAny = members.any((member) => member.thresholds.isNotEmpty);
 
     return hasAny && commonThresholds == null;
   }
@@ -211,8 +203,8 @@ List<FilterChartGroup> buildFilterChartGroups(
           styleIndex: i,
           series: series,
           state: stateOf(row.deviceKey),
-          thresholdLow: reference?.thresholdLow,
-          thresholdHigh: reference?.thresholdHigh,
+          thresholds:
+              reference?.chartThresholds ?? const <SignalThreshold>[],
         ),
       );
     }

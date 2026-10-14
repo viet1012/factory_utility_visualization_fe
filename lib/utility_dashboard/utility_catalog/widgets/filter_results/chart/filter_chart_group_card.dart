@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../shared/charts/signal_thresholds.dart';
 import '../../../../shared/widgets/chart_loading_widgets.dart';
 import '../../../../shared/widgets/lazy_chart_gate.dart';
 import '../../../models/signal_history_models.dart';
@@ -77,8 +78,7 @@ class _FilterChartGroupCardState extends State<FilterChartGroupCard> {
           x.deviceKey != y.deviceKey ||
           x.label != y.label ||
           x.row.value != y.row.value ||
-          x.thresholdLow != y.thresholdLow ||
-          x.thresholdHigh != y.thresholdHigh) {
+          !sameThresholds(x.thresholds, y.thresholds)) {
         return false;
       }
     }

@@ -27,12 +27,12 @@ class _ParaFormDialogState extends State<ParaFormDialog> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   static const List<String> _valueTypeOptions = [
-    'BOOL',
-    'INT16',
-    'LONG',
-    'FLOAT',
-    'DOUBLE',
-    'STRING',
+    'Bool',
+    'Int16',
+    'Long',
+    'Float',
+    'Double',
+    'String',
   ];
 
   static const List<String> _flagOptions = ['0', '1'];

@@ -1,4 +1,5 @@
 import '../../shared/charts/series_math.dart';
+import '../../shared/charts/signal_thresholds.dart';
 import '../../utility_catalog/models/signal_history_models.dart';
 import 'series_history_response.dart';
 
@@ -84,8 +85,16 @@ class HourlySignalSeries {
   final String unit;
   final SignalKind kind;
 
+  /// Gia tri goc cua backend (da dung de dung [thresholds] khi thieu).
   final double? thresholdLow;
   final double? thresholdHigh;
+  final String? alertLevel;
+
+  /// Nguong se ve (trivial = false), theo level.
+  final List<SignalThreshold> thresholds;
+
+  final int breachCount;
+  final DateTime? lastBreachAt;
 
   /// true = HOURLY_SNAPSHOT (7d): khong co min/max.
   final bool isSnapshot;
@@ -100,14 +109,16 @@ class HourlySignalSeries {
     required this.code,
     required this.unit,
     required this.kind,
-    required this.thresholdLow,
-    required this.thresholdHigh,
+    this.thresholdLow,
+    this.thresholdHigh,
+    this.alertLevel,
+    required this.thresholds,
+    required this.breachCount,
+    required this.lastBreachAt,
     required this.isSnapshot,
     required this.points,
     this.parseError,
   });
-
-  bool get hasThreshold => thresholdLow != null || thresholdHigh != null;
 
   /// Dai min–max chi co nghia khi backend tra MIN_AVG_MAX.
   bool get showRangeBand =>
@@ -174,28 +185,37 @@ class HourlySignalSeries {
       kind: kind,
       thresholdLow: dto.thresholdLow,
       thresholdHigh: dto.thresholdHigh,
+      alertLevel: dto.alertLevel,
+      thresholds: dto.visibleThresholds,
+      breachCount: dto.breachCount,
+      lastBreachAt: dto.lastBreachAt,
       isSnapshot: isSnapshot,
       points: List<HourlyPoint>.unmodifiable(points),
       parseError: dto.parseError,
     );
   }
 
-  /// Nguong ap cho gia tri do (ANALOG), khong ap cho delta cua COUNTER hay
-  /// ma STATUS (cung quy uoc voi chart catalog).
-  bool get showThresholds => kind == SignalKind.analog && hasThreshold;
+  /// Nguong `thresholds[]` chi ap cho ANALOG (avg / min / max); backend
+  /// khong tinh nguong tren delta cua COUNTER, STATUS ve ma trang thai.
+  bool get showThresholds =>
+      kind == SignalKind.analog && thresholds.isNotEmpty;
 
-  /// Gia tri vuot nguong cua mot bucket (null = trong nguong).
+  /// Badge "N breaches": chi ANALOG.
+  int get visibleBreachCount => kind == SignalKind.analog ? breachCount : 0;
+
+  /// Level cao nhat ma bucket vuot (null = trong nguong).
   ///
-  /// Xet ca max / min cua bucket, cham do dat tai gia tri vi pham.
-  double? breachValue(HourlyPoint point) {
+  /// Xet ca max / min cua bucket (ANALOG), cham dat tai gia tri vi pham.
+  int? breachLevel(HourlyPoint point) {
     if (!showThresholds || !point.hasValue) return null;
 
-    return thresholdBreach(
+    final analog = kind == SignalKind.analog;
+
+    return thresholdBreachLevel(
+      thresholds,
       value: point.value!,
-      min: point.min,
-      max: point.max,
-      low: thresholdLow,
-      high: thresholdHigh,
+      min: analog ? point.min : null,
+      max: analog ? point.max : null,
     );
   }
 }

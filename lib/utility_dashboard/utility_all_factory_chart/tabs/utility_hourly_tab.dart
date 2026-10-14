@@ -12,6 +12,7 @@ import '../models/utility_chart_models.dart';
 import '../models/utility_hourly_models.dart';
 import '../widgets/utility_glass_tab_row.dart';
 import '../widgets/utility_hourly_chart_grid.dart';
+import 'utility_chart_tab_plan.dart';
 
 class UtilityHourlyTab extends StatefulWidget {
   final bool isActive;
@@ -75,32 +76,6 @@ class _UtilityHourlyTabState extends State<UtilityHourlyTab> {
     }
   }
 
-  /// Device -> PLC da sort cua cac signal dang hien thi (cung bo loc voi
-  /// UtilityHourlyChartGrid; catalog da loc Important / slave). Device khong
-  /// con signal nao thi khong co trong map nen khong goi request.
-  Map<String, List<String>> _resolvePlcsByBox(List<SignalChartConfig> charts) {
-    final selected = widget.selectedBox.trim().toUpperCase();
-    final showAll = selected.isEmpty || selected == 'ALL';
-
-    final result = <String, Set<String>>{};
-
-    for (final chart in charts) {
-      final deviceId = chart.boxDeviceId.trim();
-      final plc = chart.plcAddress.trim();
-
-      if (deviceId.isEmpty || plc.isEmpty) continue;
-      if (!showAll && deviceId.toUpperCase() != selected) continue;
-
-      result.putIfAbsent(deviceId, () => <String>{}).add(plc);
-    }
-
-    final devices = result.keys.toList()..sort();
-
-    return {
-      for (final device in devices) device: result[device]!.toList()..sort(),
-    };
-  }
-
   void _scheduleLoad(
     List<SignalChartConfig> charts,
     String desiredSignature,
@@ -112,17 +87,13 @@ class _UtilityHourlyTabState extends State<UtilityHourlyTab> {
 
     if (catalog.loadedRequestSignature != desiredSignature) return;
 
-    final plcsByBox = _resolvePlcsByBox(charts);
+    final plcsByBox = resolvePlcsByBox(charts, widget.selectedBox);
 
     if (plcsByBox.isEmpty) return;
 
     // Request identity: range + PLC dang hien thi cua tung device. Doi switch
     // Important doi tap PLC nen load lai (controller chi tai phan con thieu).
-    final signature = [
-      range.name,
-      for (final MapEntry(key: device, value: plcs) in plcsByBox.entries)
-        '$device:${plcs.join(',')}',
-    ].join('|');
+    final signature = plcsByBoxSignature(plcsByBox, prefix: range.name);
 
     if (_lastLoadSignature == signature) return;
 

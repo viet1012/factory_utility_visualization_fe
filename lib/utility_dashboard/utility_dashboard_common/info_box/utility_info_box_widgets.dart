@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class UtilityInfoBoxWidgets {
+  /// [breachCount] > 0: hien badge "N breaches" mau [breachColor], tooltip
+  /// ghi [lastBreachAt].
   static Widget header({
     required Color facilityColor,
     required String facTitle,
@@ -10,6 +13,9 @@ class UtilityInfoBoxWidgets {
     String? boxDeviceId,
     String? plcAddress,
     String? unit,
+    int breachCount = 0,
+    DateTime? lastBreachAt,
+    Color breachColor = Colors.redAccent,
   }) {
     final sub = [
       if ((boxDeviceId ?? '').trim().isNotEmpty) boxDeviceId!.trim(),
@@ -92,6 +98,15 @@ class UtilityInfoBoxWidgets {
             ),
           ),
 
+          if (breachCount > 0) ...[
+            const SizedBox(width: 8),
+            _BreachBadge(
+              count: breachCount,
+              lastBreachAt: lastBreachAt,
+              color: breachColor,
+            ),
+          ],
+
           ////////////////////////////////////////////////////////////
           /// PUSH STATUS TO RIGHT
           ////////////////////////////////////////////////////////////
@@ -102,6 +117,49 @@ class UtilityInfoBoxWidgets {
             animate: !hasError,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BreachBadge extends StatelessWidget {
+  static final DateFormat _format = DateFormat('dd/MM HH:mm');
+
+  final int count;
+  final DateTime? lastBreachAt;
+  final Color color;
+
+  const _BreachBadge({
+    required this.count,
+    required this.lastBreachAt,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final last = lastBreachAt;
+
+    return Tooltip(
+      message: last == null
+          ? 'Threshold breaches in range'
+          : 'Last breach: ${_format.format(last.toLocal())}',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .14),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: .45)),
+        ),
+        child: Text(
+          count == 1 ? '1 breach' : '$count breaches',
+          maxLines: 1,
+          style: TextStyle(
+            color: color,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            height: 1,
+          ),
+        ),
       ),
     );
   }

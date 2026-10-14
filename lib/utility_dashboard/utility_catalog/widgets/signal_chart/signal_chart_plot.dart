@@ -8,6 +8,7 @@ import '../../../shared/charts/chart_downsample.dart';
 import '../../../shared/charts/chart_hover_style.dart';
 import '../../../shared/charts/chart_thresholds.dart';
 import '../../../shared/charts/signal_chart_spec.dart';
+import '../../../shared/charts/signal_thresholds.dart';
 import '../../models/signal_history_models.dart';
 import 'signal_chart_format.dart';
 import 'signal_chart_gaps.dart';
@@ -20,7 +21,8 @@ import 'signal_chart_palette.dart';
 /// - step (STATUS): bac thang theo last, to mau theo ma;
 /// - bar (COUNTER): cot theo delta (delta null -> khong ve cot);
 /// - khoang null chi ngat duong + to xam khi dai hon kSignalGapBreakThreshold;
-/// - nguong: duong ngang net dut + nhan; diem vuot nguong cham do.
+/// - nguong (`thresholds[]`, chi ANALOG): duong net dut + nhan mau theo
+///   level, nhan ▲ / ▼ o mep khi ngoai truc; diem vuot nguong cham mau level.
 class SignalChartPlot extends StatefulWidget {
   final SignalHistorySeries series;
   final Color lineColor;
@@ -95,16 +97,17 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
       for (final point in points) point.ts.millisecondsSinceEpoch: point,
     };
 
-    // Nguong ap cho gia tri do, khong ap cho delta cua COUNTER.
-    final showThresholds = spec.showThreshold && !isBar && series.hasThreshold;
+    // Nguong `thresholds[]` chi ap cho ANALOG (chartThresholds rong voi
+    // COUNTER / STATUS).
+    final lines = isBar
+        ? const <SignalThreshold>[]
+        : series.chartThresholds;
 
-    final exceeded = showThresholds
-        ? <_ExceedMark>[
-            for (final point in points)
-              if (series.exceedingValue(point) case final value?)
-                _ExceedMark(point, value),
-          ]
-        : const <_ExceedMark>[];
+    final exceeded = <_ExceedMark>[
+      for (final point in points)
+        if (series.breachLevel(point, lines) case final level?)
+          _ExceedMark(point, series.breachValue(point, lines, level), level),
+    ];
 
     final axis = planAxis(
       values: [
@@ -114,8 +117,7 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
         ],
       ],
       spec: spec,
-      thresholdLow: showThresholds ? series.thresholdLow : null,
-      thresholdHigh: showThresholds ? series.thresholdHigh : null,
+      thresholds: lines,
     );
 
     final unit = spec.resolveUnit(series.unit);
@@ -242,6 +244,7 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
             animationDuration: 0,
             enableTrackball: false,
             color: SignalChartColors.alert,
+            pointColorMapper: (mark, _) => thresholdLevelColor(mark.level),
             xValueMapper: (mark, _) => mark.point.ts,
             yValueMapper: (mark, _) => mark.value,
             markerSettings: const MarkerSettings(
@@ -274,8 +277,9 @@ class _ExceedMark {
 
   /// Gia tri da vuot nguong (max / min / avg tuy aggregation).
   final double value;
+  final int level;
 
-  const _ExceedMark(this.point, this.value);
+  const _ExceedMark(this.point, this.value, this.level);
 }
 
 class _PointTooltip extends StatelessWidget {
@@ -307,7 +311,7 @@ class _PointTooltip extends StatelessWidget {
       isSnapshot: series.aggregation == HistoryAggregation.snapshot,
     );
 
-    final exceeding = isCounter ? null : series.exceedingValue(point);
+    final exceeding = series.breachLevel(point, series.chartThresholds);
 
     return ChartHoverCard(
       title: formatSignalTimestamp(point.ts),

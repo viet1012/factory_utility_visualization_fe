@@ -5,7 +5,10 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-import '../models/minute_point.dart';
+import '../../utility_catalog/api/signal_history_repository.dart';
+import '../../utility_catalog/models/signal_history_models.dart';
+import '../../utility_catalog/widgets/signal_chart/signal_chart_gaps.dart'
+    show kSignalGapBreakThreshold;
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
 import '../../utility_dashboard_fac_details/widgets/hover_box_panel/hover_flow_painters.dart';
@@ -13,8 +16,10 @@ import '../../shared/charts/axis_planner.dart';
 import '../../shared/charts/chart_animation.dart';
 import '../../shared/charts/chart_downsample.dart';
 import '../../shared/charts/chart_hover_style.dart';
+import '../../shared/charts/chart_thresholds.dart';
 import '../../shared/charts/signal_chart_spec.dart';
 import '../../shared/charts/signal_chart_spec_registry.dart';
+import '../../shared/charts/signal_thresholds.dart';
 import '../controllers/utility_chart_catalog_controller.dart';
 import '../../shared/charts/value_format.dart';
 import '../../shared/widgets/chart_loading_widgets.dart';
@@ -22,126 +27,66 @@ import '../../shared/widgets/chart_state_widgets.dart';
 import '../../shared/widgets/lazy_chart_gate.dart';
 import '../../shared/widgets/scada_panel_frame.dart';
 import '../../utility_dashboard_widgets/center_message.dart';
+import '../controllers/series_history_chart_controller.dart';
 import '../controllers/utility_minute_chart_controller.dart';
+import '../models/utility_minute_models.dart';
 
 // ============================================================
 // INTERNAL MODELS
 // ============================================================
 
-/// A plotted point. [time] is always the minute-bucket `ts`, never the raw
-/// sample time, so X-axis positioning and bucket alignment stay unchanged.
-///
-/// [value] = gia tri ve; null = khong ve.
-class _ChartPoint {
-  final DateTime time;
-  final double? value;
+/// Phan cua [MinuteBoxState] ma mot the can: state cua box (loading /
+/// error / poll health) va series cua chinh PLC nay.
+class _PanelVm {
+  final MinuteBoxState state;
+  final MinuteSignalSeries? series;
 
-  const _ChartPoint({required this.time, required this.value});
+  const _PanelVm(this.state, this.series);
+
+  factory _PanelVm.of(MinuteBoxState state, String plcAddress) {
+    return _PanelVm(state, state.data?.signals[plcAddress]);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is _PanelVm &&
+        identical(other.series, series) &&
+        identical(other.state.data, state.data) &&
+        other.state.error == state.error &&
+        other.state.lastOkAt == state.lastOkAt &&
+        other.state.lastErrAt == state.lastErrAt;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(series, state.error, state.lastOkAt, state.lastErrAt);
 }
-
-/// Mot cot usage 5 phut cua signal COUNTER (spec bar).
-class _UsageBar {
-  final DateTime start;
-  final DateTime end;
-
-  /// Gia tri cuoi khoang nay - gia tri cuoi khoang truoc; null = khong ve
-  /// (thieu du lieu mot trong hai khoang, hoac am do counter reset).
-  final double? value;
-
-  /// Khac null khi khoang dang dien ra: du lieu moi tinh den thoi diem nay.
-  final DateTime? until;
-
-  const _UsageBar({
-    required this.start,
-    required this.end,
-    required this.value,
-    this.until,
-  });
-
-  DateTime get center => start.add(_usageStep ~/ 2);
-}
-
-const Duration _usageStep = Duration(minutes: 5);
 
 class _SeriesAnalysis {
   final bool isStale;
   final bool isFlat;
   final Duration? staleFor;
 
-  final double minValue;
-  final double maxValue;
-  final double delta;
-
   const _SeriesAnalysis({
     required this.isStale,
     required this.isFlat,
     required this.staleFor,
-    required this.minValue,
-    required this.maxValue,
-    required this.delta,
   });
 
   static const empty = _SeriesAnalysis(
     isStale: false,
     isFlat: false,
     staleFor: null,
-    minValue: 0,
-    maxValue: 0,
-    delta: 0,
   );
 }
 
-class _PreparedSeries {
-  final List<_ChartPoint> points;
-  final MinutePointDto? latestPoint;
-  final _SeriesAnalysis analysis;
+/// Cham vuot nguong tren line: gia tri vi pham + level.
+class _BreachMark {
+  final DateTime time;
+  final double value;
+  final int level;
 
-  final String? signalName;
-  final String? unit;
-
-  /// Ma signal (cateId cua row), dung chon SignalChartSpec.
-  final String? code;
-
-  final bool hidden;
-
-  const _PreparedSeries({
-    required this.points,
-    required this.latestPoint,
-    required this.analysis,
-    required this.signalName,
-    required this.unit,
-    required this.code,
-    required this.hidden,
-  });
-
-  static const empty = _PreparedSeries(
-    points: [],
-    latestPoint: null,
-    analysis: _SeriesAnalysis.empty,
-    signalName: null,
-    unit: null,
-    code: null,
-    hidden: false,
-  );
-}
-
-class _PanelVm {
-  final List<MinutePointDto> rows;
-  final Object? error;
-  final bool hasFetchedOnce;
-
-  /// Poll health, kept separate from sample freshness: these describe when the
-  /// controller last talked to the API, not how new the data is.
-  final DateTime? lastOkAt;
-  final DateTime? lastErrAt;
-
-  const _PanelVm({
-    required this.rows,
-    required this.error,
-    required this.hasFetchedOnce,
-    required this.lastOkAt,
-    required this.lastErrAt,
-  });
+  const _BreachMark(this.time, this.value, this.level);
 }
 
 enum _SignalStatusType { normal, stale, flat }
@@ -162,6 +107,12 @@ class _SignalStatus {
   bool get shouldShow => type != _SignalStatusType.normal;
 }
 
+String _errorMessage(Object? error) {
+  if (error is SignalHistoryRequestException) return error.message;
+  if (error is TimeoutException) return 'Request timed out. Please try again.';
+  return 'Please check your connection or try again.';
+}
+
 // ============================================================
 // PANEL
 // ============================================================
@@ -171,27 +122,23 @@ class UtilityMinuteChartPanel extends StatefulWidget {
   final double? height;
 
   final String facId;
-  final String? scadaId;
   final String? cate;
 
   final String? boxDeviceId;
   final String? plcAddress;
 
-  /// Ten / unit / ma tu catalog: hien khung the ngay, khong cho du lieu.
+  /// Ten / unit tu catalog: hien khung the ngay, khong cho du lieu.
   final String? signalName;
   final String? unit;
-  final String? code;
 
   const UtilityMinuteChartPanel({
     super.key,
     required this.facId,
-    this.scadaId,
     this.cate,
     this.boxDeviceId,
     this.plcAddress,
     this.signalName,
     this.unit,
-    this.code,
     this.width = 520,
     this.height,
   });
@@ -202,11 +149,13 @@ class UtilityMinuteChartPanel extends StatefulWidget {
 }
 
 class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
-  // Provider poll mỗi 30 giây.
-  // Sau 110 giây không có dữ liệu mới thì xem là stale.
-  static const Duration _staleThreshold = Duration(seconds: 110);
+  /// Khong co bucket moi lau hon nguong ngat duong (> 3 phut) thi xem la
+  /// stale: le 1–3 phut trong la binh thuong (chu ky ghi ~65s).
+  static const Duration _staleThreshold = kSignalGapBreakThreshold;
 
-  static final DateFormat _latestTimeFormat = DateFormat('HH:mm:ss');
+  static const Color _alertColor = Colors.redAccent;
+
+  static final DateFormat _latestTimeFormat = DateFormat('HH:mm');
   static final DateFormat _axisTimeFormat = DateFormat('HH:mm');
   static final DateFormat _hoverTimeFormat = DateFormat('dd/MM HH:mm');
 
@@ -217,25 +166,21 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   late final ZoomPanBehavior _zoomPanBehavior;
   final FirstPaintAnimation _animation = FirstPaintAnimation();
 
-  /// Spec + diem dang ve, de trackball tra lai diem goc tu x.
+  /// Series + spec dang ve, de trackball tra lai diem goc tu x.
+  MinuteSignalSeries? _series;
   SignalChartSpec _spec = SignalChartSpecRegistry.fallback;
-  Map<int, _ChartPoint> _pointsByTime = const {};
-  Map<int, _UsageBar> _barsByCenter = const {};
+  Map<int, MinutePoint> _pointsByTime = const {};
+  Map<int, MinuteUsageBar> _barsByCenter = const {};
 
-  late String _requestKey;
+  /// Phan tich stale / flat, tinh lai khi series doi.
+  MinuteSignalSeries? _analyzedSeries;
+  _SeriesAnalysis _analysis = _SeriesAnalysis.empty;
 
-  List<MinutePointDto>? _cachedRowsReference;
-  _PreparedSeries _preparedSeries = _PreparedSeries.empty;
+  String get _box => widget.boxDeviceId?.trim() ?? '';
 
-  bool get _hasBoxDeviceId => (widget.boxDeviceId ?? '').trim().isNotEmpty;
+  String get _plc => widget.plcAddress?.trim() ?? '';
 
-  bool get _hasPlcAddress => (widget.plcAddress ?? '').trim().isNotEmpty;
-
-  bool get _canFetch => _hasBoxDeviceId;
-
-  bool get _canRenderSignal => _hasBoxDeviceId && _hasPlcAddress;
-
-  String get _plcAddressOrEmpty => widget.plcAddress?.trim() ?? '';
+  bool get _canRenderSignal => _box.isNotEmpty && _plc.isNotEmpty;
 
   ChartTheme get _theme => ChartThemes.byCate(widget.cate);
 
@@ -257,7 +202,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         }
 
         final point = _pointsByTime[x.millisecondsSinceEpoch];
-        if (point == null) return const SizedBox.shrink();
+        if (point == null || !point.hasValue) return const SizedBox.shrink();
 
         return _hoverCard(point);
       },
@@ -268,57 +213,6 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       enablePanning: true,
       zoomMode: ZoomMode.y,
     );
-
-    _refreshRequestKey();
-
-    // Không gọi API ở đây.
-  }
-
-  @override
-  void didUpdateWidget(covariant UtilityMinuteChartPanel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (!_didRequestParamsChange(oldWidget, widget)) {
-      return;
-    }
-
-    _cachedRowsReference = null;
-    _preparedSeries = _PreparedSeries.empty;
-
-    _refreshRequestKey();
-
-    // Không gọi API.
-  }
-
-  // ============================================================
-  // REQUEST
-  // ============================================================
-
-  bool _didRequestParamsChange(
-    UtilityMinuteChartPanel oldWidget,
-    UtilityMinuteChartPanel newWidget,
-  ) {
-    return oldWidget.facId != newWidget.facId ||
-        oldWidget.scadaId != newWidget.scadaId ||
-        oldWidget.cate != newWidget.cate ||
-        oldWidget.boxDeviceId != newWidget.boxDeviceId ||
-        oldWidget.plcAddress != newWidget.plcAddress;
-  }
-
-  void _refreshRequestKey() {
-    final provider = context.read<UtilityMinuteChartController>();
-
-    _requestKey = provider.buildKey(
-      facId: widget.facId,
-      scadaId: widget.scadaId,
-      boxDeviceId: widget.boxDeviceId,
-    );
-  }
-
-  Future<void> _retryCurrentBox() async {
-    final provider = context.read<UtilityMinuteChartController>();
-
-    await provider.refreshKey(_requestKey);
   }
 
   // ============================================================
@@ -327,26 +221,10 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
 
   @override
   Widget build(BuildContext context) {
+    // Chi lang nghe phan du lieu cua chinh signal nay trong box.
     return Selector<UtilityMinuteChartController, _PanelVm>(
-      selector: (_, provider) {
-        return _PanelVm(
-          rows: provider.getRowsForPlc(_requestKey, _plcAddressOrEmpty),
-          error: provider.getError(_requestKey),
-          hasFetchedOnce: provider.hasFetchedOnce(_requestKey),
-          lastOkAt: provider.lastOkAt(_requestKey),
-          lastErrAt: provider.lastErrAt(_requestKey),
-        );
-      },
-      shouldRebuild: (previous, next) {
-        return !identical(previous.rows, next.rows) ||
-            previous.error != next.error ||
-            previous.hasFetchedOnce != next.hasFetchedOnce ||
-            previous.lastOkAt != next.lastOkAt ||
-            previous.lastErrAt != next.lastErrAt;
-      },
+      selector: (_, controller) => _PanelVm.of(controller.boxState(_box), _plc),
       builder: (context, vm, _) {
-        _prepareRowsIfNeeded(vm.rows);
-
         return RepaintBoundary(
           child: ScadaPanelFrame(color: _theme.accent, child: _buildPanel(vm)),
         );
@@ -354,209 +232,41 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     );
   }
 
-  void _prepareRowsIfNeeded(List<MinutePointDto> rows) {
-    if (identical(_cachedRowsReference, rows)) {
-      return;
-    }
-
-    _cachedRowsReference = rows;
-    _preparedSeries = _prepareSeries(rows);
-  }
-
-  _PreparedSeries _prepareSeries(List<MinutePointDto> rows) {
-    if (rows.isEmpty) {
-      return _PreparedSeries.empty;
-    }
-
-    var hidden = false;
-    MinutePointDto? latestPoint;
-
-    String? signalName;
-    String? unit;
-    String? code;
-
-    final points = <_ChartPoint>[];
-
-    double? minValue;
-    double? maxValue;
-
-    for (final row in rows) {
-      final nameEn = (row.nameEn ?? '').trim();
-
-      if (nameEn.toLowerCase().contains('slave multifunction meter')) {
-        hidden = true;
-      }
-
-      signalName = nameEn.isNotEmpty ? nameEn : row.cateId;
-
-      unit = row.unit;
-      code = row.cateId;
-
-      final value = row.value;
-
-      if (value == null || !value.isFinite) {
-        continue;
-      }
-
-      latestPoint = row;
-
-      final localTime = row.ts.toLocal();
-
-      points.add(_ChartPoint(time: localTime, value: value));
-
-      if (minValue == null || value < minValue) {
-        minValue = value;
-      }
-
-      if (maxValue == null || value > maxValue) {
-        maxValue = value;
-      }
-    }
-
-    if (points.isEmpty || minValue == null || maxValue == null) {
-      return _PreparedSeries(
-        points: const [],
-        latestPoint: latestPoint ?? rows.last,
-        analysis: _SeriesAnalysis.empty,
-        signalName: signalName,
-        unit: unit,
-        code: code,
-        hidden: hidden,
-      );
-    }
-
-    /*
-     * latestPoint la row cuoi cung co value hop le, tuong ung voi points.last.
-     * Do tuoi lay tu realSampleTime cua chinh row do.
-     */
-    final resolvedLatestPoint = latestPoint ?? rows.last;
-
-    final analysis = _analyzePreparedSeries(
-      points: points,
-      latestSampleTime: resolvedLatestPoint.realSampleTime,
-      minValue: minValue,
-      maxValue: maxValue,
-    );
-
-    return _PreparedSeries(
-      points: List<_ChartPoint>.unmodifiable(points),
-      latestPoint: resolvedLatestPoint,
-      analysis: analysis,
-      signalName: signalName,
-      unit: unit,
-      code: code,
-      hidden: hidden,
-    );
-  }
-
-  /// Spec qua catalog (code / unit / ten theo box + PLC), fallback response.
-  SignalChartSpec _resolveSpec(_PreparedSeries prepared) {
+  /// Spec theo code / unit / kind cua response, thieu thi qua catalog.
+  SignalChartSpec _resolveSpec(MinuteSignalSeries? series) {
     return context.read<UtilityChartCatalogController>().resolveSpecForSignal(
-      widget.boxDeviceId ?? '',
-      _plcAddressOrEmpty,
-      fallbackCode: prepared.code ?? widget.code,
-      unit: prepared.unit ?? widget.unit,
-      name: prepared.signalName ?? widget.signalName,
+      _box,
+      _plc,
+      code: series?.code,
+      unit: series?.unit ?? widget.unit,
+      kind: series?.kind.name.toUpperCase(),
+      name: series?.name ?? widget.signalName,
     );
-  }
-
-  /// COUNTER: gop gia tri doc theo khoang 5 phut (gio dia phuong).
-  ///
-  /// Cot cua khoang k = gia tri cuoi khoang k - gia tri cuoi khoang k-1.
-  /// Khoang thieu du lieu (hoac khoang truoc thieu), hay hieu am (reset):
-  /// khong ve cot. Khoang dang dien ra hien gia tri tam, [_UsageBar.until] =
-  /// thoi diem doc cuoi cung.
-  static List<_UsageBar> _usageBars(List<_ChartPoint> readings, DateTime now) {
-    if (readings.isEmpty) return const <_UsageBar>[];
-
-    DateTime floor(DateTime time) => DateTime(
-      time.year,
-      time.month,
-      time.day,
-      time.hour,
-      time.minute - time.minute % _usageStep.inMinutes,
-    );
-
-    // Gia tri cuoi + thoi diem cuoi cua moi khoang.
-    final lastByBucket = <DateTime, _ChartPoint>{};
-    for (final point in readings) {
-      if (point.value == null) continue;
-      final bucket = floor(point.time);
-      final current = lastByBucket[bucket];
-      if (current == null || !point.time.isBefore(current.time)) {
-        lastByBucket[bucket] = point;
-      }
-    }
-
-    if (lastByBucket.isEmpty) return const <_UsageBar>[];
-
-    final buckets = lastByBucket.keys.toList()..sort();
-    final bars = <_UsageBar>[];
-
-    for (
-      var start = buckets.first;
-      !start.isAfter(buckets.last);
-      start = start.add(_usageStep)
-    ) {
-      final end = start.add(_usageStep);
-      final last = lastByBucket[start];
-      final previous = lastByBucket[start.subtract(_usageStep)];
-
-      final delta = last == null || previous == null
-          ? null
-          : last.value! - previous.value!;
-
-      final value = delta != null && delta >= 0 ? delta : null;
-
-      bars.add(
-        _UsageBar(
-          start: start,
-          end: end,
-          value: value,
-          until: end.isAfter(now) && value != null ? last!.time : null,
-        ),
-      );
-    }
-
-    return bars;
-  }
-
-  /// Tong usage cua cua so 60 phut = gia tri cuoi - gia tri dau. Co reset
-  /// (gia tri giam) thi cong cac doan tang: tong cac buoc tang giua hai lan
-  /// doc lien tiep (khong reset thi bang dung cuoi - dau).
-  static double? _usageTotal(List<_ChartPoint> readings, DateTime now) {
-    final from = now.subtract(const Duration(minutes: 60));
-
-    double? previous;
-    double? total;
-
-    for (final point in readings) {
-      final value = point.value;
-      if (value == null || point.time.isBefore(from)) continue;
-
-      if (previous != null) {
-        final step = value - previous;
-        total = (total ?? 0) + (step > 0 ? step : 0);
-      }
-      previous = value;
-    }
-
-    return total;
   }
 
   Widget _buildPanel(_PanelVm vm) {
-    final prepared = _preparedSeries;
+    final series = vm.series;
 
-    if (prepared.hidden) {
+    if (series?.hidden ?? false) {
       return const SizedBox.shrink();
     }
 
-    final hasError = vm.error != null;
+    final state = vm.state;
+    final hasError = state.error != null;
 
-    final isLoading = _canFetch && !vm.hasFetchedOnce && !hasError;
+    // Chi lan dau (chua co du lieu) moi bao dang tai.
+    final isLoading = _canRenderSignal && state.data == null && !hasError;
 
-    final spec = _resolveSpec(prepared);
-    final unit = spec.resolveUnit(prepared.unit ?? widget.unit);
+    final spec = _resolveSpec(series);
+    final unit = spec.resolveUnit(
+      (series?.unit.isNotEmpty ?? false) ? series!.unit : widget.unit,
+    );
+
+    final name = (series?.name.isNotEmpty ?? false)
+        ? series!.name
+        : widget.signalName;
+
+    final breachCount = series?.visibleBreachCount ?? 0;
 
     return Container(
       width: widget.width,
@@ -569,17 +279,25 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
           UtilityInfoBoxWidgets.header(
             facilityColor: _theme.fillTop,
             facTitle: widget.facId,
-            boxDeviceId: prepared.signalName ?? widget.signalName,
+            boxDeviceId: name,
             plcAddress: widget.plcAddress,
             unit: unit,
             isLoading: isLoading,
             hasError: hasError,
-            err: vm.error,
+            err: hasError ? _errorMessage(state.error) : null,
+            breachCount: breachCount,
+            lastBreachAt: series?.lastBreachAt,
+            breachColor: breachCount > 0
+                ? breachBadgeColor(
+                    series!.points.map(series.breachLevel),
+                    series.thresholds,
+                  )
+                : _alertColor,
           ),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(10),
-              child: _buildBody(vm: vm, prepared: prepared, spec: spec),
+              child: _buildBody(vm: vm, spec: spec, unit: unit),
             ),
           ),
         ],
@@ -618,8 +336,8 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
 
   Widget _buildBody({
     required _PanelVm vm,
-    required _PreparedSeries prepared,
     required SignalChartSpec spec,
+    required String unit,
   }) {
     if (!_canRenderSignal) {
       return EmptyChartState(
@@ -630,18 +348,24 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       );
     }
 
-    final hasError = vm.error != null;
+    final state = vm.state;
+    final data = state.data;
+    final series = vm.series;
 
-    // Lan dau: khung the + skeleton, khong spinner.
-    if (!vm.hasFetchedOnce && !hasError) {
+    if (data == null) {
+      if (state.error != null) {
+        return ChartApiErrorState(
+          color: _theme.line,
+          message: _errorMessage(state.error),
+          onRetry: () => context.read<UtilityMinuteChartController>().retry(),
+        );
+      }
+
+      // Lan dau: khung the + skeleton, khong spinner.
       return ChartBodySkeleton(color: _theme.line);
     }
 
-    if (hasError && vm.rows.isEmpty) {
-      return ChartApiErrorState(color: _theme.line, onRetry: _retryCurrentBox);
-    }
-
-    if (vm.rows.isEmpty) {
+    if (series == null) {
       return EmptyChartState(
         icon: Icons.timeline_rounded,
         title: 'No Minute Data',
@@ -650,30 +374,35 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       );
     }
 
-    if (prepared.points.isEmpty) {
+    if (series.parseError != null) {
       return EmptyChartState(
-        icon: Icons.show_chart_rounded,
-        title: 'No Valid Points',
-        message: 'All returned values are invalid or null.',
+        icon: Icons.report_problem_outlined,
+        title: 'Invalid Signal Data',
+        message: 'Minute data for $_plc could not be parsed.',
         color: _theme.line,
       );
     }
 
-    final latestPoint = prepared.latestPoint;
+    final latest = series.latest;
 
-    if (latestPoint == null) {
+    if (latest == null) {
       return EmptyChartState(
         icon: Icons.show_chart_rounded,
         title: 'No Valid Points',
-        message: 'Latest signal point is unavailable.',
+        message: 'No samples recorded in the last 60 minutes.',
         color: _theme.line,
       );
+    }
+
+    if (!identical(_analyzedSeries, series)) {
+      _analyzedSeries = series;
+      _analysis = _analyze(series, latest);
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildLatestInfoBar(latestPoint, prepared.analysis, vm, spec),
+        _buildLatestInfoBar(series, latest, vm, spec, unit),
         const SizedBox(height: 6),
         Expanded(
           child: LazyChartGate(
@@ -681,7 +410,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
               color: _theme.line,
               withSummary: false,
             ),
-            builder: (_) => _buildChart(prepared, spec),
+            builder: (_) => _buildChart(series, data, spec, unit),
           ),
         ),
       ],
@@ -693,29 +422,25 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   // ============================================================
 
   Widget _buildLatestInfoBar(
-    MinutePointDto latestPoint,
-    _SeriesAnalysis analysis,
+    MinuteSignalSeries series,
+    MinutePoint latest,
     _PanelVm vm,
     SignalChartSpec spec,
+    String unit,
   ) {
-    final status = _resolveSignalStatus(analysis, vm);
-    final unit = spec.resolveUnit(latestPoint.unit ?? widget.unit);
+    final status = _resolveSignalStatus(_analysis, vm);
 
-    // COUNTER: the tom tat hien tong usage cua cua so 60 phut.
+    // COUNTER: the tom tat hien tong usage (tong delta) cua cua so 60 phut.
     final isUsage = spec.style == ChartStyle.bar;
 
     final latestValue = isUsage
-        ? '${formatWithUnit(_usageTotal(_preparedSeries.points, DateTime.now()), unit, decimals: spec.decimals)}'
+        ? '${formatWithUnit(series.usageTotal, unit, decimals: spec.decimals)}'
               ' / 60 min'
-        : formatWithUnit(latestPoint.value, unit, decimals: spec.decimals);
+        : spec.style == ChartStyle.step
+        ? 'Code ${latest.value!.round()}'
+        : formatWithUnit(latest.value, unit, decimals: spec.decimals);
 
-    /*
-     * Hien thi thoi diem thuc cua sample (11:15:46), khong phai moc bucket
-     * (11:15:00), de khop voi con so "No new sample for" ben canh.
-     */
-    final latestTime = _latestTimeFormat.format(
-      latestPoint.realSampleTime.toLocal(),
-    );
+    final latestTime = _latestTimeFormat.format(latest.ts);
 
     return Container(
       height: 42,
@@ -769,6 +494,18 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
                     height: 1,
                   ),
                 ),
+                // ANALOG co nguong: khoang cach toi nguong gan nhat.
+                if (series.showThresholds) ...[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: ThresholdChip(
+                      thresholds: series.thresholds,
+                      value: latest.value,
+                      unit: unit,
+                      decimals: spec.decimals,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -819,11 +556,11 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   /// Sample freshness stays the primary signal; this only distinguishes
   /// "source has no new sample" from "polling is failing or not running".
   String _pollHealthSuffix(_PanelVm vm) {
-    final lastOk = vm.lastOkAt;
-    final lastErr = vm.lastErrAt;
+    final lastOk = vm.state.lastOkAt;
+    final lastErr = vm.state.lastErrAt;
 
     final failedLast =
-        vm.error != null &&
+        vm.state.error != null &&
         (lastOk == null || (lastErr != null && lastErr.isAfter(lastOk)));
 
     if (failedLast) return ' · Refresh failed';
@@ -867,39 +604,70 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   // CHART
   // ============================================================
 
-  Widget _buildChart(_PreparedSeries prepared, SignalChartSpec spec) {
-    final readings = prepared.points;
+  Widget _buildChart(
+    MinuteSignalSeries series,
+    SeriesBoxData<MinuteSignalSeries> data,
+    SignalChartSpec spec,
+    String unit,
+  ) {
+    final readings = series.plotPoints;
 
-    if (readings.length < 2) {
+    if (readings.where((point) => point.hasValue).length < 2) {
       return const CenterMessage(message: 'Not enough points');
     }
 
     final style = spec.style;
     final isUsage = style == ChartStyle.bar;
+    final analog = series.kind == SignalKind.analog;
 
     final bars = isUsage
-        ? _usageBars(readings, DateTime.now())
-        : const <_UsageBar>[];
+        ? series.usageBars(data.window.to)
+        : const <MinuteUsageBar>[];
 
-    final data = isUsage
-        ? const <_ChartPoint>[]
+    final points = isUsage
+        ? const <MinutePoint>[]
         : downsampleMinMax(readings, value: (point) => point.value);
 
+    _series = series;
     _spec = spec;
     _pointsByTime = {
-      for (final point in data) point.time.millisecondsSinceEpoch: point,
+      for (final point in points) point.ts.millisecondsSinceEpoch: point,
     };
     _barsByCenter = {
       for (final bar in bars) bar.center.millisecondsSinceEpoch: bar,
     };
 
-    final unit = spec.resolveUnit(prepared.unit ?? widget.unit);
     final axis = planAxis(
       values: isUsage
           ? bars.map((bar) => bar.value)
-          : data.map((point) => point.value),
+          : points.map((point) => point.value),
       spec: spec,
+      thresholds: series.showThresholds ? series.thresholds : const [],
     );
+
+    // Vuot nguong: cot to mau level, line them cham mau level.
+    Color barColor(MinuteUsageBar bar) {
+      final level = series.barBreachLevel(bar);
+      return level == null ? _theme.line : thresholdLevelColor(level);
+    }
+
+    final breaches = isUsage
+        ? const <_BreachMark>[]
+        : <_BreachMark>[
+            for (final point in points)
+              if (series.breachLevel(point) case final level?)
+                _BreachMark(
+                  point.ts,
+                  breachMarkValue(
+                    series.thresholds,
+                    level,
+                    value: point.value!,
+                    min: analog ? point.min : null,
+                    max: analog ? point.max : null,
+                  ),
+                  level,
+                ),
+          ];
 
     final xBounds = isUsage && bars.isNotEmpty
         ? (
@@ -912,7 +680,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
 
     const gap = EmptyPointSettings(mode: EmptyPointMode.gap);
 
-    return SfCartesianChart(
+    final chart = SfCartesianChart(
       // Không đặt ValueKey theo data.length hoặc timestamp.
       // Giữ nguyên chart state, tránh dispose/recreate.
       plotAreaBorderWidth: 1,
@@ -967,13 +735,14 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
           color: Colors.white.withValues(alpha: .72),
           fontSize: 12,
         ),
+        plotBands: thresholdPlotBands(axis, unit),
       ),
       series: <CartesianSeries<dynamic, DateTime>>[
         switch (style) {
-          ChartStyle.area => AreaSeries<_ChartPoint, DateTime>(
+          ChartStyle.area => AreaSeries<MinutePoint, DateTime>(
             animationDuration: animationMs,
-            dataSource: data,
-            xValueMapper: (point, _) => point.time,
+            dataSource: points,
+            xValueMapper: (point, _) => point.ts,
             yValueMapper: (point, _) => point.value,
             borderColor: _theme.accent,
             borderWidth: 2,
@@ -986,45 +755,70 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
             emptyPointSettings: gap,
           ),
           // Cot dat giua khoang 5 phut.
-          ChartStyle.bar => ColumnSeries<_UsageBar, DateTime>(
+          ChartStyle.bar => ColumnSeries<MinuteUsageBar, DateTime>(
             animationDuration: animationMs,
             dataSource: bars,
             xValueMapper: (bar, _) => bar.center,
             yValueMapper: (bar, _) => bar.value,
             width: .7,
             color: _theme.line,
+            pointColorMapper: (bar, _) => barColor(bar),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
             emptyPointSettings: gap,
           ),
-          ChartStyle.step => StepLineSeries<_ChartPoint, DateTime>(
+          ChartStyle.step => StepLineSeries<MinutePoint, DateTime>(
             animationDuration: animationMs,
-            dataSource: data,
-            xValueMapper: (point, _) => point.time,
+            dataSource: points,
+            xValueMapper: (point, _) => point.ts,
             yValueMapper: (point, _) => point.value,
             color: _theme.line,
             width: 2,
             emptyPointSettings: gap,
           ),
-          ChartStyle.lineBand => LineSeries<_ChartPoint, DateTime>(
+          ChartStyle.lineBand => LineSeries<MinutePoint, DateTime>(
             animationDuration: animationMs,
-            dataSource: data,
-            xValueMapper: (point, _) => point.time,
+            dataSource: points,
+            xValueMapper: (point, _) => point.ts,
             yValueMapper: (point, _) => point.value,
             color: _theme.line,
             width: 2,
             emptyPointSettings: gap,
           ),
         },
+        if (breaches.isNotEmpty)
+          ScatterSeries<_BreachMark, DateTime>(
+            dataSource: breaches,
+            animationDuration: animationMs,
+            enableTrackball: false,
+            color: _alertColor,
+            pointColorMapper: (mark, _) => thresholdLevelColor(mark.level),
+            xValueMapper: (mark, _) => mark.time,
+            yValueMapper: (mark, _) => mark.value,
+            markerSettings: const MarkerSettings(
+              height: 6,
+              width: 6,
+              shape: DataMarkerType.circle,
+              borderWidth: 0,
+            ),
+          ),
       ],
     );
+
+    // Nguong qua xa du lieu: khong keo truc, chi hien nhan o mep.
+    return withOffscaleThresholds(chart, axis, unit);
   }
 
-  Widget _hoverCard(_ChartPoint point) {
+  Widget _hoverCard(MinutePoint point) {
     final spec = _spec;
-    final unit = spec.resolveUnit(_preparedSeries.unit ?? widget.unit);
+    final series = _series;
+    final unit = spec.resolveUnit(series?.unit ?? widget.unit);
+    final hasRange =
+        series?.kind == SignalKind.analog &&
+        point.min != null &&
+        point.max != null;
 
     return ChartHoverCard(
-      title: _hoverTimeFormat.format(point.time),
+      title: _hoverTimeFormat.format(point.ts),
       rows: ChartHoverStyle.rows(
         kind: spec.style == ChartStyle.step
             ? HoverKind.status
@@ -1032,16 +826,18 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         value: point.value,
         unit: unit,
         decimals: spec.decimals,
-        isSnapshot: true,
+        min: hasRange ? point.min : null,
+        max: hasRange ? point.max : null,
+        samples: point.count,
       ),
     );
   }
 
   /// Tooltip cot usage: khoang thoi gian (+ "den hh:mm" neu dang dien ra)
   /// va Usage kem unit.
-  Widget _usageHoverCard(_UsageBar bar) {
+  Widget _usageHoverCard(MinuteUsageBar bar) {
     final spec = _spec;
-    final unit = spec.resolveUnit(_preparedSeries.unit ?? widget.unit);
+    final unit = spec.resolveUnit(_series?.unit ?? widget.unit);
     final until = bar.until;
 
     final range =
@@ -1065,25 +861,10 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   // ANALYSIS
   // ============================================================
 
-  /*
-   * [latestSampleTime] la thoi diem THUC cua sample moi nhat
-   * (sampleRecordedAt ?? ts), khong phai moc bucket cua diem cuoi.
-   *
-   * Vi du: bucket ts = 11:15:00 nhung sample thuc te ghi luc 11:15:46.473.
-   * Do tuoi phai tinh tu 11:15:46.473, neu khong moi diem se bi cong them
-   * tuy y toi 59 giay va bao stale som.
-   */
-  _SeriesAnalysis _analyzePreparedSeries({
-    required List<_ChartPoint> points,
-    required DateTime latestSampleTime,
-    required double minValue,
-    required double maxValue,
-  }) {
-    if (points.isEmpty) {
-      return _SeriesAnalysis.empty;
-    }
-
-    var staleFor = DateTime.now().difference(latestSampleTime);
+  /// Stale: bucket co du lieu moi nhat da ket thuc lau hon [_staleThreshold].
+  /// Flat: bien do gia tri trong cua so qua nho.
+  _SeriesAnalysis _analyze(MinuteSignalSeries series, MinutePoint latest) {
+    var staleFor = DateTime.now().difference(latest.ts.add(kMinuteBucket));
 
     // Tránh duration âm nếu clock phía server nhanh hơn client.
     if (staleFor.isNegative) {
@@ -1091,25 +872,42 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     }
 
     final isStale = staleFor > _staleThreshold;
+
+    double? minValue;
+    double? maxValue;
+    var count = 0;
+
+    for (final point in series.points) {
+      final value = point.value;
+      if (value == null || !value.isFinite) continue;
+
+      count++;
+      if (minValue == null || value < minValue) minValue = value;
+      if (maxValue == null || value > maxValue) maxValue = value;
+    }
+
+    if (minValue == null || maxValue == null) {
+      return _SeriesAnalysis(
+        isStale: isStale,
+        isFlat: false,
+        staleFor: staleFor,
+      );
+    }
+
     final delta = (maxValue - minValue).abs();
 
     final averageMagnitude = (minValue.abs() + maxValue.abs()) / 2;
 
     final safeMagnitude = averageMagnitude < .01 ? .01 : averageMagnitude;
 
-    final calculatedEpsilon = safeMagnitude * .0005;
+    final epsilon = (safeMagnitude * .0005).clamp(.01, 999999.0);
 
-    final epsilon = calculatedEpsilon.clamp(.01, 999999.0);
-
-    final isFlat = !isStale && points.length >= 2 && delta <= epsilon;
+    final isFlat = !isStale && count >= 2 && delta <= epsilon;
 
     return _SeriesAnalysis(
       isStale: isStale,
       isFlat: isFlat,
       staleFor: staleFor,
-      minValue: minValue,
-      maxValue: maxValue,
-      delta: delta,
     );
   }
 
@@ -1128,10 +926,10 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   }
 
   ({DateTime minX, DateTime maxX, int intervalMinutes}) _computeXAxisBounds(
-    List<_ChartPoint> data,
+    List<MinutePoint> data,
   ) {
-    final minX = data.first.time;
-    var maxX = data.last.time;
+    final minX = data.first.ts;
+    var maxX = data.last.ts;
 
     // Syncfusion có thể hiển thị không ổn nếu minX == maxX.
     if (!maxX.isAfter(minX)) {

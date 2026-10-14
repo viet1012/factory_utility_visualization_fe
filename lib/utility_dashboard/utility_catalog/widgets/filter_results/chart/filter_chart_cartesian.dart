@@ -9,6 +9,7 @@ import '../../../../shared/charts/chart_hover_style.dart';
 import '../../../../shared/charts/chart_thresholds.dart';
 import '../../../../shared/charts/signal_chart_spec.dart';
 import '../../../../shared/charts/signal_chart_spec_registry.dart';
+import '../../../../shared/charts/signal_thresholds.dart';
 import '../../../../shared/charts/value_format.dart';
 import '../../../models/signal_history_models.dart';
 import '../../signal_chart/signal_chart_gaps.dart';
@@ -102,8 +103,11 @@ class _FilterChartCartesianState extends State<FilterChartCartesian> {
         ),
     };
 
-    final common = group.commonThresholds;
-    final showThresholds = spec.showThreshold && !isCounter && common != null;
+    // Nguong `thresholds[]` chung cua nhom (member.thresholds da chi ANALOG,
+    // bo trivial); nguong khac nhau giua device thi khong ve.
+    final lines = isCounter
+        ? const <SignalThreshold>[]
+        : group.commonThresholds ?? const <SignalThreshold>[];
 
     final axis = planAxis(
       values: [
@@ -112,8 +116,7 @@ class _FilterChartCartesianState extends State<FilterChartCartesian> {
             isCounter ? point.delta : entry.key.series!.plotValue(point),
       ],
       spec: spec,
-      thresholdLow: showThresholds ? common.low : null,
-      thresholdHigh: showThresholds ? common.high : null,
+      thresholds: lines,
     );
 
     DateTime? first;
@@ -291,8 +294,7 @@ class _GroupTooltip extends StatelessWidget {
       final out =
           !isCounter &&
           value != null &&
-          ((member.thresholdHigh != null && value > member.thresholdHigh!) ||
-              (member.thresholdLow != null && value < member.thresholdLow!));
+          thresholdBreachLevel(member.thresholds, value: value) != null;
 
       if (out) alerts.add(rows.length);
       swatches.add(member.color);

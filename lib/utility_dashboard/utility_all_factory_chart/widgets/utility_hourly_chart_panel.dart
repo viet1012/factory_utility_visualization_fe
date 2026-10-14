@@ -11,6 +11,7 @@ import '../../shared/charts/chart_downsample.dart';
 import '../../shared/charts/chart_hover_style.dart';
 import '../../shared/charts/chart_thresholds.dart';
 import '../../shared/charts/signal_chart_spec.dart';
+import '../../shared/charts/signal_thresholds.dart';
 import '../../shared/charts/value_format.dart';
 import '../../shared/widgets/chart_loading_widgets.dart';
 import '../../shared/widgets/chart_state_widgets.dart';
@@ -36,7 +37,7 @@ final DateFormat _tooltipFormat = DateFormat('dd/MM HH:00');
 final DateFormat _latestFormat = DateFormat('dd/MM HH:00');
 final DateFormat _hourEndFormat = DateFormat('HH:00');
 
-/// Spec qua catalog (code / unit / ten theo box + PLC), fallback response.
+/// Spec theo code / unit / kind cua response, thieu thi qua catalog.
 SignalChartSpec _specOf(
   BuildContext context,
   String boxDeviceId,
@@ -45,7 +46,7 @@ SignalChartSpec _specOf(
   return context.read<UtilityChartCatalogController>().resolveSpecForSignal(
     boxDeviceId,
     series.plcAddress,
-    fallbackCode: series.code,
+    code: series.code,
     unit: series.unit,
     kind: series.kind.name.toUpperCase(),
     name: series.name,
@@ -157,6 +158,8 @@ class UtilityHourlyChartPanel extends StatelessWidget {
             : (unit ?? '');
         final resolvedUnit = spec?.resolveUnit(rawUnit) ?? rawUnit;
 
+        final breachCount = series?.visibleBreachCount ?? 0;
+
         return RepaintBoundary(
           child: ScadaPanelFrame(
             color: _theme.accent,
@@ -177,6 +180,14 @@ class UtilityHourlyChartPanel extends StatelessWidget {
                     err: state.error == null
                         ? null
                         : _errorMessage(state.error),
+                    breachCount: breachCount,
+                    lastBreachAt: series?.lastBreachAt,
+                    breachColor: breachCount > 0
+                        ? breachBadgeColor(
+                            series!.points.map(series.breachLevel),
+                            series.thresholds,
+                          )
+                        : _alertColor,
                   ),
                   Expanded(
                     child: Padding(
@@ -381,16 +392,34 @@ class _HourlySummaryBar extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  latestText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        latestText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          height: 1.1,
+                        ),
+                      ),
+                    ),
+                    // ANALOG co nguong: khoang cach toi nguong gan nhat.
+                    if (series.showThresholds) ...[
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: ThresholdChip(
+                          thresholds: series.thresholds,
+                          value: latest?.value,
+                          unit: unit,
+                          decimals: spec.decimals,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 Text(
                   latest == null
@@ -496,8 +525,9 @@ class _SnapshotNote extends StatelessWidget {
 class _BreachMark {
   final HourlyPoint point;
   final double value;
+  final int level;
 
-  const _BreachMark(this.point, this.value);
+  const _BreachMark(this.point, this.value, this.level);
 }
 
 class _HourlyChart extends StatefulWidget {
@@ -573,7 +603,7 @@ class _HourlyChartState extends State<_HourlyChart> {
     final style = spec.style;
     final isBar = style == ChartStyle.bar;
     final showBand = style == ChartStyle.lineBand && series.showRangeBand;
-    final showThresholds = series.showThresholds && spec.showThreshold;
+    final showThresholds = series.showThresholds;
 
     final points = downsampleMinMax(
       series.points,
@@ -590,17 +620,39 @@ class _HourlyChartState extends State<_HourlyChart> {
         ],
       ],
       spec: spec,
-      thresholdLow: showThresholds ? series.thresholdLow : null,
-      thresholdHigh: showThresholds ? series.thresholdHigh : null,
+      thresholds: showThresholds ? series.thresholds : const [],
     );
 
-    final breaches = showThresholds
-        ? <_BreachMark>[
+    // Level vuot nguong theo bucket: cot to mau level, line them cham mau.
+    final levels = <int, int>{
+      for (final point in series.points)
+        if (series.breachLevel(point) case final level?)
+          point.ts.millisecondsSinceEpoch: level,
+    };
+
+    Color barColor(HourlyPoint point) {
+      final level = levels[point.ts.millisecondsSinceEpoch];
+      return level == null ? theme.line : thresholdLevelColor(level);
+    }
+
+    final analog = series.kind == SignalKind.analog;
+    final breaches = isBar
+        ? const <_BreachMark>[]
+        : <_BreachMark>[
             for (final point in series.points)
-              if (series.breachValue(point) case final value?)
-                _BreachMark(point, value),
-          ]
-        : const <_BreachMark>[];
+              if (levels[point.ts.millisecondsSinceEpoch] case final level?)
+                _BreachMark(
+                  point,
+                  breachMarkValue(
+                    series.thresholds,
+                    level,
+                    value: point.value!,
+                    min: analog ? point.min : null,
+                    max: analog ? point.max : null,
+                  ),
+                  level,
+                ),
+          ];
 
     /*
      * Truc X phu ca range (khong chi phan co du lieu), de bucket dau chua
@@ -692,11 +744,16 @@ class _HourlyChartState extends State<_HourlyChart> {
             animationDuration: animationMs,
             width: .7,
             color: theme.line,
-            gradient: LinearGradient(
-              colors: [theme.line, theme.line.withValues(alpha: .45)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
+            // Gradient de len pointColorMapper: chi dung khi khong cot nao
+            // vuot nguong.
+            gradient: levels.isEmpty
+                ? LinearGradient(
+                    colors: [theme.line, theme.line.withValues(alpha: .45)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  )
+                : null,
+            pointColorMapper: (point, _) => barColor(point),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
             xValueMapper: (point, _) => point.ts.add(_halfHour),
             yValueMapper: (point, _) => point.value,
@@ -769,6 +826,7 @@ class _HourlyChartState extends State<_HourlyChart> {
             animationDuration: animationMs,
             enableTrackball: false,
             color: _alertColor,
+            pointColorMapper: (mark, _) => thresholdLevelColor(mark.level),
             xValueMapper: (mark, _) => mark.point.ts,
             yValueMapper: (mark, _) => mark.value,
             markerSettings: const MarkerSettings(

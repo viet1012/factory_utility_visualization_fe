@@ -32,7 +32,7 @@ import '../utility_api/dio_client.dart';
 import 'utility_dashboard_fac_details/api/utility_facade_service.dart';
 import 'shared/visibility/app_visibility.dart';
 import 'utility_all_factory_chart/controllers/utility_chart_catalog_controller.dart';
-import 'utility_all_factory_chart/controllers/utility_daily_signal_controller.dart';
+import 'utility_all_factory_chart/controllers/utility_daily_chart_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_hourly_chart_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_minute_chart_controller.dart';
 import 'utility_dashboard_overview/utility_dashboard_overview.dart';
@@ -46,9 +46,9 @@ class UtilityDashboardScreen extends StatefulWidget {
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin, RouteAware {
-  static const String _baseUrl = 'http://192.168.122.16:9093';
+  // static const String _baseUrl = 'http://192.168.122.16:9093';
 
-  // static const _baseUrl = 'http://localhost:9999';
+  static const _baseUrl = 'http://localhost:9999';
 
   static const int _tabCount = 5;
 
@@ -75,7 +75,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityScadaApi scadaApi;
   late final UtilityParaApi paraApi;
 
-  /// Lich su signal dung chung (cache + dedupe) cho tab Hourly va SCADA TABLE.
+  /// Lich su signal dung chung (cache + dedupe) cho CHARTS (Minutes / Hourly /
+  /// Daily) va SCADA TABLE.
   late final SignalHistoryRepository signalHistoryRepository;
 
   late final UtilityMinuteChartController minuteSeriesProvider;
@@ -90,7 +91,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityDailyDashboardProvider dailyDashboardProvider;
   late final UtilityMonthlySummaryProvider monthlySummaryProvider;
 
-  late final UtilityDailySignalController dailySignalProvider;
+  late final UtilityDailyChartController dailySignalProvider;
   late final UtilityHourlyChartController hourlyChartProvider;
 
   late final TabController _tabController;
@@ -200,12 +201,14 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     );
 
     minuteSeriesProvider = UtilityMinuteChartController(
-      api: chartApi,
+      repository: signalHistoryRepository,
       window: const Duration(minutes: 60),
       requestTimeout: const Duration(seconds: 15),
     );
 
-    dailySignalProvider = UtilityDailySignalController(api: chartApi);
+    dailySignalProvider = UtilityDailyChartController(
+      repository: signalHistoryRepository,
+    );
 
     hourlyChartProvider = UtilityHourlyChartController(
       repository: signalHistoryRepository,
@@ -422,7 +425,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
           value: minuteSeriesProvider,
         ),
 
-        ChangeNotifierProvider<UtilityDailySignalController>.value(
+        ChangeNotifierProvider<UtilityDailyChartController>.value(
           value: dailySignalProvider,
         ),
 

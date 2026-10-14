@@ -6,6 +6,7 @@ import '../../../shared/charts/chart_animation.dart';
 import '../../../shared/charts/chart_hover_style.dart';
 import '../../../shared/charts/chart_thresholds.dart';
 import '../../../shared/charts/signal_chart_spec.dart';
+import '../../../shared/charts/signal_thresholds.dart';
 import '../../models/signal_history_models.dart';
 import 'signal_chart_bar_data.dart';
 import 'signal_chart_format.dart';
@@ -13,8 +14,8 @@ import 'signal_chart_palette.dart';
 
 /// Bieu do cot cho range 24h (moi gio 1 cot) va 7d (moi ngay 1 cot).
 ///
-/// - ANALOG: thanh noi min → max + cham avg; thanh vuot nguong mau do;
-///   duong nguong net dut giong chart line.
+/// - ANALOG: thanh noi min → max + cham avg; thanh vuot nguong mau level;
+///   duong nguong (`thresholds[]`) net dut giong chart line.
 /// - COUNTER: cot = tong delta cua gio / ngay, truc ghi "unit/giờ|ngày".
 /// - Cot khong co du lieu: de trong, khong to xam.
 /// STATUS khong dung widget nay (van ve step chart).
@@ -75,8 +76,17 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
     };
     _barsByKey = barsByKey;
 
-    final showThresholds =
-        spec.showThreshold && !isCounter && series.hasThreshold;
+    // Nguong `thresholds[]` chi ap cho ANALOG (rong voi COUNTER / STATUS).
+    final lines = isCounter
+        ? const <SignalThreshold>[]
+        : series.chartThresholds;
+
+    Color barColor(SignalBar bar) {
+      final level = barBreachLevel(lines, bar);
+      return level == null
+          ? widget.barColor.withValues(alpha: .55)
+          : thresholdLevelColor(level).withValues(alpha: .75);
+    }
 
     // Truc Y bam dai du lieu (avg + min / max cua thanh noi) va nguong.
     // Cot COUNTER luon bat dau tu 0.
@@ -95,8 +105,7 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
               showThreshold: false,
             )
           : spec,
-      thresholdLow: showThresholds ? series.thresholdLow : null,
-      thresholdHigh: showThresholds ? series.thresholdHigh : null,
+      thresholds: lines,
     );
 
     final animationMs = _animation.duration();
@@ -173,9 +182,7 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
                 bar.hasData ? (bar.min ?? bar.value) : null,
             highValueMapper: (bar, _) =>
                 bar.hasData ? (bar.max ?? bar.value) : null,
-            pointColorMapper: (bar, _) => barExceedsThreshold(series, bar)
-                ? SignalChartColors.alert.withValues(alpha: .75)
-                : widget.barColor.withValues(alpha: .55),
+            pointColorMapper: (bar, _) => barColor(bar),
             // Gio / ngay khong co du lieu: de trong.
             emptyPointSettings: const EmptyPointSettings(
               mode: EmptyPointMode.gap,
@@ -284,7 +291,9 @@ class _BarTooltip extends StatelessWidget {
           ? title
           : '$title (đến ${_two(until.hour)}:${_two(until.minute)})',
       rows: rows,
-      alerts: barExceedsThreshold(series, bar) ? const {0} : const <int>{},
+      alerts: barBreachLevel(series.chartThresholds, bar) != null
+          ? const {0}
+          : const <int>{},
     );
   }
 }

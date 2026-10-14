@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/charts/chart_thresholds.dart';
+import '../../../shared/charts/signal_thresholds.dart';
 import '../../../shared/charts/value_format.dart';
 import '../../../shared/widgets/chart_loading_widgets.dart';
 import '../../../shared/widgets/lazy_chart_gate.dart';
@@ -51,7 +53,12 @@ class SignalChartCard extends StatelessWidget {
      */
     final currentValue = row?.value;
     final hasValue = currentValue != null && currentValue.isFinite;
-    final outOfRange = hasValue && series.isOutOfRange(currentValue);
+
+    // Nguong `thresholds[]` (chi ANALOG, bo trivial).
+    final lines = series.chartThresholds;
+    final outOfRange =
+        hasValue &&
+        thresholdBreachLevel(lines, value: currentValue) != null;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 12, 10),
@@ -121,6 +128,18 @@ class SignalChartCard extends StatelessWidget {
                     color: SignalChartColors.subText,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              // ANALOG co nguong: khoang cach toi nguong gan nhat.
+              if (hasValue && lines.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Flexible(
+                  child: ThresholdChip(
+                    thresholds: lines,
+                    value: currentValue,
+                    unit: unit,
+                    decimals: spec.decimals,
                   ),
                 ),
               ],

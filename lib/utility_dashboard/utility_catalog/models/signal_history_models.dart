@@ -5,6 +5,7 @@
 library;
 
 import '../../shared/charts/series_math.dart';
+import '../../shared/charts/signal_thresholds.dart';
 
 enum SignalKind { analog, status, counter }
 
@@ -21,7 +22,8 @@ SignalKind parseSignalKind(String? raw) {
   }
 }
 
-/// Cach backend gop diem trong mot bucket.
+/// Cach backend gop diem trong mot bucket, suy ra tu `source` cua response
+/// (SeriesHistoryResponse.isSnapshot), khong tu chuoi aggregation.
 enum HistoryAggregation {
   /// RAW: moi bucket co min / avg / max / count.
   minAvgMax,
@@ -148,6 +150,13 @@ class SignalHistorySeries {
   final double? thresholdLow;
   final double? thresholdHigh;
   final String? alertLevel;
+
+  /// `thresholds[]` da tach theo phia (ke ca trivial), cung nguon voi tab
+  /// CHARTS (xem resolveSignalThresholds).
+  final List<SignalThreshold> thresholds;
+  final int breachCount;
+  final DateTime? lastBreachAt;
+
   final HistoryAggregation aggregation;
 
   /// Do rong bucket; null thi chart tu suy ra tu khoang cach giua cac diem.
@@ -170,12 +179,22 @@ class SignalHistorySeries {
     required this.thresholdHigh,
     required this.points,
     this.alertLevel,
+    this.thresholds = const <SignalThreshold>[],
+    this.breachCount = 0,
+    this.lastBreachAt,
     this.aggregation = HistoryAggregation.minAvgMax,
     this.bucket,
     this.error,
   });
 
-  bool get hasThreshold => thresholdLow != null || thresholdHigh != null;
+  /// Nguong ve tren chart (chart device / Filter results): `thresholds[]`
+  /// bo trivial, chi ANALOG (cung quy uoc voi tab CHARTS).
+  List<SignalThreshold> get chartThresholds => kind == SignalKind.analog
+      ? [
+          for (final line in thresholds)
+            if (!line.trivial) line,
+        ]
+      : const <SignalThreshold>[];
 
   bool isOutOfRange(double value) {
     final low = thresholdLow;
@@ -193,34 +212,39 @@ class SignalHistorySeries {
     return kind == SignalKind.status ? (point.last ?? point.value) : point.value;
   }
 
-  /// Gia tri cua [point] vuot nguong, hoac null neu khong vuot.
+  /// Level vuot nguong cao nhat cua [point] voi [lines] (= [chartThresholds],
+  /// truyen vao de khong dung lai danh sach moi diem); null = trong nguong.
   ///
-  /// MIN_AVG_MAX: so max voi thresholdHigh va min voi thresholdLow (fallback
-  /// avg), de bat ca dinh ngan trong bucket ma avg da lam phang.
-  /// SNAPSHOT: chi co avg. STATUS: so gia tri dang ve ([plotValue]).
-  double? exceedingValue(SignalHistoryPoint point) {
+  /// MIN_AVG_MAX: so max voi HIGH va min voi LOW (fallback avg), de bat ca
+  /// dinh ngan trong bucket ma avg da lam phang. SNAPSHOT: chi co avg.
+  int? breachLevel(SignalHistoryPoint point, List<SignalThreshold> lines) {
     final avg = point.value;
-    if (avg == null) return null;
-
-    if (kind == SignalKind.status) {
-      final value = plotValue(point);
-      if (value == null) return null;
-
-      return thresholdBreach(
-        value: value,
-        low: thresholdLow,
-        high: thresholdHigh,
-      );
-    }
+    if (lines.isEmpty || avg == null) return null;
 
     final useEnvelope = aggregation == HistoryAggregation.minAvgMax;
 
-    return thresholdBreach(
+    return thresholdBreachLevel(
+      lines,
       value: avg,
       min: useEnvelope ? point.min : null,
       max: useEnvelope ? point.max : null,
-      low: thresholdLow,
-      high: thresholdHigh,
+    );
+  }
+
+  /// Gia tri dat cham vuot nguong [level] cua [point] (dinh / day vi pham).
+  double breachValue(
+    SignalHistoryPoint point,
+    List<SignalThreshold> lines,
+    int level,
+  ) {
+    final useEnvelope = aggregation == HistoryAggregation.minAvgMax;
+
+    return breachMarkValue(
+      lines,
+      level,
+      value: point.value!,
+      min: useEnvelope ? point.min : null,
+      max: useEnvelope ? point.max : null,
     );
   }
 }

@@ -4,7 +4,8 @@ import '../../utility_all_factory_chart/models/series_history_response.dart';
 import '../models/signal_history_models.dart';
 
 /// Nguon du lieu lich su signal (`GET /api/utility/series/history`) dung
-/// chung cho chart device, sparkline, Filter chart va tab Hourly.
+/// chung cho chart device, sparkline, Filter chart va cac tab Minutes /
+/// Hourly / Daily cua CHARTS.
 ///
 /// UI chi phu thuoc vao interface nay. Ban dang dung duoc tao mot lan o
 /// UtilityDashboardScreen (cache + dedupe dung chung moi noi goi).
@@ -26,12 +27,14 @@ abstract class SignalHistoryRepository {
     CancelToken? cancelToken,
   });
 
-  /// Response tho cua mot box device cho [plcAddresses].
+  /// Response tho cua mot hoac nhieu box device (mot request) cho
+  /// [plcAddresses]; PLC ap cho moi box nen response co the chua them
+  /// signal ngoai cap (box, plc) can, noi goi tu loc.
   ///
   /// [forceRefresh] bo qua cache (van dung chung request dang chay cung
   /// khoa). Loi 400 duoc doi thanh [SignalHistoryRequestException].
-  Future<SeriesHistoryResponse> fetchDeviceHistory({
-    required String boxDeviceId,
+  Future<SeriesHistoryResponse> fetchSeriesHistory({
+    required List<String> boxDeviceIds,
     required List<String> plcAddresses,
     required DateTime from,
     required DateTime to,

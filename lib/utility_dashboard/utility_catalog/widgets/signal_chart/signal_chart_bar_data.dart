@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../../../shared/charts/signal_thresholds.dart';
 import '../../models/signal_history_models.dart';
 
 /// Mot cot cua bieu do cot (24h theo gio, 7d theo ngay).
@@ -192,17 +193,17 @@ SignalBar _counterDay(
   );
 }
 
-/// Cot ANALOG vuot nguong: max > thresholdHigh hoac min < thresholdLow
-/// (thieu min / max thi dung avg).
-bool barExceedsThreshold(SignalHistorySeries series, SignalBar bar) {
+/// Level vuot nguong cao nhat cua cot ANALOG voi [lines]
+/// (= SignalHistorySeries.chartThresholds): max > HIGH hoac min < LOW
+/// (thieu min / max thi dung avg). Null = trong nguong / COUNTER.
+int? barBreachLevel(List<SignalThreshold> lines, SignalBar bar) {
   final value = bar.value;
-  if (value == null || series.kind == SignalKind.counter) return false;
+  if (value == null || lines.isEmpty) return null;
 
-  final high = series.thresholdHigh;
-  if (high != null && (bar.max ?? value) > high) return true;
-
-  final low = series.thresholdLow;
-  if (low != null && (bar.min ?? value) < low) return true;
-
-  return false;
+  return thresholdBreachLevel(
+    lines,
+    value: value,
+    min: bar.min,
+    max: bar.max,
+  );
 }

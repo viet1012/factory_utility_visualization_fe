@@ -13,9 +13,6 @@ class UtilityChartTabBody extends StatelessWidget {
   /// SCADA đang chọn, ví dụ A1.
   final String? selectedScada;
 
-  /// BOX GROUP đang chọn, ví dụ DB-03.
-  final String? selectedBoxId;
-
   /// DEVICE đang chọn.
   ///
   /// null hoặc rỗng nghĩa là đang chọn ALL.
@@ -24,17 +21,12 @@ class UtilityChartTabBody extends StatelessWidget {
   /// DB-03_MFM384
   final String? selectedBoxDeviceId;
 
-  /// Danh sách toàn bộ device thuộc BOX GROUP hiện tại.
-  final List<String> boxDeviceIds;
-
   const UtilityChartTabBody({
     super.key,
     required this.controller,
     required this.isActive,
     required this.selectedScada,
-    required this.selectedBoxId,
     required this.selectedBoxDeviceId,
-    required this.boxDeviceIds,
   });
 
   String get _selectedDevice {
@@ -44,7 +36,7 @@ class UtilityChartTabBody extends StatelessWidget {
      * Khi người dùng bấm ALL:
      * selectedBoxDeviceId thường null hoặc rỗng.
      *
-     * Phải trả về ALL, tuyệt đối không lấy selectedBoxId.
+     * Phải trả về ALL, tuyệt đối không lấy BOX GROUP.
      */
     if (device == null || device.isEmpty) {
       return 'ALL';
@@ -63,6 +55,9 @@ class UtilityChartTabBody extends StatelessWidget {
     // state survives. TickerMode makes sure a hidden tab cannot keep a
     // ticker running, so preserved state never turns into background CPU.
     // Children must follow the declaration order of UtilityChartView.
+    //
+    // Ca 3 tab: ALL hoac device that (khong phai BOX GROUP); danh sach signal
+    // lay tu catalog.
     return IndexedStack(
       index: controller.selectedView.index,
       children: [
@@ -73,11 +68,7 @@ class UtilityChartTabBody extends StatelessWidget {
             facId: controller.selectedFac,
             cate: controller.selectedCate,
             scadaId: selectedScada,
-
-            /// Phải truyền ALL hoặc device thật.
-            /// Không truyền selectedBoxId = DB-03.
             selectedBox: _selectedDevice,
-
             importantOnly: controller.importantOnly,
           ),
         ),
@@ -89,10 +80,7 @@ class UtilityChartTabBody extends StatelessWidget {
             facId: controller.selectedFac,
             cate: controller.selectedCate,
             scadaId: selectedScada,
-
-            /// Giong Minutes: ALL hoac device that, khong phai BOX GROUP.
             selectedBox: _selectedDevice,
-
             importantOnly: controller.importantOnly,
           ),
         ),
@@ -104,12 +92,8 @@ class UtilityChartTabBody extends StatelessWidget {
             facId: controller.selectedFac,
             cate: controller.selectedCate,
             scadaId: selectedScada,
-
-            /// Daily vẫn có thể dùng BOX GROUP.
-            boxId: selectedBoxId,
-
-            selectedBoxDeviceId: selectedBoxDeviceId,
-            boxDeviceIds: boxDeviceIds,
+            selectedBox: _selectedDevice,
+            importantOnly: controller.importantOnly,
           ),
         ),
       ],

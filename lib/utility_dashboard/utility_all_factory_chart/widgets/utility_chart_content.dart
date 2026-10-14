@@ -133,11 +133,6 @@ class UtilityChartContent extends StatelessWidget {
 
           onToggleFilters: controller.toggleFilters,
 
-          // Minutes va Hourly cung lay danh sach signal tu catalog.
-          showImportantSwitch:
-              controller.selectedView == UtilityChartView.minutes ||
-              controller.selectedView == UtilityChartView.hours,
-
           importantEnabled: !initialLoading,
           refreshing: refreshing,
 
@@ -155,15 +150,7 @@ class UtilityChartContent extends StatelessWidget {
             controller: controller,
             isActive: isActive,
             selectedScada: selectedScada,
-            selectedBoxId: selectedBoxId,
             selectedBoxDeviceId: selectedDevice,
-            // Pass the controller's list directly: copying it here allocated a
-            // new object every rebuild, so downstream identity checks could
-            // never short-circuit. Gated so a previous category's devices are
-            // never handed to the tabs.
-            boxDeviceIds: catalogMatches
-                ? catalog.boxDeviceIds
-                : const <String>[],
           ),
         ),
       ],

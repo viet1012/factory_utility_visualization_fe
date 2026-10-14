@@ -11,15 +11,12 @@ class SignalChartConfig {
   final String boxDeviceId;
   final String plcAddress;
 
-  final String? cateId;
-
   final String? nameEn;
   final String? unit;
 
   const SignalChartConfig({
     required this.boxDeviceId,
     required this.plcAddress,
-    this.cateId,
     this.nameEn,
     this.unit,
   });
@@ -110,13 +107,13 @@ class UtilityChartCatalogController extends ChangeNotifier {
 
   /// SignalChartSpec cua mot signal, thong nhat cho Minutes / Hourly / Daily.
   ///
-  /// Code (cateId), unit, ten lay tu item /chart-catalog theo (box, plc);
-  /// thieu thi dung [fallbackCode] / [unit] / [name] tu response. Kind lay tu
-  /// response ([kind]), thieu thi lay kind cua item catalog.
+  /// [code] / [unit] / [kind] / [name] lay tu response /series/history; thieu
+  /// thi dung item /chart-catalog theo (box, plc). Kind quyet dinh kieu ve
+  /// ([SignalChartSpecRegistry.forKind]): COUNTER luon ve cot theo delta.
   SignalChartSpec resolveSpecForSignal(
     String boxDeviceId,
     String plcAddress, {
-    String? fallbackCode,
+    String? code,
     String? unit,
     String? kind,
     String? name,
@@ -128,12 +125,16 @@ class UtilityChartCatalogController extends ChangeNotifier {
       return value.isNotEmpty ? value : fallback;
     }
 
-    return SignalChartSpecRegistry.resolve(
-      code: pick(item?.cateId, fallbackCode),
-      unit: pick(item?.unit, unit),
-      kind: pick(kind, item?.kind),
-      name: pick(item?.nameEn, name),
+    final resolvedKind = pick(kind, item?.kind);
+
+    final spec = SignalChartSpecRegistry.resolve(
+      code: pick(code, item?.cateId),
+      unit: pick(unit, item?.unit),
+      kind: resolvedKind,
+      name: pick(name, item?.nameEn),
     );
+
+    return SignalChartSpecRegistry.forKind(spec, resolvedKind);
   }
 
   /// Canonical catalog request identity.
@@ -528,7 +529,6 @@ class UtilityChartCatalogController extends ChangeNotifier {
         SignalChartConfig(
           boxDeviceId: item.boxDeviceId,
           plcAddress: item.plcAddress,
-          cateId: item.cateId,
           nameEn: item.nameEn,
           unit: item.unit,
         ),

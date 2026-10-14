@@ -20,9 +20,11 @@ import 'signal_history_repository.dart';
 /// alertLevel. Mot request cho moi boxDeviceId, loc theo plcAddress.
 ///
 /// Dung chung cho moi luong lich su:
-/// - cache LRU ([cacheCapacity] muc) theo (box, PLC da sort, from, to,
-///   bucket); TTL do noi goi truyen. Tap PLC nam tron trong cac muc con han
-///   cung (box, from, to, bucket) thi ghep tu cache, chi goi phan con thieu;
+/// - cache LRU ([cacheCapacity] muc) theo (nhom box da sort, PLC da sort,
+///   from, to, bucket); TTL do noi goi truyen. Tap PLC nam tron trong cac
+///   muc con han cung (nhom box, from, to, bucket) thi ghep tu cache, chi
+///   goi phan con thieu. [fetchSeriesHistory] gui ca nhom box trong mot
+///   request (`boxDeviceId` CSV);
 /// - request dang chay cung khoa duoc dung chung (dedupe);
 /// - CancelToken cua noi goi chi huy request that khi khong con ai cho.
 class ApiSignalHistoryRepository implements SignalHistoryRepository {
@@ -205,8 +207,8 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
   }
 
   @override
-  Future<SeriesHistoryResponse> fetchDeviceHistory({
-    required String boxDeviceId,
+  Future<SeriesHistoryResponse> fetchSeriesHistory({
+    required List<String> boxDeviceIds,
     required List<String> plcAddresses,
     required DateTime from,
     required DateTime to,
@@ -217,7 +219,7 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
   }) async {
     try {
       final parts = await _loadDevice(
-        boxDeviceId: boxDeviceId,
+        boxDeviceIds: boxDeviceIds,
         plcAddresses: plcAddresses,
         from: from,
         to: to,
@@ -248,10 +250,10 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
   // DEVICE LOAD: CACHE + DEDUPE
   // ============================================================
 
-  /// Cac phan du lieu phu [plcAddresses] cua mot box: tu cache va / hoac tu
-  /// request moi (chi cho phan cache con thieu).
+  /// Cac phan du lieu phu [plcAddresses] cua mot nhom box: tu cache va /
+  /// hoac tu request moi (chi cho phan cache con thieu).
   Future<List<_Part>> _loadDevice({
-    required String boxDeviceId,
+    required List<String> boxDeviceIds,
     required List<String> plcAddresses,
     required DateTime from,
     required DateTime to,
@@ -260,7 +262,14 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
     required bool forceRefresh,
     required CancelToken? cancelToken,
   }) async {
-    final box = boxDeviceId.trim();
+    final boxes =
+        boxDeviceIds
+            .map((box) => box.trim())
+            .where((box) => box.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    final box = boxes.join(',');
     final plcs =
         plcAddresses
             .map((plc) => plc.trim())
@@ -313,7 +322,7 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
         _inFlight[missingKey] ??
         _start(
           key: missingKey,
-          box: box,
+          boxes: boxes,
           plcs: missing,
           from: from,
           to: to,
@@ -374,7 +383,7 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
 
   _SharedRequest _start({
     required String key,
-    required String box,
+    required List<String> boxes,
     required List<String> plcs,
     required DateTime from,
     required DateTime to,
@@ -388,16 +397,18 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
 
     final watch = Stopwatch()..start();
 
+    final box = boxes.join(',');
+
     if (kDebugMode) {
       debugPrint(
-        '[SIGNAL HISTORY] send boxDeviceId=$box '
+        '[SIGNAL HISTORY] send boxes=${boxes.length} ($box) '
         'plc=${plcs.length} from=$from to=$to bucket=$bucket',
       );
     }
 
     shared.future = api
         .getSeriesHistory(
-          boxDeviceId: box,
+          boxDeviceIds: boxes,
           plcAddresses: plcs,
           from: from,
           to: to,
@@ -407,7 +418,7 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
         .then((body) {
           if (kDebugMode) {
             debugPrint(
-              '[SIGNAL HISTORY] recv boxDeviceId=$box '
+              '[SIGNAL HISTORY] recv boxes=$box '
               'bucket=${body.bucket} source=${body.source} '
               'signals=${body.signals.length} '
               'elapsed=${watch.elapsedMilliseconds}ms',
@@ -532,7 +543,7 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
   ) async {
     try {
       final parts = await _loadDevice(
-        boxDeviceId: boxDeviceId,
+        boxDeviceIds: [boxDeviceId],
         plcAddresses: [
           for (final target in targets) target.ref.signal.plcAddress,
         ],
@@ -600,6 +611,9 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
       thresholdLow: dto.thresholdLow,
       thresholdHigh: dto.thresholdHigh,
       alertLevel: dto.alertLevel,
+      thresholds: dto.thresholds,
+      breachCount: dto.breachCount,
+      lastBreachAt: dto.lastBreachAt,
       aggregation: aggregation,
       bucket: bucket,
       points: List<SignalHistoryPoint>.unmodifiable(points.map(_toPoint)),
@@ -724,6 +738,9 @@ class _Part {
   _Part only(Set<String> keep) {
     if (keep.length == plcs.length && keep.containsAll(plcs)) return this;
 
+    // So PLC khong phan biet hoa thuong (response co the khac chu voi request).
+    final keepKeys = {for (final plc in keep) plc.trim().toUpperCase()};
+
     return _Part(
       response: SeriesHistoryResponse(
         bucket: response.bucket,
@@ -731,7 +748,8 @@ class _Part {
         aggregation: response.aggregation,
         signals: List<SeriesHistorySignalDto>.unmodifiable(
           response.signals.where(
-            (signal) => keep.contains(signal.plcAddress.trim()),
+            (signal) =>
+                keepKeys.contains(signal.plcAddress.trim().toUpperCase()),
           ),
         ),
       ),

@@ -3,25 +3,19 @@ import 'package:flutter/foundation.dart';
 
 import '../../../utility_api/dio_client.dart';
 import '../models/chart_catalog_response.dart';
-import '../models/minute_point.dart';
 import '../models/series_history_response.dart';
-import '../models/utility_daily_models.dart';
 
 class UtilityChartApi {
   final Dio _dio;
 
   UtilityChartApi({Dio? dio}) : _dio = dio ?? DioClient.dio;
 
-  String? _clean(String? value) {
-    final normalized = value?.trim();
-    return (normalized == null || normalized.isEmpty) ? null : normalized;
-  }
-
   List<String> _cleanList(List<String>? values) {
     if (values == null) return [];
     return values
         .map((value) => value.trim())
         .where((value) => value.isNotEmpty)
+        .toSet()
         .toList();
   }
 
@@ -33,23 +27,6 @@ class UtilityChartApi {
       result[key] = value;
     });
     return result;
-  }
-
-  List<dynamic> _asList(dynamic data, String path) {
-    if (data is! List) {
-      throw DioException(
-        requestOptions: RequestOptions(path: path),
-        message: '$path: expected List but got ${data.runtimeType}',
-        type: DioExceptionType.badResponse,
-      );
-    }
-    return data.cast<dynamic>();
-  }
-
-  String _toIsoNoZ(DateTime dateTime) {
-    final local = dateTime.toLocal();
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${local.year}-${two(local.month)}-${two(local.day)}T${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
   }
 
   Future<ChartCatalogResponse> getChartCatalog({
@@ -73,39 +50,6 @@ class UtilityChartApi {
     );
   }
 
-  Future<List<MinutePointDto>> getSeriesMinute({
-    required DateTime from,
-    required DateTime to,
-    String? boxDeviceId,
-    CancelToken? cancelToken,
-  }) async {
-    const path = '/api/utility/series/minute';
-    final query = _qp({
-      'from': _toIsoNoZ(from),
-      'to': _toIsoNoZ(to),
-      'boxDeviceId': _clean(boxDeviceId),
-    });
-
-    try {
-      final response = await _dio.get(
-        path,
-        queryParameters: query,
-        cancelToken: cancelToken,
-      );
-      return _asList(response.data, path)
-          .map(
-            (item) => MinutePointDto.fromJson(Map<String, dynamic>.from(item)),
-          )
-          .toList();
-    } catch (error) {
-      if (error is DioException && CancelToken.isCancel(error)) rethrow;
-      debugPrint('âŒ API ERROR: $path');
-      debugPrint('PARAMS: $query');
-      debugPrint('ERROR: $error');
-      rethrow;
-    }
-  }
-
   /// ISO-8601 kem offset cua may, vd: 2026-10-12T08:00:00+07:00.
   /// Dio tu encode query component, nen '+' duoc gui dung la %2B.
   String _toIsoWithOffset(DateTime dateTime) {
@@ -121,10 +65,13 @@ class UtilityChartApi {
         '$sign${two(abs.inHours)}:${two(abs.inMinutes % 60)}';
   }
 
-  /// Lich su theo bucket cua mot device. [plcAddresses] rong = moi PLC.
-  /// Backend tu chon bucket khi [bucket] = 'auto'.
+  /// Lich su theo bucket cua mot hoac nhieu box device.
+  ///
+  /// Moi box gui chung tham so `boxDeviceId` (CSV khi nhieu box).
+  /// [plcAddresses] ap cho moi box (rong = moi PLC); noi goi tu loc lai theo
+  /// (boxDeviceId, plcAddress). Backend tu chon bucket khi [bucket] = 'auto'.
   Future<SeriesHistoryResponse> getSeriesHistory({
-    required String boxDeviceId,
+    required List<String> boxDeviceIds,
     required DateTime from,
     required DateTime to,
     List<String>? plcAddresses,
@@ -132,9 +79,15 @@ class UtilityChartApi {
     CancelToken? cancelToken,
   }) async {
     const path = '/api/utility/series/history';
+    final boxes = _cleanList(boxDeviceIds);
     final plcs = _cleanList(plcAddresses);
+
+    if (boxes.isEmpty) {
+      throw ArgumentError('boxDeviceIds must not be empty');
+    }
+
     final query = _qp({
-      'boxDeviceId': _clean(boxDeviceId),
+      'boxDeviceId': boxes.join(','),
       if (plcs.isNotEmpty) 'plcAddress': plcs.join(','),
       'from': _toIsoWithOffset(from),
       'to': _toIsoWithOffset(to),
@@ -164,29 +117,5 @@ class UtilityChartApi {
       debugPrint('ERROR: $error');
       rethrow;
     }
-  }
-
-  Future<UtilityDailyDashboardResponse> getDailySignals({
-    required String boxDeviceId,
-    required String month,
-  }) async {
-    final normalizedBox = boxDeviceId.trim();
-    if (normalizedBox.isEmpty) {
-      throw ArgumentError('boxDeviceId must not be empty');
-    }
-
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/api/utility/daily-signals',
-      queryParameters: {'boxDeviceId': normalizedBox, 'month': month},
-      options: Options(
-        receiveTimeout: const Duration(seconds: 90),
-        sendTimeout: const Duration(seconds: 30),
-      ),
-    );
-    final data = response.data;
-    if (data == null) {
-      throw StateError('Daily API returned empty response');
-    }
-    return UtilityDailyDashboardResponse.fromJson(data);
   }
 }

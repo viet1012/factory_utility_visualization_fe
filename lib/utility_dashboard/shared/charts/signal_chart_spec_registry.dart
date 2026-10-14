@@ -166,6 +166,26 @@ class SignalChartSpecRegistry {
     return fallback;
   }
 
+  /// Ep kieu ve theo kind cua signal (code / unit chi chon truc, so le):
+  /// COUNTER -> cot theo delta, STATUS -> bac thang, ANALOG -> khong ve cot
+  /// hay bac thang (vd unit kWh nhung kind ANALOG). Kind rong: giu [spec].
+  static SignalChartSpec forKind(SignalChartSpec spec, String? kind) {
+    switch (kind?.trim().toUpperCase()) {
+      case 'COUNTER':
+        return spec.style == ChartStyle.bar
+            ? spec
+            : spec.copyWith(style: ChartStyle.bar, axis: AxisMode.zeroBased);
+      case 'STATUS':
+        return spec.style == ChartStyle.step ? spec : status;
+      case 'ANALOG':
+        return spec.style == ChartStyle.bar || spec.style == ChartStyle.step
+            ? spec.copyWith(style: ChartStyle.lineBand)
+            : spec;
+      default:
+        return spec;
+    }
+  }
+
   /// "Cos φ" -> "cosphi", "kg/cm²" -> "kg/cm2", "kW" -> "kw".
   static String _normalizeUnit(String? unit) {
     return (unit ?? '')
