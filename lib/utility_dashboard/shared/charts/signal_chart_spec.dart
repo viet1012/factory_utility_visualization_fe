@@ -56,6 +56,19 @@ class SignalChartSpec {
 
   String resolveUnit(String? unit) => unitOverride ?? unit?.trim() ?? '';
 
+  SignalChartSpec copyWith({ChartStyle? style, AxisMode? axis}) {
+    return SignalChartSpec(
+      style: style ?? this.style,
+      axis: axis ?? this.axis,
+      fixedMin: fixedMin,
+      fixedMax: fixedMax,
+      decimals: decimals,
+      showThreshold: showThreshold,
+      hideTrivialLowerThreshold: hideTrivialLowerThreshold,
+      unitOverride: unitOverride,
+    );
+  }
+
   @override
   String toString() {
     final range = axis == AxisMode.fixed ? ' $fixedMin–$fixedMax' : '';

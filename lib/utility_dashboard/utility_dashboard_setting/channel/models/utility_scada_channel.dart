@@ -69,31 +69,3 @@ class UtilityScadaChannel {
   @override
   String toString() => jsonEncode(toJson());
 }
-
-// Constants
-const String labelCreateChannel = 'Create SCADA Channel';
-const String labelEditChannel = 'Edit SCADA Channel';
-const String labelAddChannel = 'Add Channel';
-const String labelRefresh = 'Refresh';
-const String labelRetry = 'Retry';
-const String labelCancel = 'Cancel';
-const String labelUpdate = 'Update';
-const String labelCreate = 'Create';
-const String labelEdit = 'Edit';
-const String labelTotal = 'Total';
-const String labelShowing = 'Showing';
-const String labelNoData = 'No data found';
-const String labelCreatedSuccess = 'Created successfully';
-const String labelUpdatedSuccess = 'Updated successfully';
-const String labelSearchHint = 'Search by SCADA, category, box, device...';
-const String labelChannels = 'Utility SCADA Channels';
-
-const String labelScadaId = 'SCADA ID';
-const String labelCategory = 'Category';
-const String labelBoxDeviceId = 'Box Device ID';
-const String labelBoxId = 'Box ID';
-
-const String validatorScadaRequired = 'SCADA ID is required';
-const String validatorCateRequired = 'Category is required';
-const String validatorBoxDeviceRequired = 'Box Device ID is required';
-const String validatorBoxIdRequired = 'Box ID is required';

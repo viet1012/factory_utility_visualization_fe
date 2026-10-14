@@ -1,14 +1,9 @@
 class UtilityDailyDashboardResponse {
-  final String facId;
-  final String month;
-
   final List<UtilityDailyElectricityPoint> electricity;
   final List<UtilityDailyPoint> water;
   final List<UtilityDailyPoint> air;
 
   const UtilityDailyDashboardResponse({
-    required this.facId,
-    required this.month,
     required this.electricity,
     required this.water,
     required this.air,
@@ -16,9 +11,6 @@ class UtilityDailyDashboardResponse {
 
   factory UtilityDailyDashboardResponse.fromJson(Map<String, dynamic> json) {
     return UtilityDailyDashboardResponse(
-      facId: json['facId']?.toString() ?? '',
-      month: json['month']?.toString() ?? '',
-
       electricity: (json['electricity'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(UtilityDailyElectricityPoint.fromJson)

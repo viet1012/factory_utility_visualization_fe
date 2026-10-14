@@ -1,13 +1,16 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../controllers/utility_daily_signal_controller.dart';
+import '../controllers/utility_chart_catalog_controller.dart';
+import '../controllers/utility_daily_chart_controller.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../shared/widgets/chart_loading_widgets.dart';
 import '../../shared/widgets/chart_state_widgets.dart';
-import '../models/utility_daily_models.dart';
+import '../models/utility_chart_models.dart';
 import '../widgets/utility_daily_chart_grid.dart';
+import 'utility_chart_tab_plan.dart';
 
 class UtilityDailyTab extends StatefulWidget {
   final bool isActive;
@@ -15,11 +18,10 @@ class UtilityDailyTab extends StatefulWidget {
   final String cate;
   final String? scadaId;
 
-  final String? boxId;
-  final String? selectedBoxDeviceId;
+  /// Giong Minutes / Hourly: ALL hoac device that, khong phai BOX GROUP.
+  final String selectedBox;
 
-  /// Toàn bộ device thuộc Box đang chọn.
-  final List<String> boxDeviceIds;
+  final bool importantOnly;
 
   const UtilityDailyTab({
     super.key,
@@ -27,234 +29,175 @@ class UtilityDailyTab extends StatefulWidget {
     required this.facId,
     required this.cate,
     required this.scadaId,
-    required this.boxId,
-    required this.selectedBoxDeviceId,
-    required this.boxDeviceIds,
+    required this.selectedBox,
+    required this.importantOnly,
   });
 
   @override
   State<UtilityDailyTab> createState() => _UtilityDailyTabState();
 }
 
-class _UtilityDailyTabState extends State<UtilityDailyTab>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
+class _UtilityDailyTabState extends State<UtilityDailyTab> {
+  String _lastLoadSignature = '';
 
-  /// Series da hien lan truoc. Doi Box / Device: controller xoa series ngay,
-  /// tab giu series cu mo kem progress bar cho toi khi data moi ve.
-  List<UtilityDailySeries> _lastSeries = const <UtilityDailySeries>[];
+  /// Grid da ve lan truoc (catalog khop). Doi filter: giu grid nay mo kem
+  /// progress bar cho toi khi catalog moi ve, khong nhay ve skeleton.
+  Widget? _lastGrid;
 
-  List<String> get _requestedDeviceIds {
-    final selectedDevice = widget.selectedBoxDeviceId?.trim();
+  Widget _pendingBody(Color color) {
+    final last = _lastGrid;
+    if (last == null) return ChartGridSkeleton(color: color);
 
-    // Đã chọn một Device cụ thể.
-    if (selectedDevice != null && selectedDevice.isNotEmpty) {
-      return <String>[selectedDevice];
-    }
-
-    // Đang chọn Box ID / ALL DEVICES.
-    return widget.boxDeviceIds
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toSet()
-        .toList(growable: false);
-  }
-
-  String get _currentMonth {
-    final now = DateTime.now();
-
-    return '${now.year}'
-        '${now.month.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.isActive) {
-        _load();
-      }
-    });
+    return ChartBusyOverlay(busy: true, color: color, child: last);
   }
 
   @override
   void didUpdateWidget(covariant UtilityDailyTab oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final oldDevices = List<String>.from(
-      oldWidget.selectedBoxDeviceId != null &&
-              oldWidget.selectedBoxDeviceId!.trim().isNotEmpty
-          ? <String>[oldWidget.selectedBoxDeviceId!.trim()]
-          : oldWidget.boxDeviceIds,
-    )..sort();
-
-    final newDevices = List<String>.from(_requestedDeviceIds)..sort();
-
-    final requestChanged =
-        oldWidget.facId != widget.facId ||
-        oldWidget.cate != widget.cate ||
-        oldWidget.scadaId != widget.scadaId ||
-        oldWidget.boxId != widget.boxId ||
-        !listEquals(oldDevices, newDevices);
-
-    final becameActive = !oldWidget.isActive && widget.isActive;
-
-    if (!widget.isActive || (!requestChanged && !becameActive)) {
-      return;
+    // Roi tab: huy request dang chay. Quay lai: load lai (cache 5 phut).
+    if (oldWidget.isActive && !widget.isActive) {
+      _lastLoadSignature = '';
+      context.read<UtilityDailyChartController>().cancel();
+    } else if (!oldWidget.isActive && widget.isActive) {
+      _lastLoadSignature = '';
     }
+  }
+
+  void _scheduleLoad(List<SignalChartConfig> charts, String desiredSignature) {
+    if (!widget.isActive) return;
+
+    final catalog = context.read<UtilityChartCatalogController>();
+
+    if (catalog.loadedRequestSignature != desiredSignature) return;
+
+    final plcsByBox = resolvePlcsByBox(charts, widget.selectedBox);
+
+    if (plcsByBox.isEmpty) return;
+
+    final signature = plcsByBoxSignature(plcsByBox);
+
+    if (_lastLoadSignature == signature) return;
+
+    _lastLoadSignature = signature;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _load();
+      if (!mounted || !widget.isActive) return;
+
+      if (context
+              .read<UtilityChartCatalogController>()
+              .loadedRequestSignature !=
+          desiredSignature) {
+        return;
+      }
+
+      unawaited(
+        context.read<UtilityDailyChartController>().load(plcsByBox: plcsByBox),
+      );
     });
   }
 
-  Future<void> _load({bool forceRefresh = false}) async {
-    if (!mounted || !widget.isActive) {
-      return;
-    }
-
-    final provider = context.read<UtilityDailySignalController>();
-
-    final deviceIds = _requestedDeviceIds;
-
-    if (deviceIds.isEmpty) {
-      provider.clear();
-      return;
-    }
-
-    await provider.load(
-      boxDeviceIds: deviceIds,
-      month: _currentMonth,
-      forceRefresh: forceRefresh,
+  void _retryCatalog() {
+    context.read<UtilityChartCatalogController>().loadCatalog(
+      facId: widget.facId,
+      cate: widget.cate,
+      importantOnly: widget.importantOnly ? 1 : 0,
+      forceRefresh: true,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    final color = ChartThemes.byCate(widget.cate).line;
 
-    final requestedDeviceIds = _requestedDeviceIds;
+    final desiredSignature =
+        UtilityChartCatalogController.buildRequestSignature(
+          facId: widget.facId,
+          cate: widget.cate,
+          importantOnly: widget.importantOnly ? 1 : 0,
+        );
 
-    if (requestedDeviceIds.isEmpty) {
-      return EmptyChartState(
-        icon: Icons.inventory_2_outlined,
-        title: 'No Devices In Box',
-        message:
-            'No Box Device ID found for '
-            '${widget.boxId ?? "selected box"} / '
-            '${widget.scadaId ?? "-"}.',
-        color: ChartThemes.byCate(widget.cate).line,
-      );
-    }
-
-    return Selector<UtilityDailySignalController, _DailyTabVm>(
+    return Selector<UtilityChartCatalogController, CatalogBodyVm>(
       selector: (_, provider) {
-        return _DailyTabVm(
+        return CatalogBodyVm(
           loading: provider.loading,
-          refreshing: provider.refreshing,
           error: provider.error,
-          series: provider.series,
-          dataVersion: provider.dataVersion,
+          charts: provider.charts,
+          loadedRequestSignature: provider.loadedRequestSignature,
+          loadingRequestSignature: provider.loadingRequestSignature,
         );
       },
       shouldRebuild: (previous, next) {
         return previous.loading != next.loading ||
-            previous.refreshing != next.refreshing ||
             previous.error != next.error ||
-            previous.dataVersion != next.dataVersion;
+            previous.loadedRequestSignature != next.loadedRequestSignature ||
+            previous.loadingRequestSignature != next.loadingRequestSignature ||
+            !identical(previous.charts, next.charts);
       },
       builder: (context, vm, _) {
-        final color = ChartThemes.byCate(widget.cate).line;
+        // Charts dang luu co the thuoc category truoc: khong dung khi lech.
+        if (!vm.matches(desiredSignature)) {
+          if (vm.error != null && !vm.loading) {
+            return ChartApiErrorState(color: color, onRetry: _retryCatalog);
+          }
 
-        if (vm.loading && vm.series.isEmpty) {
-          if (_lastSeries.isEmpty) return ChartGridSkeleton(color: color);
-
-          return ChartBusyOverlay(
-            busy: true,
-            color: color,
-            child: _grid(_lastSeries),
-          );
+          return _pendingBody(color);
         }
 
-        _lastSeries = vm.series;
-
-        if (vm.error != null && vm.series.isEmpty) {
-          return ChartApiErrorState(
-            color: ChartThemes.byCate(widget.cate).line,
-            onRetry: () {
-              _load(forceRefresh: true);
-            },
-          );
+        if (vm.error != null && vm.charts.isEmpty) {
+          return ChartApiErrorState(color: color, onRetry: _retryCatalog);
         }
 
-        if (vm.series.isEmpty) {
+        if (vm.charts.isEmpty) {
           return EmptyChartState(
             icon: Icons.query_stats_rounded,
             title: 'No Daily Data',
             message:
-                'No daily data found for '
-                '${widget.boxId ?? "-"} / '
+                'No utility signals found in '
+                '${widget.selectedBox} / '
                 '${widget.scadaId ?? "-"}',
             color: Colors.white.withValues(alpha: .58),
           );
         }
 
-        return ChartBusyOverlay(
-          busy: false,
-          color: color,
-          child: Stack(
-            children: [
-              _grid(vm.series),
+        _scheduleLoad(vm.charts, desiredSignature);
 
-              if (vm.refreshing)
-                const Positioned(
-                  top: 10,
-                  right: 12,
-                  child: _DailyRefreshingBadge(),
-                ),
-            ],
-          ),
+        final grid = Stack(
+          children: [
+            UtilityDailyChartGrid(
+              charts: vm.charts,
+              facId: widget.facId,
+              cate: widget.cate,
+              selectedBox: widget.selectedBox,
+            ),
+            const Positioned(
+              top: 10,
+              right: 12,
+              child: _DailyRefreshingBadge(),
+            ),
+          ],
         );
+
+        _lastGrid = grid;
+
+        return ChartBusyOverlay(busy: false, color: color, child: grid);
       },
     );
   }
-
-  /// Khong key theo dataVersion: refresh chi cap nhat the, khong tao lai grid.
-  Widget _grid(List<UtilityDailySeries> series) {
-    return UtilityDailyChartGrid(
-      series: series,
-      facId: widget.facId,
-      cate: widget.cate,
-      scadaId: widget.scadaId,
-      boxDeviceId: widget.selectedBoxDeviceId ?? widget.boxId ?? 'ALL DEVICES',
-    );
-  }
 }
 
-class _DailyTabVm {
-  final bool loading;
-  final bool refreshing;
-  final Object? error;
-
-  final List<UtilityDailySeries> series;
-  final int dataVersion;
-
-  const _DailyTabVm({
-    required this.loading,
-    required this.refreshing,
-    required this.error,
-    required this.series,
-    required this.dataVersion,
-  });
-}
-
+/// Hien khi dang tai lai trong luc da co chart.
 class _DailyRefreshingBadge extends StatelessWidget {
   const _DailyRefreshingBadge();
 
   @override
   Widget build(BuildContext context) {
+    final refreshing = context.select<UtilityDailyChartController, bool>(
+      (controller) => controller.fetching && controller.hasData,
+    );
+
+    if (!refreshing) return const SizedBox.shrink();
+
     return Container(
       height: 30,
       padding: const EdgeInsets.symmetric(horizontal: 10),

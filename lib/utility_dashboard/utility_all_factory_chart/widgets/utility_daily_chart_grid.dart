@@ -1,8 +1,6 @@
+import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:factory_utility_visualization/'
-    'utility_dashboard/utility_all_factory_chart/'
-    'models/utility_daily_models.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -12,39 +10,56 @@ import '../../shared/charts/axis_planner.dart';
 import '../../shared/charts/chart_animation.dart';
 import '../../shared/charts/chart_downsample.dart';
 import '../../shared/charts/chart_hover_style.dart';
+import '../../shared/charts/chart_thresholds.dart';
 import '../../shared/charts/signal_chart_spec.dart';
+import '../../shared/charts/signal_thresholds.dart';
 import '../../shared/charts/value_format.dart';
 import '../../shared/widgets/chart_loading_widgets.dart';
+import '../../shared/widgets/chart_state_widgets.dart';
 import '../../shared/widgets/debounced_layout_builder.dart';
 import '../../shared/widgets/lazy_chart_gate.dart';
+import '../../utility_catalog/api/signal_history_repository.dart';
+import '../../utility_catalog/models/signal_history_models.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_widgets.dart';
 import '../../shared/widgets/scada_panel_frame.dart';
 import '../controllers/utility_chart_catalog_controller.dart';
+import '../controllers/utility_daily_chart_controller.dart';
+import '../models/utility_daily_models.dart';
 
 class UtilityDailyChartGrid extends StatelessWidget {
-  final List<UtilityDailySeries> series;
+  final List<SignalChartConfig> charts;
 
   final String facId;
   final String cate;
-  final String? scadaId;
-  final String boxDeviceId;
+
+  /// DEVICE dang chon (ALL hoac device that).
+  final String selectedBox;
 
   const UtilityDailyChartGrid({
     super.key,
-    required this.series,
+    required this.charts,
     required this.facId,
     required this.cate,
-    required this.scadaId,
-    required this.boxDeviceId,
+    required this.selectedBox,
   });
+
+  List<SignalChartConfig> _displayCharts() {
+    final selected = selectedBox.trim().toUpperCase();
+    final showAll = selected.isEmpty || selected == 'ALL';
+
+    return [
+      for (final chart in charts)
+        if (showAll || chart.boxDeviceId.trim().toUpperCase() == selected)
+          chart,
+    ]..sort(_compareCharts);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final visibleSeries = List<UtilityDailySeries>.from(series)
-      ..sort(_compareSeries);
+    final visibleCharts = _displayCharts();
 
-    if (visibleSeries.isEmpty) {
+    if (visibleCharts.isEmpty) {
       return const _DailyGridEmptyState();
     }
 
@@ -55,7 +70,7 @@ class UtilityDailyChartGrid extends StatelessWidget {
 
         final cardHeight = _cardHeight(
           availableHeight: constraints.maxHeight,
-          itemCount: visibleSeries.length,
+          itemCount: visibleCharts.length,
           columnCount: columnCount,
         );
 
@@ -68,24 +83,17 @@ class UtilityDailyChartGrid extends StatelessWidget {
             crossAxisSpacing: 10,
             mainAxisExtent: cardHeight,
           ),
-          itemCount: visibleSeries.length,
+          itemCount: visibleCharts.length,
           itemBuilder: (context, index) {
-            final item = visibleSeries[index];
-
-            final currentBoxDeviceId = item.boxDeviceId.trim().isNotEmpty
-                ? item.boxDeviceId.trim()
-                : boxDeviceId;
+            final chart = visibleCharts[index];
 
             // Key on dinh theo signal: refresh / resize khong tao lai the.
             return RepaintBoundary(
-              key: ValueKey(
-                '$currentBoxDeviceId|${item.plcAddress}|${item.nameEn}',
-              ),
+              key: ValueKey('${chart.boxDeviceId}|${chart.plcAddress}'),
               child: _DailySignalChartCard(
-                series: item,
+                chart: chart,
                 facId: facId,
                 cate: cate,
-                boxDeviceId: currentBoxDeviceId,
               ),
             );
           },
@@ -94,7 +102,7 @@ class UtilityDailyChartGrid extends StatelessWidget {
     );
   }
 
-  int _compareSeries(UtilityDailySeries first, UtilityDailySeries second) {
+  int _compareCharts(SignalChartConfig first, SignalChartConfig second) {
     final deviceCompare = first.boxDeviceId.toUpperCase().compareTo(
       second.boxDeviceId.toUpperCase(),
     );
@@ -104,8 +112,8 @@ class UtilityDailyChartGrid extends StatelessWidget {
     }
 
     final orderCompare = _signalOrder(
-      first.nameEn,
-    ).compareTo(_signalOrder(second.nameEn));
+      first.nameEn ?? '',
+    ).compareTo(_signalOrder(second.nameEn ?? ''));
 
     if (orderCompare != 0) {
       return orderCompare;
@@ -201,130 +209,193 @@ class UtilityDailyChartGrid extends StatelessWidget {
 // DAILY SIGNAL CARD
 // ============================================================
 
+const Color _alertColor = Colors.redAccent;
+
+String _errorMessage(Object? error) {
+  if (error is SignalHistoryRequestException) return error.message;
+  if (error is TimeoutException) return 'Request timed out. Please try again.';
+  return 'Please check your connection or try again.';
+}
+
+/// Phan cua [DailyBoxState] ma mot the can.
+class _CardVm {
+  final DailyBoxState state;
+  final DailySignalSeries? series;
+
+  const _CardVm(this.state, this.series);
+
+  @override
+  bool operator ==(Object other) {
+    return other is _CardVm &&
+        identical(other.series, series) &&
+        identical(other.state.data, state.data) &&
+        other.state.loading == state.loading &&
+        other.state.error == state.error;
+  }
+
+  @override
+  int get hashCode => Object.hash(series, state.loading, state.error);
+}
+
 class _DailySignalChartCard extends StatelessWidget {
-  final UtilityDailySeries series;
+  final SignalChartConfig chart;
 
   final String facId;
   final String cate;
-  final String boxDeviceId;
 
   const _DailySignalChartCard({
-    required this.series,
+    required this.chart,
     required this.facId,
     required this.cate,
-    required this.boxDeviceId,
   });
+
+  String get _box => chart.boxDeviceId.trim();
+
+  String get _plc => chart.plcAddress.trim();
 
   @override
   Widget build(BuildContext context) {
     final theme = ChartThemes.byCate(cate);
 
-    final sortedPoints = series.sortedPoints;
+    return Selector<UtilityDailyChartController, _CardVm>(
+      selector: (_, controller) {
+        final state = controller.boxState(_box);
+        return _CardVm(state, state.data?.signals[_plc]);
+      },
+      builder: (context, vm, _) {
+        final state = vm.state;
+        final series = vm.series;
 
-    final points = sortedPoints
-        .where(_hasMeaningfulValue)
-        .toList(growable: false);
+        final spec = dailySpecOf(context, chart, series);
 
-    final latestPoint = points.isEmpty ? null : points.last;
+        final rawUnit = (series?.unit.isNotEmpty ?? false)
+            ? series!.unit
+            : (chart.unit ?? '');
+        final unit = spec.resolveUnit(rawUnit);
 
-    final summary = _DailySeriesSummary.from(series: series, points: points);
+        final name = _displaySignalName(
+          (series?.name.isNotEmpty ?? false) ? series!.name : chart.nameEn ?? '',
+        );
 
-    final spec = dailySpecOf(context, series, boxDeviceId);
+        final points = series?.points ?? const <DailyPoint>[];
+        final latestPoint = points.isEmpty ? null : points.last;
 
-    return ScadaPanelFrame(
-      color: theme.accent,
-      child: Container(
-        decoration: _dailyPanelDecoration(theme),
-        clipBehavior: Clip.hardEdge,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            UtilityInfoBoxWidgets.header(
-              facilityColor: theme.fillTop,
-              facTitle: facId,
-              boxDeviceId: _displaySignalName(series.nameEn),
-              plcAddress: series.plcAddress,
-              unit: spec.resolveUnit(series.unit).isEmpty
-                  ? null
-                  : spec.resolveUnit(series.unit),
-              isLoading: false,
-              hasError: false,
-              err: null,
+        final breachCount = series?.visibleBreachCount ?? 0;
+
+        return ScadaPanelFrame(
+          color: theme.accent,
+          child: Container(
+            decoration: _dailyPanelDecoration(theme),
+            clipBehavior: Clip.hardEdge,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                UtilityInfoBoxWidgets.header(
+                  facilityColor: theme.fillTop,
+                  facTitle: facId,
+                  boxDeviceId: name,
+                  plcAddress: _plc,
+                  unit: unit.isEmpty ? null : unit,
+                  isLoading: state.loading,
+                  hasError: state.error != null,
+                  err: state.error == null ? null : _errorMessage(state.error),
+                  breachCount: breachCount,
+                  lastBreachAt: series?.lastBreachAt,
+                  breachColor: breachCount > 0
+                      ? breachBadgeColor(
+                          points.map(series!.breachLevel),
+                          series.thresholds,
+                        )
+                      : _alertColor,
+                ),
+
+                _DailyLatestInfoBar(
+                  latestPoint: latestPoint,
+                  name: name,
+                  unit: unit,
+                  spec: spec,
+                  boxDeviceId: _box,
+                  color: theme.accent,
+                  thresholds: (series?.showThresholds ?? false)
+                      ? series!.thresholds
+                      : const <SignalThreshold>[],
+                ),
+
+                Expanded(child: _buildBody(context, vm, spec, unit, theme)),
+              ],
             ),
+          ),
+        );
+      },
+    );
+  }
 
-            _DailyLatestInfoBar(
-              latestPoint: latestPoint,
-              series: series,
-              summary: summary,
-              spec: spec,
-              boxDeviceId: boxDeviceId,
-              color: theme.accent,
-            ),
+  Widget _buildBody(
+    BuildContext context,
+    _CardVm vm,
+    SignalChartSpec spec,
+    String unit,
+    ChartTheme theme,
+  ) {
+    final state = vm.state;
+    final series = vm.series;
 
-            Expanded(
-              child: points.isEmpty
-                  ? const _DailyChartEmptyState()
-                  : Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
-                      child: LazyChartGate(
-                        placeholder: ChartBodySkeleton(color: theme.line),
-                        builder: (_) => _DailyChart(
-                          series: series,
-                          spec: spec,
-                          points: points,
-                          lineColor: theme.line,
-                        ),
-                      ),
-                    ),
-            ),
-          ],
+    if (state.data == null) {
+      if (state.error != null) {
+        return ChartApiErrorState(
+          color: theme.line,
+          message: _errorMessage(state.error),
+          onRetry: () => context.read<UtilityDailyChartController>().retry(),
+        );
+      }
+
+      return ChartBodySkeleton(color: theme.line);
+    }
+
+    if (series == null || series.points.isEmpty) {
+      return const _DailyChartEmptyState();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+      child: LazyChartGate(
+        placeholder: ChartBodySkeleton(color: theme.line),
+        builder: (_) => _DailyChart(
+          series: series,
+          spec: spec,
+          unit: unit,
+          points: series.points,
+          lineColor: theme.line,
         ),
       ),
     );
   }
-
-  bool _hasMeaningfulValue(UtilityDailyPoint point) {
-    if (series.isEnergyConsumption) {
-      return point.consumption != null;
-    }
-
-    return point.avgValue != null || point.lastValue != null;
-  }
 }
 
-/// Daily: COUNTER (DAILY_DELTA) ve cot theo ngay, ANALOG ve lineBand theo
-/// ngay; truc / so le / format lay tu SignalChartSpec. API daily khong tra
-/// code nen code / unit / ten tra qua /chart-catalog theo (box, plc).
+/// Daily: COUNTER ve cot theo delta cua ngay, con lai ve lineBand theo
+/// ngay; truc / so le / format lay tu SignalChartSpec. Code / unit / kind
+/// lay tu response, thieu thi qua /chart-catalog theo (box, plc).
 SignalChartSpec dailySpecOf(
   BuildContext context,
-  UtilityDailySeries series,
-  String boxDeviceId,
+  SignalChartConfig chart,
+  DailySignalSeries? series,
 ) {
-  final energy = series.isEnergyConsumption;
-
   final spec = context
       .read<UtilityChartCatalogController>()
       .resolveSpecForSignal(
-        series.boxDeviceId.trim().isNotEmpty ? series.boxDeviceId : boxDeviceId,
-        series.plcAddress,
-        unit: series.unit,
-        kind: energy ? 'COUNTER' : 'ANALOG',
-        name: series.nameEn,
+        chart.boxDeviceId,
+        chart.plcAddress,
+        code: series?.code,
+        unit: series?.unit,
+        kind: series?.kind.name.toUpperCase(),
+        name: series?.name,
       );
 
-  final style = energy ? ChartStyle.bar : ChartStyle.lineBand;
-  if (spec.style == style) return spec;
+  if (spec.style == ChartStyle.bar || spec.style == ChartStyle.lineBand) {
+    return spec;
+  }
 
-  return SignalChartSpec(
-    style: style,
-    axis: energy ? AxisMode.zeroBased : spec.axis,
-    fixedMin: spec.fixedMin,
-    fixedMax: spec.fixedMax,
-    decimals: spec.decimals,
-    showThreshold: spec.showThreshold,
-    hideTrivialLowerThreshold: spec.hideTrivialLowerThreshold,
-    unitOverride: spec.unitOverride,
-  );
+  return spec.copyWith(style: ChartStyle.lineBand);
 }
 
 // ============================================================
@@ -358,26 +429,28 @@ BoxDecoration _dailyPanelDecoration(ChartTheme theme) {
 }
 
 class _DailyLatestInfoBar extends StatelessWidget {
-  final UtilityDailyPoint? latestPoint;
-  final UtilityDailySeries series;
-  final _DailySeriesSummary summary;
+  final DailyPoint? latestPoint;
+  final String name;
+  final String unit;
   final SignalChartSpec spec;
   final String boxDeviceId;
   final Color color;
 
+  /// Nguong cho chip (rong voi COUNTER / STATUS).
+  final List<SignalThreshold> thresholds;
+
   const _DailyLatestInfoBar({
     required this.latestPoint,
-    required this.series,
-    required this.summary,
+    required this.name,
+    required this.unit,
     required this.spec,
     required this.boxDeviceId,
     required this.color,
+    required this.thresholds,
   });
 
   @override
   Widget build(BuildContext context) {
-    final unit = spec.resolveUnit(series.unit);
-
     return Container(
       height: 42,
       margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
@@ -397,11 +470,7 @@ class _DailyLatestInfoBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: color.withValues(alpha: .22)),
             ),
-            child: Icon(
-              _dailySignalStyle(series.nameEn, '').icon,
-              color: color,
-              size: 17,
-            ),
+            child: Icon(_dailySignalStyle(name, '').icon, color: color, size: 17),
           ),
 
           const SizedBox(width: 8),
@@ -411,7 +480,7 @@ class _DailyLatestInfoBar extends StatelessWidget {
               children: [
                 Flexible(
                   child: Text(
-                    formatValue(summary.latestValue, decimals: spec.decimals),
+                    formatValue(latestPoint?.value, decimals: spec.decimals),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -434,6 +503,19 @@ class _DailyLatestInfoBar extends StatelessWidget {
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
+                    ),
+                  ),
+                ],
+
+                // ANALOG co nguong: khoang cach toi nguong gan nhat.
+                if (thresholds.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: ThresholdChip(
+                      thresholds: thresholds,
+                      value: latestPoint?.value,
+                      unit: unit,
+                      decimals: spec.decimals,
                     ),
                   ),
                 ],
@@ -473,8 +555,7 @@ class _DailyLatestInfoBar extends StatelessWidget {
                 border: Border.all(color: color.withValues(alpha: .22)),
               ),
               child: Text(
-                // DateFormat('dd/MM').format(latestPoint!.recordDate),
-                DateFormat('dd/MMM', 'en_US').format(latestPoint!.recordDate),
+                DateFormat('dd/MMM', 'en_US').format(latestPoint!.day),
 
                 style: TextStyle(
                   color: color,
@@ -493,15 +574,26 @@ class _DailyLatestInfoBar extends StatelessWidget {
 // DAILY CHART
 // ============================================================
 
+/// Cham vuot nguong tren line: gia tri vi pham + level.
+class _BreachMark {
+  final DateTime day;
+  final double value;
+  final int level;
+
+  const _BreachMark(this.day, this.value, this.level);
+}
+
 class _DailyChart extends StatefulWidget {
-  final UtilityDailySeries series;
+  final DailySignalSeries series;
   final SignalChartSpec spec;
-  final List<UtilityDailyPoint> points;
+  final String unit;
+  final List<DailyPoint> points;
   final Color lineColor;
 
   const _DailyChart({
     required this.series,
     required this.spec,
+    required this.unit,
     required this.points,
     required this.lineColor,
   });
@@ -520,9 +612,11 @@ class _DailyChartState extends State<_DailyChart> {
   int? _selectedPointIndex;
 
   /// Diem theo ngay (ms) de trackball tra lai diem goc tu x.
-  Map<int, UtilityDailyPoint> _pointsByDay = const {};
+  Map<int, DailyPoint> _pointsByDay = const {};
 
-  UtilityDailyPoint? get _selectedPoint {
+  bool get _energy => widget.spec.style == ChartStyle.bar;
+
+  DailyPoint? get _selectedPoint {
     final index = _selectedPointIndex;
 
     if (index == null || index < 0 || index >= widget.points.length) {
@@ -559,7 +653,6 @@ class _DailyChartState extends State<_DailyChart> {
     final dataChanged =
         oldWidget.series.boxDeviceId != widget.series.boxDeviceId ||
         oldWidget.series.plcAddress != widget.series.plcAddress ||
-        oldWidget.series.nameEn != widget.series.nameEn ||
         !identical(oldWidget.points, widget.points);
 
     if (dataChanged) _selectLatestPoint();
@@ -581,72 +674,152 @@ class _DailyChartState extends State<_DailyChart> {
     setState(() => _selectedPointIndex = index);
   }
 
-  double? _mainValue(UtilityDailyPoint point) {
-    return widget.series.isEnergyConsumption
-        ? point.consumption
-        : point.avgValue ?? point.lastValue;
-  }
-
-  Widget _hoverCard(UtilityDailyPoint point) {
-    final energy = widget.series.isEnergyConsumption;
-    final hasRange = point.minValue != null && point.maxValue != null;
+  Widget _hoverCard(DailyPoint point) {
+    final hasRange = !_energy && point.hasRange;
 
     return ChartHoverCard(
-      title: _hoverDateFormat.format(point.recordDate),
+      title: _hoverDateFormat.format(point.day),
       rows: ChartHoverStyle.rows(
-        kind: energy ? HoverKind.counter : HoverKind.analog,
-        value: _mainValue(point),
-        unit: widget.spec.resolveUnit(widget.series.unit),
+        kind: _energy ? HoverKind.counter : HoverKind.analog,
+        value: point.value,
+        unit: widget.unit,
         decimals: widget.spec.decimals,
-        min: hasRange ? point.minValue : null,
-        max: hasRange ? point.maxValue : null,
-        samples: point.sampleCount > 0 ? point.sampleCount : null,
+        min: hasRange ? point.min : null,
+        max: hasRange ? point.max : null,
+        samples: point.count > 0 ? point.count : null,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final energy = widget.series.isEnergyConsumption;
+    final energy = _energy;
     final spec = widget.spec;
+    final series = widget.series;
+    final analog = series.kind == SignalKind.analog;
 
-    final hasBand =
-        !energy &&
-        widget.points.any((p) => p.minValue != null && p.maxValue != null);
+    final hasBand = !energy && widget.points.any((p) => p.hasRange);
 
     final points = downsampleMinMax(
       widget.points,
-      value: _mainValue,
-      low: hasBand
-          ? (UtilityDailyPoint p) => p.minValue ?? _mainValue(p)
-          : null,
-      high: hasBand
-          ? (UtilityDailyPoint p) => p.maxValue ?? _mainValue(p)
-          : null,
+      value: (DailyPoint p) => p.value,
+      low: hasBand ? (DailyPoint p) => p.min ?? p.value : null,
+      high: hasBand ? (DailyPoint p) => p.max ?? p.value : null,
     );
 
     _pointsByDay = {
-      for (final point in points)
-        point.recordDate.millisecondsSinceEpoch: point,
+      for (final point in points) point.day.millisecondsSinceEpoch: point,
     };
 
     final axis = planAxis(
       values: [
         for (final point in points) ...[
-          _mainValue(point),
-          if (hasBand) ...[point.minValue, point.maxValue],
+          point.value,
+          if (hasBand) ...[point.min, point.max],
         ],
       ],
       spec: spec,
+      thresholds: series.showThresholds ? series.thresholds : const [],
     );
 
+    // Vuot nguong: cot to mau level, line them cham mau level.
+    final levels = <int, int>{
+      for (final point in points)
+        if (series.breachLevel(point) case final level?)
+          point.day.millisecondsSinceEpoch: level,
+    };
+
+    final breaches = energy
+        ? const <_BreachMark>[]
+        : <_BreachMark>[
+            for (final point in points)
+              if (levels[point.day.millisecondsSinceEpoch] case final level?)
+                _BreachMark(
+                  point.day,
+                  breachMarkValue(
+                    series.thresholds,
+                    level,
+                    value: point.value!,
+                    min: analog ? point.min : null,
+                    max: analog ? point.max : null,
+                  ),
+                  level,
+                ),
+          ];
+
     final animationMs = _animation.duration();
+
+    final chart = SfCartesianChart(
+      margin: const EdgeInsets.fromLTRB(4, 2, 8, 0),
+      plotAreaBorderWidth: 0,
+
+      trackballBehavior: _trackball,
+
+      primaryXAxis: DateTimeCategoryAxis(
+        dateFormat: _axisDateFormat,
+        interval: _xAxisInterval(points.length),
+        labelRotation: -35,
+        edgeLabelPlacement: EdgeLabelPlacement.shift,
+        labelIntersectAction: AxisLabelIntersectAction.hide,
+        axisLine: const AxisLine(color: Color(0xFF263D5D), width: 1),
+        majorGridLines: const MajorGridLines(width: 0),
+        majorTickLines: const MajorTickLines(size: 3, color: Color(0xFF334155)),
+        labelStyle: const TextStyle(
+          color: Color(0xFF94A3B8),
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+
+      primaryYAxis: NumericAxis(
+        minimum: axis.min,
+        maximum: axis.max,
+        interval: axis.interval,
+        rangePadding: ChartRangePadding.none,
+        axisLine: const AxisLine(width: 0),
+        majorTickLines: const MajorTickLines(size: 0),
+        majorGridLines: MajorGridLines(
+          width: .65,
+          color: Colors.white.withValues(alpha: .065),
+          dashArray: const <double>[4, 4],
+        ),
+        labelStyle: const TextStyle(color: Color(0xFF71869F), fontSize: 12),
+        axisLabelFormatter: (AxisLabelRenderDetails details) {
+          return ChartAxisLabel(axis.label(details.value), details.textStyle);
+        },
+        plotBands: thresholdPlotBands(axis, widget.unit),
+      ),
+
+      series: <CartesianSeries<dynamic, DateTime>>[
+        if (energy)
+          ..._buildEnergySeries(points, animationMs, levels)
+        else
+          ..._buildMeasuredSeries(points, animationMs, hasBand: hasBand),
+        if (breaches.isNotEmpty)
+          ScatterSeries<_BreachMark, DateTime>(
+            dataSource: breaches,
+            animationDuration: animationMs,
+            enableTrackball: false,
+            enableTooltip: false,
+            color: _alertColor,
+            pointColorMapper: (mark, _) => thresholdLevelColor(mark.level),
+            xValueMapper: (mark, _) => mark.day,
+            yValueMapper: (mark, _) => mark.value,
+            markerSettings: const MarkerSettings(
+              height: 7,
+              width: 7,
+              shape: DataMarkerType.circle,
+              borderWidth: 0,
+            ),
+          ),
+      ],
+    );
 
     return Column(
       children: [
         _DailySelectedPointPanel(
           point: _selectedPoint,
-          series: widget.series,
+          unit: widget.unit,
           spec: spec,
           energy: energy,
           color: widget.lineColor,
@@ -654,61 +827,8 @@ class _DailyChartState extends State<_DailyChart> {
 
         const SizedBox(height: 4),
 
-        Expanded(
-          child: SfCartesianChart(
-            margin: const EdgeInsets.fromLTRB(4, 2, 8, 0),
-            plotAreaBorderWidth: 0,
-
-            trackballBehavior: _trackball,
-
-            primaryXAxis: DateTimeCategoryAxis(
-              dateFormat: _axisDateFormat,
-              interval: _xAxisInterval(points.length),
-              labelRotation: -35,
-              edgeLabelPlacement: EdgeLabelPlacement.shift,
-              labelIntersectAction: AxisLabelIntersectAction.hide,
-              axisLine: const AxisLine(color: Color(0xFF263D5D), width: 1),
-              majorGridLines: const MajorGridLines(width: 0),
-              majorTickLines: const MajorTickLines(
-                size: 3,
-                color: Color(0xFF334155),
-              ),
-              labelStyle: const TextStyle(
-                color: Color(0xFF94A3B8),
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-
-            primaryYAxis: NumericAxis(
-              minimum: axis.min,
-              maximum: axis.max,
-              interval: axis.interval,
-              rangePadding: ChartRangePadding.none,
-              axisLine: const AxisLine(width: 0),
-              majorTickLines: const MajorTickLines(size: 0),
-              majorGridLines: MajorGridLines(
-                width: .65,
-                color: Colors.white.withValues(alpha: .065),
-                dashArray: const <double>[4, 4],
-              ),
-              labelStyle: const TextStyle(
-                color: Color(0xFF71869F),
-                fontSize: 12,
-              ),
-              axisLabelFormatter: (AxisLabelRenderDetails details) {
-                return ChartAxisLabel(
-                  axis.label(details.value),
-                  details.textStyle,
-                );
-              },
-            ),
-
-            series: energy
-                ? _buildEnergySeries(points, animationMs)
-                : _buildMeasuredSeries(points, animationMs, hasBand: hasBand),
-          ),
-        ),
+        // Nguong qua xa du lieu: khong keo truc, chi hien nhan o mep.
+        Expanded(child: withOffscaleThresholds(chart, axis, widget.unit)),
       ],
     );
   }
@@ -729,15 +849,23 @@ class _DailyChartState extends State<_DailyChart> {
     return 4;
   }
 
-  List<CartesianSeries<UtilityDailyPoint, DateTime>> _buildEnergySeries(
-    List<UtilityDailyPoint> points,
+  List<CartesianSeries<DailyPoint, DateTime>> _buildEnergySeries(
+    List<DailyPoint> points,
     double animationMs,
+    Map<int, int> levels,
   ) {
+    Color barColor(DailyPoint point) {
+      final level = levels[point.day.millisecondsSinceEpoch];
+      return level == null
+          ? widget.lineColor.withValues(alpha: .78)
+          : thresholdLevelColor(level);
+    }
+
     return [
-      ColumnSeries<UtilityDailyPoint, DateTime>(
+      ColumnSeries<DailyPoint, DateTime>(
         dataSource: points,
-        xValueMapper: (point, _) => point.recordDate,
-        yValueMapper: (point, _) => point.consumption,
+        xValueMapper: (point, _) => point.day,
+        yValueMapper: (point, _) => point.value,
 
         // onPointTap nằm trên Series,
         // không nằm trên SfCartesianChart.
@@ -746,6 +874,7 @@ class _DailyChartState extends State<_DailyChart> {
         name: 'Daily consumption',
 
         color: widget.lineColor.withValues(alpha: .78),
+        pointColorMapper: (point, _) => barColor(point),
         borderColor: widget.lineColor,
         borderWidth: 1,
 
@@ -762,7 +891,7 @@ class _DailyChartState extends State<_DailyChart> {
           labelAlignment: ChartDataLabelAlignment.top,
           builder: (data, point, series, pointIndex, seriesIndex) => Text(
             formatValue(
-              (data as UtilityDailyPoint).consumption,
+              (data as DailyPoint).value,
               decimals: widget.spec.decimals,
             ),
             style: const TextStyle(
@@ -776,18 +905,18 @@ class _DailyChartState extends State<_DailyChart> {
     ];
   }
 
-  List<CartesianSeries<UtilityDailyPoint, DateTime>> _buildMeasuredSeries(
-    List<UtilityDailyPoint> points,
+  List<CartesianSeries<DailyPoint, DateTime>> _buildMeasuredSeries(
+    List<DailyPoint> points,
     double animationMs, {
     required bool hasBand,
   }) {
     return [
       if (hasBand)
-        RangeAreaSeries<UtilityDailyPoint, DateTime>(
+        RangeAreaSeries<DailyPoint, DateTime>(
           dataSource: points,
-          xValueMapper: (point, _) => point.recordDate,
-          lowValueMapper: (point, _) => point.minValue,
-          highValueMapper: (point, _) => point.maxValue,
+          xValueMapper: (point, _) => point.day,
+          lowValueMapper: (point, _) => point.min,
+          highValueMapper: (point, _) => point.max,
           color: widget.lineColor.withValues(alpha: .10),
           borderColor: widget.lineColor.withValues(alpha: .22),
           borderWidth: .8,
@@ -800,10 +929,10 @@ class _DailyChartState extends State<_DailyChart> {
           ),
         ),
 
-      LineSeries<UtilityDailyPoint, DateTime>(
+      LineSeries<DailyPoint, DateTime>(
         dataSource: points,
-        xValueMapper: (point, _) => point.recordDate,
-        yValueMapper: (point, _) => _mainValue(point),
+        xValueMapper: (point, _) => point.day,
+        yValueMapper: (point, _) => point.value,
 
         // Click marker AVG để đổi ngày.
         onPointTap: _handlePointTap,
@@ -835,15 +964,15 @@ class _DailyChartState extends State<_DailyChart> {
 // SELECTED DAY PANEL
 // ============================================================
 class _DailySelectedPointPanel extends StatelessWidget {
-  final UtilityDailyPoint? point;
-  final UtilityDailySeries series;
+  final DailyPoint? point;
+  final String unit;
   final SignalChartSpec spec;
   final bool energy;
   final Color color;
 
   const _DailySelectedPointPanel({
     required this.point,
-    required this.series,
+    required this.unit,
     required this.spec,
     required this.energy,
     required this.color,
@@ -852,7 +981,6 @@ class _DailySelectedPointPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedPoint = point;
-    final unit = spec.resolveUnit(series.unit);
     final decimals = spec.decimals;
 
     if (selectedPoint == null) {
@@ -966,7 +1094,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                 Expanded(
                   child: _SelectedMetric(
                     label: 'Consumption',
-                    value: selectedPoint.consumption,
+                    value: selectedPoint.value,
                     unit: unit,
                     decimals: decimals,
                     color: color,
@@ -980,8 +1108,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                       Expanded(
                         child: _SelectedMetric(
                           label: 'AVG',
-                          value:
-                              selectedPoint.avgValue ?? selectedPoint.lastValue,
+                          value: selectedPoint.value,
                           unit: unit,
                           decimals: decimals,
                           color: color,
@@ -993,7 +1120,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                       Expanded(
                         child: _SelectedMetric(
                           label: 'MIN',
-                          value: selectedPoint.minValue,
+                          value: selectedPoint.min,
                           unit: unit,
                           decimals: decimals,
                         ),
@@ -1004,7 +1131,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                       Expanded(
                         child: _SelectedMetric(
                           label: 'MAX',
-                          value: selectedPoint.maxValue,
+                          value: selectedPoint.max,
                           unit: unit,
                           decimals: decimals,
                         ),
@@ -1015,7 +1142,7 @@ class _DailySelectedPointPanel extends StatelessWidget {
                       Expanded(
                         child: _SelectedMetric(
                           label: 'LATEST',
-                          value: selectedPoint.lastValue,
+                          value: selectedPoint.last,
                           unit: unit,
                           decimals: decimals,
                         ),
@@ -1047,7 +1174,7 @@ class _IosMetricDivider extends StatelessWidget {
 }
 
 class _SelectedDateBadge extends StatelessWidget {
-  final UtilityDailyPoint point;
+  final DailyPoint point;
   final Color color;
 
   const _SelectedDateBadge({required this.point, required this.color});
@@ -1071,7 +1198,7 @@ class _SelectedDateBadge extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Text(
-        DateFormat('dd/MMM', 'en_US').format(point.recordDate),
+        DateFormat('dd/MMM', 'en_US').format(point.day),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -1163,92 +1290,6 @@ class _SelectedMetric extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-// ============================================================
-// FOOTER
-// ============================================================
-
-// ============================================================
-// SUMMARY
-// ============================================================
-
-class _DailySeriesSummary {
-  final double? latestValue;
-  final double? minValue;
-  final double? maxValue;
-  final double? averageValue;
-  final double? totalValue;
-
-  const _DailySeriesSummary({
-    required this.latestValue,
-    required this.minValue,
-    required this.maxValue,
-    required this.averageValue,
-    required this.totalValue,
-  });
-
-  factory _DailySeriesSummary.from({
-    required UtilityDailySeries series,
-    required List<UtilityDailyPoint> points,
-  }) {
-    final energy = series.isEnergyConsumption;
-
-    final mainValues = points
-        .map(
-          (point) =>
-              energy ? point.consumption : point.avgValue ?? point.lastValue,
-        )
-        .whereType<double>()
-        .where((value) => value.isFinite)
-        .toList(growable: false);
-
-    final minValues = points
-        .map((point) => point.minValue)
-        .whereType<double>()
-        .where((value) => value.isFinite)
-        .toList(growable: false);
-
-    final maxValues = points
-        .map((point) => point.maxValue)
-        .whereType<double>()
-        .where((value) => value.isFinite)
-        .toList(growable: false);
-
-    final latest = mainValues.isEmpty ? null : mainValues.last;
-
-    final average = mainValues.isEmpty
-        ? null
-        : mainValues.reduce((first, second) => first + second) /
-              mainValues.length;
-
-    final total = mainValues.isEmpty
-        ? null
-        : mainValues.reduce((first, second) => first + second);
-
-    return _DailySeriesSummary(
-      latestValue: latest,
-      minValue: energy ? _minOrNull(mainValues) : _minOrNull(minValues),
-      maxValue: energy ? _maxOrNull(mainValues) : _maxOrNull(maxValues),
-      averageValue: average,
-      totalValue: total,
-    );
-  }
-
-  static double? _minOrNull(List<double> values) {
-    if (values.isEmpty) {
-      return null;
-    }
-
-    return values.reduce((a, b) => a < b ? a : b);
-  }
-
-  static double? _maxOrNull(List<double> values) {
-    if (values.isEmpty) {
-      return null;
-    }
-
-    return values.reduce((a, b) => a > b ? a : b);
   }
 }
 

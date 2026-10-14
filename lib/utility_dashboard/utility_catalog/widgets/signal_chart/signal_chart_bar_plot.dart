@@ -6,6 +6,7 @@ import '../../../shared/charts/chart_animation.dart';
 import '../../../shared/charts/chart_hover_style.dart';
 import '../../../shared/charts/chart_thresholds.dart';
 import '../../../shared/charts/signal_chart_spec.dart';
+import '../../../shared/charts/signal_thresholds.dart';
 import '../../models/signal_history_models.dart';
 import 'signal_chart_bar_data.dart';
 import 'signal_chart_format.dart';
@@ -13,8 +14,8 @@ import 'signal_chart_palette.dart';
 
 /// Bieu do cot cho range 24h (moi gio 1 cot) va 7d (moi ngay 1 cot).
 ///
-/// - ANALOG: thanh noi min → max + cham avg; thanh vuot nguong mau do;
-///   duong nguong net dut giong chart line.
+/// - ANALOG: thanh noi min → max + cham avg; thanh vuot nguong mau level;
+///   duong nguong (`thresholds[]`) net dut giong chart line.
 /// - COUNTER: cot = tong delta cua gio / ngay, truc ghi "unit/giờ|ngày".
 /// - Cot khong co du lieu: de trong, khong to xam.
 /// STATUS khong dung widget nay (van ve step chart).
@@ -23,11 +24,16 @@ class SignalChartBarPlot extends StatefulWidget {
   final SignalBarPeriod period;
   final Color barColor;
 
+  /// The gon (Split): khong nhan truc / tieu de truc, khong chu tren duong
+  /// nguong; tooltip van day du.
+  final bool compact;
+
   const SignalChartBarPlot({
     super.key,
     required this.series,
     required this.period,
     required this.barColor,
+    this.compact = false,
   });
 
   @override
@@ -75,8 +81,17 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
     };
     _barsByKey = barsByKey;
 
-    final showThresholds =
-        spec.showThreshold && !isCounter && series.hasThreshold;
+    // Nguong `thresholds[]` chi ap cho ANALOG (rong voi COUNTER / STATUS).
+    final lines = isCounter
+        ? const <SignalThreshold>[]
+        : series.chartThresholds;
+
+    Color barColor(SignalBar bar) {
+      final level = barBreachLevel(lines, bar);
+      return level == null
+          ? widget.barColor.withValues(alpha: .55)
+          : thresholdLevelColor(level).withValues(alpha: .75);
+    }
 
     // Truc Y bam dai du lieu (avg + min / max cua thanh noi) va nguong.
     // Cot COUNTER luon bat dau tu 0.
@@ -95,14 +110,16 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
               showThreshold: false,
             )
           : spec,
-      thresholdLow: showThresholds ? series.thresholdLow : null,
-      thresholdHigh: showThresholds ? series.thresholdHigh : null,
+      thresholds: lines,
     );
 
     final animationMs = _animation.duration();
+    final compact = widget.compact;
 
     final chart = SfCartesianChart(
-      margin: const EdgeInsets.fromLTRB(0, 6, 6, 0),
+      margin: compact
+          ? const EdgeInsets.fromLTRB(0, 4, 0, 0)
+          : const EdgeInsets.fromLTRB(0, 6, 6, 0),
       plotAreaBorderWidth: 0,
       trackballBehavior: _trackball,
       primaryXAxis: CategoryAxis(
@@ -110,20 +127,32 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
         axisLine: AxisLine(color: SignalChartColors.axisLine),
         majorTickLines: const MajorTickLines(size: 0),
         labelIntersectAction: AxisLabelIntersectAction.none,
-        axisLabelFormatter: (details) => ChartAxisLabel(
-          _axisLabel(barsByKey[details.text], period),
-          const TextStyle(color: SignalChartColors.mutedText, fontSize: 10.5),
-        ),
+        labelStyle: compact ? kCompactAxisLabelStyle : null,
+        axisLabelFormatter: compact
+            ? compactAxisLabel
+            : (details) => ChartAxisLabel(
+                _axisLabel(barsByKey[details.text], period),
+                const TextStyle(
+                  color: SignalChartColors.mutedText,
+                  fontSize: 10.5,
+                ),
+              ),
       ),
       primaryYAxis: NumericAxis(
         minimum: axis.min,
         maximum: axis.max,
         interval: axis.interval,
-        axisLabelFormatter: (details) => ChartAxisLabel(
-          axis.label(details.value),
-          const TextStyle(color: SignalChartColors.mutedText, fontSize: 10.5),
-        ),
-        title: isCounter
+        labelStyle: compact ? kCompactAxisLabelStyle : null,
+        axisLabelFormatter: compact
+            ? compactAxisLabel
+            : (details) => ChartAxisLabel(
+                axis.label(details.value),
+                const TextStyle(
+                  color: SignalChartColors.mutedText,
+                  fontSize: 10.5,
+                ),
+              ),
+        title: isCounter && !compact
             ? AxisTitle(
                 text: _counterUnit(unit, period),
                 textStyle: const TextStyle(
@@ -133,12 +162,12 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
               )
             : const AxisTitle(),
         majorGridLines: MajorGridLines(
-          width: 1,
+          width: compact ? .6 : 1,
           color: SignalChartColors.gridLine,
         ),
         axisLine: const AxisLine(width: 0),
         majorTickLines: const MajorTickLines(size: 0),
-        plotBands: thresholdPlotBands(axis, unit),
+        plotBands: thresholdPlotBands(axis, unit, showText: !compact),
       ),
       series: <CartesianSeries<SignalBar, String>>[
         if (isCounter)
@@ -173,9 +202,7 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
                 bar.hasData ? (bar.min ?? bar.value) : null,
             highValueMapper: (bar, _) =>
                 bar.hasData ? (bar.max ?? bar.value) : null,
-            pointColorMapper: (bar, _) => barExceedsThreshold(series, bar)
-                ? SignalChartColors.alert.withValues(alpha: .75)
-                : widget.barColor.withValues(alpha: .55),
+            pointColorMapper: (bar, _) => barColor(bar),
             // Gio / ngay khong co du lieu: de trong.
             emptyPointSettings: const EmptyPointSettings(
               mode: EmptyPointMode.gap,
@@ -284,7 +311,9 @@ class _BarTooltip extends StatelessWidget {
           ? title
           : '$title (đến ${_two(until.hour)}:${_two(until.minute)})',
       rows: rows,
-      alerts: barExceedsThreshold(series, bar) ? const {0} : const <int>{},
+      alerts: barBreachLevel(series.chartThresholds, bar) != null
+          ? const {0}
+          : const <int>{},
     );
   }
 }

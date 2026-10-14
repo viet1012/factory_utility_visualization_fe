@@ -3,9 +3,8 @@ import 'dart:collection';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:flutter/widgets.dart';
 
+import '../../shared/state/safe_change_notifier.dart';
 import '../api/signal_history_repository.dart';
 import '../models/signal_history_models.dart';
 import 'filter_sparkline_controller.dart';
@@ -22,10 +21,12 @@ enum FilterChartLoadState { loading, ready, error }
 ///   toi da [maxConcurrent] song song, timeout [requestTimeout].
 /// - Cache theo (device, range) [cacheTtl]: doi range qua lai trong khoang
 ///   nay khong tai lai. Device dang hien lien tuc duoc lam moi moi
-///   [FilterSparklineController.refreshInterval].
+///   [FilterSparklineController.refreshInterval] qua [refreshStale] (task
+///   PollingCoordinator cua view, scope SCADA TABLE).
 /// - Doi range / filter / ve Table: huy request khong con can (CancelToken).
 /// - Device loi chi danh dau loi rieng no, khong lam hong ca nhom.
-class FilterChartController extends ChangeNotifier {
+class FilterChartController extends ChangeNotifier
+    with SafeChangeNotifier {
   final SignalHistoryRepository repository;
   final FilterSparklineController sparklines;
 
@@ -36,10 +37,10 @@ class FilterChartController extends ChangeNotifier {
   static const Duration requestTimeout = Duration(seconds: 15);
   static const Duration cacheTtl = Duration(seconds: 60);
 
-  static const Duration _refreshCheck = Duration(seconds: 30);
+  /// Device vua loi: cho toi luc nay moi thu lai.
+  static const Duration _retryDelay = Duration(seconds: 30);
 
   bool _disposed = false;
-  bool _notifyScheduled = false;
 
   CatalogDetailViewMode _viewMode = CatalogDetailViewMode.table;
   HistoryRange _range = HistoryRange.h1;
@@ -58,25 +59,20 @@ class FilterChartController extends ChangeNotifier {
   final Queue<_Job> _queue = Queue<_Job>();
   final Map<String, CancelToken> _inFlight = <String, CancelToken>{};
 
-  Timer? _refreshTimer;
-
-  /// Chart Filter results dang that su hien tren man hinh; false thi dung
-  /// nhip lam moi 30s (xem [setOnScreen]).
-  bool _onScreen = true;
-
-  void setOnScreen(bool onScreen) {
-    if (_disposed || _onScreen == onScreen) return;
-
-    _onScreen = onScreen;
-
-    if (onScreen && _viewMode == CatalogDetailViewMode.chart) {
-      // Hien lai: lam moi ngay phan da qua han.
-      _evict();
-      _enqueue();
-    }
-    _ensureTimer();
-  }
   int _requestCount = 0;
+
+  /// Task lam moi cua view: bo cache het han roi tai lai phan da qua han.
+  /// Chay ngay khi chart hien lai (doi tab / bo che).
+  Future<void> refreshStale() async {
+    if (_disposed ||
+        _viewMode != CatalogDetailViewMode.chart ||
+        _devices.isEmpty) {
+      return;
+    }
+
+    _evict();
+    _enqueue();
+  }
 
   // ============================================================
   // READ
@@ -121,13 +117,11 @@ class FilterChartController extends ChangeNotifier {
       _cancelWhere((_) => true);
       _queue.clear();
       _activeKeys.clear();
-      _stopTimer();
     } else {
       _enqueue();
-      _ensureTimer();
     }
 
-    _safeNotify();
+    safeNotify();
   }
 
   void setRange(HistoryRange range) {
@@ -143,7 +137,7 @@ class FilterChartController extends ChangeNotifier {
     _activeKeys.clear();
 
     _enqueue();
-    _safeNotify();
+    safeNotify();
   }
 
   // ============================================================
@@ -163,7 +157,6 @@ class FilterChartController extends ChangeNotifier {
     _activeKeys.removeWhere((key) => !_devices.containsKey(_deviceOf(key)));
 
     _enqueue();
-    _ensureTimer();
   }
 
   void _enqueue() {
@@ -207,7 +200,7 @@ class FilterChartController extends ChangeNotifier {
 
     _pump();
 
-    if (changed) _safeNotify();
+    if (changed) safeNotify();
   }
 
   _Entry? _fromSparklines(SparklineDeviceRequest device) {
@@ -315,7 +308,7 @@ class FilterChartController extends ChangeNotifier {
         signalIds: job.device.signalIds,
         series: keepOld ? previous.series : const <String, SignalHistorySeries>{},
         fetchedAt: keepOld ? previous.fetchedAt : null,
-        retryAfter: DateTime.now().add(_refreshCheck),
+        retryAfter: DateTime.now().add(_retryDelay),
       );
 
       debugPrint('[FILTER CHART ERROR] device=${job.device.deviceKey} error=$error');
@@ -328,7 +321,7 @@ class FilterChartController extends ChangeNotifier {
           _shownRange = _range;
         }
 
-        _safeNotify();
+        safeNotify();
         _pump();
       }
     }
@@ -360,26 +353,6 @@ class FilterChartController extends ChangeNotifier {
     }
   }
 
-  void _ensureTimer() {
-    if (!_onScreen ||
-        _viewMode != CatalogDetailViewMode.chart ||
-        _devices.isEmpty) {
-      _stopTimer();
-      return;
-    }
-
-    _refreshTimer ??= Timer.periodic(_refreshCheck, (_) {
-      if (_disposed) return;
-      _evict();
-      _enqueue();
-    });
-  }
-
-  void _stopTimer() {
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
-  }
-
   /// Bo cache het han cua (device, range) khong con dang hien.
   void _evict() {
     final now = DateTime.now();
@@ -403,41 +376,11 @@ class FilterChartController extends ChangeNotifier {
     return key.substring(0, key.lastIndexOf('#'));
   }
 
-  // ============================================================
-  // SAFE NOTIFY
-  // ============================================================
-
-  void _safeNotify() {
-    if (_disposed) return;
-
-    final binding = WidgetsBinding.instance;
-    final phase = binding.schedulerPhase;
-
-    final isBuilding =
-        phase == SchedulerPhase.persistentCallbacks ||
-        phase == SchedulerPhase.midFrameMicrotasks;
-
-    if (!isBuilding) {
-      notifyListeners();
-      return;
-    }
-
-    if (_notifyScheduled) return;
-    _notifyScheduled = true;
-
-    binding.addPostFrameCallback((_) {
-      _notifyScheduled = false;
-      if (_disposed) return;
-      notifyListeners();
-    });
-  }
 
   @override
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-
-    _stopTimer();
 
     for (final token in _inFlight.values) {
       token.cancel('disposed');

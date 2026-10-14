@@ -6,12 +6,8 @@ library;
 import '../shared/charts/signal_chart_spec.dart';
 import '../shared/charts/value_format.dart';
 
-String formatCatalogValue(double? value, SignalChartSpec spec) {
-  return formatValue(value, decimals: spec.decimals);
-}
-
-/// Nhu [formatCatalogValue], gan them unit (hoac unitOverride cua spec).
-/// Khong gan unit khi gia tri thieu.
+/// Gan them unit (hoac unitOverride cua spec). Khong gan unit khi gia tri
+/// thieu.
 String formatCatalogValueWithUnit(
   double? value,
   String? unit,

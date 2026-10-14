@@ -1,47 +1,25 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 
-import 'package:http/http.dart' as http;
-
+import '../../../../utility_api/dio_client.dart';
+import '../../setting_api_support.dart';
 import '../models/utility_scada.dart';
 
+/// `/api/v1/utility-scada` qua Dio dung chung ([DioClient.dio]).
+/// Loi HTTP / mang: DioException, doi thong bao bang settingErrorMessage.
 class UtilityScadaApi {
-  final String baseUrl;
-  final http.Client _client;
+  static const String _path = '/api/v1/utility-scada';
 
-  UtilityScadaApi({required this.baseUrl, http.Client? client})
-    : _client = client ?? http.Client();
+  final Dio _dio;
 
-  Uri _uri([String path = '']) {
-    final normalizedBase = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-
-    final normalizedPath = path.isEmpty
-        ? ''
-        : (path.startsWith('/') ? path : '/$path');
-
-    return Uri.parse('$normalizedBase$normalizedPath');
-  }
-
-  Map<String, String> get _headers => const {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
+  UtilityScadaApi({Dio? dio}) : _dio = dio ?? DioClient.dio;
 
   Future<List<UtilityScada>> getAll() async {
-    final response = await _client.get(
-      _uri('/api/v1/utility-scada'),
-      headers: _headers,
+    final response = await _dio.get<dynamic>(
+      _path,
+      options: settingRequestOptions(),
     );
 
-    _ensureSuccess(response);
-
-    final body = jsonDecode(response.body);
-    if (body is! List) {
-      throw Exception('Invalid response format: expected a list');
-    }
-
-    return body
+    return settingListOf(response)
         .map((e) => UtilityScada.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
   }
@@ -49,54 +27,24 @@ class UtilityScadaApi {
   Future<UtilityScada> create(UtilityScada item) async {
     final payload = Map<String, dynamic>.from(item.toJson())..remove('id');
 
-    final response = await _client.post(
-      _uri('/api/v1/utility-scada'),
-      headers: _headers,
-      body: jsonEncode(payload),
+    final response = await _dio.post<dynamic>(
+      _path,
+      data: payload,
+      options: settingRequestOptions(withBody: true),
     );
 
-    _ensureSuccess(response, allowedStatusCodes: {200, 201});
-
-    final body = jsonDecode(response.body);
-    return UtilityScada.fromJson(Map<String, dynamic>.from(body as Map));
+    return UtilityScada.fromJson(settingMapOf(response));
   }
 
   Future<UtilityScada> update(int id, UtilityScada item) async {
     final payload = Map<String, dynamic>.from(item.toJson())..remove('id');
 
-    final response = await _client.put(
-      _uri('/api/v1/utility-scada/$id'),
-      headers: _headers,
-      body: jsonEncode(payload),
+    final response = await _dio.put<dynamic>(
+      '$_path/$id',
+      data: payload,
+      options: settingRequestOptions(withBody: true),
     );
 
-    _ensureSuccess(response, allowedStatusCodes: {200, 201});
-
-    final body = jsonDecode(response.body);
-    return UtilityScada.fromJson(Map<String, dynamic>.from(body as Map));
-  }
-
-  Future<void> delete(int id) async {
-    final response = await _client.delete(
-      _uri('/api/v1/utility-scada/$id'),
-      headers: _headers,
-    );
-
-    _ensureSuccess(response, allowedStatusCodes: {200, 204});
-  }
-
-  void dispose() {
-    _client.close();
-  }
-
-  void _ensureSuccess(
-    http.Response response, {
-    Set<int> allowedStatusCodes = const {200},
-  }) {
-    if (!allowedStatusCodes.contains(response.statusCode)) {
-      throw Exception(
-        'API error: ${response.statusCode} ${response.reasonPhrase}\n${response.body}',
-      );
-    }
+    return UtilityScada.fromJson(settingMapOf(response));
   }
 }

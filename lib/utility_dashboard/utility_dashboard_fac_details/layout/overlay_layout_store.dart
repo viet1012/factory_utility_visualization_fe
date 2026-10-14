@@ -17,8 +17,6 @@ class OverlayGroupLayoutStore extends ChangeNotifier {
   bool _loading = false;
   bool _disposed = false;
 
-  bool get loading => _loading;
-
   Map<String, Offset> groupLayoutOf(String facId) {
     return Map<String, Offset>.unmodifiable(
       _groupLayouts[facId] ?? const <String, Offset>{},
@@ -35,21 +33,6 @@ class OverlayGroupLayoutStore extends ChangeNotifier {
     return Map<String, Color>.unmodifiable(
       _groupColors[facId] ?? const <String, Color>{},
     );
-  }
-
-  Offset? positionOf({required String facId, required String boxDeviceId}) {
-    return _groupLayouts[facId]?[boxDeviceId];
-  }
-
-  ArrowDirection directionOf({
-    required String facId,
-    required String boxDeviceId,
-  }) {
-    return _groupDirections[facId]?[boxDeviceId] ?? ArrowDirection.right;
-  }
-
-  Color? colorOf({required String facId, required String boxDeviceId}) {
-    return _groupColors[facId]?[boxDeviceId];
   }
 
   Future<void> loadGroups(String facId) async {

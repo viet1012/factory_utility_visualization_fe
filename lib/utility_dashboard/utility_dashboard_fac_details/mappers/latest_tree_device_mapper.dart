@@ -50,12 +50,6 @@ class LatestTreeDeviceMapper {
     return result;
   }
 
-  static List<String> sortedDeviceIds(Map<String, FacDeviceViewData> devices) {
-    final values = devices.keys.toList()..sort(_compareText);
-
-    return values;
-  }
-
   static DateTime? latestRecordedAt(Iterable<FacDeviceViewData> devices) {
     DateTime? latest;
 

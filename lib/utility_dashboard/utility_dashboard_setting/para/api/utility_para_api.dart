@@ -1,35 +1,27 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 
+import '../../../../utility_api/dio_client.dart';
+import '../../setting_api_support.dart';
 import '../models/utility_para.dart';
 import '../models/utility_para_tree_models.dart';
-import 'package:http/http.dart' as http;
 
+/// `/api/v1/utility-para` qua Dio dung chung ([DioClient.dio]).
+/// Dio nem DioException voi status ngoai 2xx nen khong tu kiem tra status;
+/// doi thong bao bang settingErrorMessage.
 class UtilityParaApi {
-  final String baseUrl;
-  final http.Client _client;
+  static const String _path = '/api/v1/utility-para';
 
-  UtilityParaApi({required this.baseUrl, http.Client? client})
-    : _client = client ?? http.Client();
+  final Dio _dio;
 
-  Uri _uri(String path) => Uri.parse('$baseUrl$path');
+  UtilityParaApi({Dio? dio}) : _dio = dio ?? DioClient.dio;
 
   Future<List<UtilityParaTreeFac>> getGroupedByFacWithParas() async {
-    final response = await _client.get(
-      _uri('/api/v1/utility-para/grouped-by-fac-with-paras'),
+    final response = await _dio.get<dynamic>(
+      '$_path/grouped-by-fac-with-paras',
+      options: settingRequestOptions(),
     );
 
-    if (response.statusCode != 200) {
-      throw Exception(
-        'API error: ${response.statusCode} ${response.reasonPhrase}\n${response.body}',
-      );
-    }
-
-    final body = jsonDecode(response.body);
-    if (body is! List) {
-      throw Exception('Invalid response format: expected a list');
-    }
-
-    return body
+    return settingListOf(response)
         .map(
           (e) =>
               UtilityParaTreeFac.fromJson(Map<String, dynamic>.from(e as Map)),
@@ -38,22 +30,22 @@ class UtilityParaApi {
   }
 
   Future<UtilityPara> create(UtilityPara item) async {
-    final res = await _client.post(
-      _uri('/api/v1/utility-para'),
-      body: jsonEncode(item.toJson()..remove('id')),
-      headers: {'Content-Type': 'application/json'},
+    final response = await _dio.post<dynamic>(
+      _path,
+      data: item.toJson()..remove('id'),
+      options: settingRequestOptions(withBody: true),
     );
-    return UtilityPara.fromJson(jsonDecode(res.body));
+
+    return UtilityPara.fromJson(settingMapOf(response));
   }
 
   Future<UtilityPara> update(int id, UtilityPara item) async {
-    final res = await _client.put(
-      _uri('/api/v1/utility-para/$id'),
-      body: jsonEncode(item.toJson()..remove('id')),
-      headers: {'Content-Type': 'application/json'},
+    final response = await _dio.put<dynamic>(
+      '$_path/$id',
+      data: item.toJson()..remove('id'),
+      options: settingRequestOptions(withBody: true),
     );
-    return UtilityPara.fromJson(jsonDecode(res.body));
-  }
 
-  void dispose() => _client.close();
+    return UtilityPara.fromJson(settingMapOf(response));
+  }
 }

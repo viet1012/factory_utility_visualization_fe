@@ -1,42 +1,26 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 
+import '../../../../utility_api/dio_client.dart';
+import '../../setting_api_support.dart';
 import '../models/utility_scada_channel.dart';
 import '../models/utility_scada_tree_models.dart';
-import 'package:http/http.dart' as http;
 
+/// `/api/v1/utility-scada-channels` qua Dio dung chung ([DioClient.dio]).
+/// Loi HTTP / mang: DioException, doi thong bao bang settingErrorMessage.
 class UtilityScadaChannelApi {
-  final String baseUrl;
-  final http.Client _client;
+  static const String _path = '/api/v1/utility-scada-channels';
 
-  UtilityScadaChannelApi({required this.baseUrl, http.Client? client})
-    : _client = client ?? http.Client();
+  final Dio _dio;
 
-  Uri _uri([String path = '']) {
-    final normalizedBase = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-
-    final normalizedPath = path.isEmpty
-        ? ''
-        : (path.startsWith('/') ? path : '/$path');
-
-    return Uri.parse('$normalizedBase$normalizedPath');
-  }
+  UtilityScadaChannelApi({Dio? dio}) : _dio = dio ?? DioClient.dio;
 
   Future<List<UtilityScadaTreeFacRaw>> getGroupedByFac() async {
-    final response = await _client.get(
-      _uri('/api/v1/utility-scada-channels/group-by-fac'),
-      headers: _headers,
+    final response = await _dio.get<dynamic>(
+      '$_path/group-by-fac',
+      options: settingRequestOptions(),
     );
 
-    _ensureSuccess(response);
-
-    final body = jsonDecode(response.body);
-    if (body is! List) {
-      throw Exception('Invalid response format: expected a list');
-    }
-
-    return body
+    return settingListOf(response)
         .map(
           (e) => UtilityScadaTreeFacRaw.fromJson(
             Map<String, dynamic>.from(e as Map),
@@ -45,25 +29,13 @@ class UtilityScadaChannelApi {
         .toList();
   }
 
-  Map<String, String> get _headers => const {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
-
   Future<List<UtilityScadaChannel>> getAll() async {
-    final response = await _client.get(
-      _uri('/api/v1/utility-scada-channels'),
-      headers: _headers,
+    final response = await _dio.get<dynamic>(
+      _path,
+      options: settingRequestOptions(),
     );
 
-    _ensureSuccess(response);
-
-    final body = jsonDecode(response.body);
-    if (body is! List) {
-      throw Exception('Invalid response format: expected a list');
-    }
-
-    return body
+    return settingListOf(response)
         .map(
           (e) =>
               UtilityScadaChannel.fromJson(Map<String, dynamic>.from(e as Map)),
@@ -71,52 +43,27 @@ class UtilityScadaChannelApi {
         .toList();
   }
 
-
-
   Future<UtilityScadaChannel> create(UtilityScadaChannel item) async {
     final payload = Map<String, dynamic>.from(item.toJson())..remove('id');
 
-    final response = await _client.post(
-      _uri('/api/v1/utility-scada-channels'),
-      headers: _headers,
-      body: jsonEncode(payload),
+    final response = await _dio.post<dynamic>(
+      _path,
+      data: payload,
+      options: settingRequestOptions(withBody: true),
     );
 
-    _ensureSuccess(response, allowedStatusCodes: {200, 201});
-
-    final body = jsonDecode(response.body);
-    return UtilityScadaChannel.fromJson(Map<String, dynamic>.from(body as Map));
+    return UtilityScadaChannel.fromJson(settingMapOf(response));
   }
 
   Future<UtilityScadaChannel> update(int id, UtilityScadaChannel item) async {
     final payload = Map<String, dynamic>.from(item.toJson())..remove('id');
 
-    final response = await _client.put(
-      _uri('/api/v1/utility-scada-channels/$id'),
-      headers: _headers,
-      body: jsonEncode(payload),
+    final response = await _dio.put<dynamic>(
+      '$_path/$id',
+      data: payload,
+      options: settingRequestOptions(withBody: true),
     );
 
-    _ensureSuccess(response, allowedStatusCodes: {200, 201});
-
-    final body = jsonDecode(response.body);
-    return UtilityScadaChannel.fromJson(Map<String, dynamic>.from(body as Map));
-  }
-
- 
-
-  void dispose() {
-    _client.close();
-  }
-
-  void _ensureSuccess(
-    http.Response response, {
-    Set<int> allowedStatusCodes = const {200},
-  }) {
-    if (!allowedStatusCodes.contains(response.statusCode)) {
-      throw Exception(
-        'API error: ${response.statusCode} ${response.reasonPhrase}\n${response.body}',
-      );
-    }
+    return UtilityScadaChannel.fromJson(settingMapOf(response));
   }
 }

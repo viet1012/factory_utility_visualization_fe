@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' hide SearchBar;
 import 'package:provider/provider.dart';
 
 import '../../../utility_dashboard_common/chart_theme.dart';
+import '../../setting_api_support.dart';
 import '../../setting_security.dart';
 import '../../utility_dashboard_setting_dialog/scada_form_dialog.dart';
 import '../../utility_dashboard_setting_screens/base_setting_screen.dart';
@@ -69,16 +70,18 @@ class _UtilityScadaScreenState extends State<UtilityScadaScreen> {
 
     if (result == null) return;
 
+    // ScadaViewModel tu tat submitting trong finally.
     try {
       if (item == null) {
         await _viewModel.createItem(result);
-        _showMessage('Created successfully');
+        if (mounted) _showMessage('Created successfully');
       } else if (item.id != null) {
         await _viewModel.updateItem(item.id!, result);
-        _showMessage('Updated successfully');
+        if (mounted) _showMessage('Updated successfully');
       }
     } catch (e) {
-      _showMessage(e.toString(), isError: true);
+      if (!mounted) return;
+      _showMessage(settingErrorMessage(e), isError: true);
     }
   }
 

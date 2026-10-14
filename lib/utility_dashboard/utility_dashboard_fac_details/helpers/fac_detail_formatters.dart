@@ -14,12 +14,4 @@ class FacDetailFormatters {
         '${pad(value.minute)}:'
         '${pad(value.second)}';
   }
-
-  static String clean(Object? value) {
-    return value?.toString().trim() ?? '';
-  }
-
-  static int compareText(String first, String second) {
-    return first.trim().toLowerCase().compareTo(second.trim().toLowerCase());
-  }
 }

@@ -2,13 +2,16 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:flutter/widgets.dart';
 
+import '../../shared/state/safe_change_notifier.dart';
 import '../api/signal_history_repository.dart';
 import '../models/signal_history_models.dart';
 
 enum CatalogDetailViewMode { table, chart }
+
+/// Cach xep the o che do Chart: gop signal cung (code, unit) vao mot the,
+/// hoac moi signal mot the gon.
+enum CatalogChartLayout { merge, split }
 
 /// State cua che do Chart trong panel chi tiet thiet bi.
 ///
@@ -21,7 +24,7 @@ enum CatalogDetailViewMode { table, chart }
 /// - lan tai dau cua device, chua co gi de hien: skeleton;
 /// - doi range: giu chart cu (lam mo) + progress bar, khong ve skeleton;
 /// - polling / refresh cung range: tai ngam, chart giu nguyen.
-class SignalHistoryController extends ChangeNotifier {
+class SignalHistoryController extends ChangeNotifier with SafeChangeNotifier {
   final SignalHistoryRepository repository;
 
   SignalHistoryController({required this.repository});
@@ -44,7 +47,6 @@ class SignalHistoryController extends ChangeNotifier {
   static const int _cacheCapacity = 24;
 
   bool _disposed = false;
-  bool _notifyScheduled = false;
 
   int _requestId = 0;
 
@@ -53,10 +55,10 @@ class SignalHistoryController extends ChangeNotifier {
 
   CatalogDetailViewMode _viewMode = CatalogDetailViewMode.table;
 
-  HistoryRange _range = HistoryRange.h1;
+  /// Giu trong phien (controller song cung dashboard).
+  CatalogChartLayout _chartLayout = CatalogChartLayout.merge;
 
-  /// Khi khac null, uu tien hon [_range].
-  HistoryWindow? _customWindow;
+  HistoryRange _range = HistoryRange.h1;
 
   // Target dang duoc view yeu cau.
   String? _deviceKey;
@@ -68,7 +70,7 @@ class SignalHistoryController extends ChangeNotifier {
   List<SignalHistorySeries> _series = const <SignalHistorySeries>[];
   HistoryAggregation? _aggregation;
 
-  /// Range cua data dang hien thi (null = custom window). Co the khac
+  /// Range cua data dang hien thi (null = chua co). Co the khac
   /// [range] trong luc dang doi range.
   HistoryRange? _displayedRange;
 
@@ -82,9 +84,9 @@ class SignalHistoryController extends ChangeNotifier {
 
   CatalogDetailViewMode get viewMode => _viewMode;
 
-  HistoryRange get range => _range;
+  CatalogChartLayout get chartLayout => _chartLayout;
 
-  HistoryWindow? get customWindow => _customWindow;
+  HistoryRange get range => _range;
 
   List<SignalHistorySeries> get series => _series;
 
@@ -137,31 +139,25 @@ class SignalHistoryController extends ChangeNotifier {
     if (_disposed || mode == _viewMode) return;
 
     _viewMode = mode;
-    _safeNotify();
+    safeNotify();
 
     _loadIfNeeded();
+  }
+
+  /// Chi doi cach hien thi, khong tai lai du lieu.
+  void setChartLayout(CatalogChartLayout layout) {
+    if (_disposed || layout == _chartLayout) return;
+
+    _chartLayout = layout;
+    safeNotify();
   }
 
   void setRange(HistoryRange range) {
     if (_disposed) return;
-    if (range == _range && _customWindow == null) return;
+    if (range == _range) return;
 
     _range = range;
-    _customWindow = null;
-    _safeNotify();
-
-    _loadIfNeeded();
-  }
-
-  /// Range tu chon. Chua co UI picker, nhung API da san sang.
-  void setCustomWindow(DateTime from, DateTime to) {
-    if (_disposed || !to.isAfter(from)) return;
-
-    final next = HistoryWindow(from: from, to: to);
-    if (next == _customWindow) return;
-
-    _customWindow = next;
-    _safeNotify();
+    safeNotify();
 
     _loadIfNeeded();
   }
@@ -209,13 +205,7 @@ class SignalHistoryController extends ChangeNotifier {
     final device = _deviceKey;
     if (device == null) return null;
 
-    final custom = _customWindow;
-    final rangeKey = custom == null
-        ? _range.name
-        : '${custom.from.millisecondsSinceEpoch}-'
-              '${custom.to.millisecondsSinceEpoch}';
-
-    return '$device#$rangeKey#${_signalIds.join(',')}';
+    return '$device#${_range.name}#${_signalIds.join(',')}';
   }
 
   void _loadIfNeeded() {
@@ -235,25 +225,12 @@ class SignalHistoryController extends ChangeNotifier {
     final fetchedAt = _cache[key]?.fetchedAt;
     if (fetchedAt == null) return true;
 
-    final maxAge = _customWindow == null
-        ? autoRefreshInterval(_range)
-        : cacheTtl;
-
-    return DateTime.now().difference(fetchedAt) >= maxAge;
+    return DateTime.now().difference(fetchedAt) >= autoRefreshInterval(_range);
   }
 
-  String get _rangeLabel {
-    final custom = _customWindow;
-    if (custom == null) return _range.label;
-
-    return 'custom(${custom.from.toIso8601String()}..'
-        '${custom.to.toIso8601String()})';
-  }
+  String get _rangeLabel => _range.label;
 
   HistoryWindow _resolveWindow() {
-    final custom = _customWindow;
-    if (custom != null) return custom;
-
     // 7d can 00:00 cua 6 ngay truoc (xem HistoryRange.windowEndingAt).
     return _range.windowEndingAt(DateTime.now());
   }
@@ -266,8 +243,8 @@ class SignalHistoryController extends ChangeNotifier {
 
     final ids = _signalIds;
     final window = _resolveWindow();
-    final range = _customWindow == null ? _range : null;
-    final bucket = range?.requestBucket ?? 'auto';
+    final range = _range;
+    final bucket = range.requestBucket;
 
     final requestId = ++_requestId;
 
@@ -279,7 +256,7 @@ class SignalHistoryController extends ChangeNotifier {
     _prepareDisplay(key);
 
     _error = null;
-    _safeNotify();
+    safeNotify();
 
     if (ids.isEmpty) {
       _showResult(
@@ -379,8 +356,7 @@ class SignalHistoryController extends ChangeNotifier {
     }
 
     // Doi device: khong bao gio hien data cua device truoc.
-    if (_displayedKey != null &&
-        _deviceOf(_displayedKey!) != _deviceOf(key)) {
+    if (_displayedKey != null && _deviceOf(_displayedKey!) != _deviceOf(key)) {
       _clearDisplay();
     }
 
@@ -409,7 +385,7 @@ class SignalHistoryController extends ChangeNotifier {
     if (!_isCurrent(requestId)) return;
 
     _cancelToken = null;
-    _safeNotify();
+    safeNotify();
   }
 
   void _trimCache() {
@@ -437,40 +413,6 @@ class SignalHistoryController extends ChangeNotifier {
     }
 
     return true;
-  }
-
-  // ============================================================
-  // SAFE NOTIFY
-  // ============================================================
-
-  /// [bind] duoc goi tu didUpdateWidget (trong build phase), nen notify phai
-  /// hoan sang sau frame giong SignalHealthHistoryController.
-  void _safeNotify() {
-    if (_disposed) return;
-
-    final binding = WidgetsBinding.instance;
-    final phase = binding.schedulerPhase;
-
-    final isBuilding =
-        phase == SchedulerPhase.persistentCallbacks ||
-        phase == SchedulerPhase.midFrameMicrotasks;
-
-    if (!isBuilding) {
-      notifyListeners();
-      return;
-    }
-
-    if (_notifyScheduled) return;
-
-    _notifyScheduled = true;
-
-    binding.addPostFrameCallback((_) {
-      _notifyScheduled = false;
-
-      if (_disposed) return;
-
-      notifyListeners();
-    });
   }
 
   @override

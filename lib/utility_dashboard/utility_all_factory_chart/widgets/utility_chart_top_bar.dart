@@ -20,7 +20,6 @@ class UtilityChartTopBar extends StatelessWidget {
 
   final VoidCallback onToggleFilters;
 
-  final bool showImportantSwitch;
   final bool importantEnabled;
   final bool refreshing;
 
@@ -39,7 +38,6 @@ class UtilityChartTopBar extends StatelessWidget {
     required this.importantOnly,
     required this.onImportantChanged,
     required this.onToggleFilters,
-    required this.showImportantSwitch,
     required this.importantEnabled,
     required this.refreshing,
     required this.theme,
@@ -82,13 +80,13 @@ class UtilityChartTopBar extends StatelessWidget {
           const SizedBox(width: 10),
         ],
 
-        if (showImportantSwitch)
-          _ImportantSwitch(
-            value: importantOnly,
-            enabled: importantEnabled,
-            onChanged: onImportantChanged,
-            theme: theme,
-          ),
+        // Ca 3 tab cung lay danh sach signal tu catalog (loc Important).
+        _ImportantSwitch(
+          value: importantOnly,
+          enabled: importantEnabled,
+          onChanged: onImportantChanged,
+          theme: theme,
+        ),
       ],
     );
   }

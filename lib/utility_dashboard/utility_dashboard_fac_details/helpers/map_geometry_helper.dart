@@ -51,29 +51,4 @@ class MapGeometryHelper {
       height,
     );
   }
-
-  /// Lấp đầy container nhưng có thể cắt ảnh.
-  static Rect coverRect(Size containerSize, Size imageSize) {
-    if (containerSize.width <= 0 ||
-        containerSize.height <= 0 ||
-        imageSize.width <= 0 ||
-        imageSize.height <= 0) {
-      return Offset.zero & containerSize;
-    }
-
-    final scaleX = containerSize.width / imageSize.width;
-    final scaleY = containerSize.height / imageSize.height;
-
-    final scale = scaleX > scaleY ? scaleX : scaleY;
-
-    final width = imageSize.width * scale;
-    final height = imageSize.height * scale;
-
-    return Rect.fromLTWH(
-      (containerSize.width - width) / 2,
-      (containerSize.height - height) / 2,
-      width,
-      height,
-    );
-  }
 }

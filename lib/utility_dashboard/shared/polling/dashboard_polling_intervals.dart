@@ -13,4 +13,7 @@ abstract final class DashboardPollingIntervals {
   static const Duration solarDetail = Duration(hours: 1);
   static const Duration mapMonthlyBox = Duration(hours: 1);
   static const Duration mapWeather = Duration(minutes: 45);
+
+  /// Nhip kiem tra cache het han cua sparkline / Filter chart (SCADA TABLE).
+  static const Duration filterHistoryCheck = Duration(seconds: 30);
 }

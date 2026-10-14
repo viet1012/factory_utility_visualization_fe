@@ -22,6 +22,16 @@ abstract final class PollingTaskIds {
     return 'scada.device-chart.${identityHashCode(owner)}';
   }
 
+  /// Lam moi sparkline cua bang Filter results.
+  static String filterSparklines(Object owner) {
+    return 'scada.filter-sparklines.${identityHashCode(owner)}';
+  }
+
+  /// Lam moi che do Chart cua Filter results.
+  static String filterChart(Object owner) {
+    return 'scada.filter-chart.${identityHashCode(owner)}';
+  }
+
   static String mapMonthlyBox(String facId) {
     return 'map.monthly-box.${facId.trim()}';
   }

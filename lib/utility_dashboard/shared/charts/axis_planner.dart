@@ -1,13 +1,30 @@
 import 'dart:math' as math;
 
+import 'chart_config.dart';
 import 'signal_chart_spec.dart';
+import 'signal_thresholds.dart';
 import 'value_format.dart';
 
 class AxisThreshold {
   final double value;
   final bool isHigh;
 
-  const AxisThreshold({required this.value, required this.isHigh});
+  /// Level 1..3 tu `thresholds[]` (null = nguong don cu, mau mac dinh).
+  final int? level;
+  final String? label;
+
+  const AxisThreshold({
+    required this.value,
+    required this.isHigh,
+    this.level,
+    this.label,
+  });
+
+  AxisThreshold.of(SignalThreshold line)
+    : value = line.value,
+      isHigh = line.isHigh,
+      level = line.level,
+      label = line.label;
 }
 
 /// Truc Y da tinh san: min / max / interval luon ro rang khi co du lieu, de
@@ -21,8 +38,9 @@ class AxisPlan {
   /// Nguong se ve (da loc nguong tam thuong / qua xa du lieu).
   final List<AxisThreshold> thresholds;
 
-  /// Nguong qua xa du lieu (> 2 x bien do): khong keo truc, chi nen hien
-  /// nhan o mep chart (xem chart_thresholds.dart).
+  /// Nguong khong nam trong truc (xa du lieu, xem [thresholdNearData], hoac
+  /// ngoai khung co dinh): khong keo truc, hien nhan ▲ / ▼ o mep chart
+  /// (xem chart_thresholds.dart).
   final List<AxisThreshold> offscale;
 
   const AxisPlan({
@@ -57,29 +75,44 @@ const List<double> _niceMantissas = [1, 2, 2.5, 5];
 /// Tinh truc Y tu [values] (gia tri + min/max cua dai neu co) va [spec].
 ///
 /// [thresholdLow] / [thresholdHigh]: truyen null khi signal khong ap nguong.
+/// [thresholds]: nguong da loc (trivial = false) tu `thresholds[]` cua
+/// backend; khac null thi thay cho [thresholdLow] / [thresholdHigh] va ve
+/// bat ke [SignalChartSpec.showThreshold].
 AxisPlan planAxis({
   required Iterable<double?> values,
   required SignalChartSpec spec,
   double? thresholdLow,
   double? thresholdHigh,
+  List<SignalThreshold>? thresholds,
 }) {
   final offscale = <AxisThreshold>[];
+  final lines = thresholds != null
+      ? [for (final line in thresholds) AxisThreshold.of(line)]
+      : spec.showThreshold
+      ? [
+          if (thresholdHigh != null)
+            AxisThreshold(value: thresholdHigh, isHigh: true),
+          if (thresholdLow != null)
+            AxisThreshold(value: thresholdLow, isHigh: false),
+        ]
+      : const <AxisThreshold>[];
+
   return _planAxis(
     values,
     spec,
-    thresholdLow,
-    thresholdHigh,
+    lines,
     offscale,
+    hideTrivialLow: thresholds == null && spec.hideTrivialLowerThreshold,
   )._withOffscale(offscale);
 }
 
 AxisPlan _planAxis(
   Iterable<double?> values,
   SignalChartSpec spec,
-  double? thresholdLow,
-  double? thresholdHigh,
-  List<AxisThreshold> offscale,
-) {
+  List<AxisThreshold> lines,
+  List<AxisThreshold> offscale, {
+  required bool hideTrivialLow,
+}) {
   double? lo;
   double? hi;
 
@@ -109,46 +142,30 @@ AxisPlan _planAxis(
   }
 
   final nonNegative = lo >= 0;
-  final dataSpan = axisIsFlat(lo, hi) ? _flatSpan(lo, hi) : hi - lo;
 
-  // Nguong chi keo vao truc khi nam gan dai du lieu (<= 2 x bien do).
+  // Nguong chi keo vao truc khi gan du lieu (xem [ChartConfig]); nguong
+  // khong vao truc luon vao [offscale] de hien nhan o mep.
   final thresholds = <AxisThreshold>[];
 
-  if (spec.showThreshold) {
-    for (final line in [
-      if (thresholdHigh != null)
-        AxisThreshold(value: thresholdHigh, isHigh: true),
-      if (thresholdLow != null)
-        AxisThreshold(value: thresholdLow, isHigh: false),
-    ]) {
-      if (!line.value.isFinite) continue;
+  for (final line in lines) {
+    if (!line.value.isFinite) continue;
 
-      final trivial =
-          !line.isHigh &&
-          spec.hideTrivialLowerThreshold &&
-          line.value == 0 &&
-          nonNegative;
-      if (trivial) continue;
+    final trivial =
+        !line.isHigh && hideTrivialLow && line.value == 0 && nonNegative;
+    if (trivial) continue;
 
-      if (spec.axis == AxisMode.fixed) {
-        final inFixed =
-            (spec.fixedMin == null || line.value >= spec.fixedMin!) &&
-            (spec.fixedMax == null || line.value <= spec.fixedMax!);
-        if (inFixed) thresholds.add(line);
-        continue;
-      }
+    if (spec.axis == AxisMode.fixed) {
+      final inFixed =
+          (spec.fixedMin == null || line.value >= spec.fixedMin!) &&
+          (spec.fixedMax == null || line.value <= spec.fixedMax!);
+      (inFixed ? thresholds : offscale).add(line);
+      continue;
+    }
 
-      final distance = line.value > hi
-          ? line.value - hi
-          : line.value < lo
-          ? lo - line.value
-          : 0.0;
-
-      if (distance <= dataSpan * 2) {
-        thresholds.add(line);
-      } else {
-        offscale.add(line);
-      }
+    if (thresholdNearData(line.value, lo, hi)) {
+      thresholds.add(line);
+    } else {
+      offscale.add(line);
     }
   }
 
@@ -203,6 +220,20 @@ AxisPlan _planAxis(
         floorAtZero: floorAtZero,
       );
   }
+}
+
+/// Nguong [value] du gan dai du lieu [lo]–[hi] de keo truc chua no:
+/// |value − gia tri gan nhat| <= [ChartConfig.thresholdAxisPullRatio] ×
+/// max(|gia tri gan nhat|, 1). Nguong nam trong dai luon dat.
+bool thresholdNearData(double value, double lo, double hi) {
+  final nearest = value > hi
+      ? hi
+      : value < lo
+      ? lo
+      : value;
+
+  return (value - nearest).abs() <=
+      ChartConfig.thresholdAxisPullRatio * math.max(nearest.abs(), 1.0);
 }
 
 /// Phang khi bien do <= max(1e-9 x |gia tri|, 1e-6).

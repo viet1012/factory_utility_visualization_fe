@@ -97,13 +97,11 @@ class UtilityMinuteChartGrid extends StatelessWidget {
               ),
               child: UtilityMinuteChartPanel(
                 facId: facId,
-                scadaId: scadaId,
                 cate: cate,
                 boxDeviceId: boxDeviceId,
                 plcAddress: plcAddress,
                 signalName: chart.nameEn,
                 unit: chart.unit,
-                code: chart.cateId,
               ),
             );
           },

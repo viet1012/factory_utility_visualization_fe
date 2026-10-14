@@ -55,46 +55,6 @@ typedef HistoryDeviceStat = ({
   int descriptionCount,
 });
 
-/// Per-level totals backing the three level cards.
-typedef HistoryLevelTotals = ({
-  int level1,
-  int level2,
-  int level3,
-  int unknown,
-  int total,
-});
-
-/// Totals per severity across every bucket in the range.
-HistoryLevelTotals buildLevelTotals(List<SignalHealthHistoryBucket> buckets) {
-  var level1 = 0;
-  var level2 = 0;
-  var level3 = 0;
-  var unknown = 0;
-
-  for (final bucket in buckets) {
-    for (final alert in bucket.alerts) {
-      switch (alert.level) {
-        case SignalHealthAlertLevel.level1:
-          level1 += alert.count;
-        case SignalHealthAlertLevel.level2:
-          level2 += alert.count;
-        case SignalHealthAlertLevel.level3:
-          level3 += alert.count;
-        case SignalHealthAlertLevel.unknown:
-          unknown += alert.count;
-      }
-    }
-  }
-
-  return (
-    level1: level1,
-    level2: level2,
-    level3: level3,
-    unknown: unknown,
-    total: level1 + level2 + level3 + unknown,
-  );
-}
-
 /// Everything a level card needs to summarise one severity at a glance.
 ///
 /// [series] is the per-hour count list backing the sparkline and [times] holds
@@ -435,27 +395,6 @@ List<SignalHealthHistorySignal> collectSignalsForDevice(
   return List<SignalHealthHistorySignal>.unmodifiable(result);
 }
 
-/// Distinct devices in the range, for the drill-down picker.
-List<String> collectDeviceIds(List<SignalHealthHistoryBucket> buckets) {
-  final values = <String>{};
-
-  for (final bucket in buckets) {
-    for (final alert in bucket.alerts) {
-      for (final description in alert.descriptions) {
-        for (final device in description.devices) {
-          final id = device.boxDeviceId.trim();
-          if (id.isNotEmpty) values.add(id);
-        }
-      }
-    }
-  }
-
-  final result = values.toList()
-    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-  return List<String>.unmodifiable(result);
-}
-
 /// Formats a register reading for the drill-down table.
 ///
 /// Whole numbers print without decimals; everything else to 2 places. Null
@@ -486,21 +425,6 @@ String formatSignalDelta(double? delta) {
 /// description/device bars are read as range totals rather than per-hour.
 String formatRangeLabel(DateTime from, DateTime to) {
   return '${formatFilterDateTime(from)} - ${formatFilterDateTime(to)}';
-}
-
-/// True when every bucket falls on the same calendar day.
-///
-/// Drives axis labelling: a single-day range only needs `HH:mm`, while a
-/// multi-day range must make the date change visible.
-bool isSingleDayRange(List<SignalHealthHistoryBucket> buckets) {
-  if (buckets.length < 2) return true;
-
-  final first = buckets.first.bucketTime.toLocal();
-  final last = buckets.last.bucketTime.toLocal();
-
-  return first.year == last.year &&
-      first.month == last.month &&
-      first.day == last.day;
 }
 
 /// Two-line axis label for a multi-day range.
@@ -569,13 +493,6 @@ String formatPeakTooltipLine(int peakValue, DateTime? peakTime) {
   }
 
   return 'Peak: $peakValue alerts at ${formatFullDateTime(peakTime)}.';
-}
-
-/// `HH:mm` label used on the trend axis.
-String formatBucketHour(DateTime value) {
-  final local = value.toLocal();
-
-  return '${_two(local.hour)}:${_two(local.minute)}';
 }
 
 /// `dd/MM HH:mm` label for tooltips and the detail table.

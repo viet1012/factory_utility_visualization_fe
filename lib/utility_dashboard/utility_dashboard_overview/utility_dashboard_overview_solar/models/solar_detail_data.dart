@@ -1,7 +1,4 @@
 class SolarDetailData {
-  final String facId;
-  final String month;
-  final DateTime? generatedAt;
   final SolarDetailSummary summary;
   final List<SolarDailyTrend> dailyTrend;
   final SolarCostImpact costImpact;
@@ -9,9 +6,6 @@ class SolarDetailData {
   final SolarHourlyProfile hourlyProfile;
 
   const SolarDetailData({
-    required this.facId,
-    required this.month,
-    required this.generatedAt,
     required this.summary,
     required this.dailyTrend,
     required this.costImpact,
@@ -23,9 +17,6 @@ class SolarDetailData {
     final dailyRaw = json['dailyTrend'];
 
     return SolarDetailData(
-      facId: json['facId']?.toString() ?? '',
-      month: json['month']?.toString() ?? '',
-      generatedAt: DateTime.tryParse(json['generatedAt']?.toString() ?? ''),
       summary: SolarDetailSummary.fromJson(_map(json['summary'])),
       dailyTrend: dailyRaw is List
           ? dailyRaw
@@ -82,15 +73,11 @@ class SolarDailyTrend {
   final DateTime date;
   final double solarKwh;
   final double gridKwh;
-  final double totalKwh;
-  final double solarSharePercent;
 
   const SolarDailyTrend({
     required this.date,
     required this.solarKwh,
     required this.gridKwh,
-    required this.totalKwh,
-    required this.solarSharePercent,
   });
 
   factory SolarDailyTrend.fromJson(Map<String, dynamic> json) {
@@ -98,27 +85,17 @@ class SolarDailyTrend {
       date: DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime(2000),
       solarKwh: _num(json['solarKwh']),
       gridKwh: _num(json['gridKwh']),
-      totalKwh: _num(json['totalKwh']),
-      solarSharePercent: _num(json['solarSharePercent']),
     );
   }
 }
 
 class SolarCostImpact {
-  final double solarEnergyKwh;
-  final double normalCostVnd;
-  final double solarCostVnd;
-  final double savingVnd;
   final double normalCostUsd;
   final double solarCostUsd;
   final double savingUsd;
   final double savingPercent;
 
   const SolarCostImpact({
-    required this.solarEnergyKwh,
-    required this.normalCostVnd,
-    required this.solarCostVnd,
-    required this.savingVnd,
     required this.normalCostUsd,
     required this.solarCostUsd,
     required this.savingUsd,
@@ -127,10 +104,6 @@ class SolarCostImpact {
 
   factory SolarCostImpact.fromJson(Map<String, dynamic> json) {
     return SolarCostImpact(
-      solarEnergyKwh: _num(json['solarEnergyKwh']),
-      normalCostVnd: _num(json['normalCostVnd']),
-      solarCostVnd: _num(json['solarCostVnd']),
-      savingVnd: _num(json['savingVnd']),
       normalCostUsd: _num(json['normalCostUsd']),
       solarCostUsd: _num(json['solarCostUsd']),
       savingUsd: _num(json['savingUsd']),
@@ -140,13 +113,11 @@ class SolarCostImpact {
 }
 
 class SolarEnvironmentalImpact {
-  final double co2Kg;
   final double co2Ton;
   final double equivalentTrees;
   final double co2Factor;
 
   const SolarEnvironmentalImpact({
-    required this.co2Kg,
     required this.co2Ton,
     required this.equivalentTrees,
     required this.co2Factor,
@@ -154,7 +125,6 @@ class SolarEnvironmentalImpact {
 
   factory SolarEnvironmentalImpact.fromJson(Map<String, dynamic> json) {
     return SolarEnvironmentalImpact(
-      co2Kg: _num(json['co2Kg']),
       co2Ton: _num(json['co2Ton']),
       equivalentTrees: _num(json['equivalentTrees']),
       co2Factor: _num(json['co2Factor']),

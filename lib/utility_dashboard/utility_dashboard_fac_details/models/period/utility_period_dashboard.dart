@@ -1,17 +1,10 @@
 class UtilityPeriodDashboard {
-  final String facId;
-  final String utilityType;
-  final String period;
-
   final DateTime fromDate;
   final DateTime toDate;
 
   final String unit;
 
-  final DateTime? generatedAt;
-
   final double total;
-  final double previousTotal;
   final double changePercent;
 
   final List<UtilityPeriodTrend> trend;
@@ -27,15 +20,10 @@ class UtilityPeriodDashboard {
   final double grandTotal;
 
   const UtilityPeriodDashboard({
-    required this.facId,
-    required this.utilityType,
-    required this.period,
     required this.fromDate,
     required this.toDate,
     required this.unit,
-    required this.generatedAt,
     required this.total,
-    required this.previousTotal,
     required this.changePercent,
     required this.trend,
     required this.byBox,
@@ -47,25 +35,13 @@ class UtilityPeriodDashboard {
 
   factory UtilityPeriodDashboard.fromJson(Map<String, dynamic> json) {
     return UtilityPeriodDashboard(
-      facId: json['facId']?.toString() ?? '',
-
-      utilityType: json['utilityType']?.toString() ?? 'ELECTRICITY',
-
-      period: json['period']?.toString() ?? 'WEEK',
-
       fromDate: DateTime.parse(json['fromDate'].toString()),
 
       toDate: DateTime.parse(json['toDate'].toString()),
 
       unit: json['unit']?.toString() ?? '',
 
-      generatedAt: json['generatedAt'] == null
-          ? null
-          : DateTime.tryParse(json['generatedAt'].toString()),
-
       total: _toDouble(json['total']),
-
-      previousTotal: _toDouble(json['previousTotal']),
 
       changePercent: _toDouble(json['changePercent']),
 
@@ -130,21 +106,14 @@ class UtilityPeriodBox {
   final String boxId;
 
   final double total;
-  final double sharePercent;
 
-  const UtilityPeriodBox({
-    required this.boxId,
-    required this.total,
-    required this.sharePercent,
-  });
+  const UtilityPeriodBox({required this.boxId, required this.total});
 
   factory UtilityPeriodBox.fromJson(Map<String, dynamic> json) {
     return UtilityPeriodBox(
       boxId: json['boxId']?.toString() ?? '',
 
       total: UtilityPeriodDashboard._toDouble(json['total']),
-
-      sharePercent: UtilityPeriodDashboard._toDouble(json['sharePercent']),
     );
   }
 }

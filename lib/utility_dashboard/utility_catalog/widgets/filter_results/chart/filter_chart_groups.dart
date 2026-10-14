@@ -1,14 +1,17 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../../../../shared/charts/chart_config.dart';
+import '../../../../shared/charts/chart_thresholds.dart';
+import '../../../../shared/charts/signal_thresholds.dart';
 import '../../../catalog_view_models.dart';
 import '../../../models/signal_history_models.dart';
 import '../../../providers/filter_chart_controller.dart';
+import '../../signal_chart/signal_chart_groups.dart' show splitCommonName;
 import '../filter_result_cells.dart';
 
-/// So device hien mac dinh trong mot nhom; con lai sau nut "Show all (N)".
-const int kFilterChartVisibleMembers = 8;
-
-/// Mau co dinh theo thu tu device trong nhom.
+/// Mau co dinh theo thu tu signal trong nhom.
 const List<Color> kFilterChartColors = <Color>[
   Color(0xFF38BDF8),
   Color(0xFFFBBF24),
@@ -29,10 +32,15 @@ const List<List<double>?> kFilterChartDashes = <List<double>?>[
   <double>[8, 3, 2, 3],
 ];
 
-/// Mot device trong mot nhom signal.
+/// Muc do cua mot signal so voi nguong (thu tu sap xep: over truoc).
+enum ThresholdProximity { over, near, normal }
+
+/// Mot signal trong mot nhom chart (Filter results hoac panel device).
 class FilterChartMember {
   final CatalogTableRow row;
   final String signalId;
+
+  /// Nhan rut gon tren legend / tooltip chart.
   final String label;
 
   /// Vi tri co dinh trong nhom -> mau + kieu net.
@@ -42,9 +50,9 @@ class FilterChartMember {
   final SignalHistorySeries? series;
   final FilterChartLoadState? state;
 
-  /// Nguong / kind tu lich su (range dang ve, hoac cache sparkline 1h).
-  final double? thresholdLow;
-  final double? thresholdHigh;
+  /// Nguong tu lich su (range dang ve, hoac cache sparkline 1h):
+  /// SignalHistorySeries.chartThresholds (chi ANALOG, bo trivial).
+  final List<SignalThreshold> thresholds;
 
   const FilterChartMember({
     required this.row,
@@ -53,8 +61,7 @@ class FilterChartMember {
     required this.styleIndex,
     required this.series,
     required this.state,
-    required this.thresholdLow,
-    required this.thresholdHigh,
+    required this.thresholds,
   });
 
   String get deviceKey => row.deviceKey;
@@ -62,7 +69,7 @@ class FilterChartMember {
   Color get color => kFilterChartColors[styleIndex % kFilterChartColors.length];
 
   List<double>? get dash {
-    // Doi ca net khi mau lap lai (device thu 9 tro di).
+    // Doi ca net khi mau lap lai (signal thu 9 tro di).
     final index =
         (styleIndex + styleIndex ~/ kFilterChartColors.length) %
         kFilterChartDashes.length;
@@ -72,61 +79,79 @@ class FilterChartMember {
   bool get hasError =>
       state == FilterChartLoadState.error || (series?.error != null);
 
+  /// Box / device / PLC day du (tooltip cua nhan rut gon).
+  String get fullLabel =>
+      '${row.boxId} / ${row.boxDeviceId} · ${row.plcAddress}\n'
+      '${row.displaySignalName}';
+
+  /// Gia tri hien tai (latest) so voi nguong.
+  ThresholdProximity get proximity =>
+      thresholdProximityOf(thresholds, row.value);
+
   /// Gia tri hien tai (latest) vuot nguong.
-  bool get overThreshold {
-    final value = row.value;
-    if (value == null || !value.isFinite) return false;
-
-    final low = thresholdLow;
-    final high = thresholdHigh;
-
-    return (low != null && value < low) || (high != null && value > high);
-  }
+  bool get overThreshold => proximity == ThresholdProximity.over;
 }
 
-/// Mot nhom: cung (code, unit), hoac cung (ten, unit) khi khong co code.
+/// [value] so voi [thresholds]: vuot / gan (< ChartConfig.thresholdNearRatio
+/// × max(|value|, 1)) / binh thuong.
+ThresholdProximity thresholdProximityOf(
+  List<SignalThreshold> thresholds,
+  double? value,
+) {
+  if (value == null || !value.isFinite) return ThresholdProximity.normal;
+
+  final match = nearestThreshold(thresholds, value);
+  if (match == null) return ThresholdProximity.normal;
+  if (match.breached) return ThresholdProximity.over;
+
+  return match.gap < ChartConfig.thresholdNearRatio * math.max(value.abs(), 1)
+      ? ThresholdProximity.near
+      : ThresholdProximity.normal;
+}
+
+/// Mot nhom: cac signal cung (code, unit) cua moi device khop filter.
 class FilterChartGroup {
   final String key;
+
+  /// Ten chung cua cac signal (khong phai code).
   final String title;
-  final String? subtitle;
+
+  /// Code backend (spec / tooltip); rong khi nhom theo ten.
+  final String code;
   final String unit;
   final SignalKind kind;
 
-  /// Theo thu tu device co dinh (styleIndex tang dan).
+  /// Theo thu tu co dinh (styleIndex tang dan).
   final List<FilterChartMember> members;
 
   const FilterChartGroup({
     required this.key,
     required this.title,
-    required this.subtitle,
+    required this.code,
     required this.unit,
     required this.kind,
     required this.members,
   });
 
+  int get deviceCount => {for (final m in members) m.deviceKey}.length;
+
   int get overCount => members.where((member) => member.overThreshold).length;
 
-  /// Device hien mac dinh: uu tien device vuot nguong, toi da
-  /// [kFilterChartVisibleMembers]; giu thu tu goc trong moi phan.
-  List<FilterChartMember> get priorityMembers {
-    if (members.length <= kFilterChartVisibleMembers) return members;
+  int get nearCount => members
+      .where((member) => member.proximity == ThresholdProximity.near)
+      .length;
 
-    final over = members.where((member) => member.overThreshold);
-    final rest = members.where((member) => !member.overThreshold);
+  ThresholdProximity get proximity => overCount > 0
+      ? ThresholdProximity.over
+      : nearCount > 0
+      ? ThresholdProximity.near
+      : ThresholdProximity.normal;
 
-    final picked = [...over, ...rest].take(kFilterChartVisibleMembers).toSet();
-
-    return [
-      for (final member in members)
-        if (picked.contains(member)) member,
-    ];
-  }
-
-  /// Nguong chung cua ca nhom (moi device co cung nguong), de ve duong
-  /// nguong tren truc chung. Nguong khac nhau giua device -> null.
-  ({double? low, double? high})? get commonThresholds {
+  /// Nguong chung cua ca nhom (moi signal co cung nguong), de ve duong
+  /// nguong tren truc chung. Nguong khac nhau giua signal -> null.
+  List<SignalThreshold>? get commonThresholds {
     final withThreshold = members.where(
-      (member) => member.thresholdLow != null || member.thresholdHigh != null,
+      (member) => member.thresholds.isNotEmpty,
     );
 
     if (withThreshold.isEmpty) return null;
@@ -134,29 +159,42 @@ class FilterChartGroup {
     final first = withThreshold.first;
 
     for (final member in withThreshold) {
-      if (member.thresholdLow != first.thresholdLow ||
-          member.thresholdHigh != first.thresholdHigh) {
-        return null;
-      }
+      if (!sameThresholds(member.thresholds, first.thresholds)) return null;
     }
 
-    return (low: first.thresholdLow, high: first.thresholdHigh);
+    return first.thresholds;
   }
 
   bool get thresholdsDiffer {
-    final hasAny = members.any(
-      (member) => member.thresholdLow != null || member.thresholdHigh != null,
-    );
+    final hasAny = members.any((member) => member.thresholds.isNotEmpty);
 
     return hasAny && commonThresholds == null;
   }
 }
 
+/// Signal STATUS cua Filter results: chip "Slave ID" thay cho chart.
+class FilterStatusItem {
+  final CatalogTableRow row;
+  final SignalHistorySeries? series;
+
+  const FilterStatusItem({required this.row, required this.series});
+}
+
+/// "1 signal" / "3 signals".
+String pluralize(int count, String noun) =>
+    '$count ${count == 1 ? noun : '${noun}s'}';
+
 /// Gom [rows] (moi signal cua cac device khop filter) thanh nhom chart.
+///
+/// - STATUS tach rieng ([FilterStatusItem]);
+/// - ANALOG / COUNTER gom theo (code, unit) (khong code: theo ten, unit);
+/// - thu tu: nhom co signal vuot nguong -> gan nguong -> con lai; trong moi
+///   muc ANALOG truoc COUNTER.
 ///
 /// [chartSeriesOf]: lich su cua range dang ve. [fallbackSeriesOf]: cache
 /// sparkline 1h, dung cho kind / nguong khi range dang ve chua tai xong.
-List<FilterChartGroup> buildFilterChartGroups(
+({List<FilterChartGroup> groups, List<FilterStatusItem> status})
+buildFilterChartGroups(
   List<CatalogTableRow> rows, {
   required SignalHistorySeries? Function(CatalogTableRow row, String signalId)
   chartSeriesOf,
@@ -164,8 +202,20 @@ List<FilterChartGroup> buildFilterChartGroups(
   required FilterChartLoadState? Function(String deviceKey) stateOf,
 }) {
   final buckets = <String, List<CatalogTableRow>>{};
+  final status = <FilterStatusItem>[];
 
   for (final row in rows) {
+    final signalId = filterSignalIdOf(row);
+    final reference =
+        chartSeriesOf(row, signalId) ?? fallbackSeriesOf(signalId);
+
+    if (isStatusSignal(row, reference)) {
+      status.add(
+        FilterStatusItem(row: row, series: chartSeriesOf(row, signalId)),
+      );
+      continue;
+    }
+
     final code = row.cateId.trim();
     final unit = row.unit.trim();
 
@@ -180,16 +230,10 @@ List<FilterChartGroup> buildFilterChartGroups(
 
   for (final entry in buckets.entries) {
     final groupRows = entry.value;
-    final first = groupRows.first;
-
-    // Ten device trung nhau giua cac box -> kem ten box.
-    final names = <String, int>{};
-    for (final row in groupRows) {
-      names.update(row.boxDeviceId, (count) => count + 1, ifAbsent: () => 1);
-    }
+    final names = [for (final row in groupRows) row.displaySignalName];
+    final labels = _memberLabels(groupRows);
 
     SignalKind? kind;
-
     final members = <FilterChartMember>[];
 
     for (var i = 0; i < groupRows.length; i++) {
@@ -205,29 +249,26 @@ List<FilterChartGroup> buildFilterChartGroups(
         FilterChartMember(
           row: row,
           signalId: signalId,
-          label: (names[row.boxDeviceId] ?? 0) > 1
-              ? '${row.boxId} / ${row.boxDeviceId}'
-              : row.boxDeviceId,
+          label: labels[i],
           styleIndex: i,
           series: series,
           state: stateOf(row.deviceKey),
-          thresholdLow: reference?.thresholdLow,
-          thresholdHigh: reference?.thresholdHigh,
+          thresholds: reference?.chartThresholds ?? const <SignalThreshold>[],
         ),
       );
     }
 
-    final code = first.cateId.trim();
-
     groups.add(
       FilterChartGroup(
         key: entry.key,
-        title: code.isNotEmpty ? code : first.displaySignalName,
-        subtitle: code.isNotEmpty ? first.displaySignalName : null,
-        unit: first.unit.trim(),
+        title: _groupTitle(names),
+        code: groupRows.first.cateId.trim(),
+        unit: groupRows.first.unit.trim(),
         kind:
             kind ??
-            (isStatusSignal(first, null) ? SignalKind.status : SignalKind.analog),
+            (groupRows.first.kind == 'COUNTER'
+                ? SignalKind.counter
+                : SignalKind.analog),
         members: List<FilterChartMember>.unmodifiable(members),
       ),
     );
@@ -239,10 +280,9 @@ List<FilterChartGroup> buildFilterChartGroups(
     SignalKind.status => 2,
   };
 
-  // Nhom co device vuot nguong len dau, sau do ANALOG, COUNTER, STATUS.
   groups.sort((a, b) {
-    final over = (b.overCount > 0 ? 1 : 0) - (a.overCount > 0 ? 1 : 0);
-    if (over != 0) return over;
+    final severity = a.proximity.index - b.proximity.index;
+    if (severity != 0) return severity;
 
     final kind = kindOrder(a.kind) - kindOrder(b.kind);
     if (kind != 0) return kind;
@@ -250,5 +290,73 @@ List<FilterChartGroup> buildFilterChartGroups(
     return a.title.toLowerCase().compareTo(b.title.toLowerCase());
   });
 
-  return groups;
+  return (groups: groups, status: status);
+}
+
+/// Ten chung cua [names]; khong con gi chung thi ten dau bo tu cuoi
+/// ("Pressure Tank 1A" -> "Pressure Tank").
+String _groupTitle(List<String> names) {
+  if (names.length > 1) {
+    final common = splitCommonName(names).common;
+    if (common.isNotEmpty) return common;
+  }
+
+  final first = names.first.trim();
+  if (names.length == 1) return first;
+
+  final words = first.split(RegExp(r'\s+'));
+  return words.length > 1 ? words.take(words.length - 1).join(' ') : first;
+}
+
+/// Nhan legend phan biet duoc:
+/// - moi signal cung mot device: phan khac nhau cua ten signal (fallback PLC);
+/// - khac device: ten device rut gon (bo phan chung), trung thi them PLC,
+///   van trung thi dung box / device.
+List<String> _memberLabels(List<CatalogTableRow> rows) {
+  if (rows.length == 1) return [rows.first.boxDeviceId];
+
+  final sameDevice = {for (final row in rows) row.deviceKey}.length == 1;
+
+  if (sameDevice) {
+    final split = splitCommonName([
+      for (final row in rows) row.displaySignalName,
+    ]);
+
+    return [
+      for (var i = 0; i < rows.length; i++)
+        split.labels[i].isNotEmpty ? split.labels[i] : rows[i].plcAddress,
+    ];
+  }
+
+  final devices = shortDeviceNames([for (final row in rows) row.boxDeviceId]);
+
+  List<String> dedupe(List<String> labels, String Function(int i) extra) {
+    final counts = <String, int>{};
+    for (final label in labels) {
+      counts.update(label, (n) => n + 1, ifAbsent: () => 1);
+    }
+    return [
+      for (var i = 0; i < labels.length; i++)
+        counts[labels[i]]! > 1 ? '${labels[i]} · ${extra(i)}' : labels[i],
+    ];
+  }
+
+  final withPlc = dedupe(devices, (i) => rows[i].plcAddress);
+  return dedupe(withPlc, (i) => rows[i].boxId);
+}
+
+/// Bo phan dau / cuoi chung cua ten device theo khuc ('_' hoac khoang
+/// trang): "VCH24-9_ES-PR-S-01", "VCH24-10_ES-PR-S-01" -> "VCH24-9",
+/// "VCH24-10". Ten rut gon rong thi giu nguyen ten goc.
+List<String> shortDeviceNames(List<String> deviceIds) {
+  final split = splitCommonName([
+    for (final id in deviceIds) id.trim().replaceAll('_', ' '),
+  ]);
+
+  return [
+    for (var i = 0; i < deviceIds.length; i++)
+      split.labels[i].isEmpty
+          ? deviceIds[i]
+          : split.labels[i].replaceAll(' ', '_'),
+  ];
 }

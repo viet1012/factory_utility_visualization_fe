@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/utility_chart_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/api/utility_chart_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/api/api_signal_history_repository.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/api/signal_history_repository.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/api/utility_latest_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/providers/latest_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/utility_catalog_tabs_screen.dart';
@@ -26,11 +28,12 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../utility_api/api_config.dart';
 import '../utility_api/dio_client.dart';
 import 'utility_dashboard_fac_details/api/utility_facade_service.dart';
 import 'shared/visibility/app_visibility.dart';
 import 'utility_all_factory_chart/controllers/utility_chart_catalog_controller.dart';
-import 'utility_all_factory_chart/controllers/utility_daily_signal_controller.dart';
+import 'utility_all_factory_chart/controllers/utility_daily_chart_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_hourly_chart_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_minute_chart_controller.dart';
 import 'utility_dashboard_overview/utility_dashboard_overview.dart';
@@ -44,10 +47,6 @@ class UtilityDashboardScreen extends StatefulWidget {
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin, RouteAware {
-  static const String _baseUrl = 'http://192.168.122.16:9093';
-
-  // static const _baseUrl = 'http://localhost:9999';
-
   static const int _tabCount = 5;
 
   static const List<IndustrialSideTabItem> _tabs = [
@@ -73,6 +72,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityScadaApi scadaApi;
   late final UtilityParaApi paraApi;
 
+  /// Lich su signal dung chung (cache + dedupe) cho CHARTS (Minutes / Hourly /
+  /// Daily) va SCADA TABLE.
+  late final SignalHistoryRepository signalHistoryRepository;
+
   late final UtilityMinuteChartController minuteSeriesProvider;
   late final UtilityChartCatalogController chartCatalogProvider;
   late final LatestProvider latestProvider;
@@ -85,7 +88,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityDailyDashboardProvider dailyDashboardProvider;
   late final UtilityMonthlySummaryProvider monthlySummaryProvider;
 
-  late final UtilityDailySignalController dailySignalProvider;
+  late final UtilityDailyChartController dailySignalProvider;
   late final UtilityHourlyChartController hourlyChartProvider;
 
   late final TabController _tabController;
@@ -158,7 +161,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   void _initializeNetwork() {
     if (!DioClient.isInitialized) {
       DioClient.init(
-        baseUrl: _baseUrl,
+        baseUrl: apiBaseUrl,
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 90),
         sendTimeout: const Duration(seconds: 30),
@@ -178,27 +181,38 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     facade = UtilityFacadeService(dio);
 
-    scadaChannelApi = UtilityScadaChannelApi(baseUrl: _baseUrl);
+    // Setting: cung Dio dung chung, timeout 30s rieng cho tung request.
+    scadaChannelApi = UtilityScadaChannelApi(dio: dio);
 
-    scadaApi = UtilityScadaApi(baseUrl: _baseUrl);
+    scadaApi = UtilityScadaApi(dio: dio);
 
-    paraApi = UtilityParaApi(baseUrl: _baseUrl);
+    paraApi = UtilityParaApi(dio: dio);
   }
 
   void _initializeProviders() {
-    minuteSeriesProvider = UtilityMinuteChartController(
+    latestProvider = LatestProvider(api: latestApi);
+
+    signalHistoryRepository = ApiSignalHistoryRepository(
       api: chartApi,
+      source: () => latestProvider.items,
+      sourceVersion: () => latestProvider.dataVersion,
+    );
+
+    minuteSeriesProvider = UtilityMinuteChartController(
+      repository: signalHistoryRepository,
       window: const Duration(minutes: 60),
       requestTimeout: const Duration(seconds: 15),
     );
 
-    dailySignalProvider = UtilityDailySignalController(api: chartApi);
+    dailySignalProvider = UtilityDailyChartController(
+      repository: signalHistoryRepository,
+    );
 
-    hourlyChartProvider = UtilityHourlyChartController(api: chartApi);
+    hourlyChartProvider = UtilityHourlyChartController(
+      repository: signalHistoryRepository,
+    );
 
     chartCatalogProvider = UtilityChartCatalogController(chartApi);
-
-    latestProvider = LatestProvider(api: latestApi);
 
     signalHealthController = SignalHealthMatrixController(signalHealthApi);
 
@@ -403,11 +417,13 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
         Provider<UtilityFacadeService>.value(value: facade),
 
+        Provider<SignalHistoryRepository>.value(value: signalHistoryRepository),
+
         ChangeNotifierProvider<UtilityMinuteChartController>.value(
           value: minuteSeriesProvider,
         ),
 
-        ChangeNotifierProvider<UtilityDailySignalController>.value(
+        ChangeNotifierProvider<UtilityDailyChartController>.value(
           value: dailySignalProvider,
         ),
 
@@ -567,9 +583,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     hourlyDashboardProvider.dispose();
     dailyDashboardProvider.dispose();
     monthlySummaryProvider.dispose();
-
-    scadaChannelApi.dispose();
-    scadaApi.dispose();
 
     super.dispose();
   }

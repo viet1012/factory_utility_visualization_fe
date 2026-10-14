@@ -1,3 +1,4 @@
+import '../../../shared/charts/series_math.dart';
 import '../../models/signal_history_models.dart';
 
 /// Khoang null lien tiep phai DAI HON nguong nay moi ngat duong + to xam.
@@ -34,7 +35,7 @@ class SignalPlotData {
     Duration? bucket,
     Duration threshold = kSignalGapBreakThreshold,
   }) {
-    final step = bucket ?? _inferBucket(source);
+    final step = bucket ?? inferBucketStep(source.map((point) => point.ts));
 
     final points = <SignalHistoryPoint>[];
     final gaps = <SignalGap>[];
@@ -79,19 +80,5 @@ class SignalPlotData {
       List<SignalGap>.unmodifiable(gaps),
       step,
     );
-  }
-
-  /// Khoang cach duong nho nhat giua hai diem lien tiep; mac dinh 1 phut.
-  static Duration _inferBucket(List<SignalHistoryPoint> points) {
-    Duration? smallest;
-
-    for (var i = 1; i < points.length; i++) {
-      final diff = points[i].ts.difference(points[i - 1].ts);
-      if (diff <= Duration.zero) continue;
-
-      if (smallest == null || diff < smallest) smallest = diff;
-    }
-
-    return smallest ?? const Duration(minutes: 1);
   }
 }

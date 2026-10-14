@@ -1,40 +1,59 @@
+import '../../shared/charts/signal_thresholds.dart';
+
 /// Response cua `GET /api/utility/series/history`.
 ///
 /// ```text
-/// { from, to, bucket, source: "RAW"|"HOURLY_SNAPSHOT",
-///   aggregation: "MIN_AVG_MAX"|"SNAPSHOT",
+/// { from, to, bucket, source: "RAW"|"HOURLY_SNAPSHOT"|"DAILY",
+///   aggregation: <chuoi mo ta, chi de log>,
 ///   signals: [{ boxDeviceId, plcAddress, name, code, unit,
 ///               kind: "ANALOG"|"STATUS"|"COUNTER",
 ///               thresholdLow, thresholdHigh, alertLevel,
-///               points: [{ ts, min, avg, max, count, delta }] }] }
+///               thresholds: [{ level, low, high, ruleName, description,
+///                              trivial }],
+///               breachCount, lastBreachAt,
+///               points: [{ ts, min, avg, max, last, count, delta }] }] }
 /// ```
+///
+/// Request nhieu box (`boxDeviceId` CSV) tra signal cua moi box trong cung
+/// mot response; ghep theo (boxDeviceId, plcAddress).
+///
+/// Cach gop nhan biet qua [source], KHONG qua [aggregation] (backend co the
+/// doi chuoi aggregation bat ky luc nao).
+///
+/// COUNTER o moi bucket: ve theo `delta`; `last` la so tich luy, khong dung
+/// de ve cot.
 ///
 /// Moi timestamp co offset (vd: +07:00) va duoc doi sang gio dia phuong.
 class SeriesHistoryResponse {
-  final DateTime? from;
-  final DateTime? to;
+  static const String sourceRaw = 'RAW';
+  static const String sourceHourlySnapshot = 'HOURLY_SNAPSHOT';
+  static const String sourceDaily = 'DAILY';
 
-  /// Chuoi bucket nguyen ban cua backend (vd: "1m", "15m", "1h").
+  /// Chuoi bucket nguyen ban cua backend (vd: "1m", "15m", "1h", "1d").
   final String bucket;
 
-  /// "RAW" | "HOURLY_SNAPSHOT".
+  /// "RAW" | "HOURLY_SNAPSHOT" | "DAILY".
   final String source;
 
-  /// "MIN_AVG_MAX" | "SNAPSHOT".
+  /// Chuoi mo ta cua backend; chi de log, khong dung de re nhanh.
   final String aggregation;
 
   final List<SeriesHistorySignalDto> signals;
 
   const SeriesHistoryResponse({
-    required this.from,
-    required this.to,
     required this.bucket,
     required this.source,
     required this.aggregation,
     required this.signals,
   });
 
-  bool get isSnapshot => aggregation.toUpperCase() == 'SNAPSHOT';
+  String get _normalizedSource => source.trim().toUpperCase();
+
+  /// HOURLY_SNAPSHOT: avg = gia tri snapshot, min / max = null.
+  bool get isSnapshot => _normalizedSource == sourceHourlySnapshot;
+
+  /// DAILY: moi diem la mot ngay.
+  bool get isDaily => _normalizedSource == sourceDaily;
 
   /// [bucket] doi sang Duration; null neu khong nhan dang duoc dinh dang.
   Duration? get bucketDuration => parseSeriesBucket(bucket);
@@ -43,8 +62,6 @@ class SeriesHistoryResponse {
     final rawSignals = json['signals'];
 
     return SeriesHistoryResponse(
-      from: _readDateTime(json['from']),
-      to: _readDateTime(json['to']),
       bucket: _readString(json['bucket']),
       source: _readString(json['source']),
       aggregation: _readString(json['aggregation']),
@@ -75,6 +92,13 @@ class SeriesHistorySignalDto {
   final double? thresholdHigh;
   final String? alertLevel;
 
+  /// Moi nguong backend tra (ke ca trivial); ve dung [visibleThresholds].
+  final List<SignalThreshold> thresholds;
+
+  /// So bucket vuot nguong trong range (backend tinh).
+  final int breachCount;
+  final DateTime? lastBreachAt;
+
   final List<SeriesHistoryPointDto> points;
 
   /// Khac null khi signal nay parse loi; cac signal khac van dung duoc.
@@ -91,8 +115,17 @@ class SeriesHistorySignalDto {
     required this.thresholdHigh,
     required this.alertLevel,
     required this.points,
+    this.thresholds = const <SignalThreshold>[],
+    this.breachCount = 0,
+    this.lastBreachAt,
     this.parseError,
   });
+
+  /// Nguong se ve: trivial = false.
+  List<SignalThreshold> get visibleThresholds => [
+    for (final line in thresholds)
+      if (!line.trivial) line,
+  ];
 
   /// Nhu [SeriesHistorySignalDto.fromJson] nhung khong nem loi: neu parse
   /// hong thi tra ve signal rong kem [parseError], giu boxDeviceId /
@@ -121,6 +154,9 @@ class SeriesHistorySignalDto {
     final rawPoints = json['points'];
 
     final alertLevel = json['alertLevel']?.toString().trim();
+    final thresholdLow = _readDouble(json['thresholdLow']);
+    final thresholdHigh = _readDouble(json['thresholdHigh']);
+    final breachCount = json['breachCount'];
 
     return SeriesHistorySignalDto(
       boxDeviceId: _readString(json['boxDeviceId']),
@@ -129,11 +165,21 @@ class SeriesHistorySignalDto {
       code: _readString(json['code']),
       unit: _readString(json['unit']),
       kind: _readString(json['kind']).toUpperCase(),
-      thresholdLow: _readDouble(json['thresholdLow']),
-      thresholdHigh: _readDouble(json['thresholdHigh']),
+      thresholdLow: thresholdLow,
+      thresholdHigh: thresholdHigh,
       alertLevel: (alertLevel == null || alertLevel.isEmpty)
           ? null
           : alertLevel,
+      thresholds: resolveSignalThresholds(
+        json['thresholds'],
+        low: thresholdLow,
+        high: thresholdHigh,
+        alertLevel: json['alertLevel'],
+      ),
+      breachCount: breachCount is num
+          ? breachCount.toInt()
+          : int.tryParse('${breachCount ?? ''}') ?? 0,
+      lastBreachAt: _readDateTime(json['lastBreachAt']),
       points: rawPoints is List
           ? List<SeriesHistoryPointDto>.unmodifiable(
               rawPoints
@@ -193,6 +239,20 @@ class SeriesHistoryPointDto {
   }
 }
 
+/// Bo bucket chua du thoi gian (ts + [bucket] > [reference]) ma count == 0:
+/// chua co mau, khong ve va khong tinh la gap. Bucket da co mau (count > 0)
+/// va bucket rong o giua van giu nguyen.
+List<SeriesHistoryPointDto> dropIncompleteEmptyBuckets(
+  List<SeriesHistoryPointDto> points, {
+  required Duration bucket,
+  required DateTime reference,
+}) {
+  return [
+    for (final point in points)
+      if (!(point.count == 0 && point.ts.add(bucket).isAfter(reference))) point,
+  ];
+}
+
 /// Gia tri do: lam tron toi 6 chu so thap phan (DB la decimal(18,6)).
 ///
 /// avg / delta tinh bang double o backend co the lech vai ulp
@@ -206,13 +266,14 @@ double? _readMeasure(dynamic value) {
   return (parsed * 1e6).roundToDouble() / 1e6;
 }
 
-/// Nhan "1m", "5m", "15m", "1h", "60min", "PT15M", "PT1H"; khac -> null.
+/// Nhan "1m", "5m", "15m", "1h", "60min", "1d", "PT15M", "PT1H", "P1D";
+/// khac -> null.
 Duration? parseSeriesBucket(String raw) {
   final value = raw.trim().toUpperCase();
   if (value.isEmpty) return null;
 
   final match = RegExp(
-    r'^(?:PT)?(\d+)\s*(M|MIN|MINS|MINUTE|MINUTES|H|HR|HOUR|HOURS)$',
+    r'^(?:PT?)?(\d+)\s*(M|MIN|MINS|MINUTE|MINUTES|H|HR|HOUR|HOURS|D|DAY|DAYS)$',
   ).firstMatch(value);
 
   if (match == null) return null;
@@ -220,9 +281,11 @@ Duration? parseSeriesBucket(String raw) {
   final amount = int.parse(match.group(1)!);
   if (amount <= 0) return null;
 
-  return match.group(2)!.startsWith('H')
-      ? Duration(hours: amount)
-      : Duration(minutes: amount);
+  final unit = match.group(2)!;
+
+  if (unit.startsWith('D')) return Duration(days: amount);
+  if (unit.startsWith('H')) return Duration(hours: amount);
+  return Duration(minutes: amount);
 }
 
 String _readString(dynamic value) => value?.toString().trim() ?? '';
