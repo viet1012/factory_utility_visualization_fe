@@ -71,17 +71,34 @@ class SolarDailyTrend {
   final double solarKwh;
   final double gridKwh;
 
+  /// Solar + Grid cua ngay.
+  final double totalKwh;
+
+  /// Ty trong Solar (%) trong ngay; null khi ngay chua co tieu thu.
+  final double? solarSharePercent;
+
   const SolarDailyTrend({
     required this.date,
     required this.solarKwh,
     required this.gridKwh,
+    required this.totalKwh,
+    required this.solarSharePercent,
   });
 
   factory SolarDailyTrend.fromJson(Map<String, dynamic> json) {
+    final solar = _num(json['solarKwh']);
+    final grid = _num(json['gridKwh']);
+    final total = _numOrNull(json['totalKwh']) ?? solar + grid;
+
     return SolarDailyTrend(
       date: DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime(2000),
-      solarKwh: _num(json['solarKwh']),
-      gridKwh: _num(json['gridKwh']),
+      solarKwh: solar,
+      gridKwh: grid,
+      totalKwh: total,
+      // Backend thieu field thi tu tinh tu solar / total.
+      solarSharePercent:
+          _numOrNull(json['solarSharePercent']) ??
+          (total > 0 ? solar / total * 100 : null),
     );
   }
 }
@@ -139,4 +156,16 @@ double _num(dynamic value) {
   }
 
   return double.tryParse(value.toString()) ?? 0;
+}
+
+double? _numOrNull(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is num) {
+    return value.toDouble();
+  }
+
+  return double.tryParse(value.toString());
 }
