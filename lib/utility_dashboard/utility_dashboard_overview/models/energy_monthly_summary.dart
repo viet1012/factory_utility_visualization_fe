@@ -5,8 +5,6 @@ class EnergyMonthlySummary {
 
   final double? minValue;
   final double? maxValue;
-  final double? prevMinValue;
-  final double? prevMaxValue;
 
   final double? value;
   final double? avgValue;
@@ -20,13 +18,9 @@ class EnergyMonthlySummary {
   final double? prevVndCost;
   final double? prevUsdCost;
 
-  final double? deltaValue;
   final double? deltaPercent;
 
   final String unit;
-
-  final DateTime? pickAt;
-  final DateTime? generatedAt;
 
   const EnergyMonthlySummary({
     required this.cate,
@@ -34,8 +28,6 @@ class EnergyMonthlySummary {
     required this.month,
     required this.minValue,
     required this.maxValue,
-    required this.prevMinValue,
-    required this.prevMaxValue,
     required this.value,
     required this.avgValue,
     required this.vndCost,
@@ -44,11 +36,8 @@ class EnergyMonthlySummary {
     required this.prevAvgValue,
     required this.prevVndCost,
     required this.prevUsdCost,
-    required this.deltaValue,
     required this.deltaPercent,
     required this.unit,
-    required this.pickAt,
-    required this.generatedAt,
   });
 
   factory EnergyMonthlySummary.fromJson(Map<String, dynamic> json) {
@@ -59,10 +48,6 @@ class EnergyMonthlySummary {
 
       minValue: _JsonReader.number(json['minValue']),
       maxValue: _JsonReader.number(json['maxValue']),
-
-      prevMinValue: _JsonReader.number(json['prevMinValue']),
-
-      prevMaxValue: _JsonReader.number(json['prevMaxValue']),
 
       value: _JsonReader.number(json['value']),
       avgValue: _JsonReader.number(json['avgValue']),
@@ -78,15 +63,9 @@ class EnergyMonthlySummary {
 
       prevUsdCost: _JsonReader.number(json['prevUsdCost']),
 
-      deltaValue: _JsonReader.number(json['deltaValue']),
-
       deltaPercent: _JsonReader.number(json['deltaPercent']),
 
       unit: _JsonReader.string(json['unit']),
-
-      pickAt: _JsonReader.dateTime(json['pickAt'] ?? json['timestamp']),
-
-      generatedAt: _JsonReader.dateTime(json['generatedAt']),
     );
   }
 
@@ -171,14 +150,6 @@ class EnergyMonthlySummary {
         currentCostUnit == previousCostUnit;
   }
 
-  double? get costDeltaValue {
-    if (!hasComparableCost) {
-      return null;
-    }
-
-    return currentCost! - previousCost!;
-  }
-
   double? get costDeltaPercent {
     if (!hasComparableCost) {
       return null;
@@ -221,19 +192,5 @@ class _JsonReader {
     }
 
     return double.tryParse(raw.replaceAll(',', ''));
-  }
-
-  static DateTime? dateTime(dynamic value) {
-    if (value == null) {
-      return null;
-    }
-
-    final raw = value.toString().trim();
-
-    if (raw.isEmpty) {
-      return null;
-    }
-
-    return DateTime.tryParse(raw)?.toLocal();
   }
 }

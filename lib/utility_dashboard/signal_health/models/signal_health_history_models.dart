@@ -99,14 +99,6 @@ enum SignalHealthAlertLevel {
       _ => SignalHealthAlertLevel.unknown,
     };
   }
-
-  /// Levels rendered as cards, in display order. Excludes [unknown], which is
-  /// still counted in totals but has no dedicated card.
-  static const List<SignalHealthAlertLevel> displayOrder = [
-    SignalHealthAlertLevel.level1,
-    SignalHealthAlertLevel.level2,
-    SignalHealthAlertLevel.level3,
-  ];
 }
 
 /// Leaf node: one abnormal PLC register reading inside a device.
@@ -190,11 +182,6 @@ class SignalHealthHistoryDevice {
       signals: readList(json['signals'], SignalHealthHistorySignal.fromJson),
     );
   }
-
-  /// Sum of the leaf signal counts, used to cross-check [count].
-  int get signalCountSum {
-    return signals.fold<int>(0, (sum, signal) => sum + signal.count);
-  }
 }
 
 /// One alert description within a level.
@@ -244,11 +231,6 @@ class SignalHealthHistoryDescription {
     if (ruleType.isNotEmpty) return ruleType;
 
     return parameterCode.isEmpty ? '-' : parameterCode;
-  }
-
-  /// Sum of the child device counts, used to cross-check [count].
-  int get deviceCountSum {
-    return devices.fold<int>(0, (sum, device) => sum + device.count);
   }
 }
 
@@ -444,15 +426,6 @@ DateTime? readDateTime(dynamic value) {
 }
 
 String readText(dynamic value) => value?.toString().trim() ?? '';
-
-String readFirstText(Iterable<dynamic> values, {String fallback = ''}) {
-  for (final value in values) {
-    final text = readText(value);
-    if (text.isNotEmpty) return text;
-  }
-
-  return fallback;
-}
 
 int readInt(dynamic value) {
   if (value == null) return 0;

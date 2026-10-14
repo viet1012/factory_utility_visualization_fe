@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum AppActionType { edit, update, create, save, delete }
+enum AppActionType { edit }
 
 class AppActionButton extends StatelessWidget {
   final AppActionType type;
@@ -86,93 +86,6 @@ class AppActionButton extends StatelessWidget {
           label: 'Edit',
           icon: Icons.edit_outlined,
           color: Colors.white,
-        );
-      case AppActionType.update:
-        return const _ActionConfig(
-          label: 'Update',
-          icon: Icons.system_update_alt_rounded,
-          color: Colors.cyan,
-        );
-      case AppActionType.create:
-        return const _ActionConfig(
-          label: 'Create',
-          icon: Icons.add_rounded,
-          color: Colors.green,
-        );
-      case AppActionType.save:
-        return const _ActionConfig(
-          label: 'Save',
-          icon: Icons.save_outlined,
-          color: Colors.blueAccent,
-        );
-      case AppActionType.delete:
-        return const _ActionConfig(
-          label: 'Delete',
-          icon: Icons.delete_outline_rounded,
-          color: Colors.redAccent,
-        );
-    }
-  }
-}
-
-class AppIconActionButton extends StatelessWidget {
-  final AppActionType type;
-  final VoidCallback? onPressed;
-  final String? tooltip;
-
-  const AppIconActionButton({
-    super.key,
-    required this.type,
-    required this.onPressed,
-    this.tooltip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final config = _getConfig(type);
-
-    return IconButton(
-      tooltip: tooltip ?? config.label,
-      onPressed: onPressed,
-      icon: Icon(
-        config.icon,
-        size: 20,
-        color: config.color.withValues(alpha: 0.9),
-      ),
-    );
-  }
-
-  _ActionConfig _getConfig(AppActionType type) {
-    switch (type) {
-      case AppActionType.edit:
-        return const _ActionConfig(
-          label: 'Edit',
-          icon: Icons.edit_outlined,
-          color: Colors.white70,
-        );
-      case AppActionType.update:
-        return const _ActionConfig(
-          label: 'Update',
-          icon: Icons.system_update_alt_rounded,
-          color: Colors.cyan,
-        );
-      case AppActionType.create:
-        return const _ActionConfig(
-          label: 'Create',
-          icon: Icons.add_rounded,
-          color: Colors.green,
-        );
-      case AppActionType.save:
-        return const _ActionConfig(
-          label: 'Save',
-          icon: Icons.save_outlined,
-          color: Colors.blueAccent,
-        );
-      case AppActionType.delete:
-        return const _ActionConfig(
-          label: 'Delete',
-          icon: Icons.delete_outline_rounded,
-          color: Colors.redAccent,
         );
     }
   }

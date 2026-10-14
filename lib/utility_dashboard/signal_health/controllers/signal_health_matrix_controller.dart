@@ -37,26 +37,16 @@ class SignalHealthMatrixController extends ChangeNotifier {
    * ẩn hoặc reset dữ liệu Signal Health đang hiển thị.
    */
   bool exporting = false;
-  Object? exportError;
 
   int _requestId = 0;
 
   List<Map<String, dynamic>> data = const <Map<String, dynamic>>[];
-
-  Map<String, dynamic>? selected;
-
-  DateTime? _lastSuccessAt;
-  DateTime? _lastErrorAt;
 
   // ============================================================
   // GETTERS
   // ============================================================
 
   bool get hasData => data.isNotEmpty;
-
-  DateTime? get lastSuccessAt => _lastSuccessAt;
-
-  DateTime? get lastErrorAt => _lastErrorAt;
 
   // ============================================================
   // FETCH
@@ -70,18 +60,16 @@ class SignalHealthMatrixController extends ChangeNotifier {
   // LOAD
   // ============================================================
 
-  Future<void> load({bool silent = false, bool force = false}) async {
+  Future<void> load({bool silent = false}) async {
     if (_disposed) {
       return;
     }
 
-    if (fetching && !force) {
+    if (fetching) {
       return;
     }
 
     final hasOldData = data.isNotEmpty;
-
-    final oldSelectedKey = _selectedKey(selected);
 
     final requestId = ++_requestId;
 
@@ -111,10 +99,7 @@ class SignalHealthMatrixController extends ChangeNotifier {
 
       data = List<Map<String, dynamic>>.unmodifiable(newData);
 
-      selected = _findSelectedDevice(newData, oldSelectedKey);
-
       error = null;
-      _lastSuccessAt = DateTime.now();
     } on TimeoutException catch (exception, stackTrace) {
       _handleError(
         requestId: requestId,
@@ -152,10 +137,6 @@ class SignalHealthMatrixController extends ChangeNotifier {
     await load(silent: hasData);
   }
 
-  Future<void> retry() {
-    return refresh();
-  }
-
   // ============================================================
   // EXPORT
   // ============================================================
@@ -173,7 +154,6 @@ class SignalHealthMatrixController extends ChangeNotifier {
     }
 
     exporting = true;
-    exportError = null;
     _safeNotify();
 
     try {
@@ -195,8 +175,6 @@ class SignalHealthMatrixController extends ChangeNotifier {
         return false;
       }
 
-      exportError = error;
-
       debugPrint('SignalHealthMatrixController.exportExcel error: $error');
       debugPrintStack(stackTrace: stackTrace);
 
@@ -205,64 +183,6 @@ class SignalHealthMatrixController extends ChangeNotifier {
       exporting = false;
       _safeNotify();
     }
-  }
-
-  // ============================================================
-  // SELECTION
-  // ============================================================
-
-  void select(Map<String, dynamic> item) {
-    if (_disposed) {
-      return;
-    }
-
-    final newKey = _selectedKey(item);
-    final oldKey = _selectedKey(selected);
-
-    if (newKey == oldKey) {
-      return;
-    }
-
-    selected = item;
-    _safeNotify();
-  }
-
-  String? _selectedKey(Map<String, dynamic>? item) {
-    if (item == null) {
-      return null;
-    }
-
-    final facility = item['fac']?.toString().trim() ?? '';
-
-    final category = item['cate']?.toString().trim() ?? '';
-
-    final scada = item['scadaId']?.toString().trim() ?? '';
-
-    final boxDeviceId = item['boxDeviceId']?.toString().trim() ?? '';
-
-    /*
-     * Chỉ dùng boxDeviceId có thể bị trùng giữa nhiều FAC.
-     */
-    return '$facility|$category|$scada|$boxDeviceId';
-  }
-
-  Map<String, dynamic>? _findSelectedDevice(
-    List<Map<String, dynamic>> newData,
-    String? oldSelectedKey,
-  ) {
-    if (newData.isEmpty) {
-      return null;
-    }
-
-    if (oldSelectedKey != null) {
-      for (final row in newData) {
-        if (_selectedKey(row) == oldSelectedKey) {
-          return row;
-        }
-      }
-    }
-
-    return newData.first;
   }
 
   // ============================================================
@@ -297,28 +217,6 @@ class SignalHealthMatrixController extends ChangeNotifier {
     });
   }
 
-  int get totalOkRegister {
-    final result = totalRegister - totalNgRegister;
-
-    return result < 0 ? 0 : result;
-  }
-
-  int get ngDeviceCount {
-    return data.where((item) {
-      final status = item['status']?.toString().trim().toUpperCase();
-
-      final ngRegisters = _toInt(item['ngRegisters']);
-
-      return status == 'NG' || ngRegisters > 0;
-    }).length;
-  }
-
-  int get okDeviceCount {
-    final result = totalBoxDevice - ngDeviceCount;
-
-    return result < 0 ? 0 : result;
-  }
-
   static int _toInt(dynamic value) {
     if (value == null) {
       return 0;
@@ -329,79 +227,6 @@ class SignalHealthMatrixController extends ChangeNotifier {
     }
 
     return int.tryParse(value.toString().trim()) ?? 0;
-  }
-
-  // ============================================================
-  // LAST UPDATED
-  // ============================================================
-
-  DateTime? get latestRecordedAt {
-    DateTime? latest;
-
-    for (final device in data) {
-      final rawSignals = device['signals'];
-
-      if (rawSignals is! List) {
-        continue;
-      }
-
-      for (final rawSignal in rawSignals) {
-        if (rawSignal is! Map) {
-          continue;
-        }
-
-        final recordedAt = _parseDateTime(rawSignal['recordedAt']);
-
-        if (recordedAt == null) {
-          continue;
-        }
-
-        if (latest == null || recordedAt.isAfter(latest)) {
-          latest = recordedAt;
-        }
-      }
-    }
-
-    return latest;
-  }
-
-  String get lastUpdated {
-    final value = latestRecordedAt;
-
-    if (value == null) {
-      return '-';
-    }
-
-    final local = value.toLocal();
-
-    String two(int number) {
-      return number.toString().padLeft(2, '0');
-    }
-
-    return '${two(local.day)}/'
-        '${two(local.month)}/'
-        '${local.year} '
-        '${two(local.hour)}:'
-        '${two(local.minute)}:'
-        '${two(local.second)}';
-  }
-
-  DateTime? _parseDateTime(dynamic value) {
-    if (value == null) {
-      return null;
-    }
-
-    if (value is DateTime) {
-      return value;
-    }
-
-    final text = value.toString().trim();
-
-    if (text.isEmpty) {
-      return null;
-    }
-
-    return DateTime.tryParse(text);
   }
 
   // ============================================================
@@ -418,8 +243,6 @@ class SignalHealthMatrixController extends ChangeNotifier {
       return;
     }
 
-    _lastErrorAt = DateTime.now();
-
     /*
      * Nếu đã có dữ liệu cũ thì giữ màn hình hiện tại.
      * Vẫn lưu error để UI có thể hiện warning nhỏ.
@@ -432,32 +255,6 @@ class SignalHealthMatrixController extends ChangeNotifier {
 
   bool _isValidRequest(int requestId) {
     return !_disposed && requestId == _requestId;
-  }
-
-  // ============================================================
-  // CLEAR
-  // ============================================================
-
-  void clear() {
-    if (_disposed) {
-      return;
-    }
-
-    _requestId++;
-
-    data = const <Map<String, dynamic>>[];
-    selected = null;
-
-    loading = false;
-    refreshing = false;
-    fetching = false;
-
-    error = null;
-
-    _lastSuccessAt = null;
-    _lastErrorAt = null;
-
-    _safeNotify();
   }
 
   // ============================================================

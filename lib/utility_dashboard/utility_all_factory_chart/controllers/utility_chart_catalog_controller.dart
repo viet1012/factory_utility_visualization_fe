@@ -12,22 +12,15 @@ class SignalChartConfig {
   final String plcAddress;
 
   final String? cateId;
-  final List<String>? cateIds;
-
-  final String? groupLabel;
 
   final String? nameEn;
-  final String? nameVi;
   final String? unit;
 
   const SignalChartConfig({
     required this.boxDeviceId,
     required this.plcAddress,
     this.cateId,
-    this.cateIds,
-    this.groupLabel,
     this.nameEn,
-    this.nameVi,
     this.unit,
   });
 }
@@ -531,16 +524,12 @@ class UtilityChartCatalogController extends ChangeNotifier {
         continue;
       }
 
-      final cateId = item.cateId;
       result.add(
         SignalChartConfig(
           boxDeviceId: item.boxDeviceId,
           plcAddress: item.plcAddress,
-          cateId: cateId,
-          cateIds: cateId == null ? null : List<String>.unmodifiable([cateId]),
-          groupLabel: selectedDevice == null ? item.boxDeviceId : null,
+          cateId: item.cateId,
           nameEn: item.nameEn,
-          nameVi: item.nameVi,
           unit: item.unit,
         ),
       );
@@ -615,41 +604,6 @@ class UtilityChartCatalogController extends ChangeNotifier {
     final secondNumber = int.tryParse(secondMatch.group(2)!) ?? 0;
 
     return firstNumber.compareTo(secondNumber);
-  }
-
-  // ============================================================
-  // CACHE
-  // ============================================================
-
-  void clearCache() {
-    _cache.clear();
-  }
-
-  void invalidateCache({
-    required String facId,
-    required String cate,
-    required int importantOnly,
-  }) {
-    final key = _buildCacheKey(
-      facId: facId.trim(),
-      cate: cate.trim(),
-      importantOnly: importantOnly == 1 ? 1 : 0,
-    );
-
-    _cache.remove(key);
-  }
-
-  Future<void> refresh({
-    required String facId,
-    required String cate,
-    int importantOnly = 0,
-  }) {
-    return loadCatalog(
-      facId: facId,
-      cate: cate,
-      importantOnly: importantOnly,
-      forceRefresh: true,
-    );
   }
 
   // ============================================================

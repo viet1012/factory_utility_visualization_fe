@@ -88,9 +88,6 @@ class SignalHealthHistoryController extends ChangeNotifier {
 
   String? get selectedDescriptionKey => _selectedDescriptionKey;
 
-  /// True while a debounced filter change is waiting to fire.
-  bool get filterPending => _filterDebounceTimer?.isActive ?? false;
-
   /// True when no successful load has happened for the current filter yet.
   bool get needsLoad => _loadedFilter != _filter;
 
@@ -362,33 +359,6 @@ class SignalHealthHistoryController extends ChangeNotifier {
 
   bool _isValidRequest(int requestId) {
     return !_disposed && requestId == _requestId;
-  }
-
-  // ============================================================
-  // CLEAR
-  // ============================================================
-
-  void clear() {
-    if (_disposed) return;
-
-    _requestId++;
-
-    _filterDebounceTimer?.cancel();
-
-    _buckets = const <SignalHealthHistoryBucket>[];
-    _loadedFilter = null;
-    _selectedBoxDeviceId = null;
-    _selectedLevel = null;
-    _selectedDescriptionKey = null;
-
-    _loading = false;
-    _refreshing = false;
-    _fetching = false;
-
-    _error = null;
-    _lastLoadedAt = null;
-
-    _safeNotify();
   }
 
   // ============================================================

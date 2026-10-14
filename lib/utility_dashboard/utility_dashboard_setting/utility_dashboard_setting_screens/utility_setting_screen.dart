@@ -11,26 +11,22 @@ class TabSpec {
   final String label;
   final IconData icon;
   final Widget child;
-  final String? badge;
 
   const TabSpec({
     required this.label,
     required this.icon,
     required this.child,
-    this.badge,
   });
 
   TabSpec copyWith({
     String? label,
     IconData? icon,
     Widget? child,
-    String? badge,
   }) {
     return TabSpec(
       label: label ?? this.label,
       icon: icon ?? this.icon,
       child: child ?? this.child,
-      badge: badge,
     );
   }
 }
@@ -59,7 +55,6 @@ class _UtilityScadaSettingScreenState extends State<UtilityScadaSettingScreen>
   static const _active = Colors.white;
   static const _inactive = Colors.white54;
   static const _accent = Color(0xFF1F6FEB);
-  static const _badge = Color(0xFF3FB950);
 
   late final TabController _controller;
   late List<TabSpec> _tabs;
@@ -114,7 +109,6 @@ class _UtilityScadaSettingScreenState extends State<UtilityScadaSettingScreen>
         isActive: widget.isActive,
         api: widget.scadaApi,
       ),
-      badge: _tabs[0].badge,
     );
   }
 
@@ -122,25 +116,6 @@ class _UtilityScadaSettingScreenState extends State<UtilityScadaSettingScreen>
   void dispose() {
     _controller.dispose();
     super.dispose();
-  }
-
-  void _updateBadge(int index, String? badge) {
-    if (index < 0 || index >= _tabs.length) return;
-    setState(() {
-      _tabs[index] = _tabs[index].copyWith(badge: badge);
-    });
-  }
-
-  void updateScadaBadge(String? badge) => _updateBadge(0, badge);
-
-  void updateChannelBadge(String? badge) => _updateBadge(1, badge);
-
-  void updateParaBadge(String? badge) => _updateBadge(2, badge);
-
-  void goToTab(int index) {
-    if (index >= 0 && index < _tabs.length) {
-      _controller.animateTo(index);
-    }
   }
 
   @override
@@ -163,12 +138,10 @@ class _UtilityScadaSettingScreenState extends State<UtilityScadaSettingScreen>
                   child: _TabChip(
                     label: tab.label,
                     icon: tab.icon,
-                    badge: tab.badge,
                     selected: selected,
                     activeColor: _active,
                     inactiveColor: _inactive,
                     accentColor: _accent,
-                    badgeColor: _badge,
                     onTap: () => _controller.animateTo(index),
                   ),
                 );
@@ -192,12 +165,10 @@ class _UtilityScadaSettingScreenState extends State<UtilityScadaSettingScreen>
 class _TabChip extends StatelessWidget {
   final String label;
   final IconData icon;
-  final String? badge;
   final bool selected;
   final Color activeColor;
   final Color inactiveColor;
   final Color accentColor;
-  final Color badgeColor;
   final VoidCallback onTap;
 
   const _TabChip({
@@ -207,9 +178,7 @@ class _TabChip extends StatelessWidget {
     required this.activeColor,
     required this.inactiveColor,
     required this.accentColor,
-    required this.badgeColor,
     required this.onTap,
-    this.badge,
   });
 
   @override
@@ -247,24 +216,6 @@ class _TabChip extends StatelessWidget {
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
               ),
             ),
-            if (badge != null && badge!.trim().isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  badge!,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),

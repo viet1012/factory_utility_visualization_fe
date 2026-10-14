@@ -105,16 +105,6 @@ class UtilityInfoBoxWidgets {
       ),
     );
   }
-
-  static Widget emptyState({required bool hasError, required Object? err}) {
-    return Center(
-      child: Text(
-        hasError ? 'Error: $err' : 'No data',
-        style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
 }
 
 class _StatusDot extends StatefulWidget {

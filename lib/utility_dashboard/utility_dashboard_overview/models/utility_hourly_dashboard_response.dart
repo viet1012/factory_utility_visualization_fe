@@ -74,16 +74,11 @@ class HourlySensorPoint {
 }
 
 class UtilityHourlyDashboardResponse {
-  final String facId;
-  final DateTime? generatedAt;
-
   final List<HourlyEnergyPoint> electricity;
   final List<HourlySensorPoint> water;
   final List<HourlySensorPoint> air;
 
   const UtilityHourlyDashboardResponse({
-    required this.facId,
-    required this.generatedAt,
     required this.electricity,
     required this.water,
     required this.air,
@@ -125,8 +120,6 @@ class UtilityHourlyDashboardResponse {
     }
 
     return UtilityHourlyDashboardResponse(
-      facId: (json['facId'] ?? '').toString().trim(),
-      generatedAt: DateTime.tryParse((json['generatedAt'] ?? '').toString()),
       electricity: parseEnergy(json['electricity']),
       water: parseSensor(json['water']),
       air: parseSensor(json['air']),

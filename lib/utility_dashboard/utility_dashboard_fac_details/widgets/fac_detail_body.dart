@@ -550,14 +550,6 @@ class _FacDetailBodyState extends State<FacDetailBody> {
                           editController.selectDevice(boxId);
                         },
 
-                        onUpdateDirection:
-                            ({required boxDeviceId, required direction}) {
-                              return _saveDirection(
-                                boxId: boxDeviceId,
-                                direction: direction,
-                              );
-                            },
-
                         onUpdateGroupPosition:
                             ({required boxDeviceId, required position}) {
                               final boxId = boxDeviceId.trim();

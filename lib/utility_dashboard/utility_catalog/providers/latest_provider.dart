@@ -28,37 +28,20 @@ class LatestProvider extends ChangeNotifier {
   int _treeRequestToken = 0;
   int _facilityRequestToken = 0;
 
-  /*
-   * Tach error theo lifecycle: mot loi cua Facility khong duoc
-   * ghi de loi cua Tree/SCADA va nguoc lai.
-   */
   Object? _treeError;
-  Object? _facilityError;
 
   List<LatestFacilityDto> _items = const [];
-
-  String? _activeFac;
-  String? _activeCate;
 
   bool get loading => _loading;
 
   bool get refreshing => _treeRefreshing;
 
-  bool get facilityRefreshing => _facilityRefreshing;
-
   /// Loi cua lifecycle Tree/SCADA. Giu nguyen ten cho cac caller hien tai.
   Object? get error => _treeError;
-
-  /// Loi cua lifecycle Facility Detail, tach rieng khoi [error].
-  Object? get facilityError => _facilityError;
 
   bool get hasData => _items.isNotEmpty;
 
   List<LatestFacilityDto> get items => _items;
-
-  String? get activeFac => _activeFac;
-
-  String? get activeCate => _activeCate;
 
   int _dataVersion = 0;
 
@@ -108,10 +91,6 @@ class LatestProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> load() {
-    return loadInitial();
-  }
-
   // ============================================================
   // GET FACILITY
   // ============================================================
@@ -124,23 +103,6 @@ class LatestProvider extends ChangeNotifier {
     }
 
     return _findFacility(_items, normalizedFac);
-  }
-
-  // ============================================================
-  // ACTIVE TAB
-  // ============================================================
-
-  void setActiveTab({required String? fac, required String? cate}) {
-    final normalizedFac = _normalize(fac);
-    final normalizedCate = _normalize(cate);
-
-    if (_sameNullable(_activeFac, normalizedFac) &&
-        _sameNullable(_activeCate, normalizedCate)) {
-      return;
-    }
-
-    _activeFac = normalizedFac;
-    _activeCate = normalizedCate;
   }
 
   // ============================================================
@@ -224,7 +186,6 @@ class LatestProvider extends ChangeNotifier {
     final token = ++_facilityRequestToken;
 
     _facilityRefreshing = true;
-    _facilityError = null;
 
     if (!silent || _items.isEmpty) {
       _safeNotify();
@@ -236,12 +197,8 @@ class LatestProvider extends ChangeNotifier {
       if (!_isCurrentFacilityRequest(token)) return;
 
       _mergeFacility(fac: fac, incoming: result);
-
-      _facilityError = null;
     } catch (error, stackTrace) {
       if (!_isCurrentFacilityRequest(token)) return;
-
-      _facilityError = error;
 
       debugPrint(
         '[LATEST FACILITY REFRESH ERROR] '
@@ -287,115 +244,6 @@ class LatestProvider extends ChangeNotifier {
   }
 
   // ============================================================
-  // REFRESH ACTIVE CATEGORY
-  // ============================================================
-
-  Future<void> refreshActiveTab() async {
-    if (_disposed || _treeRefreshing) {
-      return;
-    }
-
-    final fac = _activeFac;
-    final cate = _activeCate;
-
-    if (fac == null || cate == null) {
-      return;
-    }
-
-    final token = ++_treeRequestToken;
-
-    _treeRefreshing = true;
-    _treeError = null;
-    _safeNotify();
-
-    try {
-      final result = await api.getLatestTree(facId: fac, cate: cate);
-
-      if (!_isCurrentTreeRequest(token)) return;
-
-      _mergeCategory(fac: fac, cate: cate, incoming: result);
-
-      _lastRefreshAt = DateTime.now();
-      _treeError = null;
-    } catch (error, stackTrace) {
-      if (!_isCurrentTreeRequest(token)) return;
-
-      _treeError = error;
-
-      debugPrint(
-        '[LATEST ACTIVE REFRESH ERROR] '
-        'fac=$fac cate=$cate error=$error',
-      );
-
-      debugPrintStack(stackTrace: stackTrace);
-    } finally {
-      if (!_disposed) {
-        _treeRefreshing = false;
-        _safeNotify();
-      }
-    }
-  }
-
-  Future<void> refresh() {
-    if (_activeFac != null && _activeCate != null) {
-      return refreshActiveTab();
-    }
-
-    return refreshAll();
-  }
-
-  void _mergeCategory({
-    required String fac,
-    required String cate,
-    required List<LatestFacilityDto> incoming,
-  }) {
-    final incomingFacility = _findFacility(incoming, fac);
-
-    final incomingCategory = incomingFacility == null
-        ? null
-        : _findCategory(incomingFacility.categories, cate);
-
-    final replacement =
-        incomingCategory ?? LatestCategoryDto(cate: cate, scadas: const []);
-
-    final facilities = List<LatestFacilityDto>.from(_items);
-
-    final facilityIndex = facilities.indexWhere(
-      (item) => _sameText(item.fac, fac),
-    );
-
-    if (facilityIndex < 0) {
-      facilities.add(LatestFacilityDto(fac: fac, categories: [replacement]));
-
-      _items = List<LatestFacilityDto>.unmodifiable(facilities);
-      _dataVersion++;
-      return;
-    }
-
-    final currentFacility = facilities[facilityIndex];
-
-    final categories = List<LatestCategoryDto>.from(currentFacility.categories);
-
-    final categoryIndex = categories.indexWhere(
-      (item) => _sameText(item.cate, cate),
-    );
-
-    if (categoryIndex < 0) {
-      categories.add(replacement);
-    } else {
-      categories[categoryIndex] = replacement;
-    }
-
-    facilities[facilityIndex] = LatestFacilityDto(
-      fac: currentFacility.fac,
-      categories: List<LatestCategoryDto>.unmodifiable(categories),
-    );
-
-    _items = List<LatestFacilityDto>.unmodifiable(facilities);
-    _dataVersion++;
-  }
-
-  // ============================================================
   // HELPERS
   // ============================================================
 
@@ -406,19 +254,6 @@ class LatestProvider extends ChangeNotifier {
     for (final facility in facilities) {
       if (_sameText(facility.fac, fac)) {
         return facility;
-      }
-    }
-
-    return null;
-  }
-
-  LatestCategoryDto? _findCategory(
-    List<LatestCategoryDto> categories,
-    String cate,
-  ) {
-    for (final category in categories) {
-      if (_sameText(category.cate, cate)) {
-        return category;
       }
     }
 
@@ -437,18 +272,6 @@ class LatestProvider extends ChangeNotifier {
 
   bool _sameText(String first, String second) {
     return first.trim().toLowerCase() == second.trim().toLowerCase();
-  }
-
-  bool _sameNullable(String? first, String? second) {
-    if (first == null && second == null) {
-      return true;
-    }
-
-    if (first == null || second == null) {
-      return false;
-    }
-
-    return _sameText(first, second);
   }
 
   // ============================================================

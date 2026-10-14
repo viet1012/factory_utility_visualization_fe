@@ -10,10 +10,6 @@ class UtilityLatestApi {
 
   Future<List<LatestFacilityDto>> getLatestTree({
     String? facId,
-    String? scadaId,
-    String? cate,
-    String? boxDeviceId,
-    List<String>? cateIds,
   }) async {
     final query = <String, dynamic>{};
     void putText(String key, String? value) {
@@ -24,16 +20,6 @@ class UtilityLatestApi {
     }
 
     putText('facId', facId);
-    putText('scadaId', scadaId);
-    putText('cate', cate);
-    putText('boxDeviceId', boxDeviceId);
-    final normalizedCateIds = (cateIds ?? [])
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList(growable: false);
-    if (normalizedCateIds.isNotEmpty) {
-      query['cateIds'] = normalizedCateIds;
-    }
     final response = await _dio.get<dynamic>(
       '/api/utility/latest',
       queryParameters: query,

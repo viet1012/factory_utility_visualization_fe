@@ -56,25 +56,12 @@ class UtilityChartApi {
     required String facId,
     required String cate,
     int importantOnly = 0,
-    String? scadaId,
-    String? boxId,
-    String? boxDeviceId,
   }) async {
     final query = <String, dynamic>{
       'facId': facId,
       'cate': cate,
       'importantOnly': importantOnly,
     };
-
-    if (scadaId != null && scadaId.trim().isNotEmpty) {
-      query['scadaId'] = scadaId.trim();
-    }
-    if (boxId != null && boxId.trim().isNotEmpty) {
-      query['boxId'] = boxId.trim();
-    }
-    if (boxDeviceId != null && boxDeviceId.trim().isNotEmpty) {
-      query['boxDeviceId'] = boxDeviceId.trim();
-    }
 
     final response = await _dio.get(
       '/api/utility/chart-catalog',
@@ -90,8 +77,6 @@ class UtilityChartApi {
     required DateTime from,
     required DateTime to,
     String? boxDeviceId,
-    String? plcAddress,
-    List<String>? cateIds,
     CancelToken? cancelToken,
   }) async {
     const path = '/api/utility/series/minute';
@@ -99,9 +84,6 @@ class UtilityChartApi {
       'from': _toIsoNoZ(from),
       'to': _toIsoNoZ(to),
       'boxDeviceId': _clean(boxDeviceId),
-      'plcAddress': _clean(plcAddress),
-      if (_cleanList(cateIds).isNotEmpty)
-        'cateIds': _cleanList(cateIds).join(','),
     });
 
     try {

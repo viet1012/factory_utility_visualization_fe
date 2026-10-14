@@ -1,15 +1,9 @@
 class UtilityDailyDashboardResponse {
   final String boxDeviceId;
-  final String month;
-  final DateTime? fromTime;
-  final DateTime? toTime;
   final List<UtilityDailySeries> series;
 
   const UtilityDailyDashboardResponse({
     required this.boxDeviceId,
-    required this.month,
-    required this.fromTime,
-    required this.toTime,
     required this.series,
   });
 
@@ -31,9 +25,6 @@ class UtilityDailyDashboardResponse {
 
     return UtilityDailyDashboardResponse(
       boxDeviceId: boxDeviceId,
-      month: json['month']?.toString().trim() ?? '',
-      fromTime: DateTime.tryParse(json['fromTime']?.toString() ?? ''),
-      toTime: DateTime.tryParse(json['toTime']?.toString() ?? ''),
       series: parsedSeries,
     );
   }
@@ -42,7 +33,6 @@ class UtilityDailyDashboardResponse {
 class UtilityDailySeries {
   final String boxDeviceId;
 
-  final String utilityType;
   final String plcAddress;
   final String nameEn;
   final String unit;
@@ -52,7 +42,6 @@ class UtilityDailySeries {
 
   const UtilityDailySeries({
     required this.boxDeviceId,
-    required this.utilityType,
     required this.plcAddress,
     required this.nameEn,
     required this.unit,
@@ -81,7 +70,6 @@ class UtilityDailySeries {
   UtilityDailySeries copyWith({String? boxDeviceId}) {
     return UtilityDailySeries(
       boxDeviceId: boxDeviceId ?? this.boxDeviceId,
-      utilityType: utilityType,
       plcAddress: plcAddress,
       nameEn: nameEn,
       unit: unit,
@@ -96,7 +84,6 @@ class UtilityDailySeries {
     return UtilityDailySeries(
       // API cũ chưa trả field này trong series.
       boxDeviceId: json['boxDeviceId']?.toString().trim() ?? '',
-      utilityType: json['utilityType']?.toString().trim() ?? '',
       plcAddress: json['plcAddress']?.toString().trim() ?? '',
       nameEn: json['nameEn']?.toString().trim() ?? '',
       unit: json['unit']?.toString().trim() ?? '',
@@ -122,7 +109,6 @@ class UtilityDailyPoint {
   final double? minValue;
   final double? maxValue;
 
-  final double? firstValue;
   final double? lastValue;
 
   final double? consumption;
@@ -133,7 +119,6 @@ class UtilityDailyPoint {
     required this.avgValue,
     required this.minValue,
     required this.maxValue,
-    required this.firstValue,
     required this.lastValue,
     required this.consumption,
     required this.sampleCount,
@@ -147,7 +132,6 @@ class UtilityDailyPoint {
       avgValue: _readDouble(json['avgValue']),
       minValue: _readDouble(json['minValue']),
       maxValue: _readDouble(json['maxValue']),
-      firstValue: _readDouble(json['firstValue']),
       lastValue: _readDouble(json['lastValue']),
       consumption: _readDouble(json['consumption']),
       sampleCount: _readInt(json['sampleCount']),

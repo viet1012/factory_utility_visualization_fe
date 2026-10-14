@@ -11,9 +11,6 @@
 ///
 /// Moi timestamp co offset (vd: +07:00) va duoc doi sang gio dia phuong.
 class SeriesHistoryResponse {
-  final DateTime? from;
-  final DateTime? to;
-
   /// Chuoi bucket nguyen ban cua backend (vd: "1m", "15m", "1h").
   final String bucket;
 
@@ -26,8 +23,6 @@ class SeriesHistoryResponse {
   final List<SeriesHistorySignalDto> signals;
 
   const SeriesHistoryResponse({
-    required this.from,
-    required this.to,
     required this.bucket,
     required this.source,
     required this.aggregation,
@@ -43,8 +38,6 @@ class SeriesHistoryResponse {
     final rawSignals = json['signals'];
 
     return SeriesHistoryResponse(
-      from: _readDateTime(json['from']),
-      to: _readDateTime(json['to']),
       bucket: _readString(json['bucket']),
       source: _readString(json['source']),
       aggregation: _readString(json['aggregation']),

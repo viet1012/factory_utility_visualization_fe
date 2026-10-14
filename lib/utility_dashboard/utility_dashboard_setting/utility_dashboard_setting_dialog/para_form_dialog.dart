@@ -10,7 +10,6 @@ class ParaFormDialog extends StatefulWidget {
   final bool isEdit;
   final List<String> boxDeviceIdOptions;
   final List<String> nameEnOptions;
-  final List<String> cateOptions;
 
   const ParaFormDialog({
     super.key,
@@ -18,7 +17,6 @@ class ParaFormDialog extends StatefulWidget {
     this.isEdit = false,
     required this.boxDeviceIdOptions,
     this.nameEnOptions = const [],
-    this.cateOptions = const [],
   });
 
   @override

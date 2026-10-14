@@ -14,7 +14,6 @@ class UtilityDailySignalController extends ChangeNotifier {
 
   bool loading = false;
   bool refreshing = false;
-  bool fetching = false;
 
   Object? error;
 
@@ -73,7 +72,6 @@ class UtilityDailySignalController extends ChangeNotifier {
 
     final requestChanged = !sameRequest;
 
-    fetching = true;
     error = null;
 
     if (requestChanged) {
@@ -142,7 +140,6 @@ class UtilityDailySignalController extends ChangeNotifier {
       dataVersion++;
     } finally {
       if (requestToken == _requestToken) {
-        fetching = false;
         loading = false;
         refreshing = false;
 
@@ -173,20 +170,6 @@ class UtilityDailySignalController extends ChangeNotifier {
     );
   }
 
-  Future<void> refresh() async {
-    final month = _currentMonth;
-
-    if (month == null || _currentBoxDeviceIds.isEmpty) {
-      return;
-    }
-
-    await load(
-      boxDeviceIds: _currentBoxDeviceIds,
-      month: month,
-      forceRefresh: true,
-    );
-  }
-
   void clear() {
     _requestToken++;
 
@@ -195,8 +178,7 @@ class UtilityDailySignalController extends ChangeNotifier {
         _currentBoxDeviceIds.isEmpty &&
         error == null &&
         !loading &&
-        !refreshing &&
-        !fetching;
+        !refreshing;
 
     if (alreadyEmpty) {
       return;
@@ -212,7 +194,6 @@ class UtilityDailySignalController extends ChangeNotifier {
 
     loading = false;
     refreshing = false;
-    fetching = false;
 
     dataVersion++;
 

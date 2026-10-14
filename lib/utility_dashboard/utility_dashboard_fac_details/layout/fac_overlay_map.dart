@@ -36,8 +36,6 @@ class FacOverlayMap extends StatefulWidget {
 
   final UpdateGroupPosition onUpdateGroupPosition;
 
-  final UpdateGroupDirection onUpdateDirection;
-
   const FacOverlayMap({
     super.key,
     required this.facId,
@@ -54,7 +52,6 @@ class FacOverlayMap extends StatefulWidget {
     required this.editingBoxId,
     required this.onPickEditingBox,
     required this.onUpdateGroupPosition,
-    required this.onUpdateDirection,
   });
 
   @override

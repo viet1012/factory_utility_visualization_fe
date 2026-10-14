@@ -76,15 +76,6 @@ class UtilityScadaApi {
     return UtilityScada.fromJson(Map<String, dynamic>.from(body as Map));
   }
 
-  Future<void> delete(int id) async {
-    final response = await _client.delete(
-      _uri('/api/v1/utility-scada/$id'),
-      headers: _headers,
-    );
-
-    _ensureSuccess(response, allowedStatusCodes: {200, 204});
-  }
-
   void dispose() {
     _client.close();
   }

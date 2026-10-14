@@ -278,7 +278,7 @@ class _ViewVm {
   factory _ViewVm.of(SignalHistoryController controller) {
     return _ViewVm(
       deviceKey: controller.deviceKey,
-      range: controller.customWindow == null ? controller.range : null,
+      range: controller.range,
       displayedRange: controller.displayedRange,
       initialLoading: controller.initialLoading,
       switching: controller.switching,

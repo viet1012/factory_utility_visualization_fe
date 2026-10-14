@@ -30,9 +30,6 @@ abstract final class SignalChartColors {
   /// Cham avg tren thanh noi min–max (24h / 7d).
   static const Color avgDot = Colors.white;
 
-  /// Duong nguong net dut + nhan cua no.
-  static const Color thresholdLine = Color(0xFFFCA5A5);
-
   /// Nen khoang mat du lieu.
   static Color get gapZone => const Color(0xFF94A3B8).withValues(alpha: .10);
 

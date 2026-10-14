@@ -71,8 +71,6 @@ class UtilityScadaChannelApi {
         .toList();
   }
 
-
-
   Future<UtilityScadaChannel> create(UtilityScadaChannel item) async {
     final payload = Map<String, dynamic>.from(item.toJson())..remove('id');
 
@@ -102,8 +100,6 @@ class UtilityScadaChannelApi {
     final body = jsonDecode(response.body);
     return UtilityScadaChannel.fromJson(Map<String, dynamic>.from(body as Map));
   }
-
- 
 
   void dispose() {
     _client.close();

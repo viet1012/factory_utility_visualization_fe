@@ -22,8 +22,6 @@ class ScadaViewModel extends ChangeNotifier {
 
   String? get error => _error;
 
-  List<UtilityScada> get items => List.unmodifiable(_items);
-
   List<UtilityScada> get filteredItems => List.unmodifiable(_filteredItems);
 
   int get totalCount => _items.length;
@@ -79,24 +77,6 @@ class ScadaViewModel extends ChangeNotifier {
     try {
       final updated = await api.update(id, item);
       _items = _items.map((e) => e.id == id ? updated : e).toList();
-      _applyFilter();
-    } catch (e) {
-      _error = e.toString();
-      rethrow;
-    } finally {
-      _submitting = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> deleteItem(int id) async {
-    _submitting = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      await api.delete(id);
-      _items = _items.where((e) => e.id != id).toList();
       _applyFilter();
     } catch (e) {
       _error = e.toString();

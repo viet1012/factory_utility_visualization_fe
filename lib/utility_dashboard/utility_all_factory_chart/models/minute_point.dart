@@ -20,9 +20,6 @@ class MinutePointDto {
 
   // ✅ NEW
   final String? nameEn;
-  final String? nameVi;
-  final String? fac;
-  final String? cate;
   final String? unit;
 
   /// Timestamp to use for freshness / "how old is this reading" maths.
@@ -40,9 +37,6 @@ class MinutePointDto {
     this.cateId,
 
     this.nameEn,
-    this.nameVi,
-    this.fac,
-    this.cate,
     this.unit,
   });
 
@@ -65,9 +59,6 @@ class MinutePointDto {
       plcAddress: (json['plcAddress'] ?? '').toString(),
       cateId: json['cateId']?.toString(),
       nameEn: json['nameEn']?.toString(),
-      nameVi: json['nameVi']?.toString(),
-      fac: json['fac']?.toString(),
-      cate: json['cate']?.toString(),
       unit: json['unit']?.toString(),
     );
   }

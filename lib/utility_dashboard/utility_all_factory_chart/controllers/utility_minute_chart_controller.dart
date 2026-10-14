@@ -89,16 +89,6 @@ class UtilityMinuteChartController extends ChangeNotifier {
   final Map<String, CancelToken> _cancelTokens = {};
 
   // ============================================================
-  // GETTERS
-  // ============================================================
-
-  bool get tickRunning => _tickRunning;
-
-  int get requestCount => _reqs.length;
-
-  bool get hasRequests => _reqs.isNotEmpty;
-
-  // ============================================================
   // KEY
   // ===============================================  =============
 
@@ -206,34 +196,9 @@ class UtilityMinuteChartController extends ChangeNotifier {
     }
   }
 
-  void clear() {
-    if (_disposed) return;
-
-    for (final key in _reqs.keys.toList(growable: false)) {
-      _invalidateKey(key);
-      _cancelRequest(key, 'cleared');
-    }
-
-    _reqs.clear();
-    _rows.clear();
-    _errors.clear();
-    _fetching.clear();
-    _lastTs.clear();
-    _fetchedOnce.clear();
-    _lastOkAt.clear();
-    _lastErrAt.clear();
-    _versions.clear();
-
-    _safeNotify();
-  }
-
   // ============================================================
   // DATA GETTERS
   // ============================================================
-
-  List<MinutePointDto> getRows(String key) {
-    return _rows[key] ?? const <MinutePointDto>[];
-  }
 
   List<MinutePointDto> getRowsForPlc(String key, String plcAddress) {
     final address = plcAddress.trim();
@@ -250,10 +215,6 @@ class UtilityMinuteChartController extends ChangeNotifier {
   }
 
   Object? getError(String key) => _errors[key];
-
-  bool isFetching(String key) {
-    return _fetching[key] == true;
-  }
 
   bool hasFetchedOnce(String key) {
     return _fetchedOnce[key] == true;
@@ -291,19 +252,11 @@ class UtilityMinuteChartController extends ChangeNotifier {
     return fetchKeyNow(key);
   }
 
-  Future<void> refreshAll() async {
-    if (_disposed || _tickRunning) {
-      return;
-    }
-
-    await _tickAll(forceFullWindow: true);
-  }
-
   // ============================================================
   // TICK
   // ============================================================
 
-  Future<void> _tickAll({bool forceFullWindow = false}) async {
+  Future<void> _tickAll() async {
     if (_disposed || _tickRunning || _reqs.isEmpty) {
       return;
     }
@@ -349,7 +302,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
 
             final isEmpty = _rows[request.key]?.isEmpty ?? true;
 
-            if (forceFullWindow || last == null || isEmpty) {
+            if (last == null || isEmpty) {
               await _fetchFullWindow(request);
             } else {
               await _fetchIncremental(request);
@@ -401,8 +354,6 @@ class UtilityMinuteChartController extends ChangeNotifier {
           from: from,
           to: to,
           boxDeviceId: request.boxDeviceId!.trim(),
-          plcAddress: null,
-          cateIds: null,
           cancelToken: cancelToken,
         ),
         cancelToken,
@@ -499,8 +450,6 @@ class UtilityMinuteChartController extends ChangeNotifier {
           from: from,
           to: to,
           boxDeviceId: request.boxDeviceId!.trim(),
-          plcAddress: null,
-          cateIds: null,
           cancelToken: cancelToken,
         ),
         cancelToken,

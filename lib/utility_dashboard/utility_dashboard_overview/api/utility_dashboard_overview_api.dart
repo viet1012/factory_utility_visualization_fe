@@ -56,25 +56,12 @@ class UtilityDashboardOverviewApi {
   Future<UtilityHourlyDashboardResponse> getHourlyDashboard({
     required String facId,
     int hours = 48,
-    String? nameEn,
-    double? exchange,
-    double? sepzone,
   }) async {
     final normalizedFac = _requiredText(facId, fieldName: 'facId');
 
     final safeHours = _safeRange(hours, fallback: 48, min: 1, max: 24 * 31);
 
     final query = <String, dynamic>{'facId': normalizedFac, 'hours': safeHours};
-
-    _putOptionalText(query, key: 'nameEn', value: nameEn);
-
-    if (exchange != null) {
-      query['exchange'] = exchange;
-    }
-
-    if (sepzone != null) {
-      query['sepzone'] = sepzone;
-    }
 
     final response = await _get(_hourlyDashboardPath, queryParameters: query);
 
@@ -248,20 +235,6 @@ class UtilityDashboardOverviewApi {
     }
 
     return normalized;
-  }
-
-  void _putOptionalText(
-    Map<String, dynamic> query, {
-    required String key,
-    required String? value,
-  }) {
-    final normalized = value?.trim();
-
-    if (normalized == null || normalized.isEmpty) {
-      return;
-    }
-
-    query[key] = normalized;
   }
 
   int _safeRange(

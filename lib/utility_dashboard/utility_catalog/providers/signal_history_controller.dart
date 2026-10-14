@@ -55,9 +55,6 @@ class SignalHistoryController extends ChangeNotifier {
 
   HistoryRange _range = HistoryRange.h1;
 
-  /// Khi khac null, uu tien hon [_range].
-  HistoryWindow? _customWindow;
-
   // Target dang duoc view yeu cau.
   String? _deviceKey;
   List<String> _signalIds = const <String>[];
@@ -68,7 +65,7 @@ class SignalHistoryController extends ChangeNotifier {
   List<SignalHistorySeries> _series = const <SignalHistorySeries>[];
   HistoryAggregation? _aggregation;
 
-  /// Range cua data dang hien thi (null = custom window). Co the khac
+  /// Range cua data dang hien thi (null = chua co). Co the khac
   /// [range] trong luc dang doi range.
   HistoryRange? _displayedRange;
 
@@ -83,8 +80,6 @@ class SignalHistoryController extends ChangeNotifier {
   CatalogDetailViewMode get viewMode => _viewMode;
 
   HistoryRange get range => _range;
-
-  HistoryWindow? get customWindow => _customWindow;
 
   List<SignalHistorySeries> get series => _series;
 
@@ -144,23 +139,9 @@ class SignalHistoryController extends ChangeNotifier {
 
   void setRange(HistoryRange range) {
     if (_disposed) return;
-    if (range == _range && _customWindow == null) return;
+    if (range == _range) return;
 
     _range = range;
-    _customWindow = null;
-    _safeNotify();
-
-    _loadIfNeeded();
-  }
-
-  /// Range tu chon. Chua co UI picker, nhung API da san sang.
-  void setCustomWindow(DateTime from, DateTime to) {
-    if (_disposed || !to.isAfter(from)) return;
-
-    final next = HistoryWindow(from: from, to: to);
-    if (next == _customWindow) return;
-
-    _customWindow = next;
     _safeNotify();
 
     _loadIfNeeded();
@@ -209,13 +190,7 @@ class SignalHistoryController extends ChangeNotifier {
     final device = _deviceKey;
     if (device == null) return null;
 
-    final custom = _customWindow;
-    final rangeKey = custom == null
-        ? _range.name
-        : '${custom.from.millisecondsSinceEpoch}-'
-              '${custom.to.millisecondsSinceEpoch}';
-
-    return '$device#$rangeKey#${_signalIds.join(',')}';
+    return '$device#${_range.name}#${_signalIds.join(',')}';
   }
 
   void _loadIfNeeded() {
@@ -235,25 +210,12 @@ class SignalHistoryController extends ChangeNotifier {
     final fetchedAt = _cache[key]?.fetchedAt;
     if (fetchedAt == null) return true;
 
-    final maxAge = _customWindow == null
-        ? autoRefreshInterval(_range)
-        : cacheTtl;
-
-    return DateTime.now().difference(fetchedAt) >= maxAge;
+    return DateTime.now().difference(fetchedAt) >= autoRefreshInterval(_range);
   }
 
-  String get _rangeLabel {
-    final custom = _customWindow;
-    if (custom == null) return _range.label;
-
-    return 'custom(${custom.from.toIso8601String()}..'
-        '${custom.to.toIso8601String()})';
-  }
+  String get _rangeLabel => _range.label;
 
   HistoryWindow _resolveWindow() {
-    final custom = _customWindow;
-    if (custom != null) return custom;
-
     // 7d can 00:00 cua 6 ngay truoc (xem HistoryRange.windowEndingAt).
     return _range.windowEndingAt(DateTime.now());
   }
@@ -266,8 +228,8 @@ class SignalHistoryController extends ChangeNotifier {
 
     final ids = _signalIds;
     final window = _resolveWindow();
-    final range = _customWindow == null ? _range : null;
-    final bucket = range?.requestBucket ?? 'auto';
+    final range = _range;
+    final bucket = range.requestBucket;
 
     final requestId = ++_requestId;
 

@@ -177,8 +177,6 @@ class UtilityMinuteChartPanel extends StatefulWidget {
   final String? boxDeviceId;
   final String? plcAddress;
 
-  final List<String>? cateIds;
-
   /// Ten / unit / ma tu catalog: hien khung the ngay, khong cho du lieu.
   final String? signalName;
   final String? unit;
@@ -191,7 +189,6 @@ class UtilityMinuteChartPanel extends StatefulWidget {
     this.cate,
     this.boxDeviceId,
     this.plcAddress,
-    this.cateIds,
     this.signalName,
     this.unit,
     this.code,

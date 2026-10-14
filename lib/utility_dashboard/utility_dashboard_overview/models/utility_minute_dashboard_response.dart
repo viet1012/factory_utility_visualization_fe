@@ -30,18 +30,11 @@ class OverviewMinutePointDto {
 }
 
 class UtilityMinuteDashboardResponse {
-  final String facId;
-  final int minutes;
-  final DateTime? generatedAt;
-
   final List<OverviewMinutePointDto> electricity;
   final List<OverviewMinutePointDto> water;
   final List<OverviewMinutePointDto> air;
 
   const UtilityMinuteDashboardResponse({
-    required this.facId,
-    required this.minutes,
-    required this.generatedAt,
     required this.electricity,
     required this.water,
     required this.air,
@@ -74,16 +67,7 @@ class UtilityMinuteDashboardResponse {
       return List<OverviewMinutePointDto>.unmodifiable(points);
     }
 
-    int parseInt(dynamic value) {
-      if (value is num) return value.toInt();
-
-      return int.tryParse(value?.toString() ?? '') ?? 60;
-    }
-
     return UtilityMinuteDashboardResponse(
-      facId: json['facId']?.toString() ?? '',
-      minutes: parseInt(json['minutes']),
-      generatedAt: DateTime.tryParse(json['generatedAt']?.toString() ?? ''),
       electricity: parsePoints(json['electricity']),
       water: parsePoints(json['water']),
       air: parsePoints(json['air']),

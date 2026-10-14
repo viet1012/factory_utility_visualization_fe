@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -49,7 +48,6 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
   final List<RainDrop> _rainDrops = [];
   final List<RainSplash> _splashes = [];
 
-  StreamSubscription<WeatherData>? _mockWeatherSub;
   bool _weatherRequestRunning = false;
   late final PollingCoordinator _pollingCoordinator;
 
@@ -188,7 +186,6 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
   void dispose() {
     _pollingCoordinator.stop(PollingTaskIds.mapWeather);
     _pollingCoordinator.unregister(PollingTaskIds.mapWeather);
-    _mockWeatherSub?.cancel();
     _rainController.dispose();
     super.dispose();
   }
@@ -561,51 +558,3 @@ class _WeatherInfoBadge extends StatelessWidget {
     }
   }
 }
-
-//
-// class MockWeatherService extends WeatherApiService {
-//   @override
-//   Stream<WeatherData> weatherStream() async* {
-//     while (true) {
-//       yield WeatherData(
-//         condition: 'rain',
-//         rainIntensity: 0.9,
-//         temperature: 24,
-//         humidity: 220,
-//         windSpeed: 4,
-//         isDaytime: true,
-//       );
-//       await Future.delayed(const Duration(seconds: 10));
-//
-//       yield WeatherData(
-//         condition: 'rain',
-//         rainIntensity: 0.3,
-//         temperature: 24,
-//         humidity: 200,
-//         windSpeed: 4,
-//         isDaytime: true,
-//       );
-//       await Future.delayed(const Duration(seconds: 15));
-//
-//       yield WeatherData(
-//         condition: 'rain',
-//         rainIntensity: 0.3,
-//         temperature: 22,
-//         humidity: 190,
-//         windSpeed: 3,
-//         isDaytime: false,
-//       );
-//       await Future.delayed(const Duration(seconds: 45));
-//
-//       yield WeatherData(
-//         condition: 'clear',
-//         rainIntensity: 0.0,
-//         temperature: 22,
-//         humidity: 180,
-//         windSpeed: 2,
-//         isDaytime: false,
-//       );
-//       await Future.delayed(const Duration(seconds: 15));
-//     }
-//   }
-// }
