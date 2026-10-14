@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:flutter/widgets.dart';
 
+import '../../shared/state/safe_change_notifier.dart';
 import '../api/signal_history_repository.dart';
 import '../models/signal_history_models.dart';
 
@@ -21,7 +20,8 @@ enum CatalogDetailViewMode { table, chart }
 /// - lan tai dau cua device, chua co gi de hien: skeleton;
 /// - doi range: giu chart cu (lam mo) + progress bar, khong ve skeleton;
 /// - polling / refresh cung range: tai ngam, chart giu nguyen.
-class SignalHistoryController extends ChangeNotifier {
+class SignalHistoryController extends ChangeNotifier
+    with SafeChangeNotifier {
   final SignalHistoryRepository repository;
 
   SignalHistoryController({required this.repository});
@@ -44,7 +44,6 @@ class SignalHistoryController extends ChangeNotifier {
   static const int _cacheCapacity = 24;
 
   bool _disposed = false;
-  bool _notifyScheduled = false;
 
   int _requestId = 0;
 
@@ -132,7 +131,7 @@ class SignalHistoryController extends ChangeNotifier {
     if (_disposed || mode == _viewMode) return;
 
     _viewMode = mode;
-    _safeNotify();
+    safeNotify();
 
     _loadIfNeeded();
   }
@@ -142,7 +141,7 @@ class SignalHistoryController extends ChangeNotifier {
     if (range == _range) return;
 
     _range = range;
-    _safeNotify();
+    safeNotify();
 
     _loadIfNeeded();
   }
@@ -241,7 +240,7 @@ class SignalHistoryController extends ChangeNotifier {
     _prepareDisplay(key);
 
     _error = null;
-    _safeNotify();
+    safeNotify();
 
     if (ids.isEmpty) {
       _showResult(
@@ -371,7 +370,7 @@ class SignalHistoryController extends ChangeNotifier {
     if (!_isCurrent(requestId)) return;
 
     _cancelToken = null;
-    _safeNotify();
+    safeNotify();
   }
 
   void _trimCache() {
@@ -401,39 +400,6 @@ class SignalHistoryController extends ChangeNotifier {
     return true;
   }
 
-  // ============================================================
-  // SAFE NOTIFY
-  // ============================================================
-
-  /// [bind] duoc goi tu didUpdateWidget (trong build phase), nen notify phai
-  /// hoan sang sau frame giong SignalHealthHistoryController.
-  void _safeNotify() {
-    if (_disposed) return;
-
-    final binding = WidgetsBinding.instance;
-    final phase = binding.schedulerPhase;
-
-    final isBuilding =
-        phase == SchedulerPhase.persistentCallbacks ||
-        phase == SchedulerPhase.midFrameMicrotasks;
-
-    if (!isBuilding) {
-      notifyListeners();
-      return;
-    }
-
-    if (_notifyScheduled) return;
-
-    _notifyScheduled = true;
-
-    binding.addPostFrameCallback((_) {
-      _notifyScheduled = false;
-
-      if (_disposed) return;
-
-      notifyListeners();
-    });
-  }
 
   @override
   void dispose() {

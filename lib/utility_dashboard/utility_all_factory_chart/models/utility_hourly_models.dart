@@ -1,3 +1,5 @@
+import '../../shared/charts/series_math.dart';
+import '../../utility_catalog/models/signal_history_models.dart';
 import 'series_history_response.dart';
 
 // ============================================================
@@ -20,44 +22,24 @@ enum UtilityHourlyRange {
   bool get isMultiDay => this == UtilityHourlyRange.last7d;
 
   /// [from, to] lam tron xuong phut, gio dia phuong.
-  HourlyWindow windowAt(DateTime now) {
+  HistoryWindow windowAt(DateTime now) {
     final to = DateTime(now.year, now.month, now.day, now.hour, now.minute);
 
-    final from = switch (this) {
-      UtilityHourlyRange.today => DateTime(to.year, to.month, to.day),
-      UtilityHourlyRange.last24h => to.subtract(const Duration(hours: 24)),
+    return switch (this) {
+      UtilityHourlyRange.today => HistoryWindow(
+        from: DateTime(to.year, to.month, to.day),
+        to: to,
+      ),
+      UtilityHourlyRange.last24h => HistoryRange.h24.windowEndingAt(to),
       // 00:00 cua 6 ngay truoc: 7 ngay lich, van < 7 x 24h.
-      UtilityHourlyRange.last7d => DateTime(to.year, to.month, to.day - 6),
+      UtilityHourlyRange.last7d => HistoryRange.d7.windowEndingAt(to),
     };
-
-    return HourlyWindow(from: from, to: to);
   }
-}
-
-class HourlyWindow {
-  final DateTime from;
-  final DateTime to;
-
-  const HourlyWindow({required this.from, required this.to});
 }
 
 // ============================================================
 // SIGNAL
 // ============================================================
-
-enum HourlySignalKind { analog, counter, status }
-
-HourlySignalKind hourlySignalKindOf(String raw) {
-  switch (raw.trim().toUpperCase()) {
-    case 'COUNTER':
-      return HourlySignalKind.counter;
-    case 'STATUS':
-      return HourlySignalKind.status;
-    default:
-      // ANALOG hoac thieu: ve line, an toan nhat.
-      return HourlySignalKind.analog;
-  }
-}
 
 /// Mot bucket 1h da chuan hoa. Gia tri da duoc model lam tron 6 chu so
 /// (xem _readMeasure trong series_history_response.dart).
@@ -100,7 +82,7 @@ class HourlySignalSeries {
   /// Ma signal backend (vd E_Temp), dung chon SignalChartSpec.
   final String code;
   final String unit;
-  final HourlySignalKind kind;
+  final SignalKind kind;
 
   final double? thresholdLow;
   final double? thresholdHigh;
@@ -129,7 +111,7 @@ class HourlySignalSeries {
 
   /// Dai min–max chi co nghia khi backend tra MIN_AVG_MAX.
   bool get showRangeBand =>
-      kind == HourlySignalKind.analog &&
+      kind == SignalKind.analog &&
       !isSnapshot &&
       points.any((point) => point.hasRange);
 
@@ -141,22 +123,15 @@ class HourlySignalSeries {
     required bool isSnapshot,
     required DateTime windowTo,
   }) {
-    final kind = hourlySignalKindOf(dto.kind);
+    final kind = parseSignalKind(dto.kind);
 
-    /*
-     * Bo bucket chua du gio ma count == 0: gio hien tai chua co mau.
-     * Bucket rong o giua van giu (value null) de chart ngat duong.
-     */
-    final raw =
-        dto.points
-            .where((point) {
-              final incomplete = point.ts
-                  .add(const Duration(hours: 1))
-                  .isAfter(windowTo);
-              return !(incomplete && point.count == 0);
-            })
-            .toList(growable: false)
-          ..sort((a, b) => a.ts.compareTo(b.ts));
+    // Gio hien tai chua co mau: bo. Bucket rong o giua van giu (value null)
+    // de chart ngat duong.
+    final raw = dropIncompleteEmptyBuckets(
+      dto.points,
+      bucket: const Duration(hours: 1),
+      reference: windowTo,
+    )..sort((a, b) => a.ts.compareTo(b.ts));
 
     final points = <HourlyPoint>[];
 
@@ -171,9 +146,9 @@ class HourlySignalSeries {
       final last = empty ? null : point.last;
 
       final value = switch (kind) {
-        HourlySignalKind.analog => avg,
-        HourlySignalKind.counter => delta,
-        HourlySignalKind.status => last ?? avg,
+        SignalKind.analog => avg,
+        SignalKind.counter => delta,
+        SignalKind.status => last ?? avg,
       };
 
       points.add(
@@ -207,7 +182,7 @@ class HourlySignalSeries {
 
   /// Nguong ap cho gia tri do (ANALOG), khong ap cho delta cua COUNTER hay
   /// ma STATUS (cung quy uoc voi chart catalog).
-  bool get showThresholds => kind == HourlySignalKind.analog && hasThreshold;
+  bool get showThresholds => kind == SignalKind.analog && hasThreshold;
 
   /// Gia tri vuot nguong cua mot bucket (null = trong nguong).
   ///
@@ -215,16 +190,13 @@ class HourlySignalSeries {
   double? breachValue(HourlyPoint point) {
     if (!showThresholds || !point.hasValue) return null;
 
-    final high = thresholdHigh;
-    final low = thresholdLow;
-
-    final top = point.max ?? point.value!;
-    final bottom = point.min ?? point.value!;
-
-    if (high != null && top > high) return top;
-    if (low != null && bottom < low) return bottom;
-
-    return null;
+    return thresholdBreach(
+      value: point.value!,
+      min: point.min,
+      max: point.max,
+      low: thresholdLow,
+      high: thresholdHigh,
+    );
   }
 }
 
@@ -256,47 +228,48 @@ class HourlySeriesSummary {
 
   factory HourlySeriesSummary.of(HourlySignalSeries series) {
     HourlyPoint? latest;
-    double? lo;
-    double? hi;
     double? total;
 
-    var weightedSum = 0.0;
-    var weight = 0;
     var statusChanges = 0;
     int? previousCode;
 
-    for (final point in series.points) {
-      final value = point.value;
-      if (value == null) continue;
+    for (final point in series.valuedPoints) {
+      final value = point.value!;
 
       latest = point;
 
-      final pointLo = point.min ?? value;
-      final pointHi = point.max ?? value;
-      if (lo == null || pointLo < lo) lo = pointLo;
-      if (hi == null || pointHi > hi) hi = pointHi;
-
-      // Trung binh theo so mau khi co (RAW), snapshot thi moi bucket 1 mau.
-      final samples = (point.count ?? 0) > 0 ? point.count! : 1;
-      weightedSum += value * samples;
-      weight += samples;
-
-      if (series.kind == HourlySignalKind.counter) {
+      if (series.kind == SignalKind.counter) {
         total = _round6((total ?? 0) + value);
       }
 
-      if (series.kind == HourlySignalKind.status) {
+      if (series.kind == SignalKind.status) {
         final code = value.round();
         if (previousCode != null && code != previousCode) statusChanges++;
         previousCode = code;
       }
     }
 
+    // Trung binh theo so mau khi co (RAW), snapshot thi moi bucket 1 mau.
+    final envelope = ValueEnvelope.of(
+      series.valuedPoints.map((point) {
+        final value = point.value!;
+
+        return (
+          value: value,
+          low: point.min ?? value,
+          high: point.max ?? value,
+          weight: (point.count ?? 0) > 0 ? point.count! : 1,
+        );
+      }),
+    );
+
+    final avg = envelope.avg;
+
     return HourlySeriesSummary(
       latest: latest,
-      min: lo,
-      max: hi,
-      avg: weight == 0 ? null : _round6(weightedSum / weight),
+      min: envelope.min,
+      max: envelope.max,
+      avg: avg == null ? null : _round6(avg),
       total: total,
       statusChanges: statusChanges,
     );

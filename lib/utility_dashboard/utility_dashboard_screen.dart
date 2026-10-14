@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/utility_chart_screen.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/api/utility_chart_api.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/api/api_signal_history_repository.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/api/signal_history_repository.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/api/utility_latest_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/providers/latest_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_catalog/utility_catalog_tabs_screen.dart';
@@ -72,6 +74,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityScadaChannelApi scadaChannelApi;
   late final UtilityScadaApi scadaApi;
   late final UtilityParaApi paraApi;
+
+  /// Lich su signal dung chung (cache + dedupe) cho tab Hourly va SCADA TABLE.
+  late final SignalHistoryRepository signalHistoryRepository;
 
   late final UtilityMinuteChartController minuteSeriesProvider;
   late final UtilityChartCatalogController chartCatalogProvider;
@@ -186,6 +191,14 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   }
 
   void _initializeProviders() {
+    latestProvider = LatestProvider(api: latestApi);
+
+    signalHistoryRepository = ApiSignalHistoryRepository(
+      api: chartApi,
+      source: () => latestProvider.items,
+      sourceVersion: () => latestProvider.dataVersion,
+    );
+
     minuteSeriesProvider = UtilityMinuteChartController(
       api: chartApi,
       window: const Duration(minutes: 60),
@@ -194,11 +207,11 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     dailySignalProvider = UtilityDailySignalController(api: chartApi);
 
-    hourlyChartProvider = UtilityHourlyChartController(api: chartApi);
+    hourlyChartProvider = UtilityHourlyChartController(
+      repository: signalHistoryRepository,
+    );
 
     chartCatalogProvider = UtilityChartCatalogController(chartApi);
-
-    latestProvider = LatestProvider(api: latestApi);
 
     signalHealthController = SignalHealthMatrixController(signalHealthApi);
 
@@ -402,6 +415,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         Provider<UtilityDashboardOverviewApi>.value(value: overviewApi),
 
         Provider<UtilityFacadeService>.value(value: facade),
+
+        Provider<SignalHistoryRepository>.value(value: signalHistoryRepository),
 
         ChangeNotifierProvider<UtilityMinuteChartController>.value(
           value: minuteSeriesProvider,

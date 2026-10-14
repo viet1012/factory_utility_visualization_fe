@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:collection';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../shared/charts/series_math.dart';
 import '../../utility_all_factory_chart/api/utility_chart_api.dart';
 import '../../utility_all_factory_chart/models/series_history_response.dart';
 import '../models/latest_tree_response.dart';
@@ -12,16 +16,39 @@ import 'signal_history_repository.dart';
 ///
 /// bucket do caller chon (HistoryRange.requestBucket): 'auto' -> backend tu
 /// chon (≤1h: 1m, ≤6h: 5m, ≤24h: 15m, >24h: snapshot 1h); 24h gui '1h'.
-/// Backend
-/// da gap-fill bucket rong (count = 0) va tra kind / nguong / alertLevel.
-/// Mot request cho moi boxDeviceId, loc theo cac plcAddress duoc yeu cau.
+/// Backend da gap-fill bucket rong (count = 0) va tra kind / nguong /
+/// alertLevel. Mot request cho moi boxDeviceId, loc theo plcAddress.
+///
+/// Dung chung cho moi luong lich su:
+/// - cache LRU ([cacheCapacity] muc) theo (box, PLC da sort, from, to,
+///   bucket); TTL do noi goi truyen. Tap PLC nam tron trong cac muc con han
+///   cung (box, from, to, bucket) thi ghep tu cache, chi goi phan con thieu;
+/// - request dang chay cung khoa duoc dung chung (dedupe);
+/// - CancelToken cua noi goi chi huy request that khi khong con ai cho.
 class ApiSignalHistoryRepository implements SignalHistoryRepository {
+  static const int cacheCapacity = 100;
+
   final UtilityChartApi api;
 
   /// Cay latest hien tai: map signalId -> boxDeviceId / plcAddress / ten.
   final List<LatestFacilityDto> Function() source;
 
-  ApiSignalHistoryRepository({required this.api, required this.source});
+  /// Doi khi cay latest doi (LatestProvider.dataVersion): dung lai index.
+  final int Function() sourceVersion;
+
+  ApiSignalHistoryRepository({
+    required this.api,
+    required this.source,
+    required this.sourceVersion,
+  });
+
+  Map<String, LatestSignalRef>? _index;
+  int? _indexVersion;
+
+  final LinkedHashMap<String, _CacheEntry> _cache =
+      LinkedHashMap<String, _CacheEntry>();
+
+  final Map<String, _SharedRequest> _inFlight = <String, _SharedRequest>{};
 
   @override
   Future<SignalHistoryResult> fetchHistory({
@@ -29,19 +56,10 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
     required DateTime from,
     required DateTime to,
     String bucket = 'auto',
+    Duration cacheTtl = SignalHistoryRepository.defaultCacheTtl,
     CancelToken? cancelToken,
   }) async {
-    // Thoi diem gui request: de nhan biet bucket cuoi chua du thoi gian.
-    final requestedAt = DateTime.now();
-
-    /*
-     * Lam tron xuong theo phut (giay = 0): cac lan polling trong cung mot
-     * phut gui cung mot request, moc bucket on dinh giua cac lan refresh.
-     */
-    from = _floorMinute(from);
-    to = _floorMinute(to);
-
-    final index = indexLatestSignals(source());
+    final index = _signalIndex();
 
     // Gom signal theo boxDeviceId, giu thu tu yeu cau.
     final byDevice = <String, List<_Target>>{};
@@ -72,12 +90,11 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
           from,
           to,
           bucket,
+          cacheTtl,
           cancelToken,
         ),
       ),
     );
-
-    final mapWatch = Stopwatch()..start();
 
     final failures = responses.where((item) => item.error != null).toList();
 
@@ -95,10 +112,10 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
     Duration? resultBucket;
 
     for (final response in responses) {
-      final body = response.body;
+      final parts = response.parts;
 
       // Device nay loi (cac device khac van OK): moi the cua no hien loi.
-      if (body == null) {
+      if (parts == null) {
         final message = _describeError(response.error);
 
         for (final target in response.targets) {
@@ -107,7 +124,10 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
         continue;
       }
 
-      final responseAggregation = body.isSnapshot
+      // Cac phan cung (from, to, bucket) nen cung cach gop / do rong bucket.
+      final meta = parts.first.response;
+
+      final responseAggregation = meta.isSnapshot
           ? HistoryAggregation.snapshot
           : HistoryAggregation.minAvgMax;
 
@@ -115,28 +135,31 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
         aggregation = HistoryAggregation.snapshot;
       }
 
-      final responseBucket = body.bucketDuration;
+      final responseBucket = meta.bucketDuration;
       resultBucket ??= responseBucket;
 
       // Ghep theo khoa that (boxDeviceId + plcAddress), khong theo thu tu.
-      final signalsByPlc = <String, SeriesHistorySignalDto>{
-        for (final signal in body.signals)
-          if (signal.boxDeviceId.trim() == response.boxDeviceId)
-            signal.plcAddress.trim(): signal,
+      final signalsByPlc = <String, (SeriesHistorySignalDto, DateTime)>{
+        for (final part in parts)
+          for (final signal in part.response.signals)
+            if (signal.boxDeviceId.trim() == response.boxDeviceId)
+              signal.plcAddress.trim(): (signal, part.requestedAt),
       };
 
       for (final target in response.targets) {
         final plc = target.ref.signal.plcAddress.trim();
-        final dto = signalsByPlc[plc];
+        final match = signalsByPlc[plc];
 
         // Loi rieng cua signal: chi the do hien loi.
-        if (dto == null) {
+        if (match == null) {
           seriesById[target.id] = _errorSeries(
             target,
             'Not returned by the history API.',
           );
           continue;
         }
+
+        final (dto, requestedAt) = match;
 
         if (dto.parseError != null) {
           seriesById[target.id] = _errorSeries(
@@ -169,8 +192,7 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
       debugPrint(
         '[SIGNAL HISTORY] parsed series=${ordered.length} '
         'errors=${ordered.where((s) => s.error != null).length} '
-        'points=${ordered.fold<int>(0, (n, s) => n + s.points.length)} '
-        'map=${mapWatch.elapsedMilliseconds}ms',
+        'points=${ordered.fold<int>(0, (n, s) => n + s.points.length)}',
       );
     }
 
@@ -182,25 +204,334 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
     );
   }
 
+  @override
+  Future<SeriesHistoryResponse> fetchDeviceHistory({
+    required String boxDeviceId,
+    required List<String> plcAddresses,
+    required DateTime from,
+    required DateTime to,
+    String bucket = 'auto',
+    Duration cacheTtl = SignalHistoryRepository.defaultCacheTtl,
+    bool forceRefresh = false,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final parts = await _loadDevice(
+        boxDeviceId: boxDeviceId,
+        plcAddresses: plcAddresses,
+        from: from,
+        to: to,
+        bucket: bucket,
+        cacheTtl: cacheTtl,
+        forceRefresh: forceRefresh,
+        cancelToken: cancelToken,
+      );
+
+      if (parts.length == 1) return parts.single.response;
+
+      final meta = parts.first.response;
+
+      return SeriesHistoryResponse(
+        bucket: meta.bucket,
+        source: meta.source,
+        aggregation: meta.aggregation,
+        signals: List<SeriesHistorySignalDto>.unmodifiable([
+          for (final part in parts) ...part.response.signals,
+        ]),
+      );
+    } catch (error, stackTrace) {
+      Error.throwWithStackTrace(_mapError(error), stackTrace);
+    }
+  }
+
+  // ============================================================
+  // DEVICE LOAD: CACHE + DEDUPE
+  // ============================================================
+
+  /// Cac phan du lieu phu [plcAddresses] cua mot box: tu cache va / hoac tu
+  /// request moi (chi cho phan cache con thieu).
+  Future<List<_Part>> _loadDevice({
+    required String boxDeviceId,
+    required List<String> plcAddresses,
+    required DateTime from,
+    required DateTime to,
+    required String bucket,
+    required Duration cacheTtl,
+    required bool forceRefresh,
+    required CancelToken? cancelToken,
+  }) async {
+    final box = boxDeviceId.trim();
+    final plcs =
+        plcAddresses
+            .map((plc) => plc.trim())
+            .where((plc) => plc.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+
+    /*
+     * Lam tron xuong theo phut (giay = 0): cac lan polling trong cung mot
+     * phut gui cung mot request, moc bucket on dinh giua cac lan refresh.
+     */
+    from = _floorMinute(from);
+    to = _floorMinute(to);
+
+    final prefix = _cachePrefix(box, from, to, bucket);
+    final key = _cacheKey(prefix, plcs);
+
+    var missing = plcs;
+    final parts = <_Part>[];
+
+    if (!forceRefresh) {
+      final exact = _freshEntry(key, cacheTtl);
+      if (exact != null) return [exact.part];
+
+      if (!_inFlight.containsKey(key)) {
+        final covered = _coveredFromCache(prefix, plcs, cacheTtl);
+
+        if (covered.isNotEmpty) {
+          final plcsByEntry = <_CacheEntry, Set<String>>{};
+          covered.forEach((plc, entry) {
+            plcsByEntry.putIfAbsent(entry, () => <String>{}).add(plc);
+          });
+
+          parts.addAll(
+            plcsByEntry.entries.map((item) => item.key.part.only(item.value)),
+          );
+
+          missing = plcs
+              .where((plc) => !covered.containsKey(plc))
+              .toList(growable: false);
+
+          if (missing.isEmpty) return parts;
+        }
+      }
+    }
+
+    final missingKey = _cacheKey(prefix, missing);
+    final shared =
+        _inFlight[missingKey] ??
+        _start(
+          key: missingKey,
+          box: box,
+          plcs: missing,
+          from: from,
+          to: to,
+          bucket: bucket,
+        );
+
+    parts.add(await _join(shared, missingKey, cancelToken));
+    return parts;
+  }
+
+  _CacheEntry? _freshEntry(String key, Duration ttl) {
+    final entry = _cache[key];
+    if (entry == null || !entry.isFresh(ttl)) return null;
+
+    // LRU: muc vua dung chuyen ve cuoi.
+    _cache
+      ..remove(key)
+      ..[key] = entry;
+
+    return entry;
+  }
+
+  /// PLC -> muc cache con han cung [prefix] chua no (muc moi hon thang).
+  Map<String, _CacheEntry> _coveredFromCache(
+    String prefix,
+    List<String> plcs,
+    Duration ttl,
+  ) {
+    final wanted = plcs.toSet();
+    final covered = <String, _CacheEntry>{};
+
+    final entries =
+        _cache.entries
+            .where(
+              (item) => item.key.startsWith(prefix) && item.value.isFresh(ttl),
+            )
+            .toList()
+          ..sort((a, b) => a.value.fetchedAt.compareTo(b.value.fetchedAt));
+
+    for (final MapEntry(key: key, value: entry) in entries) {
+      var used = false;
+
+      for (final plc in entry.part.plcs) {
+        if (!wanted.contains(plc)) continue;
+        covered[plc] = entry;
+        used = true;
+      }
+
+      if (used) {
+        _cache
+          ..remove(key)
+          ..[key] = entry;
+      }
+    }
+
+    return covered;
+  }
+
+  _SharedRequest _start({
+    required String key,
+    required String box,
+    required List<String> plcs,
+    required DateTime from,
+    required DateTime to,
+    required String bucket,
+  }) {
+    final shared = _SharedRequest(
+      plcs: Set<String>.unmodifiable(plcs),
+      requestedAt: DateTime.now(),
+    );
+    _inFlight[key] = shared;
+
+    final watch = Stopwatch()..start();
+
+    if (kDebugMode) {
+      debugPrint(
+        '[SIGNAL HISTORY] send boxDeviceId=$box '
+        'plc=${plcs.length} from=$from to=$to bucket=$bucket',
+      );
+    }
+
+    shared.future = api
+        .getSeriesHistory(
+          boxDeviceId: box,
+          plcAddresses: plcs,
+          from: from,
+          to: to,
+          bucket: bucket,
+          cancelToken: shared.token,
+        )
+        .then((body) {
+          if (kDebugMode) {
+            debugPrint(
+              '[SIGNAL HISTORY] recv boxDeviceId=$box '
+              'bucket=${body.bucket} source=${body.source} '
+              'signals=${body.signals.length} '
+              'elapsed=${watch.elapsedMilliseconds}ms',
+            );
+          }
+
+          final part = _Part(
+            response: body,
+            plcs: shared.plcs,
+            requestedAt: shared.requestedAt,
+          );
+          _store(key, part);
+          return part;
+        })
+        .whenComplete(() {
+          shared.done = true;
+          if (identical(_inFlight[key], shared)) _inFlight.remove(key);
+        });
+
+    return shared;
+  }
+
+  /// Cho ket qua cua [shared]. Huy [cancelToken] chi bo luot cho nay; request
+  /// that bi huy khi khong con ai cho.
+  Future<_Part> _join(
+    _SharedRequest shared,
+    String key,
+    CancelToken? cancelToken,
+  ) {
+    final cancelled = cancelToken?.cancelError;
+    if (cancelled != null) return Future<_Part>.error(cancelled);
+
+    shared.waiters++;
+
+    final completer = Completer<_Part>();
+    var settled = false;
+
+    shared.future.then(
+      (part) {
+        if (settled) return;
+        settled = true;
+        shared.waiters--;
+        completer.complete(part);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (settled) return;
+        settled = true;
+        shared.waiters--;
+        completer.completeError(error, stackTrace);
+      },
+    );
+
+    cancelToken?.whenCancel.then((error) {
+      if (settled) return;
+      settled = true;
+      shared.waiters--;
+
+      if (shared.waiters == 0 && !shared.done) {
+        if (identical(_inFlight[key], shared)) _inFlight.remove(key);
+        shared.token.cancel('no remaining waiters');
+      }
+
+      completer.completeError(error);
+    });
+
+    return completer.future;
+  }
+
+  void _store(String key, _Part part) {
+    _cache
+      ..remove(key)
+      ..[key] = _CacheEntry(part: part, fetchedAt: DateTime.now());
+
+    while (_cache.length > cacheCapacity) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
+
+  static String _cachePrefix(
+    String box,
+    DateTime from,
+    DateTime to,
+    String bucket,
+  ) {
+    return '$box|${from.toIso8601String()}|${to.toIso8601String()}|$bucket|';
+  }
+
+  /// [plcs] da sort.
+  static String _cacheKey(String prefix, List<String> plcs) {
+    return '$prefix${plcs.join(',')}';
+  }
+
+  // ============================================================
+  // SIGNAL INDEX
+  // ============================================================
+
+  Map<String, LatestSignalRef> _signalIndex() {
+    final version = sourceVersion();
+    final cached = _index;
+
+    if (cached != null && version == _indexVersion) return cached;
+
+    final index = indexLatestSignals(source());
+    _index = index;
+    _indexVersion = version;
+
+    return index;
+  }
+
+  // ============================================================
+  // MAPPING
+  // ============================================================
+
   Future<_DeviceResponse> _fetchDevice(
     String boxDeviceId,
     List<_Target> targets,
     DateTime from,
     DateTime to,
     String bucket,
+    Duration cacheTtl,
     CancelToken? cancelToken,
   ) async {
-    final watch = Stopwatch()..start();
-
-    if (kDebugMode) {
-      debugPrint(
-        '[SIGNAL HISTORY] send boxDeviceId=$boxDeviceId '
-        'plc=${targets.length} from=$from to=$to bucket=$bucket',
-      );
-    }
-
     try {
-      final body = await api.getSeriesHistory(
+      final parts = await _loadDevice(
         boxDeviceId: boxDeviceId,
         plcAddresses: [
           for (final target in targets) target.ref.signal.plcAddress,
@@ -208,23 +539,15 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
         from: from,
         to: to,
         bucket: bucket,
+        cacheTtl: cacheTtl,
+        forceRefresh: false,
         cancelToken: cancelToken,
       );
-
-      if (kDebugMode) {
-        debugPrint(
-          '[SIGNAL HISTORY] recv boxDeviceId=$boxDeviceId '
-          'bucket=${body.bucket} source=${body.source} '
-          'signals=${body.signals.length} '
-          'points=${body.signals.fold<int>(0, (n, s) => n + s.points.length)} '
-          'elapsed=${watch.elapsedMilliseconds}ms',
-        );
-      }
 
       return _DeviceResponse(
         boxDeviceId: boxDeviceId,
         targets: targets,
-        body: body,
+        parts: parts,
       );
     } catch (error, stackTrace) {
       final cancelled = error is DioException && CancelToken.isCancel(error);
@@ -232,7 +555,7 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
       if (!cancelled || kDebugMode) {
         debugPrint(
           '[SIGNAL HISTORY ${cancelled ? 'CANCELLED' : 'API ERROR'}] '
-          'boxDeviceId=$boxDeviceId elapsed=${watch.elapsedMilliseconds}ms '
+          'boxDeviceId=$boxDeviceId '
           'error=${cancelled ? error.message : error}',
         );
       }
@@ -248,7 +571,7 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
 
   SignalHistorySeries _buildSeries(
     _Target target,
-    SeriesHistorySignalDto? dto,
+    SeriesHistorySignalDto dto,
     HistoryAggregation aggregation,
     Duration? bucket,
     DateTime requestedAt,
@@ -256,9 +579,16 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
     final signal = target.ref.signal;
 
     // Ten / code / unit uu tien tu cay latest de khop voi bang.
-    final unit = _firstNotEmpty(signal.unit, dto?.unit);
-    final code = _firstNotEmpty(signal.cateId, dto?.code);
-    final name = _firstNotEmpty(signal.nameEn, dto?.name) ?? code ?? '--';
+    final unit = _firstNotEmpty(signal.unit, dto.unit);
+    final code = _firstNotEmpty(signal.cateId, dto.code);
+    final name = _firstNotEmpty(signal.nameEn, dto.name) ?? code ?? '--';
+
+    // Bucket chua du thoi gian luc gui request ma chua co mau: bo.
+    final points = dropIncompleteEmptyBuckets(
+      dto.points,
+      bucket: bucket ?? inferBucketStep(dto.points.map((point) => point.ts)),
+      reference: requestedAt,
+    );
 
     return SignalHistorySeries(
       signalId: target.id,
@@ -266,51 +596,14 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
       name: name,
       code: code,
       unit: unit,
-      kind: _parseKind(dto?.kind),
-      thresholdLow: dto?.thresholdLow,
-      thresholdHigh: dto?.thresholdHigh,
-      alertLevel: dto?.alertLevel,
+      kind: parseSignalKind(dto.kind),
+      thresholdLow: dto.thresholdLow,
+      thresholdHigh: dto.thresholdHigh,
+      alertLevel: dto.alertLevel,
       aggregation: aggregation,
       bucket: bucket,
-      points: dto == null
-          ? const <SignalHistoryPoint>[]
-          : List<SignalHistoryPoint>.unmodifiable(
-              _dropIncompleteEmpty(dto.points, bucket, requestedAt).map(
-                _toPoint,
-              ),
-            ),
+      points: List<SignalHistoryPoint>.unmodifiable(points.map(_toPoint)),
     );
-  }
-
-  /// Bucket chua du thoi gian (ts + bucket > requestedAt) ma count == 0:
-  /// bo khoi series - khong ve, khong tinh la gap. Neu da co mau (count > 0)
-  /// thi van giu va ve binh thuong.
-  static List<SeriesHistoryPointDto> _dropIncompleteEmpty(
-    List<SeriesHistoryPointDto> points,
-    Duration? bucket,
-    DateTime requestedAt,
-  ) {
-    final step = bucket ?? _inferBucket(points);
-
-    return [
-      for (final point in points)
-        if (!(point.count == 0 && point.ts.add(step).isAfter(requestedAt)))
-          point,
-    ];
-  }
-
-  /// Khoang cach duong nho nhat giua hai diem lien tiep; mac dinh 1 phut.
-  static Duration _inferBucket(List<SeriesHistoryPointDto> points) {
-    Duration? smallest;
-
-    for (var i = 1; i < points.length; i++) {
-      final diff = points[i].ts.difference(points[i - 1].ts);
-      if (diff <= Duration.zero) continue;
-
-      if (smallest == null || diff < smallest) smallest = diff;
-    }
-
-    return smallest ?? const Duration(minutes: 1);
   }
 
   static DateTime _floorMinute(DateTime time) {
@@ -375,18 +668,6 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
     );
   }
 
-  static SignalKind _parseKind(String? raw) {
-    switch (raw?.trim().toUpperCase()) {
-      case 'STATUS':
-        return SignalKind.status;
-      case 'COUNTER':
-        return SignalKind.counter;
-      default:
-        // ANALOG hoac thieu: ve line, an toan nhat.
-        return SignalKind.analog;
-    }
-  }
-
   /// 400 -> SignalHistoryRequestException kem message cua backend.
   static Object _mapError(Object error) {
     if (error is! DioException || error.response?.statusCode != 400) {
@@ -426,17 +707,74 @@ class _Target {
   const _Target(this.id, this.ref);
 }
 
+/// Mot phan du lieu cua box: response cho [plcs] (tap PLC da yeu cau) va
+/// thoi diem gui request (de bo bucket chua du thoi gian).
+class _Part {
+  final SeriesHistoryResponse response;
+  final Set<String> plcs;
+  final DateTime requestedAt;
+
+  const _Part({
+    required this.response,
+    required this.plcs,
+    required this.requestedAt,
+  });
+
+  /// Chi giu cac signal thuoc [keep].
+  _Part only(Set<String> keep) {
+    if (keep.length == plcs.length && keep.containsAll(plcs)) return this;
+
+    return _Part(
+      response: SeriesHistoryResponse(
+        bucket: response.bucket,
+        source: response.source,
+        aggregation: response.aggregation,
+        signals: List<SeriesHistorySignalDto>.unmodifiable(
+          response.signals.where(
+            (signal) => keep.contains(signal.plcAddress.trim()),
+          ),
+        ),
+      ),
+      plcs: keep,
+      requestedAt: requestedAt,
+    );
+  }
+}
+
+class _CacheEntry {
+  final _Part part;
+  final DateTime fetchedAt;
+
+  const _CacheEntry({required this.part, required this.fetchedAt});
+
+  bool isFresh(Duration ttl) => DateTime.now().difference(fetchedAt) <= ttl;
+}
+
+/// Request dang chay, dung chung cho moi noi goi cung khoa.
+class _SharedRequest {
+  final Set<String> plcs;
+  final DateTime requestedAt;
+  final CancelToken token = CancelToken();
+
+  late final Future<_Part> future;
+
+  int waiters = 0;
+  bool done = false;
+
+  _SharedRequest({required this.plcs, required this.requestedAt});
+}
+
 class _DeviceResponse {
   final String boxDeviceId;
   final List<_Target> targets;
-  final SeriesHistoryResponse? body;
+  final List<_Part>? parts;
   final Object? error;
   final StackTrace? stackTrace;
 
   const _DeviceResponse({
     required this.boxDeviceId,
     required this.targets,
-    this.body,
+    this.parts,
     this.error,
     this.stackTrace,
   });

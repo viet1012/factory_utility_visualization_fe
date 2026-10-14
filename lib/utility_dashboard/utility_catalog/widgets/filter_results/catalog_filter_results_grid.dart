@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 
+import '../../../shared/polling/dashboard_polling_intervals.dart';
 import '../../../shared/polling/polling_coordinator.dart';
 import '../../../shared/polling/polling_scope.dart';
+import '../../../shared/polling/polling_task_ids.dart';
 import '../../catalog_view_models.dart';
 import '../../providers/filter_sparkline_controller.dart';
 import '../signal_chart/signal_chart_palette.dart';
@@ -46,6 +48,7 @@ class _CatalogFilterResultsGridState extends State<CatalogFilterResultsGrid> {
   /// Giu tham chieu de dispose khong phai tra cuu context.
   late final FilterSparklineController _sparklines;
   late final PollingCoordinator _coordinator;
+  late final String _refreshTaskId = PollingTaskIds.filterSparklines(this);
 
   Timer? _viewportTimer;
 
@@ -58,11 +61,17 @@ class _CatalogFilterResultsGridState extends State<CatalogFilterResultsGrid> {
 
     _sparklines = context.read<FilterSparklineController>();
 
-    // Nhip lam moi 30s chi chay khi bang that su hien (cung gating voi
-    // polling cua tab SCADA TABLE).
-    _coordinator = context.read<PollingCoordinator>();
-    _coordinator.activity.addListener(_syncOnScreen);
-    _syncOnScreen();
+    // Nhip lam moi 30s: task scope SCADA TABLE, tu dung khi tab an / bi che
+    // va chay ngay khi hien lai.
+    _coordinator = context.read<PollingCoordinator>()
+      ..register(
+        id: _refreshTaskId,
+        scope: PollingScope.scadaTable,
+        interval: DashboardPollingIntervals.filterHistoryCheck,
+        action: _sparklines.refreshStale,
+        runImmediately: true,
+      )
+      ..start(_refreshTaskId);
 
     _source = _FilterResultsSource(
       rows: widget.rows,
@@ -105,12 +114,6 @@ class _CatalogFilterResultsGridState extends State<CatalogFilterResultsGrid> {
     }
 
     _scheduleViewportSync();
-  }
-
-  void _syncOnScreen() {
-    _sparklines.setOnScreen(
-      _coordinator.isScopeActive(PollingScope.scadaTable),
-    );
   }
 
   void _scheduleViewportSync() {
@@ -164,7 +167,7 @@ class _CatalogFilterResultsGridState extends State<CatalogFilterResultsGrid> {
   @override
   void dispose() {
     _viewportTimer?.cancel();
-    _coordinator.activity.removeListener(_syncOnScreen);
+    _coordinator.unregister(_refreshTaskId);
     _verticalController.removeListener(_scheduleViewportSync);
     _verticalController.dispose();
 

@@ -186,6 +186,20 @@ class SeriesHistoryPointDto {
   }
 }
 
+/// Bo bucket chua du thoi gian (ts + [bucket] > [reference]) ma count == 0:
+/// chua co mau, khong ve va khong tinh la gap. Bucket da co mau (count > 0)
+/// va bucket rong o giua van giu nguyen.
+List<SeriesHistoryPointDto> dropIncompleteEmptyBuckets(
+  List<SeriesHistoryPointDto> points, {
+  required Duration bucket,
+  required DateTime reference,
+}) {
+  return [
+    for (final point in points)
+      if (!(point.count == 0 && point.ts.add(bucket).isAfter(reference))) point,
+  ];
+}
+
 /// Gia tri do: lam tron toi 6 chu so thap phan (DB la decimal(18,6)).
 ///
 /// avg / delta tinh bang double o backend co the lech vai ulp

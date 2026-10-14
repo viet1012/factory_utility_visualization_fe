@@ -4,7 +4,22 @@
 /// dung API latest nhu cu, chart chi doc qua SignalHistoryRepository.
 library;
 
+import '../../shared/charts/series_math.dart';
+
 enum SignalKind { analog, status, counter }
+
+/// Kind cua backend ("ANALOG" | "STATUS" | "COUNTER").
+SignalKind parseSignalKind(String? raw) {
+  switch (raw?.trim().toUpperCase()) {
+    case 'STATUS':
+      return SignalKind.status;
+    case 'COUNTER':
+      return SignalKind.counter;
+    default:
+      // ANALOG hoac thieu: ve line, an toan nhat.
+      return SignalKind.analog;
+  }
+}
 
 /// Cach backend gop diem trong mot bucket.
 enum HistoryAggregation {
@@ -189,20 +204,24 @@ class SignalHistorySeries {
 
     if (kind == SignalKind.status) {
       final value = plotValue(point);
-      return value != null && isOutOfRange(value) ? value : null;
+      if (value == null) return null;
+
+      return thresholdBreach(
+        value: value,
+        low: thresholdLow,
+        high: thresholdHigh,
+      );
     }
 
     final useEnvelope = aggregation == HistoryAggregation.minAvgMax;
 
-    final high = thresholdHigh;
-    final upper = useEnvelope ? (point.max ?? avg) : avg;
-    if (high != null && upper > high) return upper;
-
-    final low = thresholdLow;
-    final lower = useEnvelope ? (point.min ?? avg) : avg;
-    if (low != null && lower < low) return lower;
-
-    return null;
+    return thresholdBreach(
+      value: avg,
+      min: useEnvelope ? point.min : null,
+      max: useEnvelope ? point.max : null,
+      low: thresholdLow,
+      high: thresholdHigh,
+    );
   }
 }
 
@@ -237,34 +256,25 @@ class SignalHistoryStats {
 
     final envelope = series.aggregation == HistoryAggregation.minAvgMax;
 
-    double? min;
-    double? max;
-    var weightedSum = 0.0;
-    var weight = 0;
+    final stats = ValueEnvelope.of(
+      series.points
+          .where((point) {
+            final value = point.value;
+            return value != null && value.isFinite && (point.count ?? 1) > 0;
+          })
+          .map((point) {
+            final value = point.value!;
 
-    for (final point in series.points) {
-      final value = point.value;
-      if (value == null || !value.isFinite) continue;
-
-      final count = point.count ?? 1;
-      if (count <= 0) continue;
-
-      final low = envelope ? (point.min ?? value) : value;
-      final high = envelope ? (point.max ?? value) : value;
-
-      if (min == null || low < min) min = low;
-      if (max == null || high > max) max = high;
-
-      final w = envelope ? count : 1;
-      weightedSum += value * w;
-      weight += w;
-    }
-
-    return SignalHistoryStats(
-      min: min,
-      avg: weight == 0 ? null : weightedSum / weight,
-      max: max,
+            return (
+              value: value,
+              low: envelope ? (point.min ?? value) : value,
+              high: envelope ? (point.max ?? value) : value,
+              weight: envelope ? (point.count ?? 1) : 1,
+            );
+          }),
     );
+
+    return SignalHistoryStats(min: stats.min, avg: stats.avg, max: stats.max);
   }
 }
 

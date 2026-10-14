@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../shared/polling/dashboard_polling_intervals.dart';
 import '../../../../shared/polling/polling_coordinator.dart';
 import '../../../../shared/polling/polling_scope.dart';
+import '../../../../shared/polling/polling_task_ids.dart';
 import '../../../catalog_view_models.dart';
 import '../../../models/signal_history_models.dart';
 import '../../../providers/filter_chart_controller.dart';
@@ -34,6 +36,7 @@ class FilterChartView extends StatefulWidget {
 class _FilterChartViewState extends State<FilterChartView> {
   late FilterChartController _controller;
   late final PollingCoordinator _coordinator;
+  late final String _refreshTaskId = PollingTaskIds.filterChart(this);
 
   late Map<String, List<String>> _signalsByDevice;
 
@@ -43,19 +46,20 @@ class _FilterChartViewState extends State<FilterChartView> {
 
     _controller = context.read<FilterChartController>();
 
-    // Nhip lam moi 30s chi chay khi chart that su hien.
-    _coordinator = context.read<PollingCoordinator>();
-    _coordinator.activity.addListener(_syncOnScreen);
-    _syncOnScreen();
+    // Nhip lam moi 30s: task scope SCADA TABLE, tu dung khi tab an / bi che
+    // va chay ngay khi hien lai.
+    _coordinator = context.read<PollingCoordinator>()
+      ..register(
+        id: _refreshTaskId,
+        scope: PollingScope.scadaTable,
+        interval: DashboardPollingIntervals.filterHistoryCheck,
+        action: _controller.refreshStale,
+        runImmediately: true,
+      )
+      ..start(_refreshTaskId);
 
     _indexDevices();
     _sync();
-  }
-
-  void _syncOnScreen() {
-    _controller.setOnScreen(
-      _coordinator.isScopeActive(PollingScope.scadaTable),
-    );
   }
 
   @override
@@ -85,7 +89,7 @@ class _FilterChartViewState extends State<FilterChartView> {
 
   @override
   void dispose() {
-    _coordinator.activity.removeListener(_syncOnScreen);
+    _coordinator.unregister(_refreshTaskId);
 
     // Roi Filter results / ve Table: huy request, dung lam moi. Cache giu lai
     // (60s) de quay lai nhanh.

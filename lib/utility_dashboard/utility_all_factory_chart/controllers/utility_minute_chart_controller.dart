@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../shared/state/safe_change_notifier.dart';
 import '../api/utility_chart_api.dart';
 import '../models/minute_point.dart';
 
@@ -22,7 +22,8 @@ class _MinuteReq {
   });
 }
 
-class UtilityMinuteChartController extends ChangeNotifier {
+class UtilityMinuteChartController extends ChangeNotifier
+    with SafeChangeNotifier {
   final UtilityChartApi api;
 
   /// Khoảng dữ liệu giữ lại trên biểu đồ.
@@ -43,7 +44,6 @@ class UtilityMinuteChartController extends ChangeNotifier {
 
   bool _tickRunning = false;
   bool _disposed = false;
-  bool _notifyScheduled = false;
 
   /// Version riêng từng key để response cũ không ghi đè request mới.
   final Map<String, int> _versions = {};
@@ -153,7 +153,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
       _lastOkAt[normalizedKey] = null;
       _lastErrAt[normalizedKey] = null;
 
-      _safeNotify();
+      safeNotify();
     }
   }
 
@@ -177,7 +177,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
     _lastErrAt.remove(normalizedKey);
     _versions.remove(normalizedKey);
 
-    _safeNotify();
+    safeNotify();
   }
 
   /// Bo moi request khong thuoc [keys] (lua chon fac/cate/box/device hien
@@ -332,7 +332,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
       _lastTs[key] = null;
       _fetchedOnce[key] = true;
 
-      _safeNotify();
+      safeNotify();
       return;
     }
 
@@ -341,7 +341,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
     _fetching[key] = true;
     _errors[key] = null;
 
-    _safeNotify();
+    safeNotify();
 
     final cancelToken = _startRequest(key);
 
@@ -401,7 +401,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
       _clearFetching(key);
 
       if (_isValidKeyRequest(key, version)) {
-        _safeNotify();
+        safeNotify();
       }
     }
   }
@@ -432,7 +432,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
     _fetching[key] = true;
     _errors[key] = null;
 
-    _safeNotify();
+    safeNotify();
 
     final cancelToken = _startRequest(key);
 
@@ -504,7 +504,7 @@ class UtilityMinuteChartController extends ChangeNotifier {
       _clearFetching(key);
 
       if (_isValidKeyRequest(key, version)) {
-        _safeNotify();
+        safeNotify();
       }
     }
   }
@@ -672,40 +672,6 @@ class UtilityMinuteChartController extends ChangeNotifier {
 
   bool _hasRequired(_MinuteReq request) {
     return (request.boxDeviceId ?? '').trim().isNotEmpty;
-  }
-
-  // ============================================================
-  // SAFE NOTIFY
-  // ============================================================
-
-  void _safeNotify() {
-    if (_disposed) return;
-
-    final binding = WidgetsBinding.instance;
-    final phase = binding.schedulerPhase;
-
-    final isBuilding =
-        phase == SchedulerPhase.persistentCallbacks ||
-        phase == SchedulerPhase.midFrameMicrotasks;
-
-    if (!isBuilding) {
-      notifyListeners();
-      return;
-    }
-
-    if (_notifyScheduled) {
-      return;
-    }
-
-    _notifyScheduled = true;
-
-    binding.addPostFrameCallback((_) {
-      _notifyScheduled = false;
-
-      if (_disposed) return;
-
-      notifyListeners();
-    });
   }
 
   // ============================================================

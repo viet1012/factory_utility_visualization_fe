@@ -2,27 +2,18 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/foundation.dart';
 
-import '../api/utility_chart_api.dart';
+import '../../shared/state/safe_change_notifier.dart';
+import '../../utility_catalog/api/signal_history_repository.dart';
+import '../../utility_catalog/models/signal_history_models.dart';
 import '../models/series_history_response.dart';
 import '../models/utility_hourly_models.dart';
-
-/// Loi 400 cua backend, [message] lay nguyen van tu response.
-class HourlyRequestException implements Exception {
-  final String message;
-
-  const HourlyRequestException(this.message);
-
-  @override
-  String toString() => message;
-}
 
 /// Du lieu da chuan hoa cua mot box cho mot range.
 class HourlyBoxData {
   final UtilityHourlyRange range;
-  final HourlyWindow window;
+  final HistoryWindow window;
   final bool isSnapshot;
 
   /// Theo plcAddress.
@@ -39,7 +30,7 @@ class HourlyBoxData {
   /// (moi response la mot lo <= 50 PLC).
   factory HourlyBoxData.merge({
     required UtilityHourlyRange range,
-    required HourlyWindow window,
+    required HistoryWindow window,
     required Map<String, HourlySignalSeries> base,
     required List<SeriesHistoryResponse> responses,
   }) {
@@ -124,6 +115,9 @@ class _BoxPlan {
   /// Cac lo PLC can goi API, moi lo <= [UtilityHourlyChartController.maxPlcsPerRequest].
   final List<List<String>> chunks;
 
+  /// Poll: bo qua cache cua repository, luon goi API.
+  final bool forceRefresh;
+
   final List<SeriesHistoryResponse> responses = [];
   int pending;
   bool failed = false;
@@ -135,34 +129,34 @@ class _BoxPlan {
     required this.base,
     required this.baseCreatedAt,
     required this.chunks,
+    required this.forceRefresh,
   }) : pending = chunks.length;
 }
 
-/// Lich su theo gio (bucket=1h) qua GET /api/utility/series/history.
+/// Lich su theo gio (bucket=1h) qua [SignalHistoryRepository] (cache +
+/// dedupe dung chung voi cac chart lich su cua SCADA TABLE).
 ///
 /// Moi box device gui plcAddress = PLC cua cac signal catalog dang hien thi
 /// (sau filter Important); box > [maxPlcsPerRequest] PLC chia nhieu request
 /// roi gop. Toi da [maxConcurrentRequests] request song song; cache
-/// [cacheTtl] theo (box, range, danh sach PLC da sort). Khong dung
-/// /api/utility/series/hourly (cong gia tri cua moi signal theo gio nen ra so
-/// sai).
-class UtilityHourlyChartController extends ChangeNotifier {
+/// [cacheTtl] theo (box, range, danh sach PLC da sort).
+class UtilityHourlyChartController extends ChangeNotifier
+    with SafeChangeNotifier {
   static const int maxPlcsPerRequest = 50;
 
-  final UtilityChartApi api;
+  final SignalHistoryRepository repository;
   final Duration requestTimeout;
   final Duration cacheTtl;
   final int maxConcurrentRequests;
 
   UtilityHourlyChartController({
-    required this.api,
+    required this.repository,
     this.requestTimeout = const Duration(seconds: 15),
     this.cacheTtl = const Duration(seconds: 60),
     this.maxConcurrentRequests = 4,
   }) : assert(maxConcurrentRequests > 0);
 
   bool _disposed = false;
-  bool _notifyScheduled = false;
 
   UtilityHourlyRange _range = UtilityHourlyRange.today;
 
@@ -201,7 +195,7 @@ class UtilityHourlyChartController extends ChangeNotifier {
     if (_disposed || _range == range) return;
 
     _range = range;
-    _safeNotify();
+    safeNotify();
   }
 
   /// Tai du lieu o range hien tai cho [plcsByBox] (box -> PLC dang hien thi).
@@ -228,7 +222,7 @@ class UtilityHourlyChartController extends ChangeNotifier {
     _cache.removeWhere((_, entry) => !entry.isFresh(cacheTtl));
 
     if (request.isEmpty) {
-      _safeNotify();
+      safeNotify();
       return;
     }
 
@@ -241,7 +235,7 @@ class UtilityHourlyChartController extends ChangeNotifier {
       final current = _boxes[box] ?? HourlyBoxState.initial;
 
       if (forceRefresh) {
-        plans.add(_plan(box, plcs, cacheKey, plcs, const {}, null));
+        plans.add(_plan(box, plcs, cacheKey, plcs, const {}, null, true));
         _boxes[box] = current.copyWith(loading: true, clearError: true);
         continue;
       }
@@ -270,11 +264,11 @@ class UtilityHourlyChartController extends ChangeNotifier {
         continue;
       }
 
-      plans.add(_plan(box, plcs, cacheKey, missing, base, oldest));
+      plans.add(_plan(box, plcs, cacheKey, missing, base, oldest, false));
       _boxes[box] = current.copyWith(loading: true, clearError: true);
     }
 
-    _safeNotify();
+    safeNotify();
 
     if (plans.isEmpty) return;
 
@@ -330,7 +324,7 @@ class UtilityHourlyChartController extends ChangeNotifier {
       }
     }
 
-    if (changed) _safeNotify();
+    if (changed) safeNotify();
   }
 
   // ============================================================
@@ -377,6 +371,7 @@ class UtilityHourlyChartController extends ChangeNotifier {
     List<String> toFetch,
     Map<String, HourlySignalSeries> base,
     DateTime? baseCreatedAt,
+    bool forceRefresh,
   ) {
     return _BoxPlan(
       box: box,
@@ -384,6 +379,7 @@ class UtilityHourlyChartController extends ChangeNotifier {
       cacheKey: cacheKey,
       base: base,
       baseCreatedAt: baseCreatedAt,
+      forceRefresh: forceRefresh,
       chunks: [
         for (var start = 0; start < toFetch.length; start += maxPlcsPerRequest)
           toFetch.sublist(
@@ -439,7 +435,7 @@ class UtilityHourlyChartController extends ChangeNotifier {
     _BoxPlan plan,
     List<String> plcs,
     UtilityHourlyRange range,
-    HourlyWindow window,
+    HistoryWindow window,
     int generation,
   ) async {
     final box = plan.box;
@@ -447,13 +443,15 @@ class UtilityHourlyChartController extends ChangeNotifier {
     _inFlight.add(cancelToken);
 
     try {
-      final response = await api
-          .getSeriesHistory(
+      final response = await repository
+          .fetchDeviceHistory(
             boxDeviceId: box,
             plcAddresses: plcs,
             from: window.from,
             to: window.to,
             bucket: '1h',
+            cacheTtl: cacheTtl,
+            forceRefresh: plan.forceRefresh,
             cancelToken: cancelToken,
           )
           .timeout(
@@ -488,7 +486,7 @@ class UtilityHourlyChartController extends ChangeNotifier {
       );
 
       _boxes[box] = HourlyBoxState(data: data);
-      _safeNotify();
+      safeNotify();
     } catch (error, stackTrace) {
       // Huy chu dong (doi lua chon / range / roi tab): khong phai loi.
       // Timeout den day duoi dang TimeoutException nen van bao loi.
@@ -512,9 +510,9 @@ class UtilityHourlyChartController extends ChangeNotifier {
 
       _boxes[box] = HourlyBoxState(
         data: keepData ? current.data : null,
-        error: _mapError(error),
+        error: error,
       );
-      _safeNotify();
+      safeNotify();
     } finally {
       _inFlight.remove(cancelToken);
     }
@@ -538,59 +536,6 @@ class UtilityHourlyChartController extends ChangeNotifier {
   /// [plcs] da sort (xem [_normalizeRequest]).
   String _cacheKey(String box, UtilityHourlyRange range, List<String> plcs) {
     return '${_cachePrefix(box, range)}${plcs.join(',')}';
-  }
-
-  /// 400 -> HourlyRequestException kem message cua backend.
-  static Object _mapError(Object error) {
-    if (error is! DioException || error.response?.statusCode != 400) {
-      return error;
-    }
-
-    final data = error.response?.data;
-    String? message;
-
-    if (data is Map) {
-      message = (data['message'] ?? data['error'] ?? data['detail'])
-          ?.toString();
-    } else if (data is String) {
-      message = data;
-    }
-
-    final text = message?.trim() ?? '';
-
-    return HourlyRequestException(
-      text.isEmpty ? 'Invalid hourly request (HTTP 400).' : text,
-    );
-  }
-
-  // ============================================================
-  // SAFE NOTIFY
-  // ============================================================
-
-  void _safeNotify() {
-    if (_disposed) return;
-
-    final binding = WidgetsBinding.instance;
-    final phase = binding.schedulerPhase;
-
-    final isBuilding =
-        phase == SchedulerPhase.persistentCallbacks ||
-        phase == SchedulerPhase.midFrameMicrotasks;
-
-    if (!isBuilding) {
-      notifyListeners();
-      return;
-    }
-
-    if (_notifyScheduled) return;
-
-    _notifyScheduled = true;
-
-    binding.addPostFrameCallback((_) {
-      _notifyScheduled = false;
-      if (_disposed) return;
-      notifyListeners();
-    });
   }
 
   // ============================================================

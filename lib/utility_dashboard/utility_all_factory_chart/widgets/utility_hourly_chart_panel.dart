@@ -16,6 +16,8 @@ import '../../shared/widgets/chart_loading_widgets.dart';
 import '../../shared/widgets/chart_state_widgets.dart';
 import '../../shared/widgets/lazy_chart_gate.dart';
 import '../../shared/widgets/scada_panel_frame.dart';
+import '../../utility_catalog/api/signal_history_repository.dart';
+import '../../utility_catalog/models/signal_history_models.dart';
 import '../../utility_catalog/widgets/signal_chart/signal_chart_palette.dart'
     show statusCodeColor;
 import '../../utility_dashboard_common/chart_theme.dart';
@@ -50,11 +52,11 @@ SignalChartSpec _specOf(
   );
 }
 
-HoverKind _hoverKindOf(HourlySignalKind kind) {
+HoverKind _hoverKindOf(SignalKind kind) {
   return switch (kind) {
-    HourlySignalKind.analog => HoverKind.analog,
-    HourlySignalKind.counter => HoverKind.counter,
-    HourlySignalKind.status => HoverKind.status,
+    SignalKind.analog => HoverKind.analog,
+    SignalKind.counter => HoverKind.counter,
+    SignalKind.status => HoverKind.status,
   };
 }
 
@@ -75,7 +77,7 @@ const Duration _halfHour = Duration(minutes: 30);
 const Duration _oneHour = Duration(hours: 1);
 
 String _errorMessage(Object? error) {
-  if (error is HourlyRequestException) return error.message;
+  if (error is SignalHistoryRequestException) return error.message;
   if (error is TimeoutException) return 'Request timed out. Please try again.';
   return 'Please check your connection or try again.';
 }
@@ -321,30 +323,30 @@ class _HourlySummaryBar extends StatelessWidget {
         formatWithUnit(value, unit, decimals: spec.decimals);
 
     final latestText = switch (series.kind) {
-      HourlySignalKind.status =>
+      SignalKind.status =>
         latest?.value == null
             ? kMissingValue
             : 'Code ${latest!.value!.round()}',
-      HourlySignalKind.counter => withUnit(
+      SignalKind.counter => withUnit(
         latest?.value,
         unit.isEmpty ? '' : '$unit/h',
       ),
-      HourlySignalKind.analog => withUnit(latest?.value, unit),
+      SignalKind.analog => withUnit(latest?.value, unit),
     };
 
     final metrics = <Widget>[
-      if (series.kind == HourlySignalKind.analog) ...[
+      if (series.kind == SignalKind.analog) ...[
         _Metric(label: 'Min', value: fmt(summary.min)),
         _Metric(label: 'Avg', value: fmt(summary.avg)),
         _Metric(label: 'Max', value: fmt(summary.max)),
       ],
-      if (series.kind == HourlySignalKind.counter)
+      if (series.kind == SignalKind.counter)
         _Metric(
           label: 'Total',
           value: withUnit(summary.total, unit),
           highlight: theme.line,
         ),
-      if (series.kind == HourlySignalKind.status)
+      if (series.kind == SignalKind.status)
         _Metric(label: 'Changes', value: '${summary.statusChanges}'),
     ];
 
@@ -358,7 +360,7 @@ class _HourlySummaryBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (series.kind == HourlySignalKind.status && latest?.value != null)
+          if (series.kind == SignalKind.status && latest?.value != null)
             Container(
               width: 10,
               height: 10,

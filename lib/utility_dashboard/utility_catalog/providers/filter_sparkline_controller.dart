@@ -3,9 +3,8 @@ import 'dart:collection';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:flutter/widgets.dart';
 
+import '../../shared/state/safe_change_notifier.dart';
 import '../api/signal_history_repository.dart';
 import '../models/signal_history_models.dart';
 
@@ -30,9 +29,10 @@ enum SparklineLoadState { loading, ready, error }
 /// - toi da [maxConcurrent] request cung luc, phan con lai xep hang;
 /// - device ra khoi khung nhin ma request chua xong: huy (CancelToken);
 /// - ket qua cache theo device [refreshInterval]; cuon len xuong khong tai
-///   lai. Device dang hien duoc lam moi khi cache qua [refreshInterval],
-///   KHONG theo polling cua man hinh.
-class FilterSparklineController extends ChangeNotifier {
+///   lai. Device dang hien duoc lam moi khi cache qua [refreshInterval]:
+///   view dang ky task PollingCoordinator goi [refreshStale] (scope SCADA
+///   TABLE, nen tu dung khi tab an / bi che).
+class FilterSparklineController extends ChangeNotifier with SafeChangeNotifier {
   final SignalHistoryRepository repository;
 
   FilterSparklineController({required this.repository});
@@ -45,11 +45,11 @@ class FilterSparklineController extends ChangeNotifier {
   static const Duration requestTimeout = Duration(seconds: 15);
   static const int maxConcurrent = 4;
 
-  /// Nhip kiem tra cache het han cho cac device dang hien.
-  static const Duration _refreshCheck = Duration(seconds: 30);
+  /// Device vua loi: cho toi luc nay moi thu lai (bang nhip kiem tra cua
+  /// task lam moi).
+  static const Duration _retryDelay = Duration(seconds: 30);
 
   bool _disposed = false;
-  bool _notifyScheduled = false;
 
   final Map<String, _DeviceEntry> _entries = <String, _DeviceEntry>{};
   final Map<String, SignalHistorySeries> _seriesById =
@@ -60,13 +60,6 @@ class FilterSparklineController extends ChangeNotifier {
 
   final Queue<SparklineDeviceRequest> _queue = Queue<SparklineDeviceRequest>();
   final Map<String, CancelToken> _inFlight = <String, CancelToken>{};
-
-  Timer? _refreshTimer;
-
-  /// Bang Filter results dang that su hien tren man hinh (tab SCADA TABLE
-  /// dang hien, tab trinh duyet khong an, khong bi route khac che). Do view
-  /// bao qua [setOnScreen]; false thi dung nhip lam moi 30s.
-  bool _onScreen = true;
 
   /// Tong so request da gui (log debug, de do muc tai).
   int _requestCount = 0;
@@ -110,17 +103,13 @@ class FilterSparklineController extends ChangeNotifier {
 
     _evict();
     _enqueueStale();
-    _ensureTimer();
   }
 
-  void setOnScreen(bool onScreen) {
-    if (_disposed || _onScreen == onScreen) return;
-
-    _onScreen = onScreen;
-
-    // Hien lai: lam moi ngay cac device da qua han thay vi doi nhip 30s.
-    if (onScreen) _enqueueStale();
-    _ensureTimer();
+  /// Task lam moi cua view: tai lai cac device dang hien da qua han. Chay
+  /// ngay khi bang hien lai (doi tab / bo che) thay vi doi nhip ke tiep.
+  Future<void> refreshStale() async {
+    if (_disposed) return;
+    _enqueueStale();
   }
 
   /// Dua vao hang doi cac device dang hien chua co cache / cache da cu.
@@ -143,7 +132,7 @@ class FilterSparklineController extends ChangeNotifier {
 
     _pump();
 
-    if (changed) _safeNotify();
+    if (changed) safeNotify();
   }
 
   bool _needsLoad(SparklineDeviceRequest device, DateTime now) {
@@ -163,19 +152,6 @@ class FilterSparklineController extends ChangeNotifier {
 
     final fetchedAt = entry.fetchedAt;
     return fetchedAt == null || now.difference(fetchedAt) >= refreshInterval;
-  }
-
-  void _ensureTimer() {
-    if (_visible.isEmpty || !_onScreen) {
-      _refreshTimer?.cancel();
-      _refreshTimer = null;
-      return;
-    }
-
-    _refreshTimer ??= Timer.periodic(_refreshCheck, (_) {
-      if (_disposed) return;
-      _enqueueStale();
-    });
   }
 
   void _pump() {
@@ -236,14 +212,14 @@ class FilterSparklineController extends ChangeNotifier {
             : SparklineLoadState.error,
         signalIds: device.signalIds,
         fetchedAt: _hasAnySeries(device) ? _entries[key]?.fetchedAt : null,
-        retryAfter: DateTime.now().add(_refreshCheck),
+        retryAfter: DateTime.now().add(_retryDelay),
       );
 
       debugPrint('[FILTER SPARKLINE ERROR] device=$key error=$error');
     } finally {
       if (!_disposed && identical(_inFlight[key], token)) {
         _inFlight.remove(key);
-        _safeNotify();
+        safeNotify();
         _pump();
       }
     }
@@ -272,42 +248,10 @@ class FilterSparklineController extends ChangeNotifier {
     }
   }
 
-  // ============================================================
-  // SAFE NOTIFY
-  // ============================================================
-
-  /// syncVisible co the chay trong build phase: hoan notify sau frame.
-  void _safeNotify() {
-    if (_disposed) return;
-
-    final binding = WidgetsBinding.instance;
-    final phase = binding.schedulerPhase;
-
-    final isBuilding =
-        phase == SchedulerPhase.persistentCallbacks ||
-        phase == SchedulerPhase.midFrameMicrotasks;
-
-    if (!isBuilding) {
-      notifyListeners();
-      return;
-    }
-
-    if (_notifyScheduled) return;
-    _notifyScheduled = true;
-
-    binding.addPostFrameCallback((_) {
-      _notifyScheduled = false;
-      if (_disposed) return;
-      notifyListeners();
-    });
-  }
-
   @override
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-
-    _refreshTimer?.cancel();
 
     for (final token in _inFlight.values) {
       token.cancel('disposed');
