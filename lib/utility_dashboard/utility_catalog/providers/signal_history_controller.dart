@@ -9,6 +9,10 @@ import '../models/signal_history_models.dart';
 
 enum CatalogDetailViewMode { table, chart }
 
+/// Cach xep the o che do Chart: gop signal cung (code, unit) vao mot the,
+/// hoac moi signal mot the gon.
+enum CatalogChartLayout { merge, split }
+
 /// State cua che do Chart trong panel chi tiet thiet bi.
 ///
 /// Khong con reload theo LatestProvider.dataVersion. View (SignalChartView)
@@ -20,8 +24,7 @@ enum CatalogDetailViewMode { table, chart }
 /// - lan tai dau cua device, chua co gi de hien: skeleton;
 /// - doi range: giu chart cu (lam mo) + progress bar, khong ve skeleton;
 /// - polling / refresh cung range: tai ngam, chart giu nguyen.
-class SignalHistoryController extends ChangeNotifier
-    with SafeChangeNotifier {
+class SignalHistoryController extends ChangeNotifier with SafeChangeNotifier {
   final SignalHistoryRepository repository;
 
   SignalHistoryController({required this.repository});
@@ -52,6 +55,9 @@ class SignalHistoryController extends ChangeNotifier
 
   CatalogDetailViewMode _viewMode = CatalogDetailViewMode.table;
 
+  /// Giu trong phien (controller song cung dashboard).
+  CatalogChartLayout _chartLayout = CatalogChartLayout.merge;
+
   HistoryRange _range = HistoryRange.h1;
 
   // Target dang duoc view yeu cau.
@@ -77,6 +83,8 @@ class SignalHistoryController extends ChangeNotifier
   // ============================================================
 
   CatalogDetailViewMode get viewMode => _viewMode;
+
+  CatalogChartLayout get chartLayout => _chartLayout;
 
   HistoryRange get range => _range;
 
@@ -134,6 +142,14 @@ class SignalHistoryController extends ChangeNotifier
     safeNotify();
 
     _loadIfNeeded();
+  }
+
+  /// Chi doi cach hien thi, khong tai lai du lieu.
+  void setChartLayout(CatalogChartLayout layout) {
+    if (_disposed || layout == _chartLayout) return;
+
+    _chartLayout = layout;
+    safeNotify();
   }
 
   void setRange(HistoryRange range) {
@@ -340,8 +356,7 @@ class SignalHistoryController extends ChangeNotifier
     }
 
     // Doi device: khong bao gio hien data cua device truoc.
-    if (_displayedKey != null &&
-        _deviceOf(_displayedKey!) != _deviceOf(key)) {
+    if (_displayedKey != null && _deviceOf(_displayedKey!) != _deviceOf(key)) {
       _clearDisplay();
     }
 
@@ -399,7 +414,6 @@ class SignalHistoryController extends ChangeNotifier
 
     return true;
   }
-
 
   @override
   void dispose() {

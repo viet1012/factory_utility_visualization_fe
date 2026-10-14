@@ -209,7 +209,9 @@ class SignalHistorySeries {
   double? plotValue(SignalHistoryPoint point) {
     if (point.value == null) return null;
 
-    return kind == SignalKind.status ? (point.last ?? point.value) : point.value;
+    return kind == SignalKind.status
+        ? (point.last ?? point.value)
+        : point.value;
   }
 
   /// Level vuot nguong cao nhat cua [point] voi [lines] (= [chartThresholds],

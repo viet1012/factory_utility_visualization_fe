@@ -200,10 +200,5 @@ int? barBreachLevel(List<SignalThreshold> lines, SignalBar bar) {
   final value = bar.value;
   if (value == null || lines.isEmpty) return null;
 
-  return thresholdBreachLevel(
-    lines,
-    value: value,
-    min: bar.min,
-    max: bar.max,
-  );
+  return thresholdBreachLevel(lines, value: value, min: bar.min, max: bar.max);
 }

@@ -32,7 +32,13 @@ String thresholdText(AxisThreshold line, String? unit, int decimals) {
 }
 
 /// Duong nguong ngang net dut + nhan (High nam tren duong, Low nam duoi).
-PlotBand thresholdPlotBand(AxisThreshold line, String? unit, int decimals) {
+/// [showText] = false: chi ve duong (chart gon khong co nhan truc).
+PlotBand thresholdPlotBand(
+  AxisThreshold line,
+  String? unit,
+  int decimals, {
+  bool showText = true,
+}) {
   final color = thresholdColor(line);
 
   return PlotBand(
@@ -43,7 +49,7 @@ PlotBand thresholdPlotBand(AxisThreshold line, String? unit, int decimals) {
     borderWidth: 1,
     dashArray: const <double>[4, 3],
     shouldRenderAboveSeries: true,
-    text: thresholdText(line, unit, decimals),
+    text: showText ? thresholdText(line, unit, decimals) : null,
     textStyle: TextStyle(
       color: color,
       fontSize: 9.5,
@@ -55,10 +61,14 @@ PlotBand thresholdPlotBand(AxisThreshold line, String? unit, int decimals) {
 }
 
 /// Cac PlotBand nguong cua [axis].
-List<PlotBand> thresholdPlotBands(AxisPlan axis, String? unit) {
+List<PlotBand> thresholdPlotBands(
+  AxisPlan axis,
+  String? unit, {
+  bool showText = true,
+}) {
   return [
     for (final line in axis.thresholds)
-      thresholdPlotBand(line, unit, axis.decimals),
+      thresholdPlotBand(line, unit, axis.decimals, showText: showText),
   ];
 }
 
@@ -182,15 +192,75 @@ class _OffscaleLabel extends StatelessWidget {
   );
 }
 
-/// Chip "High 60 °C · còn 29.8" canh gia tri hien tai (chi ANALOG).
-///
-/// Xam: binh thuong; cam: con cach nguong < [ChartConfig.thresholdNearRatio]
-/// × max(|gia tri|, 1); do: dang vuot ("vượt").
+/// Trong cac signal cua mot nhom: signal dang vuot (level cao nhat), khong
+/// thi signal gan nguong nhat (theo ty le khoang cach / max(|gia tri|, 1)).
+/// Null khi khong signal nao co nguong va gia tri.
+T? nearestThresholdOfGroup<T>(
+  Iterable<T> entries, {
+  required List<SignalThreshold> Function(T entry) thresholdsOf,
+  required double? Function(T entry) valueOf,
+}) {
+  T? best;
+  var bestBreached = false;
+  var bestLevel = 0;
+  var bestRatio = double.infinity;
+
+  for (final entry in entries) {
+    final value = valueOf(entry);
+    if (value == null || !value.isFinite) continue;
+
+    final match = nearestThreshold(thresholdsOf(entry), value);
+    if (match == null) continue;
+
+    final ratio = match.gap / math.max(value.abs(), 1);
+
+    final better = match.breached
+        ? (!bestBreached || match.line.level > bestLevel)
+        : (!bestBreached && ratio < bestRatio);
+
+    if (!better) continue;
+
+    best = entry;
+    bestBreached = match.breached;
+    bestLevel = match.line.level;
+    bestRatio = ratio;
+  }
+
+  return best;
+}
+
+const Color _thresholdNormalColor = Color(0xFF94A3B8);
+
+/// Mau theo muc gan nguong: xam binh thuong; cam khi con cach nguong <
+/// [ChartConfig.thresholdNearRatio] × max(|gia tri|, 1); do khi dang vuot.
+Color thresholdProximityColor(
+  ({SignalThreshold line, double gap, bool breached}) match,
+  double value,
+) {
+  if (match.breached) return kThresholdLevel3Color;
+
+  final near =
+      match.gap < ChartConfig.thresholdNearRatio * math.max(value.abs(), 1);
+
+  return near ? kThresholdLevel2Color : _thresholdNormalColor;
+}
+
+/// "▲ High 60 °C" / "▼ Low 198 V".
+String thresholdSideLabel(SignalThreshold line, String? unit, int decimals) {
+  return '${line.isHigh ? '▲ High' : '▼ Low'} '
+      '${formatWithUnit(line.value, unit, decimals: decimals)}';
+}
+
+/// Chip "▲ High 60 °C · 29.8 left" canh gia tri hien tai (chi ANALOG);
+/// dang vuot: "· over by 2.1". Co [subject] (signal gan nguong nhat cua
+/// nhom): "▲ High 3.0 · VCH24-9 0.12 left". Mau theo
+/// [thresholdProximityColor].
 class ThresholdChip extends StatelessWidget {
   final List<SignalThreshold> thresholds;
   final double? value;
   final String? unit;
   final int decimals;
+  final String? subject;
 
   const ThresholdChip({
     super.key,
@@ -198,9 +268,8 @@ class ThresholdChip extends StatelessWidget {
     required this.value,
     required this.unit,
     required this.decimals,
+    this.subject,
   });
-
-  static const Color _normalColor = Color(0xFF94A3B8);
 
   @override
   Widget build(BuildContext context) {
@@ -210,21 +279,13 @@ class ThresholdChip extends StatelessWidget {
     final match = nearestThreshold(thresholds, current);
     if (match == null) return const SizedBox.shrink();
 
-    final line = match.line;
-    final near =
-        match.gap < ChartConfig.thresholdNearRatio * math.max(current.abs(), 1);
+    final color = thresholdProximityColor(match, current);
+    final gap = formatValue(match.gap, decimals: decimals);
 
-    final color = match.breached
-        ? kThresholdLevel3Color
-        : near
-        ? kThresholdLevel2Color
-        : _normalColor;
-
-    final side = line.isHigh ? 'High' : 'Low';
+    final who = subject == null ? '' : '$subject ';
     final text =
-        '$side ${formatWithUnit(line.value, unit, decimals: decimals)} · '
-        '${match.breached ? 'vượt' : 'còn'} '
-        '${formatValue(match.gap, decimals: decimals)}';
+        '${thresholdSideLabel(match.line, unit, decimals)} · '
+        '${match.breached ? '${who}over by $gap' : '$who$gap left'}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),

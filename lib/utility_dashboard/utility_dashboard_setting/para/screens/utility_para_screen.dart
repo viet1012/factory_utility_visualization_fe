@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' hide SearchBar;
 
 import '../../../utility_dashboard_common/chart_theme.dart';
 import '../../channel/api/utility_scada_channel_api.dart';
+import '../../setting_api_support.dart';
 import '../../setting_security.dart';
 import '../../utility_dashboard_setting_screens/base_setting_screen.dart';
 import '../../utility_dashboard_setting_widgets/protected_edit_button.dart';
@@ -68,13 +69,14 @@ class _UtilityParaTreeScreenState extends State<UtilityParaTreeScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = settingErrorMessage(e);
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -148,12 +150,37 @@ class _UtilityParaTreeScreenState extends State<UtilityParaTreeScreen> {
       await _loadData();
     } catch (e) {
       if (!mounted) return;
-      _showMessage(e.toString(), isError: true);
+      _showMessage(settingErrorMessage(e), isError: true);
     } finally {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
+    }
+  }
+
+  /// Luu para da sua; loi hien SnackBar, luon tat trang thai saving.
+  Future<void> _updatePara(int id, UtilityPara item) async {
+    setState(() {
+      _submitting = true;
+    });
+
+    try {
+      await widget.api.update(id, item);
+
       if (!mounted) return;
-      setState(() {
-        _submitting = false;
-      });
+      _showMessage('Updated successfully');
+      await _loadData();
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage(settingErrorMessage(e), isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
     }
   }
 
@@ -576,7 +603,15 @@ class _ParaDeviceNode extends StatelessWidget {
         .findAncestorStateOfType<_UtilityParaTreeScreenState>();
     if (state == null) return;
 
-    final boxDeviceIdOptions = await state._getBoxDeviceIdOptions();
+    final List<String> boxDeviceIdOptions;
+    try {
+      boxDeviceIdOptions = await state._getBoxDeviceIdOptions();
+    } catch (e) {
+      if (state.mounted) {
+        state._showMessage(settingErrorMessage(e), isError: true);
+      }
+      return;
+    }
 
     if (!context.mounted) return;
 
@@ -603,16 +638,9 @@ class _ParaDeviceNode extends StatelessWidget {
       ),
     );
 
-    if (result == null || para.id == null) return;
+    if (result == null || para.id == null || !state.mounted) return;
 
-    await state.widget.api.update(para.id!, result);
-    await state._loadData();
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Updated successfully')));
-    }
+    await state._updatePara(para.id!, result);
   }
 
   @override

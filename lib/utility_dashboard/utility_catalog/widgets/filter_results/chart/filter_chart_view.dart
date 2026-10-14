@@ -6,12 +6,15 @@ import '../../../../shared/polling/polling_coordinator.dart';
 import '../../../../shared/polling/polling_scope.dart';
 import '../../../../shared/polling/polling_task_ids.dart';
 import '../../../catalog_view_models.dart';
-import '../../../models/signal_history_models.dart';
 import '../../../providers/filter_chart_controller.dart';
 import '../../../providers/filter_sparkline_controller.dart';
+import '../../../../shared/widgets/debounced_layout_builder.dart';
 import '../../signal_chart/signal_chart_palette.dart';
+import '../../signal_chart/signal_compact_card.dart';
+import '../../signal_chart/signal_group_card.dart';
+import '../../signal_chart/signal_status_chips.dart' show StatusSignalChip;
 import '../filter_result_cells.dart';
-import 'filter_chart_group_card.dart';
+import 'filter_chart_cartesian.dart' show filterGroupSpecOf;
 import 'filter_chart_groups.dart';
 
 /// Che do Chart cua Filter results: moi nhom signal (code, unit) mot the,
@@ -142,7 +145,7 @@ class _FilterChartViewState extends State<FilterChartView> {
       return _NarrowFilterMessage(deviceCount: _signalsByDevice.length);
     }
 
-    final groups = buildFilterChartGroups(
+    final result = buildFilterChartGroups(
       widget.rows,
       chartSeriesOf: (row, signalId) =>
           controller.seriesFor(row.deviceKey, signalId),
@@ -151,16 +154,10 @@ class _FilterChartViewState extends State<FilterChartView> {
     );
 
     final switching = controller.switching;
+    final empty = result.groups.isEmpty && result.status.isEmpty;
 
     return Column(
       children: [
-        _RangeBar(
-          range: controller.range,
-          loading: controller.loading,
-          deviceCount: _signalsByDevice.length,
-          groupCount: groups.length,
-          onSelected: controller.setRange,
-        ),
         SizedBox(
           height: 2,
           child: switching
@@ -176,29 +173,167 @@ class _FilterChartViewState extends State<FilterChartView> {
             // Doi range: giu chart cu, lam mo cho toi khi range moi xong.
             opacity: switching ? .45 : 1,
             duration: const Duration(milliseconds: 150),
-            child: groups.isEmpty
+            child: empty
                 ? const Center(
                     child: Text(
                       'No signals to chart',
                       style: TextStyle(color: SignalChartColors.mutedText),
                     ),
                   )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: groups.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) => RepaintBoundary(
-                      key: ValueKey(groups[index].key),
-                      child: FilterChartGroupCard(
-                        group: groups[index],
-                        onOpenDevice: widget.onOpenDevice,
-                      ),
+                : DebouncedLayoutBuilder(
+                    builder: (context, constraints) => CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.all(12),
+                          sliver: SliverMainAxisGroup(
+                            slivers: _buildSlivers(
+                              result.groups,
+                              result.status,
+                              controller,
+                              constraints.maxWidth,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
           ),
         ),
       ],
     );
+  }
+
+  /// Theo thu tu nhom (vuot -> gan nguong -> con lai): nhom >= 2 signal la
+  /// mot the full width; cac nhom 1 signal lien tiep xep thanh luoi the gon.
+  /// STATUS o cuoi: mot hang chip.
+  List<Widget> _buildSlivers(
+    List<FilterChartGroup> groups,
+    List<FilterStatusItem> status,
+    FilterChartController controller,
+    double width,
+  ) {
+    final columns = width < 700
+        ? 1
+        : width < 1200
+        ? 2
+        : 3;
+
+    final range = controller.displayRange;
+    final slivers = <Widget>[];
+    var singles = <FilterChartGroup>[];
+
+    void flushSingles() {
+      if (singles.isEmpty) return;
+
+      final block = singles;
+      singles = <FilterChartGroup>[];
+
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.only(bottom: _gap),
+          sliver: SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              mainAxisExtent: _compactExtent,
+              mainAxisSpacing: _gap,
+              crossAxisSpacing: _gap,
+            ),
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final member = block[index].members.single;
+
+              return RepaintBoundary(
+                key: ValueKey(block[index].key),
+                child: SignalCompactCard(
+                  row: member.row,
+                  series: member.series,
+                  subtitle: member.row.boxDeviceId,
+                  subtitleTooltip: member.fullLabel,
+                  range: range,
+                  loading: _isLoading(member),
+                ),
+              );
+            }, childCount: block.length),
+          ),
+        ),
+      );
+    }
+
+    for (final group in groups) {
+      if (group.members.length == 1) {
+        singles.add(group);
+        continue;
+      }
+
+      flushSingles();
+
+      slivers.add(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: _gap),
+            child: RepaintBoundary(
+              key: ValueKey(group.key),
+              child: SignalGroupCard(
+                group: group,
+                subtitle: _groupSubtitle(group),
+                range: range,
+                chartHeight: _groupChartHeight,
+                loading: group.members.any(_isLoading),
+                chipWithSubject: true,
+                singleLineColor: SignalChartColors.line(
+                  group.members.first.row.rawCategory,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    flushSingles();
+
+    if (status.isNotEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final item in status)
+                StatusSignalChip(
+                  row: item.row,
+                  series: item.series,
+                  showDevice: true,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return slivers;
+  }
+
+  static const double _gap = 10;
+
+  /// The gon: ten + gia tri + sparkline ~60px.
+  static const double _compactExtent = 128;
+
+  static const double _groupChartHeight = 170;
+
+  /// "°C · 3 signals · 2 devices".
+  static String _groupSubtitle(FilterChartGroup group) {
+    final unit = filterGroupSpecOf(group).resolveUnit(group.unit);
+
+    return [
+      if (unit.isNotEmpty) unit,
+      pluralize(group.members.length, 'signal'),
+      pluralize(group.deviceCount, 'device'),
+    ].join(' · ');
+  }
+
+  static bool _isLoading(FilterChartMember member) {
+    return member.series == null &&
+        (member.state == null || member.state == FilterChartLoadState.loading);
   }
 }
 
@@ -234,119 +369,6 @@ class _NarrowFilterMessage extends StatelessWidget {
             style: TextStyle(color: SignalChartColors.mutedText, fontSize: 12),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RangeBar extends StatelessWidget {
-  final HistoryRange range;
-  final bool loading;
-  final int deviceCount;
-  final int groupCount;
-  final ValueChanged<HistoryRange> onSelected;
-
-  const _RangeBar({
-    required this.range,
-    required this.loading,
-    required this.deviceCount,
-    required this.groupCount,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: SignalChartColors.cardBorder)),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.schedule_rounded,
-            size: 16,
-            color: SignalChartColors.mutedText,
-          ),
-          const SizedBox(width: 8),
-          for (final item in HistoryRange.values)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: _RangeChip(
-                label: item.label,
-                selected: item == range,
-                loading: item == range && loading,
-                onTap: () => onSelected(item),
-              ),
-            ),
-          const Spacer(),
-          Text(
-            '$groupCount groups  •  $deviceCount devices',
-            style: const TextStyle(
-              color: SignalChartColors.mutedText,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Cung style chip range voi panel device.
-class _RangeChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final bool loading;
-  final VoidCallback onTap;
-
-  const _RangeChip({
-    required this.label,
-    required this.selected,
-    required this.loading,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? SignalChartColors.text : SignalChartColors.subText;
-
-    return Material(
-      color: selected
-          ? SignalChartColors.chipSelected
-          : SignalChartColors.chipIdle,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              if (loading) ...[
-                const SizedBox(width: 6),
-                SizedBox.square(
-                  dimension: 10,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: color,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
       ),
     );
   }

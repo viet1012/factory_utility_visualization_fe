@@ -7,10 +7,13 @@ import '../catalog_view_models.dart';
 import '../providers/filter_chart_controller.dart';
 import '../providers/signal_history_controller.dart';
 import 'filter_results/catalog_filter_results_grid.dart';
+import 'filter_results/chart/filter_chart_groups.dart' show pluralize;
 import 'filter_results/chart/filter_chart_view.dart';
-import 'filter_results/filter_over_threshold_badge.dart';
+import 'filter_results/filter_header_status.dart';
 import 'filter_results/filter_result_cells.dart';
+import 'signal_chart/signal_chart_controls.dart';
 import 'signal_chart/signal_chart_view.dart';
+import 'signal_chart/signal_status_chips.dart';
 
 class CatalogSignalDetail extends StatelessWidget {
   final CatalogDeviceGroup? device;
@@ -78,32 +81,15 @@ class CatalogSignalDetail extends StatelessWidget {
         ? 'FILTER RESULTS'
         : selectedDevice!.boxDeviceId;
 
-    // Moi dong cung mot SCADA: an cot SCADA, ghi SCADA o header.
-    final pageScadas = {for (final row in pageRows) row.scadaId};
-    final singleScada = pageScadas.length == 1 ? pageScadas.first : null;
-
-    final subtitleText = globalMode
-        ? [
-            if (singleScada != null) 'SCADA $singleScada',
-            '$deviceCount devices',
-            if (pageDeviceCount < deviceCount)
-              'showing $pageDeviceCount on this page',
-          ].join('  •  ')
-        : '${selectedDevice!.facility}'
-              '  •  ${selectedDevice.category}'
-              '  •  ${selectedDevice.scadaId}'
-              '  •  ${selectedDevice.boxId}';
-
-    final isEmpty = globalMode ? rows.isEmpty : selectedDevice!.signals.isEmpty;
-
     /*
      * Chart chi co nghia cho mot device: global filter mode luon hien bang
      * (toggle bi an), nhung lua chon cua nguoi dung van duoc giu trong
      * controller cho lan quay lai normal mode.
      */
-    final viewMode = context.select<SignalHistoryController, CatalogDetailViewMode>(
-      (controller) => controller.viewMode,
-    );
+    final viewMode = context
+        .select<SignalHistoryController, CatalogDetailViewMode>(
+          (controller) => controller.viewMode,
+        );
 
     final showChart = !globalMode && viewMode == CatalogDetailViewMode.chart;
 
@@ -116,94 +102,166 @@ class CatalogSignalDetail extends StatelessWidget {
     final showFilterChart =
         globalMode && filterViewMode == CatalogDetailViewMode.chart;
 
+    // Moi dong cung mot SCADA: an cot SCADA, ghi SCADA o header.
+    final pageScadas = {for (final row in pageRows) row.scadaId};
+    final singleScada = pageScadas.length == 1 ? pageScadas.first : null;
+
+    // Filter results: "Water › SCADA A5 · 9 devices · 19 signals".
+    final categories = {for (final row in rows) row.category};
+    final scadas = {for (final row in rows) row.scadaId};
+
+    final subtitleText = globalMode
+        ? [
+            [
+              if (categories.length == 1) categories.first,
+              if (scadas.length == 1) 'SCADA ${scadas.first}',
+            ].join('  ›  '),
+            pluralize(deviceCount, 'device'),
+            pluralize(signalCount, 'signal'),
+            if (!showFilterChart && pageDeviceCount < deviceCount)
+              'showing $pageDeviceCount on this page',
+          ].where((part) => part.isNotEmpty).join('  ·  ')
+        : [
+            selectedDevice!.facility,
+            selectedDevice.category,
+            selectedDevice.scadaId,
+            selectedDevice.boxId,
+          ].where((part) => part.trim().isNotEmpty).join('  ›  ');
+
+    final isEmpty = globalMode ? rows.isEmpty : selectedDevice!.signals.isEmpty;
+
     return Container(
       color: const Color(0xFF07111F),
       child: Column(
         children: [
           Container(
-            height: 80,
+            height: 72,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: const BoxDecoration(
               color: Color(0xFF0D1B2B),
               border: Border(bottom: BorderSide(color: Color(0xFF20344D))),
             ),
-            child: Row(
-              children: [
-                if (onBackToResults != null) ...[
-                  IconButton(
-                    tooltip: 'Back to filter results',
-                    onPressed: onBackToResults,
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Color(0xFFA6B8CC),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        titleText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final headerWidth = constraints.maxWidth;
+
+                return Row(
+                  children: [
+                    if (onBackToResults != null) ...[
+                      IconButton(
+                        tooltip: 'Back to filter results',
+                        onPressed: onBackToResults,
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Color(0xFFA6B8CC),
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                        subtitleText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF7F94AD),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      const SizedBox(width: 4),
                     ],
-                  ),
-                ),
-                if (globalMode &&
-                    groupFilterLabel != null &&
-                    onClearGroupFilter != null) ...[
-                  _GroupFilterChip(
-                    label: groupFilterLabel!,
-                    onClear: onClearGroupFilter!,
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                if (globalMode) FilterOverThresholdBadge(rows: rows),
-                _DetailBadge(
-                  label: '$signalCount Signals',
-                  color: const Color(0xFF60A5FA),
-                ),
-                const SizedBox(width: 7),
-                _DetailBadge(
-                  label: '$onlineCount Online',
-                  color: const Color(0xFF4ADE80),
-                ),
-                const SizedBox(width: 7),
-                _DetailBadge(
-                  label: '$staleCount Stale',
-                  color: Colors.orangeAccent,
-                ),
-                const SizedBox(width: 12),
-                if (globalMode)
-                  _DetailViewToggle(
-                    value: filterViewMode,
-                    onChanged: context.read<FilterChartController>().setViewMode,
-                  )
-                else
-                  _DetailViewToggle(
-                    value: viewMode,
-                    onChanged: context.read<SignalHistoryController>().setViewMode,
-                  ),
-              ],
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  titleText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              // Signal STATUS (vd Slave ID): chip thay cho the.
+                              if (!globalMode)
+                                Flexible(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: DeviceStatusChips(
+                                      device: selectedDevice!,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            subtitleText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF7F94AD),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Phan dieu khien ben phai: toi da 70% be ngang, cuon ngang
+                    // khi panel hep.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: headerWidth * .7),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        reverse: true,
+                        child: Row(
+                          children: [
+                            if (globalMode &&
+                                groupFilterLabel != null &&
+                                onClearGroupFilter != null) ...[
+                              _GroupFilterChip(
+                                label: groupFilterLabel!,
+                                onClear: onClearGroupFilter!,
+                              ),
+                              const SizedBox(width: 10),
+                            ],
+                            HeaderPill(
+                              label: '$onlineCount/$signalCount online',
+                              color: kOnlinePillColor,
+                            ),
+                            if (staleCount > 0)
+                              HeaderPill(
+                                label: '$staleCount stale',
+                                color: kStalePillColor,
+                              ),
+                            if (globalMode) FilterThresholdPills(rows: rows),
+                            const SizedBox(width: 6),
+                            if (showChart) ...[
+                              const SignalChartHeaderControls(),
+                              const SizedBox(width: 8),
+                            ],
+                            if (showFilterChart) ...[
+                              const FilterChartRangeChips(),
+                              const SizedBox(width: 8),
+                            ],
+                            if (globalMode)
+                              _DetailViewToggle(
+                                value: filterViewMode,
+                                onChanged: context
+                                    .read<FilterChartController>()
+                                    .setViewMode,
+                              )
+                            else
+                              _DetailViewToggle(
+                                value: viewMode,
+                                onChanged: context
+                                    .read<SignalHistoryController>()
+                                    .setViewMode,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
           Expanded(
@@ -306,32 +364,6 @@ class CatalogSignalGrid extends StatelessWidget {
   }
 }
 
-class _DetailBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _DetailBadge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .08),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: .20)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
 /// Chip nhom tree dang chon trong Filter results; bam × de bo chon.
 class _GroupFilterChip extends StatelessWidget {
   final String label;

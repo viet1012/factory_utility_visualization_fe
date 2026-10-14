@@ -241,13 +241,13 @@ class _FilterChartCartesianState extends State<FilterChartCartesian> {
   }
 }
 
-/// Spec cua mot nhom Filter results: code = title khi nhom theo code.
+/// Spec cua mot nhom chart theo code / unit / kind / ten chung.
 SignalChartSpec filterGroupSpecOf(FilterChartGroup group) {
   return SignalChartSpecRegistry.resolve(
-    code: group.subtitle != null ? group.title : null,
+    code: group.code.isEmpty ? null : group.code,
     unit: group.unit,
     kind: group.kind.name.toUpperCase(),
-    name: group.subtitle ?? group.title,
+    name: group.title,
   );
 }
 

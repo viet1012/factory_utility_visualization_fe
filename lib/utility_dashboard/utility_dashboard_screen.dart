@@ -28,6 +28,7 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../utility_api/api_config.dart';
 import '../utility_api/dio_client.dart';
 import 'utility_dashboard_fac_details/api/utility_facade_service.dart';
 import 'shared/visibility/app_visibility.dart';
@@ -46,10 +47,6 @@ class UtilityDashboardScreen extends StatefulWidget {
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin, RouteAware {
-  // static const String _baseUrl = 'http://192.168.122.16:9093';
-
-  static const _baseUrl = 'http://localhost:9999';
-
   static const int _tabCount = 5;
 
   static const List<IndustrialSideTabItem> _tabs = [
@@ -164,7 +161,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   void _initializeNetwork() {
     if (!DioClient.isInitialized) {
       DioClient.init(
-        baseUrl: _baseUrl,
+        baseUrl: apiBaseUrl,
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 90),
         sendTimeout: const Duration(seconds: 30),
@@ -184,11 +181,12 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     facade = UtilityFacadeService(dio);
 
-    scadaChannelApi = UtilityScadaChannelApi(baseUrl: _baseUrl);
+    // Setting: cung Dio dung chung, timeout 30s rieng cho tung request.
+    scadaChannelApi = UtilityScadaChannelApi(dio: dio);
 
-    scadaApi = UtilityScadaApi(baseUrl: _baseUrl);
+    scadaApi = UtilityScadaApi(dio: dio);
 
-    paraApi = UtilityParaApi(baseUrl: _baseUrl);
+    paraApi = UtilityParaApi(dio: dio);
   }
 
   void _initializeProviders() {
@@ -585,9 +583,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     hourlyDashboardProvider.dispose();
     dailyDashboardProvider.dispose();
     monthlySummaryProvider.dispose();
-
-    scadaChannelApi.dispose();
-    scadaApi.dispose();
 
     super.dispose();
   }

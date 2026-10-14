@@ -27,10 +27,15 @@ class SignalChartPlot extends StatefulWidget {
   final SignalHistorySeries series;
   final Color lineColor;
 
+  /// The gon (Split): khong nhan truc, khong chu tren duong nguong, luoi
+  /// toi gian; tooltip van day du.
+  final bool compact;
+
   const SignalChartPlot({
     super.key,
     required this.series,
     required this.lineColor,
+    this.compact = false,
   });
 
   @override
@@ -99,9 +104,7 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
 
     // Nguong `thresholds[]` chi ap cho ANALOG (chartThresholds rong voi
     // COUNTER / STATUS).
-    final lines = isBar
-        ? const <SignalThreshold>[]
-        : series.chartThresholds;
+    final lines = isBar ? const <SignalThreshold>[] : series.chartThresholds;
 
     final exceeded = <_ExceedMark>[
       for (final point in points)
@@ -123,9 +126,12 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
     final unit = spec.resolveUnit(series.unit);
     final animationMs = _animation.duration();
     const gap = EmptyPointSettings(mode: EmptyPointMode.gap);
+    final compact = widget.compact;
 
     final chart = SfCartesianChart(
-      margin: const EdgeInsets.fromLTRB(0, 6, 6, 0),
+      margin: compact
+          ? const EdgeInsets.fromLTRB(0, 4, 0, 0)
+          : const EdgeInsets.fromLTRB(0, 6, 6, 0),
       plotAreaBorderWidth: 0,
       trackballBehavior: _trackball,
       primaryXAxis: DateTimeAxis(
@@ -136,11 +142,14 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
         majorGridLines: const MajorGridLines(width: 0),
         axisLine: AxisLine(color: SignalChartColors.axisLine),
         majorTickLines: const MajorTickLines(size: 0),
-        labelStyle: const TextStyle(
-          color: SignalChartColors.mutedText,
-          fontSize: 10.5,
-        ),
-        plotBands: [
+        axisLabelFormatter: compact ? compactAxisLabel : null,
+        labelStyle: compact
+            ? kCompactAxisLabelStyle
+            : const TextStyle(
+                color: SignalChartColors.mutedText,
+                fontSize: 10.5,
+              ),
+        plotBands: <PlotBand>[
           for (final gap in plot.gaps)
             PlotBand(
               start: gap.start,
@@ -154,17 +163,23 @@ class _SignalChartPlotState extends State<SignalChartPlot> {
         minimum: axis.min,
         maximum: axis.max,
         interval: axis.interval,
-        axisLabelFormatter: (details) => ChartAxisLabel(
-          axis.label(details.value),
-          const TextStyle(color: SignalChartColors.mutedText, fontSize: 10.5),
-        ),
+        axisLabelFormatter: compact
+            ? compactAxisLabel
+            : (details) => ChartAxisLabel(
+                axis.label(details.value),
+                const TextStyle(
+                  color: SignalChartColors.mutedText,
+                  fontSize: 10.5,
+                ),
+              ),
+        labelStyle: compact ? kCompactAxisLabelStyle : null,
         majorGridLines: MajorGridLines(
-          width: 1,
+          width: compact ? .6 : 1,
           color: SignalChartColors.gridLine,
         ),
         axisLine: const AxisLine(width: 0),
         majorTickLines: const MajorTickLines(size: 0),
-        plotBands: thresholdPlotBands(axis, unit),
+        plotBands: thresholdPlotBands(axis, unit, showText: !compact),
       ),
       series: <CartesianSeries<dynamic, DateTime>>[
         if (hasBand)

@@ -24,11 +24,16 @@ class SignalChartBarPlot extends StatefulWidget {
   final SignalBarPeriod period;
   final Color barColor;
 
+  /// The gon (Split): khong nhan truc / tieu de truc, khong chu tren duong
+  /// nguong; tooltip van day du.
+  final bool compact;
+
   const SignalChartBarPlot({
     super.key,
     required this.series,
     required this.period,
     required this.barColor,
+    this.compact = false,
   });
 
   @override
@@ -109,9 +114,12 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
     );
 
     final animationMs = _animation.duration();
+    final compact = widget.compact;
 
     final chart = SfCartesianChart(
-      margin: const EdgeInsets.fromLTRB(0, 6, 6, 0),
+      margin: compact
+          ? const EdgeInsets.fromLTRB(0, 4, 0, 0)
+          : const EdgeInsets.fromLTRB(0, 6, 6, 0),
       plotAreaBorderWidth: 0,
       trackballBehavior: _trackball,
       primaryXAxis: CategoryAxis(
@@ -119,20 +127,32 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
         axisLine: AxisLine(color: SignalChartColors.axisLine),
         majorTickLines: const MajorTickLines(size: 0),
         labelIntersectAction: AxisLabelIntersectAction.none,
-        axisLabelFormatter: (details) => ChartAxisLabel(
-          _axisLabel(barsByKey[details.text], period),
-          const TextStyle(color: SignalChartColors.mutedText, fontSize: 10.5),
-        ),
+        labelStyle: compact ? kCompactAxisLabelStyle : null,
+        axisLabelFormatter: compact
+            ? compactAxisLabel
+            : (details) => ChartAxisLabel(
+                _axisLabel(barsByKey[details.text], period),
+                const TextStyle(
+                  color: SignalChartColors.mutedText,
+                  fontSize: 10.5,
+                ),
+              ),
       ),
       primaryYAxis: NumericAxis(
         minimum: axis.min,
         maximum: axis.max,
         interval: axis.interval,
-        axisLabelFormatter: (details) => ChartAxisLabel(
-          axis.label(details.value),
-          const TextStyle(color: SignalChartColors.mutedText, fontSize: 10.5),
-        ),
-        title: isCounter
+        labelStyle: compact ? kCompactAxisLabelStyle : null,
+        axisLabelFormatter: compact
+            ? compactAxisLabel
+            : (details) => ChartAxisLabel(
+                axis.label(details.value),
+                const TextStyle(
+                  color: SignalChartColors.mutedText,
+                  fontSize: 10.5,
+                ),
+              ),
+        title: isCounter && !compact
             ? AxisTitle(
                 text: _counterUnit(unit, period),
                 textStyle: const TextStyle(
@@ -142,12 +162,12 @@ class _SignalChartBarPlotState extends State<SignalChartBarPlot> {
               )
             : const AxisTitle(),
         majorGridLines: MajorGridLines(
-          width: 1,
+          width: compact ? .6 : 1,
           color: SignalChartColors.gridLine,
         ),
         axisLine: const AxisLine(width: 0),
         majorTickLines: const MajorTickLines(size: 0),
-        plotBands: thresholdPlotBands(axis, unit),
+        plotBands: thresholdPlotBands(axis, unit, showText: !compact),
       ),
       series: <CartesianSeries<SignalBar, String>>[
         if (isCounter)

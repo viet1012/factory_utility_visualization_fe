@@ -24,6 +24,22 @@ set "OUTPUT_ROOT=D:\Viet\Utility\BUILD_WEB"
 REM Chỉ xóa và replace folder này
 set "OUTPUT_DIR=%OUTPUT_ROOT%\build"
 
+REM Backend URL (lib\utility_api\api_config.dart):
+REM   - Đặt biến môi trường API_BASE_URL để build cho server khác:
+REM       set API_BASE_URL=http://<host>:<port>
+REM       build_web.bat
+REM   - Không đặt: dùng URL production mặc định trong api_config.dart.
+REM
+REM Chạy local (không qua file này):
+REM   flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:9999
+set "DART_DEFINES="
+set "API_BASE_URL_LABEL=production (default in api_config.dart)"
+
+if defined API_BASE_URL (
+    set DART_DEFINES="--dart-define=API_BASE_URL=%API_BASE_URL%"
+    set "API_BASE_URL_LABEL=%API_BASE_URL%"
+)
+
 
 REM ============================================================
 REM WINDOW TITLE
@@ -53,6 +69,10 @@ echo.
 
 echo Deploy build:
 echo   %OUTPUT_DIR%
+echo.
+
+echo API base URL:
+echo   %API_BASE_URL_LABEL%
 echo.
 
 
@@ -182,7 +202,7 @@ echo [2/7] FLUTTER BUILD WEB
 echo ============================================================
 echo.
 
-call flutter build web
+call flutter build web %DART_DEFINES%
 
 if errorlevel 1 (
     echo.
@@ -540,6 +560,7 @@ echo   %OUTPUT_DIR%
 echo.
 
 echo ------------------------------------------------------------
+echo API BASE URL           : %API_BASE_URL_LABEL%
 echo CUSTOM BOOTSTRAP       : OK
 echo SERVICE WORKER         : REMOVED
 echo INDEX.HTML             : OK

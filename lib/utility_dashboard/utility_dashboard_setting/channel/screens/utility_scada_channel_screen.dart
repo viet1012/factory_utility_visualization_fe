@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../utility_dashboard_common/chart_theme.dart';
 import '../../scada/api/utility_scada_api.dart';
+import '../../setting_api_support.dart';
 import '../../setting_security.dart';
 import '../../utility_dashboard_setting_dialog/channel_form_dialog.dart';
 import '../../utility_dashboard_setting_screens/base_setting_screen.dart';
@@ -86,13 +87,14 @@ class _UtilityScadaChannelScreenState extends State<UtilityScadaChannelScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = settingErrorMessage(e);
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -132,12 +134,13 @@ class _UtilityScadaChannelScreenState extends State<UtilityScadaChannelScreen> {
       await _loadGroupedData();
     } catch (e) {
       if (!mounted) return;
-      _showMessage(e.toString(), isError: true);
+      _showMessage(settingErrorMessage(e), isError: true);
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _submitting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
     }
   }
 
@@ -223,7 +226,16 @@ class _UtilityScadaChannelScreenState extends State<UtilityScadaChannelScreen> {
       boxDeviceId: device.boxDeviceId,
       boxId: device.boxId,
     );
-    final scadaOptions = await _getScadaOptions();
+    final List<String> scadaOptions;
+    try {
+      scadaOptions = await _getScadaOptions();
+    } catch (e) {
+      if (mounted) _showMessage(settingErrorMessage(e), isError: true);
+      return;
+    }
+
+    if (!mounted) return;
+
     final result = await showDialog<UtilityScadaChannel>(
       context: context,
       builder: (_) => ChannelFormDialog(
@@ -247,12 +259,13 @@ class _UtilityScadaChannelScreenState extends State<UtilityScadaChannelScreen> {
       await _loadGroupedData();
     } catch (e) {
       if (!mounted) return;
-      _showMessage(e.toString(), isError: true);
+      _showMessage(settingErrorMessage(e), isError: true);
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _submitting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../setting_api_support.dart';
 import '../api/utility_scada_api.dart';
 import '../models/utility_scada.dart';
 
@@ -38,7 +39,7 @@ class ScadaViewModel extends ChangeNotifier {
       _items = result;
       _applyFilter();
     } catch (e) {
-      _error = e.toString();
+      _error = settingErrorMessage(e);
     } finally {
       _loading = false;
       notifyListeners();
@@ -61,7 +62,7 @@ class ScadaViewModel extends ChangeNotifier {
       _items = [created, ..._items];
       _applyFilter();
     } catch (e) {
-      _error = e.toString();
+      _error = settingErrorMessage(e);
       rethrow;
     } finally {
       _submitting = false;
@@ -79,7 +80,7 @@ class ScadaViewModel extends ChangeNotifier {
       _items = _items.map((e) => e.id == id ? updated : e).toList();
       _applyFilter();
     } catch (e) {
-      _error = e.toString();
+      _error = settingErrorMessage(e);
       rethrow;
     } finally {
       _submitting = false;

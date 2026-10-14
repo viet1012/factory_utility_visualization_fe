@@ -494,18 +494,6 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
                     height: 1,
                   ),
                 ),
-                // ANALOG co nguong: khoang cach toi nguong gan nhat.
-                if (series.showThresholds) ...[
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: ThresholdChip(
-                      thresholds: series.thresholds,
-                      value: latest.value,
-                      unit: unit,
-                      decimals: spec.decimals,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

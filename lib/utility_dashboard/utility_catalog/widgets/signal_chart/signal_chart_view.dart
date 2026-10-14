@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
@@ -14,10 +13,17 @@ import '../../api/signal_history_repository.dart';
 import '../../catalog_view_models.dart';
 import '../../models/signal_history_models.dart';
 import '../../providers/signal_history_controller.dart';
-import 'signal_chart_card.dart';
+import 'signal_compact_card.dart';
+import 'signal_chart_group_card.dart';
+import 'signal_chart_groups.dart';
 import 'signal_chart_palette.dart';
 
-/// Che do Chart cua panel chi tiet: hang chip range + grid the signal.
+/// Che do Chart cua panel chi tiet: grid the signal (range / Merge | Split
+/// nam tren header, xem SignalChartHeaderControls).
+///
+/// - Merge: signal ANALOG / COUNTER cung (code, unit) chung mot the.
+/// - Split: moi signal mot the gon.
+/// - Signal STATUS khong co the (chip tren header, DeviceStatusChips).
 ///
 /// Widget chi ton tai khi panel o Chart mode. No dang ky mot task polling
 /// (scope scadaTable) goi [SignalHistoryController.refresh] theo chu ky cua
@@ -34,8 +40,9 @@ class SignalChartView extends StatefulWidget {
 }
 
 class _SignalChartViewState extends State<SignalChartView> {
-  /// Chieu cao co dinh moi the: header ~150px + chart ~160px.
-  static const double _cardExtent = 312;
+  /// Chieu cao co dinh moi the.
+  static const double _mergeExtent = 300;
+  static const double _splitExtent = 176;
 
   late List<String> _signalIds;
   late Map<String, CatalogTableRow> _rowsById;
@@ -46,6 +53,10 @@ class _SignalChartViewState extends State<SignalChartView> {
 
   /// Chu ky cua task dang dang ky (null = chua dang ky).
   Duration? _taskInterval;
+
+  /// Cach xep the, tinh lai khi chu ky signal / kind / code / unit doi.
+  String? _layoutSignature;
+  DeviceChartLayout _layout = DeviceChartLayout.empty;
 
   @override
   void initState() {
@@ -123,6 +134,7 @@ class _SignalChartViewState extends State<SignalChartView> {
 
     _signalIds = List<String>.unmodifiable(ids);
     _rowsById = rows;
+    _layoutSignature = null;
   }
 
   void _bind() {
@@ -132,12 +144,12 @@ class _SignalChartViewState extends State<SignalChartView> {
   @override
   Widget build(BuildContext context) {
     /*
-     * Chi lang nghe trang thai chung (range / dang tai / loi / danh sach
-     * signal). Du lieu tung signal do moi the tu Selector rieng
-     * (_SignalCardSlot), nen polling cap nhat the khong build lai ca grid.
+     * Chi lang nghe trang thai chung (dang tai / loi / chu ky xep the).
+     * Du lieu tung signal do moi the tu Selector rieng, nen polling cap nhat
+     * the khong build lai ca grid.
      */
     final vm = context.select<SignalHistoryController, _ViewVm>(
-      (controller) => _ViewVm.of(controller),
+      (controller) => _ViewVm.of(controller, _rowsById),
     );
     final controller = context.read<SignalHistoryController>();
 
@@ -146,15 +158,6 @@ class _SignalChartViewState extends State<SignalChartView> {
 
     return Column(
       children: [
-        _RangeBar(
-          range: vm.range,
-          // Spinner tren chip cua range dang tai (lan dau hoac dang doi).
-          rangeLoading: vm.initialLoading || switching,
-          refreshing: vm.refreshing,
-          staleError: vm.staleError,
-          hourlySnapshot: vm.hourlySnapshot,
-          onSelected: controller.setRange,
-        ),
         SizedBox(
           height: 2,
           child: switching
@@ -179,17 +182,31 @@ class _SignalChartViewState extends State<SignalChartView> {
     );
   }
 
+  DeviceChartLayout _layoutFor(_ViewVm vm, SignalHistoryController controller) {
+    if (_layoutSignature != vm.layoutSignature) {
+      _layoutSignature = vm.layoutSignature;
+      _layout = buildDeviceChartLayout(
+        vm.signalIds,
+        _rowsById,
+        controller.seriesById,
+      );
+    }
+    return _layout;
+  }
+
   Widget _buildContent(_ViewVm vm, SignalHistoryController controller) {
     // Controller con giu data cua device khac (frame truoc khi bind chay).
     final bound = vm.deviceKey == widget.device.key;
+    final merge = vm.layout == CatalogChartLayout.merge;
+    final extent = merge ? _mergeExtent : _splitExtent;
 
     // Skeleton CHI o lan tai dau cua device (chua co gi de hien).
     if (!bound || vm.initialLoading) {
       return _ChartGridLayout(
         itemCount: widget.device.signals.isEmpty
             ? 2
-            : widget.device.signals.length,
-        extent: _cardExtent,
+            : widget.device.signals.length.clamp(1, merge ? 4 : 9),
+        extent: extent,
         itemBuilder: (_) => const _SkeletonCard(),
         wrap: (child) => Shimmer.fromColors(
           baseColor: SignalChartColors.skeleton,
@@ -230,18 +247,45 @@ class _SignalChartViewState extends State<SignalChartView> {
       );
     }
 
-    final ids = vm.signalIds;
+    final layout = _layoutFor(vm, controller);
+
+    if (layout.chartIds.isEmpty) {
+      return const EmptyChartState(
+        title: 'Status Signals Only',
+        message: 'This device only has status signals, shown in the header.',
+      );
+    }
+
+    if (merge) {
+      final groups = layout.groups;
+
+      return _ChartGridLayout(
+        itemCount: groups.length,
+        extent: extent,
+        itemBuilder: (index) => RepaintBoundary(
+          key: ValueKey('group:${groups[index].key}'),
+          child: SignalChartGroupCard(
+            group: groups[index],
+            // Range cua data dang hien (co the khac range dang chon khi doi).
+            range: vm.displayedRange,
+            onRetry: controller.retry,
+          ),
+        ),
+      );
+    }
+
+    final ids = layout.chartIds;
 
     return _ChartGridLayout(
       itemCount: ids.length,
-      extent: _cardExtent,
+      extent: extent,
+      maxColumns: 4,
       itemBuilder: (index) => RepaintBoundary(
         key: ValueKey(ids[index]),
         child: _SignalCardSlot(
           signalId: ids[index],
           current: _rowsById[ids[index]],
           onRetry: controller.retry,
-          // Range cua data dang hien (co the khac range dang chon khi doi).
           range: vm.displayedRange,
         ),
       ),
@@ -252,78 +296,79 @@ class _SignalChartViewState extends State<SignalChartView> {
 /// Trang thai chung cua che do Chart (khong gom du lieu tung signal).
 class _ViewVm {
   final String? deviceKey;
-  final HistoryRange? range;
   final HistoryRange? displayedRange;
   final bool initialLoading;
   final bool switching;
-  final bool refreshing;
   final bool hasData;
-  final bool hourlySnapshot;
   final Object? error;
+  final CatalogChartLayout layout;
   final List<String> signalIds;
+
+  /// Doi khi tap signal / kind / code / unit / ten doi (xep the lai).
+  final String layoutSignature;
 
   const _ViewVm({
     required this.deviceKey,
-    required this.range,
     required this.displayedRange,
     required this.initialLoading,
     required this.switching,
-    required this.refreshing,
     required this.hasData,
-    required this.hourlySnapshot,
     required this.error,
+    required this.layout,
     required this.signalIds,
+    required this.layoutSignature,
   });
 
-  factory _ViewVm.of(SignalHistoryController controller) {
+  factory _ViewVm.of(
+    SignalHistoryController controller,
+    Map<String, CatalogTableRow> rowsById,
+  ) {
+    final ids = [for (final item in controller.series) item.signalId];
+
     return _ViewVm(
       deviceKey: controller.deviceKey,
-      range: controller.range,
       displayedRange: controller.displayedRange,
       initialLoading: controller.initialLoading,
       switching: controller.switching,
-      refreshing: controller.refreshing,
       hasData: controller.hasData,
-      hourlySnapshot:
-          controller.showingCurrent &&
-          controller.aggregation == HistoryAggregation.snapshot,
       error: controller.error,
-      signalIds: [for (final item in controller.series) item.signalId],
+      layout: controller.chartLayout,
+      signalIds: ids,
+      layoutSignature: deviceChartLayoutSignature(
+        ids,
+        rowsById,
+        controller.seriesById,
+      ),
     );
   }
-
-  bool get staleError => hasData && error != null;
 
   @override
   bool operator ==(Object other) {
     return other is _ViewVm &&
         other.deviceKey == deviceKey &&
-        other.range == range &&
         other.displayedRange == displayedRange &&
         other.initialLoading == initialLoading &&
         other.switching == switching &&
-        other.refreshing == refreshing &&
         other.hasData == hasData &&
-        other.hourlySnapshot == hourlySnapshot &&
         other.error == error &&
-        listEquals(other.signalIds, signalIds);
+        other.layout == layout &&
+        other.layoutSignature == layoutSignature;
   }
 
   @override
   int get hashCode => Object.hash(
     deviceKey,
-    range,
     displayedRange,
     initialLoading,
     switching,
-    refreshing,
     hasData,
     error,
-    signalIds.length,
+    layout,
+    layoutSignature,
   );
 }
 
-/// Mot the: chi build lai khi series cua chinh signal nay doi.
+/// Mot the Split: chi build lai khi series cua chinh signal nay doi.
 class _SignalCardSlot extends StatelessWidget {
   final String signalId;
   final CatalogTableRow? current;
@@ -343,11 +388,13 @@ class _SignalCardSlot extends StatelessWidget {
       selector: (_, controller) => controller.seriesById(signalId),
       shouldRebuild: (previous, next) => !identical(previous, next),
       builder: (context, series, _) {
-        if (series == null) return const SizedBox.shrink();
+        final row = current;
+        if (series == null || row == null) return const SizedBox.shrink();
 
-        return SignalChartCard(
+        return SignalCompactCard(
+          row: row,
           series: series,
-          current: current,
+          subtitle: series.plc,
           onRetry: onRetry,
           range: range,
         );
@@ -356,10 +403,11 @@ class _SignalCardSlot extends StatelessWidget {
   }
 }
 
-/// Grid responsive: 1 cot hep, 2 cot vua, 3 cot rong.
+/// Grid responsive: 1 cot hep, 2 cot vua, 3 cot rong (Split toi 4 cot).
 class _ChartGridLayout extends StatelessWidget {
   final int itemCount;
   final double extent;
+  final int maxColumns;
   final Widget Function(int index) itemBuilder;
   final Widget Function(Widget child)? wrap;
 
@@ -367,6 +415,7 @@ class _ChartGridLayout extends StatelessWidget {
     required this.itemCount,
     required this.extent,
     required this.itemBuilder,
+    this.maxColumns = 3,
     this.wrap,
   });
 
@@ -377,11 +426,15 @@ class _ChartGridLayout extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
 
-        final columns = width < 640
-            ? 1
-            : width < 1100
-            ? 2
-            : 3;
+        final columns =
+            (width < 640
+                    ? 1
+                    : width < 1100
+                    ? 2
+                    : width < 1600
+                    ? 3
+                    : 4)
+                .clamp(1, maxColumns);
 
         final grid = GridView.builder(
           padding: const EdgeInsets.all(12),
@@ -389,173 +442,14 @@ class _ChartGridLayout extends StatelessWidget {
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
             mainAxisExtent: extent,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
           ),
           itemBuilder: (context, index) => itemBuilder(index),
         );
 
         return wrap == null ? grid : wrap!(grid);
       },
-    );
-  }
-}
-
-class _RangeBar extends StatelessWidget {
-  /// Null khi dang dung custom window.
-  final HistoryRange? range;
-
-  /// Range dang chon dang duoc tai (spinner nho tren chip cua no).
-  final bool rangeLoading;
-  final bool refreshing;
-  final bool staleError;
-
-  /// Backend tra HOURLY_SNAPSHOT (range > 24h): 1 diem moi gio.
-  final bool hourlySnapshot;
-  final ValueChanged<HistoryRange> onSelected;
-
-  const _RangeBar({
-    required this.range,
-    required this.rangeLoading,
-    required this.refreshing,
-    required this.staleError,
-    required this.hourlySnapshot,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: SignalChartColors.cardBorder)),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.schedule_rounded,
-            size: 16,
-            color: SignalChartColors.mutedText,
-          ),
-          const SizedBox(width: 8),
-          for (final item in HistoryRange.values)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: _RangeChip(
-                label: item.label,
-                selected: item == range,
-                loading: item == range && rangeLoading,
-                onTap: () => onSelected(item),
-              ),
-            ),
-          if (hourlySnapshot)
-            const Tooltip(
-              message: 'Hourly snapshot: one value per hour, no min / max',
-              child: _InfoTag(label: '1 pt/hour'),
-            ),
-          const Spacer(),
-          if (staleError)
-            const Tooltip(
-              message: 'Last chart refresh failed - showing previous data',
-              child: Icon(
-                Icons.cloud_off_rounded,
-                size: 18,
-                color: SignalChartColors.stale,
-              ),
-            ),
-          if (refreshing)
-            const Padding(
-              padding: EdgeInsets.only(left: 8),
-              child: SizedBox.square(
-                dimension: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoTag extends StatelessWidget {
-  final String label;
-
-  const _InfoTag({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(left: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: SignalChartColors.cardBorder),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: SignalChartColors.subText,
-          fontSize: 10.5,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
-class _RangeChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final bool loading;
-  final VoidCallback onTap;
-
-  const _RangeChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.loading = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? SignalChartColors.text : SignalChartColors.subText;
-
-    return Material(
-      color: selected
-          ? SignalChartColors.chipSelected
-          : SignalChartColors.chipIdle,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              if (loading) ...[
-                const SizedBox(width: 6),
-                SizedBox.square(
-                  dimension: 10,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: color,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -577,22 +471,18 @@ class _SkeletonCard extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.white),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          bar(56, 20),
-          const SizedBox(height: 12),
-          bar(140, 14),
-          const SizedBox(height: 10),
-          bar(90, 24),
+          bar(140, 13),
           const SizedBox(height: 8),
-          bar(180, 10),
-          const SizedBox(height: 12),
+          bar(90, 20),
+          const SizedBox(height: 8),
           Expanded(child: bar(double.infinity, double.infinity)),
         ],
       ),

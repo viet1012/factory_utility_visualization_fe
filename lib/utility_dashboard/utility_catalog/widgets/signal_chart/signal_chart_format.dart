@@ -1,3 +1,6 @@
+import 'package:flutter/painting.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
+
 import '../../../shared/charts/chart_hover_style.dart';
 import '../../../shared/charts/signal_chart_spec.dart';
 import '../../../shared/charts/signal_chart_spec_registry.dart';
@@ -20,6 +23,13 @@ HoverKind hoverKindOf(SignalKind kind) {
     SignalKind.status => HoverKind.status,
   };
 }
+
+/// Chart gon (Split): an nhan truc nhung giu truc de luoi / duong nguong
+/// van ve.
+const TextStyle kCompactAxisLabelStyle = TextStyle(fontSize: 0);
+
+ChartAxisLabel compactAxisLabel(AxisLabelRenderDetails details) =>
+    ChartAxisLabel('', kCompactAxisLabelStyle);
 
 /// dd/MM/yyyy HH:mm, gio dia phuong.
 String formatSignalTimestamp(DateTime time) {
