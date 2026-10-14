@@ -22,7 +22,7 @@ REM - build\
 set "OUTPUT_ROOT=D:\Viet\Utility\BUILD_WEB"
 
 REM Chỉ xóa và replace folder này
-set "OUTPUT_DIR=%OUTPUT_ROOT%\build"
+set "OUTPUT_DIR=%OUTPUT_ROOT%\build\web"
 
 REM Backend URL (lib\utility_api\api_config.dart):
 REM   - Đặt biến môi trường API_BASE_URL để build cho server khác:
