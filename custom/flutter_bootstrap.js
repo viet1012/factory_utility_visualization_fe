@@ -36,6 +36,36 @@ if (!window._flutter) {
 }
 _flutter.buildConfig = {"engineRevision":"8cd19e509d6bece8ccd74aef027c4ca947363095","builds":[{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]};
 
+// Cache-busting: build_web.bat gắn ?v=<BUILD_VER> vào flutter_bootstrap.js trong index.html.
+// Đọc version đó từ src của chính script này và gắn cùng ?v= vào main.dart.js.
+(function () {
+  var current = document.currentScript;
+  if (!current || !current.src) return;
+
+  var ver = new URL(current.src, document.baseURI).searchParams.get('v');
+  if (!ver) return;
+
+  var mainJs = 'main.dart.js?v=' + encodeURIComponent(ver);
+
+  // _flutter.loader.load(): dùng mainJsPath của buildConfig
+  _flutter.buildConfig.builds.forEach(function (b) {
+    if (b.mainJsPath) b.mainJsPath = mainJs;
+  });
+
+  // _flutter.loader.loadEntrypoint() (index.html đang dùng): truyền entrypointUrl
+  var loader = window._flutter.loader;
+  if (!loader || typeof loader.loadEntrypoint !== 'function') return;
+
+  var originalLoadEntrypoint = loader.loadEntrypoint.bind(loader);
+  loader.loadEntrypoint = function (options) {
+    options = Object.assign({}, options);
+    if (!options.entrypointUrl) {
+      options.entrypointUrl = new URL(mainJs, document.baseURI).toString();
+    }
+    return originalLoadEntrypoint(options);
+  };
+})();
+
 
 (function () {
   const script = document.createElement('script');

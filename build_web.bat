@@ -175,7 +175,7 @@ REM ============================================================
 
 echo.
 echo ============================================================
-echo [1/7] FLUTTER PUB GET
+echo [1/8] FLUTTER PUB GET
 echo ============================================================
 echo.
 
@@ -198,7 +198,7 @@ REM ============================================================
 
 echo.
 echo ============================================================
-echo [2/7] FLUTTER BUILD WEB
+echo [2/8] FLUTTER BUILD WEB
 echo ============================================================
 echo.
 
@@ -221,7 +221,7 @@ REM ============================================================
 
 echo.
 echo ============================================================
-echo [3/7] CHECK BUILD OUTPUT
+echo [3/8] CHECK BUILD OUTPUT
 echo ============================================================
 echo.
 
@@ -257,7 +257,7 @@ REM ============================================================
 
 echo.
 echo ============================================================
-echo [4/7] REMOVE FLUTTER SERVICE WORKER
+echo [4/8] REMOVE FLUTTER SERVICE WORKER
 echo ============================================================
 echo.
 
@@ -291,7 +291,7 @@ REM ============================================================
 
 echo.
 echo ============================================================
-echo [5/7] REPLACE FLUTTER BOOTSTRAP
+echo [5/8] REPLACE FLUTTER BOOTSTRAP
 echo ============================================================
 echo.
 
@@ -332,12 +332,56 @@ echo [OK] Custom flutter_bootstrap.js installed.
 
 REM ============================================================
 REM STEP 6
+REM CACHE-BUSTING: flutter_bootstrap.js?v=BUILD_VER IN index.html
+REM (custom flutter_bootstrap.js đọc ?v= này và gắn vào main.dart.js)
+REM ============================================================
+
+echo.
+echo ============================================================
+echo [6/8] CACHE-BUSTING VERSION
+echo ============================================================
+echo.
+
+set "BUILD_VER="
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "Get-Date -Format yyyyMMddHHmm"`) do set "BUILD_VER=%%i"
+
+if not defined BUILD_VER (
+    echo.
+    echo [ERROR] Cannot generate BUILD_VER.
+    goto :FAILED
+)
+
+echo BUILD_VER:
+echo   %BUILD_VER%
+echo.
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%BUILD_DIR%\index.html'; $t=[IO.File]::ReadAllText($p); $n=$t -replace 'flutter_bootstrap\.js(\?v=[0-9]+)?', 'flutter_bootstrap.js?v=%BUILD_VER%'; [IO.File]::WriteAllText($p, $n, (New-Object Text.UTF8Encoding $false))"
+
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Failed to update index.html with BUILD_VER.
+    goto :FAILED
+)
+
+findstr /L /C:"flutter_bootstrap.js?v=%BUILD_VER%" "%BUILD_DIR%\index.html" >nul
+
+if errorlevel 1 (
+    echo.
+    echo [ERROR] index.html does not reference flutter_bootstrap.js?v=%BUILD_VER%
+    goto :FAILED
+)
+
+echo [OK] index.html -^> flutter_bootstrap.js?v=%BUILD_VER%
+
+
+REM ============================================================
+REM STEP 7
 REM DELETE ONLY OLD DEPLOY BUILD FOLDER
 REM ============================================================
 
 echo.
 echo ============================================================
-echo [6/7] PREPARE DEPLOY BUILD FOLDER
+echo [7/8] PREPARE DEPLOY BUILD FOLDER
 echo ============================================================
 echo.
 
@@ -384,13 +428,13 @@ echo [OK] Deploy build folder ready.
 
 
 REM ============================================================
-REM STEP 7
+REM STEP 8
 REM COPY FLUTTER BUILD TO DEPLOY BUILD
 REM ============================================================
 
 echo.
 echo ============================================================
-echo [7/7] COPY FLUTTER BUILD
+echo [8/8] COPY FLUTTER BUILD
 echo ============================================================
 echo.
 
@@ -482,6 +526,16 @@ if not exist "%OUTPUT_DIR%\flutter_bootstrap.js" (
 
 echo [OK] flutter_bootstrap.js
 
+findstr /L /C:"flutter_bootstrap.js?v=%BUILD_VER%" "%OUTPUT_DIR%\index.html" >nul
+
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Deploy index.html missing flutter_bootstrap.js?v=%BUILD_VER%
+    goto :FAILED
+)
+
+echo [OK] flutter_bootstrap.js?v=%BUILD_VER% in index.html
+
 
 REM ------------------------------------------------------------
 REM INDEX
@@ -561,6 +615,7 @@ echo.
 
 echo ------------------------------------------------------------
 echo API BASE URL           : %API_BASE_URL_LABEL%
+echo BUILD VERSION          : %BUILD_VER%
 echo CUSTOM BOOTSTRAP       : OK
 echo SERVICE WORKER         : REMOVED
 echo INDEX.HTML             : OK
