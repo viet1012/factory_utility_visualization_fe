@@ -26,6 +26,7 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/para/api/utility_para_api.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_setting/scada/api/utility_scada_api.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../utility_api/api_config.dart';
@@ -33,10 +34,16 @@ import '../utility_api/dio_client.dart';
 import 'utility_dashboard_fac_details/api/utility_facade_service.dart';
 import 'shared/visibility/app_visibility.dart';
 import 'utility_all_factory_chart/controllers/utility_chart_catalog_controller.dart';
+import 'utility_all_factory_chart/controllers/utility_chart_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_daily_chart_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_hourly_chart_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_minute_chart_controller.dart';
 import 'utility_dashboard_overview/utility_dashboard_overview.dart';
+import 'water_check/api/water_check_api.dart';
+import 'water_check/controllers/water_check_controller.dart';
+import 'water_check/water_check_screen.dart';
+import 'water_check/water_fullscreen.dart';
+import 'water_check/widgets/water_signal_chart_dialog.dart';
 
 class UtilityDashboardScreen extends StatefulWidget {
   const UtilityDashboardScreen({super.key});
@@ -47,11 +54,19 @@ class UtilityDashboardScreen extends StatefulWidget {
 
 class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     with SingleTickerProviderStateMixin, RouteAware {
-  static const int _tabCount = 5;
+  static const int _tabCount = 6;
+
+  static const int _mapTab = 0;
+  static const int _chartsTab = 1;
+  static const int _waterCheckTab = 2;
+  static const int _scadaTableTab = 3;
+  static const int _alarmsTab = 4;
+  static const int _settingTab = 5;
 
   static const List<IndustrialSideTabItem> _tabs = [
-    IndustrialSideTabItem(icon: Icons.map_outlined, text: 'MAP'),
+    IndustrialSideTabItem(icon: Icons.map_outlined, text: 'MAIN'),
     IndustrialSideTabItem(icon: Icons.show_chart, text: 'CHARTS'),
+    IndustrialSideTabItem(icon: Icons.monitor_outlined, text: 'MONITORING'),
     IndustrialSideTabItem(icon: Icons.table_view, text: 'SCADA TABLE'),
     IndustrialSideTabItem(icon: Icons.notifications_active, text: 'ALARMS'),
     IndustrialSideTabItem(icon: Icons.settings, text: 'SETTING'),
@@ -83,6 +98,13 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
   late final SignalHealthMatrixController signalHealthController;
 
+  late final WaterCheckApi waterCheckApi;
+  late final WaterCheckController waterCheckController;
+
+  /// WATER CHECK › Open in Charts: CHARTS nghe va chon dung fac / box / device.
+  final ValueNotifier<ChartFocusRequest?> _chartFocusRequest =
+      ValueNotifier<ChartFocusRequest?>(null);
+
   late final UtilityMinuteDashboardProvider minuteDashboardProvider;
   late final UtilityHourlyDashboardProvider hourlyDashboardProvider;
   late final UtilityDailyDashboardProvider dailyDashboardProvider;
@@ -96,6 +118,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   bool _sideExpanded = true;
   int _tabIndex = 0;
 
+  /// WATER CHECK › Full screen: an thanh tab chinh + fullscreen trinh duyet.
+  bool _waterFullScreen = false;
+  VoidCallback? _cancelFullscreenListener;
+
   @override
   void initState() {
     super.initState();
@@ -107,6 +133,11 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     AppVisibility.instance.addListener(_syncVisibility);
     _syncVisibility();
+
+    _cancelFullscreenListener = BrowserFullscreen.listen(
+      _handleBrowserFullscreenChanged,
+    );
+    HardwareKeyboard.instance.addHandler(_handleEscape);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -178,6 +209,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     overviewApi = UtilityDashboardOverviewApi();
     signalHealthApi = SignalHealthApi();
+    waterCheckApi = WaterCheckApi(dio: dio);
 
     facade = UtilityFacadeService(dio);
 
@@ -215,6 +247,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     chartCatalogProvider = UtilityChartCatalogController(chartApi);
 
     signalHealthController = SignalHealthMatrixController(signalHealthApi);
+
+    waterCheckController = WaterCheckController(api: waterCheckApi);
 
     minuteDashboardProvider = UtilityMinuteDashboardProvider(overviewApi);
 
@@ -294,10 +328,19 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         interval: DashboardPollingIntervals.chartsHourlySeries,
         action: hourlyChartProvider.poll,
       )
+      // WATER CHECK: chi chay khi tab dang hien (scope rieng).
+      ..register(
+        id: PollingTaskIds.waterCheck,
+        scope: PollingScope.waterCheck,
+        interval: DashboardPollingIntervals.waterCheck,
+        action: waterCheckController.refresh,
+        runImmediately: true,
+      )
       ..start(PollingTaskIds.signalHealthMap)
       ..start(PollingTaskIds.signalHealthAlarms)
       ..start(PollingTaskIds.chartsMinuteSeries)
-      ..start(PollingTaskIds.chartsHourlySeries);
+      ..start(PollingTaskIds.chartsHourlySeries)
+      ..start(PollingTaskIds.waterCheck);
   }
 
   void _initializeTabController() {
@@ -321,14 +364,16 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
       return;
     }
 
-    final wasMapTab = _tabIndex == 0;
-    final isMapTab = nextIndex == 0;
-    final wasChartsTab = _tabIndex == 1;
-    final isChartsTab = nextIndex == 1;
-    final wasScadaTableTab = _tabIndex == 2;
-    final isScadaTableTab = nextIndex == 2;
-    final wasAlarmsTab = _tabIndex == 3;
-    final isAlarmsTab = nextIndex == 3;
+    final wasMapTab = _tabIndex == _mapTab;
+    final isMapTab = nextIndex == _mapTab;
+    final wasChartsTab = _tabIndex == _chartsTab;
+    final isChartsTab = nextIndex == _chartsTab;
+    final wasWaterCheckTab = _tabIndex == _waterCheckTab;
+    final isWaterCheckTab = nextIndex == _waterCheckTab;
+    final wasScadaTableTab = _tabIndex == _scadaTableTab;
+    final isScadaTableTab = nextIndex == _scadaTableTab;
+    final wasAlarmsTab = _tabIndex == _alarmsTab;
+    final isAlarmsTab = nextIndex == _alarmsTab;
 
     setState(() {
       _tabIndex = nextIndex;
@@ -343,6 +388,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     if (wasAlarmsTab && !isAlarmsTab) {
       pollingCoordinator.deactivateScope(PollingScope.alarms);
     }
+    if (wasWaterCheckTab && !isWaterCheckTab) {
+      pollingCoordinator.deactivateScope(PollingScope.waterCheck);
+    }
 
     if (isMapTab) {
       pollingCoordinator.activateScope(PollingScope.map);
@@ -354,6 +402,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     if (isAlarmsTab) {
       pollingCoordinator.activateScope(PollingScope.alarms);
+    }
+
+    if (isWaterCheckTab) {
+      pollingCoordinator.activateScope(PollingScope.waterCheck);
     }
 
     if (isScadaTableTab) {
@@ -386,15 +438,68 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   }
 
   void _syncInitialTopLevelPollingScopes() {
-    if (_tabIndex == 0) {
+    if (_tabIndex == _mapTab) {
       pollingCoordinator.deactivateScope(PollingScope.alarms);
       pollingCoordinator.activateScope(PollingScope.map);
-    } else if (_tabIndex == 3) {
+    } else if (_tabIndex == _alarmsTab) {
       pollingCoordinator.deactivateScope(PollingScope.map);
       pollingCoordinator.activateScope(PollingScope.alarms);
-    } else if (_tabIndex == 1) {
+    } else if (_tabIndex == _chartsTab) {
       pollingCoordinator.activateScope(PollingScope.charts);
+    } else if (_tabIndex == _waterCheckTab) {
+      pollingCoordinator.activateScope(PollingScope.waterCheck);
     }
+  }
+
+  // ============================================================
+  // WATER CHECK FULL SCREEN
+  // ============================================================
+
+  void _toggleWaterFullScreen() {
+    _setWaterFullScreen(!_waterFullScreen);
+  }
+
+  void _setWaterFullScreen(bool value) {
+    if (_waterFullScreen == value) return;
+
+    setState(() => _waterFullScreen = value);
+    if (value) {
+      BrowserFullscreen.enter();
+    } else {
+      BrowserFullscreen.exit();
+    }
+  }
+
+  /// Trinh duyet thoat fullscreen (Esc / F11): hien lai thanh tab.
+  void _handleBrowserFullscreenChanged() {
+    if (!mounted) return;
+    if (_waterFullScreen && !BrowserFullscreen.isActive) {
+      setState(() => _waterFullScreen = false);
+    }
+  }
+
+  /// Esc khi fullscreen trinh duyet bi tu choi (chi an thanh tab).
+  bool _handleEscape(KeyEvent event) {
+    if (!_waterFullScreen ||
+        event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape) {
+      return false;
+    }
+
+    _setWaterFullScreen(false);
+    return true;
+  }
+
+  /// WATER CHECK › Open in Charts: chuyen sang CHARTS › Minutes tai signal.
+  void _openInCharts(WaterSignalRef signal) {
+    _setWaterFullScreen(false);
+    _chartFocusRequest.value = ChartFocusRequest(
+      facId: signal.facId,
+      cate: 'Water',
+      boxDeviceId: signal.boxDeviceId,
+      plcAddress: signal.plcAddress,
+    );
+    _tabController.animateTo(_chartsTab);
   }
 
   void _toggleSideBar() {
@@ -465,18 +570,20 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
           child: SafeArea(
             child: Row(
               children: [
-                IndustrialSideTabBar(
-                  controller: _tabController,
-                  expanded: _sideExpanded,
-                  onToggle: _toggleSideBar,
-                  tabs: _tabs,
-                ),
+                if (!_waterFullScreen)
+                  IndustrialSideTabBar(
+                    controller: _tabController,
+                    expanded: _sideExpanded,
+                    onToggle: _toggleSideBar,
+                    tabs: _tabs,
+                  ),
                 Expanded(
                   child: IndexedStack(
                     index: _tabIndex,
                     children: [
                       _buildOverviewTab(),
                       _buildChartsTab(),
+                      _buildWaterCheckTab(),
                       _buildCatalogTab(),
                       _buildAlarmTab(),
                       _buildSettingTab(),
@@ -517,7 +624,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     return Padding(
       padding: const EdgeInsets.all(8),
       child: UtilityDashboardOverview(
-        isActive: _tabIndex == 0,
+        isActive: _tabIndex == _mapTab,
         mainImageUrl: mainImageUrl,
         nightImageUrl: nightImageUrl,
       ),
@@ -526,7 +633,27 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
   Widget _buildChartsTab() {
     return RepaintBoundary(
-      child: UtilityChartScreen(isCurrentScreen: _tabIndex == 1),
+      child: UtilityChartScreen(
+        isCurrentScreen: _tabIndex == _chartsTab,
+        focusRequest: _chartFocusRequest,
+      ),
+    );
+  }
+
+  Widget _buildWaterCheckTab() {
+    // IndexedStack khong tat ticker cua tab an: song nuoc cua bon chua dung
+    // khi tab khong hien.
+    return TickerMode(
+      enabled: _tabIndex == _waterCheckTab,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: WaterCheckScreen(
+          controller: waterCheckController,
+          onOpenInCharts: _openInCharts,
+          fullScreen: _waterFullScreen,
+          onToggleFullScreen: _toggleWaterFullScreen,
+        ),
+      ),
     );
   }
 
@@ -540,7 +667,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   Widget _buildAlarmTab() {
     return Padding(
       padding: const EdgeInsets.all(8),
-      child: SignalHealthMatrixScreen(isActive: _tabIndex == 3),
+      child: SignalHealthMatrixScreen(isActive: _tabIndex == _alarmsTab),
     );
   }
 
@@ -548,7 +675,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     return Padding(
       padding: const EdgeInsets.all(8),
       child: UtilityScadaSettingScreen(
-        isActive: _tabIndex == 4,
+        isActive: _tabIndex == _settingTab,
         scadaApi: scadaApi,
         channelApi: scadaChannelApi,
         paraApi: paraApi,
@@ -563,6 +690,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   @override
   void dispose() {
     appRouteObserver.unsubscribe(this);
+    _cancelFullscreenListener?.call();
+    HardwareKeyboard.instance.removeHandler(_handleEscape);
+    BrowserFullscreen.exit();
     AppVisibility.instance.removeListener(_syncVisibility);
     AppVisibility.instance.setDashboardCovered(false);
 
@@ -578,6 +708,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     hourlyChartProvider.dispose();
 
     signalHealthController.dispose();
+    waterCheckController.dispose();
+    _chartFocusRequest.dispose();
 
     minuteDashboardProvider.dispose();
     hourlyDashboardProvider.dispose();

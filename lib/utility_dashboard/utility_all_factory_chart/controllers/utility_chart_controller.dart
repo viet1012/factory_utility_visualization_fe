@@ -5,6 +5,24 @@ import 'package:flutter/material.dart';
 import 'utility_chart_catalog_controller.dart';
 import '../tabs/utility_chart_view.dart';
 
+/// Yeu cau mo CHARTS tai mot signal (vd tu WATER CHECK): moi lan mo la mot
+/// object moi de ValueNotifier luon bao doi.
+class ChartFocusRequest {
+  final String facId;
+  final String cate;
+  final String boxDeviceId;
+  final String plcAddress;
+  final UtilityChartView view;
+
+  const ChartFocusRequest({
+    required this.facId,
+    required this.cate,
+    required this.boxDeviceId,
+    required this.plcAddress,
+    this.view = UtilityChartView.minutes,
+  });
+}
+
 class UtilityChartController extends ChangeNotifier {
   final UtilityChartCatalogController catalog;
 
@@ -103,6 +121,43 @@ class UtilityChartController extends ChangeNotifier {
 
     selectedView = view;
     notifyListeners();
+  }
+
+  /// Chon fac / cate / view cua [request], tai catalog roi chon dung
+  /// scada / box / device chua signal. Bo Important de signal khong bi an.
+  Future<void> focusSignal(ChartFocusRequest request) async {
+    final facIndex = _indexIgnoreCase(facTabs, request.facId);
+    final cateIndex = _indexIgnoreCase(cateTabs, request.cate);
+    if (facIndex < 0 || cateIndex < 0) return;
+
+    _reloadDebounce?.cancel();
+
+    selectedFacIndex = facIndex;
+    selectedCateIndex = cateIndex;
+    selectedView = request.view;
+    importantOnly = false;
+    resetLocalFilters();
+    notifyListeners();
+
+    await loadCatalog();
+
+    final item = catalog.catalogItemFor(
+      request.boxDeviceId,
+      request.plcAddress,
+    );
+    if (item == null) return;
+
+    catalog.selectScadaId(item.scadaId);
+    catalog.selectBoxId(item.boxId);
+    catalog.selectBoxDeviceId(item.boxDeviceId);
+
+    syncIndexesFromProvider();
+    notifyListeners();
+  }
+
+  static int _indexIgnoreCase(List<String> values, String value) {
+    final target = value.trim().toLowerCase();
+    return values.indexWhere((item) => item.toLowerCase() == target);
   }
 
   void changeImportant(bool value) {

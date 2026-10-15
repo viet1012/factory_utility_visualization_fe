@@ -11,6 +11,12 @@ abstract final class PollingTaskIds {
   static const String chartsHourlySeries = 'charts.hourly-series';
   static const String mapSolarMonthly = 'map.solar-monthly';
   static const String mapWeather = 'map.weather';
+  static const String waterCheck = 'water-check.summary';
+
+  /// Chart 1h trong dialog cua WATER CHECK.
+  static String waterCheckSignalChart(Object owner) {
+    return 'water-check.signal-chart.${identityHashCode(owner)}';
+  }
 
   /// Moi instance mot id: route co the duoc push hai lan (bam dup).
   static String solarDetail(Object owner) {

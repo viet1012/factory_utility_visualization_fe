@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/controllers/utility_chart_controller.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/widgets/utility_chart_content.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,7 +16,14 @@ import 'widgets/utility_chart_background.dart';
 class UtilityChartScreen extends StatefulWidget {
   final bool isCurrentScreen;
 
-  const UtilityChartScreen({super.key, this.isCurrentScreen = true});
+  /// Yeu cau mo mot signal tu tab khac (WATER CHECK › Open in Charts).
+  final ValueListenable<ChartFocusRequest?>? focusRequest;
+
+  const UtilityChartScreen({
+    super.key,
+    this.isCurrentScreen = true,
+    this.focusRequest,
+  });
 
   @override
   State<UtilityChartScreen> createState() => _UtilityChartScreenState();
@@ -52,11 +60,19 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
       catalog: context.read<UtilityChartCatalogController>(),
     );
     controller.addListener(_syncViewPolling);
+    widget.focusRequest?.addListener(_handleFocusRequest);
     _animationEnabledNotifier = ValueNotifier<bool>(_animationEnabled);
 
     _syncViewPolling();
 
     _scheduleActivation();
+  }
+
+  void _handleFocusRequest() {
+    final request = widget.focusRequest?.value;
+    if (request == null || _disposed) return;
+
+    unawaited(controller.focusSignal(request));
   }
 
   /// Polling scope cua tung tab; tab khong co polling (Daily) thi khong co.
@@ -148,6 +164,11 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
   @override
   void didUpdateWidget(covariant UtilityChartScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.focusRequest != widget.focusRequest) {
+      oldWidget.focusRequest?.removeListener(_handleFocusRequest);
+      widget.focusRequest?.addListener(_handleFocusRequest);
+    }
 
     if (oldWidget.isCurrentScreen != widget.isCurrentScreen) {
       _syncViewPolling();
@@ -287,6 +308,7 @@ class _UtilityChartScreenState extends State<UtilityChartScreen>
     for (final scope in _viewScopes.values) {
       _pollingCoordinator.deactivateScope(scope);
     }
+    widget.focusRequest?.removeListener(_handleFocusRequest);
     controller.removeListener(_syncViewPolling);
     controller.dispose();
 

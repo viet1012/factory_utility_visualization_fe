@@ -8,6 +8,7 @@ enum PollingScope {
   chartsHourly(parent: PollingScope.charts),
   scadaTable,
   alarms,
+  waterCheck,
   facilityDetail,
   solarDetail;
 
@@ -19,6 +20,7 @@ enum PollingScope {
     PollingScope.charts,
     PollingScope.scadaTable,
     PollingScope.alarms,
+    PollingScope.waterCheck,
   };
 
   const PollingScope({this.parent});
