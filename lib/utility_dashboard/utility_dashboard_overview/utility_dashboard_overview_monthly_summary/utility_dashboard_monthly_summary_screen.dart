@@ -5,8 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../shared/formatters/month_formatter.dart';
-import '../../shared/polling/polling_coordinator.dart';
-import '../../shared/polling/polling_task_ids.dart';
 import '../models/energy_monthly_summary.dart';
 import '../providers/utility_monthly_summary_provider.dart';
 import '../utility_dashboard_overview_widgets/month_label_badge.dart';
@@ -27,14 +25,12 @@ class MonthlySummaryScreen extends StatefulWidget {
 
 class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
   late final UtilityMonthlySummaryProvider _provider;
-  late final PollingCoordinator _pollingCoordinator;
 
   @override
   void initState() {
     super.initState();
 
     _provider = context.read<UtilityMonthlySummaryProvider>();
-    _pollingCoordinator = context.read<PollingCoordinator>();
 
     final initialFacId = widget.facId;
     final initialMonth = widget.month;
@@ -42,7 +38,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      _configureAndStartPolling(facId: initialFacId, month: initialMonth);
+      _configure(facId: initialFacId, month: initialMonth);
     });
   }
 
@@ -66,17 +62,14 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      _configureAndStartPolling(facId: nextFacId, month: nextMonth);
+      _configure(facId: nextFacId, month: nextMonth);
     });
   }
 
-  void _configureAndStartPolling({
-    required String facId,
-    required String month,
-  }) {
-    _pollingCoordinator.stop(PollingTaskIds.mapMonthlySummary);
+  /// Lay du lieu qua MonthlySummaryStore (cache 10 phut, dung chung voi o
+  /// Fac tren MAP); polling do task MAP cua store dam nhan.
+  void _configure({required String facId, required String month}) {
     _provider.configure(facId: facId, month: month);
-    _pollingCoordinator.start(PollingTaskIds.mapMonthlySummary);
   }
 
   String get monthLabel => MonthFormatter.label(widget.month);

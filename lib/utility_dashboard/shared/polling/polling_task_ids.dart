@@ -37,8 +37,4 @@ abstract final class PollingTaskIds {
   static String filterChart(Object owner) {
     return 'scada.filter-chart.${identityHashCode(owner)}';
   }
-
-  static String mapMonthlyBox(String facId) {
-    return 'map.monthly-box.${facId.trim()}';
-  }
 }

@@ -15,6 +15,7 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_daily_dashboard_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_hourly_dashboard_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_minute_dashboard_provider.dart';
+import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/monthly_summary_store.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_monthly_summary_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/shared/navigation/industrial_side_tab_bar.dart';
 import 'package:factory_utility_visualization/utility_dashboard/shared/polling/dashboard_polling_intervals.dart';
@@ -108,6 +109,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final UtilityMinuteDashboardProvider minuteDashboardProvider;
   late final UtilityHourlyDashboardProvider hourlyDashboardProvider;
   late final UtilityDailyDashboardProvider dailyDashboardProvider;
+  /// Cache GET /monthly-summary dung chung giua panel SUMMARY va o Fac_A/B/C.
+  late final MonthlySummaryStore monthlySummaryStore;
   late final UtilityMonthlySummaryProvider monthlySummaryProvider;
 
   late final UtilityDailyChartController dailySignalProvider;
@@ -256,7 +259,12 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     dailyDashboardProvider = UtilityDailyDashboardProvider(overviewApi);
 
-    monthlySummaryProvider = UtilityMonthlySummaryProvider(overviewApi);
+    monthlySummaryStore = MonthlySummaryStore(overviewApi);
+
+    monthlySummaryProvider = UtilityMonthlySummaryProvider(
+      overviewApi,
+      monthlySummaryStore,
+    );
 
     pollingCoordinator = PollingCoordinator()
       ..register(
@@ -304,15 +312,13 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         ),
         runImmediately: true,
       )
+      // Mot task cho ca panel SUMMARY va 3 o Fac: lam moi cac key dang hien
+      // thi. Lan tai dau do widget goi store (cache + dedupe).
       ..register(
         id: PollingTaskIds.mapMonthlySummary,
         scope: PollingScope.map,
         interval: DashboardPollingIntervals.mapMonthlySummary,
-        action: () => _refreshReportingErrors(
-          monthlySummaryProvider.refresh,
-          () => monthlySummaryProvider.error,
-        ),
-        runImmediately: true,
+        action: monthlySummaryStore.refreshWatched,
       )
       ..register(
         id: PollingTaskIds.chartsMinuteSeries,
@@ -336,6 +342,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         action: waterCheckController.refresh,
         runImmediately: true,
       )
+      ..start(PollingTaskIds.mapMonthlySummary)
       ..start(PollingTaskIds.signalHealthMap)
       ..start(PollingTaskIds.signalHealthAlarms)
       ..start(PollingTaskIds.chartsMinuteSeries)
@@ -560,6 +567,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
           value: dailyDashboardProvider,
         ),
 
+        ChangeNotifierProvider<MonthlySummaryStore>.value(
+          value: monthlySummaryStore,
+        ),
+
         ChangeNotifierProvider<UtilityMonthlySummaryProvider>.value(
           value: monthlySummaryProvider,
         ),
@@ -715,6 +726,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     hourlyDashboardProvider.dispose();
     dailyDashboardProvider.dispose();
     monthlySummaryProvider.dispose();
+    monthlySummaryStore.dispose();
 
     super.dispose();
   }

@@ -10,15 +10,12 @@ import 'package:provider/provider.dart';
 import '../../utility_dashboard_fac_details/api/utility_facade_service.dart';
 import '../../utility_catalog/providers/latest_provider.dart';
 import '../../shared/polling/polling_coordinator.dart';
-import '../../shared/polling/dashboard_polling_intervals.dart';
-import '../../shared/polling/polling_scope.dart';
-import '../../shared/polling/polling_task_ids.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_fac_details/screens/utility_fac_detail_screen.dart';
-import '../api/utility_dashboard_overview_api.dart';
 import '../models/energy_monthly_summary.dart';
+import '../providers/monthly_summary_store.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
 // ============================================================
@@ -63,12 +60,6 @@ class UtilityOverviewMonthlyBox extends StatefulWidget {
 class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     with TickerProviderStateMixin {
   // ============================================================
-  // CONFIG
-  // ============================================================
-
-  static const Duration _requestTimeout = Duration(seconds: 30);
-
-  // ============================================================
   // ANIMATION
   // ============================================================
 
@@ -82,13 +73,10 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   // STATE
   // ============================================================
 
-  bool _screenActive = true;
-  bool _loadOnActivation = false;
+  /// Du lieu dung chung voi panel SUMMARY; polling do task MAP cua store.
+  late final MonthlySummaryStore _store;
 
   bool _loading = true;
-  bool _fetching = false;
-
-  int _requestId = 0;
 
   Object? _error;
 
@@ -96,16 +84,9 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
   List<EnergyMonthlySummary> _items = const [];
 
-  late final PollingCoordinator _pollingCoordinator;
-  late String _pollingTaskId;
-
   // ============================================================
   // GETTERS
   // ============================================================
-
-  bool get _canUpdate {
-    return mounted && _screenActive && widget.isActive;
-  }
 
   bool get _hasValidSource {
     return widget.facId.trim().isNotEmpty && widget.month.trim().isNotEmpty;
@@ -122,14 +103,14 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     super.initState();
 
     _initializeAnimation();
-    _pollingCoordinator = context.read<PollingCoordinator>();
-    _pollingTaskId = PollingTaskIds.mapMonthlyBox(widget.facId);
-    _registerPollingTask();
+
+    _store = context.read<MonthlySummaryStore>();
+    _store.addListener(_onStoreChanged);
+    _watch(widget);
+    _syncFromStore();
 
     if (widget.isActive) {
-      _scheduleInitialLoad();
-    } else {
-      _loadOnActivation = true;
+      _scheduleLoad();
     }
   }
 
@@ -150,33 +131,9 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     );
   }
 
-  void _scheduleInitialLoad() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_canUpdate) {
-        return;
-      }
-
-      unawaited(_load());
-    });
-  }
-
   // ============================================================
   // LIFECYCLE
   // ============================================================
-
-  @override
-  void activate() {
-    super.activate();
-
-    _screenActive = true;
-  }
-
-  @override
-  void deactivate() {
-    _screenActive = false;
-
-    super.deactivate();
-  }
 
   @override
   void didUpdateWidget(covariant UtilityOverviewMonthlyBox oldWidget) {
@@ -185,32 +142,16 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     _handleHighlightChange(oldWidget);
 
     final sourceChanged = _handleSourceChange(oldWidget);
-    _updatePollingTaskIdentity(oldWidget.facId);
 
     if (!widget.isActive) {
-      if (oldWidget.isActive) {
-        _loadOnActivation = _loadOnActivation || _fetching || _items.isEmpty;
-        _invalidateRequests();
-      }
-
-      if (sourceChanged) {
-        _loadOnActivation = true;
-      }
-
-      return;
-    }
-
-    if (!oldWidget.isActive) {
-      if (_loadOnActivation || sourceChanged || _items.isEmpty) {
-        _loadOnActivation = false;
-        _scheduleLoad(force: sourceChanged);
-      }
-
       return;
     }
 
     if (sourceChanged) {
-      _scheduleLoad(force: true);
+      _scheduleLoad();
+    } else if (!oldWidget.isActive) {
+      // Quay lai MAP: chi tai khi chua co du lieu, lam moi do polling MAP.
+      _scheduleLoad(onlyIfMissing: true);
     }
   }
 
@@ -249,120 +190,103 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       return false;
     }
 
-    _invalidateRequests();
+    _unwatch(oldWidget);
+    _watch(widget);
 
-    setState(() {
-      _items = const [];
-
-      _health = null;
-
-      _loading = true;
-
-      _error = null;
-    });
+    // Key moi co the da co trong cache: hien ngay.
+    _syncFromStore();
 
     return true;
   }
 
-  void _scheduleLoad({bool force = false}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_canUpdate) {
-        return;
-      }
+  // ============================================================
+  // STORE
+  // ============================================================
 
-      unawaited(_load(force: force));
-    });
+  void _watch(UtilityOverviewMonthlyBox source) {
+    if (source.facId.trim().isEmpty || source.month.trim().isEmpty) return;
+
+    _store.watch(source.facId, source.month);
   }
 
-  void _registerPollingTask() {
-    _pollingCoordinator.register(
-      id: _pollingTaskId,
-      scope: PollingScope.map,
-      interval: DashboardPollingIntervals.mapMonthlyBox,
-      action: () => _load(silent: true),
-    );
-    _pollingCoordinator.start(_pollingTaskId);
+  void _unwatch(UtilityOverviewMonthlyBox source) {
+    if (source.facId.trim().isEmpty || source.month.trim().isEmpty) return;
+
+    _store.unwatch(source.facId, source.month);
   }
 
-  void _updatePollingTaskIdentity(String oldFacId) {
-    final oldTaskId = PollingTaskIds.mapMonthlyBox(oldFacId);
-    final newTaskId = PollingTaskIds.mapMonthlyBox(widget.facId);
-    if (oldTaskId == newTaskId) return;
+  void _onStoreChanged() {
+    if (!mounted) return;
 
-    _pollingCoordinator.stop(_pollingTaskId);
-    _pollingCoordinator.unregister(_pollingTaskId);
-    _pollingTaskId = newTaskId;
-    _registerPollingTask();
+    if (_syncFromStore()) {
+      setState(() {});
+    }
+  }
+
+  /// Doc trang thai key hien tai tu store; tra ve true neu co thay doi.
+  bool _syncFromStore() {
+    final valid = _hasValidSource;
+
+    final items = valid
+        ? _store.rowsOf(widget.facId, widget.month)
+        : const <EnergyMonthlySummary>[];
+
+    final loaded = valid && _store.hasLoaded(widget.facId, widget.month);
+
+    final storeError = valid
+        ? _store.errorOf(widget.facId, widget.month)
+        : null;
+
+    final loading = !loaded && storeError == null;
+
+    // Neu da co data cu thi van giu lai de hien thi.
+    final error = items.isEmpty ? storeError : null;
+
+    final itemsChanged = !identical(items, _items);
+
+    if (!itemsChanged && loading == _loading && error == _error) {
+      return false;
+    }
+
+    if (itemsChanged) {
+      _health = loaded ? _buildHealth(items) : null;
+    }
+
+    _items = items;
+    _loading = loading;
+    _error = error;
+
+    return true;
   }
 
   // ============================================================
   // LOAD
   // ============================================================
-  Future<void> _load({bool silent = false, bool force = false}) async {
-    if (!_canUpdate || !_hasValidSource) {
-      return;
-    }
 
-    if (_fetching && !force) {
-      return;
-    }
-
-    final facId = widget.facId.trim();
-    final month = widget.month.trim();
-
-    final requestId = ++_requestId;
-
-    _fetching = true;
-
-    if (!silent && _items.isEmpty) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
-
-    try {
-      final api = context.read<UtilityDashboardOverviewApi>();
-
-      final result = await api
-          .getMonthlySummary(facId: facId, month: month)
-          .timeout(_requestTimeout);
-
-      if (!_isCurrentRequest(requestId)) {
+  void _scheduleLoad({bool onlyIfMissing = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.isActive) {
         return;
       }
 
-      final nextItems = List<EnergyMonthlySummary>.unmodifiable(result);
-
-      final nextHealth = _buildHealth(nextItems);
-
-      setState(() {
-        _items = nextItems;
-        _health = nextHealth;
-
-        _loading = false;
-        _error = null;
-      });
-    } on TimeoutException catch (exception, stackTrace) {
-      _handleLoadError(
-        requestId,
-        exception,
-        '[MONTHLY TIMEOUT]',
-        stackTrace: stackTrace,
-      );
-    } catch (exception, stackTrace) {
-      _handleLoadError(
-        requestId,
-        exception,
-        '[MONTHLY ERROR]',
-        stackTrace: stackTrace,
-      );
-    } finally {
-      if (_isCurrentRequest(requestId)) {
-        _fetching = false;
-      }
-    }
+      unawaited(_load(onlyIfMissing: onlyIfMissing));
+    });
   }
+
+  /// Cache con han (10 phut) hoac request dang chay cung key: khong goi API.
+  Future<void> _load({bool force = false, bool onlyIfMissing = false}) async {
+    if (!_hasValidSource) {
+      return;
+    }
+
+    if (onlyIfMissing && _store.hasLoaded(widget.facId, widget.month)) {
+      return;
+    }
+
+    await _store.get(widget.facId, widget.month, force: force);
+  }
+
+  Future<void> _retry() => _load(force: true);
 
   // ============================================================
   // HEALTH
@@ -383,45 +307,6 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
       values: values,
     );
-  }
-
-  // ============================================================
-  // ERROR
-  // ============================================================
-
-  void _handleLoadError(
-    int requestId,
-    Object exception,
-    String tag, {
-    StackTrace? stackTrace,
-  }) {
-    if (!_isCurrentRequest(requestId)) {
-      return;
-    }
-
-    debugPrint('$tag $exception');
-
-    if (stackTrace != null) {
-      debugPrintStack(stackTrace: stackTrace);
-    }
-
-    setState(() {
-      _loading = false;
-
-      // Nếu đã có data cũ thì
-      // vẫn giữ lại để hiển thị.
-      _error = _items.isEmpty ? exception : null;
-    });
-  }
-
-  bool _isCurrentRequest(int requestId) {
-    return _canUpdate && requestId == _requestId;
-  }
-
-  void _invalidateRequests() {
-    _requestId++;
-
-    _fetching = false;
   }
 
   // ============================================================
@@ -559,7 +444,7 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
                 items: displayItems,
 
-                onRetry: _load,
+                onRetry: _retry,
               ),
             ),
           ),
@@ -574,12 +459,8 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
   @override
   void dispose() {
-    _screenActive = false;
-
-    _requestId++;
-
-    _pollingCoordinator.stop(_pollingTaskId);
-    _pollingCoordinator.unregister(_pollingTaskId);
+    _store.removeListener(_onStoreChanged);
+    _unwatch(widget);
 
     _fx.dispose();
 

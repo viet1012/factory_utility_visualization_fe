@@ -6,12 +6,12 @@ abstract final class DashboardPollingIntervals {
   static const Duration signalHealthMap = Duration(minutes: 5);
   static const Duration signalHealthAlarms = Duration(minutes: 1);
   static const Duration mapDailyDashboard = Duration(hours: 1);
-  static const Duration mapMonthlySummary = Duration(hours: 6);
+  /// Panel SUMMARY + 3 o Fac tren MAP (MonthlySummaryStore.refreshWatched).
+  static const Duration mapMonthlySummary = Duration(hours: 1);
   static const Duration chartsMinuteSeries = Duration(minutes: 1);
   static const Duration chartsHourlySeries = Duration(minutes: 5);
   static const Duration mapSolarMonthly = Duration(minutes: 10);
   static const Duration solarDetail = Duration(hours: 1);
-  static const Duration mapMonthlyBox = Duration(hours: 1);
   static const Duration mapWeather = Duration(minutes: 45);
   static const Duration waterCheck = Duration(minutes: 1);
 
