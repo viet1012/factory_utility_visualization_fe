@@ -4,9 +4,15 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_all_fact
 import 'package:factory_utility_visualization/utility_dashboard/utility_all_factory_chart/widgets/utility_chart_content.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../shared/widgets/feed_status_banner.dart';
+import 'controllers/series_history_chart_controller.dart';
 import 'controllers/utility_chart_catalog_controller.dart';
+import 'controllers/utility_daily_chart_controller.dart';
+import 'controllers/utility_hourly_chart_controller.dart';
+import 'controllers/utility_minute_chart_controller.dart';
 import '../shared/polling/polling_coordinator.dart';
 import '../shared/polling/polling_scope.dart';
 import 'tabs/utility_chart_view.dart';
@@ -344,8 +350,71 @@ class _UtilityContentLayer extends StatelessWidget {
           controller: controller,
           theme: theme,
           isActive: isActive,
+          statusBanner: _FeedStatusLayer(view: controller.selectedView),
         );
       },
+    );
+  }
+}
+
+// ============================================================
+// FEED STATUS BANNER
+// ============================================================
+
+/// Banner chung cua tab dang xem: FEED_DELAYED (cam) hoac moi box
+/// FETCH_FAILED (do). Tu an khi trang thai ve ok (lan tai sau co mau moi).
+class _FeedStatusLayer extends StatelessWidget {
+  final UtilityChartView view;
+
+  const _FeedStatusLayer({required this.view});
+
+  static final DateFormat _timeFormat = DateFormat('HH:mm');
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (view) {
+      UtilityChartView.minutes => _select<UtilityMinuteChartController>(),
+      UtilityChartView.hours => _select<UtilityHourlyChartController>(),
+      UtilityChartView.daily => _select<UtilityDailyChartController>(),
+    };
+  }
+
+  Widget _select<C extends SeriesHistoryChartController<dynamic>>() {
+    return Selector<C, SeriesFeedStatus>(
+      selector: (_, controller) => controller.feedStatus,
+      builder: (context, status, _) => _banner(status),
+    );
+  }
+
+  Widget _banner(SeriesFeedStatus status) {
+    final banner = switch (status.state) {
+      SeriesFeedState.ok => null,
+      SeriesFeedState.feedDelayed => _delayed(status),
+      SeriesFeedState.unreachable => const FeedStatusBanner(
+        icon: Icons.cloud_off_rounded,
+        message: 'Cannot reach server · retrying',
+        color: Colors.redAccent,
+      ),
+    };
+
+    if (banner == null) return const SizedBox.shrink();
+
+    return Padding(padding: const EdgeInsets.only(bottom: 6), child: banner);
+  }
+
+  Widget _delayed(SeriesFeedStatus status) {
+    final since = status.lastSampleAt;
+    final at = status.evaluatedAt ?? DateTime.now();
+
+    final detail = since == null
+        ? ''
+        : ' · no new samples since ${_timeFormat.format(since)} '
+              '(${at.difference(since).inMinutes} min)';
+
+    return FeedStatusBanner(
+      icon: Icons.hourglass_bottom_rounded,
+      message: 'Data feed delayed$detail · showing last known values',
+      color: Colors.orange,
     );
   }
 }

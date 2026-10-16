@@ -33,6 +33,16 @@ class UtilityMinuteChartController
   String get debugLabel => 'MINUTE';
 
   @override
+  DateTime? lastSampleAt(MinuteSignalSeries series) => series.latest?.ts;
+
+  @override
+  Duration get sampleBucket => kMinuteBucket;
+
+  /// Mau cuoi cu hon 5 phut: DEVICE_STALE / FEED_DELAYED.
+  @override
+  Duration? get staleAfter => const Duration(minutes: 5);
+
+  @override
   HistoryWindow windowAt(DateTime now) {
     final to = DateTime(now.year, now.month, now.day, now.hour, now.minute);
     return HistoryWindow(from: to.subtract(window), to: to);

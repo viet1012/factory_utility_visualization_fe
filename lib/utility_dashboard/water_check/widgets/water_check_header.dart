@@ -37,6 +37,7 @@ class WaterCheckHeader extends StatelessWidget {
     WaterStatus.over,
     WaterStatus.stale,
     WaterStatus.noThreshold,
+    WaterStatus.stopped,
   ];
 
   @override

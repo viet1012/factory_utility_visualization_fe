@@ -9,6 +9,7 @@ enum PollingScope {
   scadaTable,
   alarms,
   waterCheck,
+  electricity,
   facilityDetail,
   solarDetail;
 
@@ -21,6 +22,7 @@ enum PollingScope {
     PollingScope.scadaTable,
     PollingScope.alarms,
     PollingScope.waterCheck,
+    PollingScope.electricity,
   };
 
   const PollingScope({this.parent});

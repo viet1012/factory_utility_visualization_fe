@@ -317,9 +317,11 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
       }
     }
 
+    // forceRefresh (polling): luon gui request moi, khong ghep vao request
+    // dang chay da gui truoc do.
     final missingKey = _cacheKey(prefix, missing);
     final shared =
-        _inFlight[missingKey] ??
+        (forceRefresh ? null : _inFlight[missingKey]) ??
         _start(
           key: missingKey,
           boxes: boxes,
@@ -478,7 +480,8 @@ class ApiSignalHistoryRepository implements SignalHistoryRepository {
 
       if (shared.waiters == 0 && !shared.done) {
         if (identical(_inFlight[key], shared)) _inFlight.remove(key);
-        shared.token.cancel('no remaining waiters');
+        final token = shared.token;
+        if (!token.isCancelled) token.cancel('no remaining waiters');
       }
 
       completer.completeError(error);

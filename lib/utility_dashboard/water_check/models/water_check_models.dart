@@ -6,7 +6,13 @@ enum WaterStatus {
   near('NEAR'),
   over('OVER'),
   stale('STALE'),
-  noThreshold('NO_THRESHOLD');
+  noThreshold('NO_THRESHOLD'),
+
+  /// Ap suat trong vung bom dung (chi signal ap suat).
+  stopped('STOPPED'),
+
+  /// Ap suat ngoai vung vat ly hop le (chi signal ap suat).
+  sensorFault('SENSOR_FAULT');
 
   final String code;
 
@@ -27,6 +33,8 @@ class WaterCheckSummary {
   final int over;
   final int stale;
   final int noThreshold;
+  final int stopped;
+  final int sensorFault;
 
   const WaterCheckSummary({
     this.ok = 0,
@@ -34,6 +42,8 @@ class WaterCheckSummary {
     this.over = 0,
     this.stale = 0,
     this.noThreshold = 0,
+    this.stopped = 0,
+    this.sensorFault = 0,
   });
 
   factory WaterCheckSummary.fromJson(Map<String, dynamic> json) {
@@ -43,6 +53,8 @@ class WaterCheckSummary {
       over: _readInt(json['over']),
       stale: _readInt(json['stale']),
       noThreshold: _readInt(json['noThreshold']),
+      stopped: _readInt(json['stopped']),
+      sensorFault: _readInt(json['sensorFault']),
     );
   }
 
@@ -53,6 +65,8 @@ class WaterCheckSummary {
       WaterStatus.over => over,
       WaterStatus.stale => stale,
       WaterStatus.noThreshold => noThreshold,
+      WaterStatus.stopped => stopped,
+      WaterStatus.sensorFault => sensorFault,
     };
   }
 }

@@ -14,6 +14,8 @@ abstract final class DashboardPollingIntervals {
   static const Duration solarDetail = Duration(hours: 1);
   static const Duration mapWeather = Duration(minutes: 45);
   static const Duration waterCheck = Duration(minutes: 1);
+  /// MONITORING › Electricity: chi tai lai khi dang xem hom nay.
+  static const Duration electricityPowerUsage = Duration(minutes: 1);
 
   /// Nhip kiem tra cache het han cua sparkline / Filter chart (SCADA TABLE).
   static const Duration filterHistoryCheck = Duration(seconds: 30);

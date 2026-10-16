@@ -15,7 +15,7 @@ import 'water_visuals.dart';
 // ============================================================
 
 /// He so scale s cua hinh, dung chung cho ca 3 cot. Co so s = 1: gauge
-/// 120×110, thermometer 80×136, tank 128×136, chu gia tri 16, ten 12; moi
+/// 120×110, thermometer 96×136, tank 150×136, chu gia tri 16, ten 12; moi
 /// kich thuoc nhan s. Chieu cao trong tile co dinh theo s de
 /// [planWaterLayout] tinh dung.
 @immutable
@@ -35,13 +35,23 @@ class WaterVisualSize {
 
   double get valueFont => math.max(14, 16 * scale);
   double get nameFont => math.max(11, 12 * scale);
-  double get chipFont => math.max(9, 10 * scale);
-  double get captionFont => math.max(9.5, 10 * scale);
+
+  /// Chip trang thai: 12px, toi thieu 11px.
+  double get chipFont => math.max(11, 12 * scale);
+
+  /// Dong ly do duoi chip: 11px.
+  double get captionFont => math.max(10, 11 * scale);
+
+  /// Gia tri cua hinh co van de to hon 15%.
+  static const double problemValueScale = 1.15;
   double get titleFont => math.max(11, 12 * scale);
 
-  double get valueHeight => (valueFont * 1.3).ceilToDouble();
+  double get valueHeight =>
+      (valueFont * problemValueScale * 1.3).ceilToDouble();
   double get nameHeight => (nameFont * 1.35).ceilToDouble();
-  double get chipHeight => (chipFont * 1.7).ceilToDouble();
+
+  /// Chu 12 + padding doc 3×2.
+  double get chipHeight => (chipFont * 1.25 + 6).ceilToDouble();
   double get captionHeight => (captionFont * 1.35).ceilToDouble();
   double get titleHeight => (titleFont * 1.75).ceilToDouble();
 
@@ -57,21 +67,21 @@ class WaterVisualSize {
   Size figureSize(WaterVisualKind kind) {
     final base = switch (kind) {
       WaterVisualKind.dial => const Size(120, 110),
-      WaterVisualKind.thermometer => const Size(80, 136),
-      WaterVisualKind.tank => const Size(128, 136),
+      // Rong hon de co cho pill nguong ben phai ong / thuoc.
+      WaterVisualKind.thermometer => const Size(96, 136),
+      WaterVisualKind.tank => const Size(150, 136),
       WaterVisualKind.compact => Size.zero,
     };
     return base * scale;
   }
 
-  /// Chieu cao co dinh cua mot tile (hinh + gia tri + ten + chip + chu
-  /// thich).
+  /// Chieu cao co dinh cua mot tile (hinh + gia tri + ten + chip + dong ly
+  /// do). Cho chip / ly do luon giu de tile khong doi cao theo trang thai.
   double tileHeight(WaterVisualKind kind) {
     final figure = figureSize(kind).height;
     final value = kind == WaterVisualKind.thermometer ? valueHeight : 0.0;
-    final caption = kind == WaterVisualKind.thermometer ? 0.0 : captionHeight;
 
-    return figure + value + 2 + nameHeight + 2 + chipHeight + caption;
+    return figure + value + 2 + nameHeight + 2 + chipHeight + captionHeight;
   }
 
   @override
@@ -647,7 +657,12 @@ WaterLayoutPlan planWaterLayout(
         if (block.kind != WaterVisualKind.compact && block.count > 0) block,
   ]..sort((a, b) => b.count.compareTo(a.count));
 
-  final compact = <String>{};
+  // Hinh rong hon cot ngay o s nho nhat (bon 150·s, nhiet ke 96·s): gon
+  // ngay, khong thi tran ngang.
+  final compact = <String>{
+    for (final block in candidates)
+      if (size.figureSize(block.kind).width > inner) block.key,
+  };
   var result = arrange(size, compact);
 
   for (final block in candidates) {

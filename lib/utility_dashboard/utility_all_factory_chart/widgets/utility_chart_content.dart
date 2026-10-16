@@ -13,11 +13,15 @@ class UtilityChartContent extends StatelessWidget {
   final ChartTheme theme;
   final bool isActive;
 
+  /// Banner trang thai feed (FEED_DELAYED / server loi) duoi thanh filter.
+  final Widget? statusBanner;
+
   const UtilityChartContent({
     super.key,
     required this.controller,
     required this.theme,
     required this.isActive,
+    this.statusBanner,
   });
 
   @override
@@ -144,6 +148,8 @@ class UtilityChartContent extends StatelessWidget {
         UtilityChartFiltersSection(controller: controller, theme: theme),
 
         const SizedBox(height: 6),
+
+        if (statusBanner case final banner?) banner,
 
         Expanded(
           child: UtilityChartTabBody(

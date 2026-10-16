@@ -33,7 +33,12 @@ import 'package:provider/provider.dart';
 import '../utility_api/api_config.dart';
 import '../utility_api/dio_client.dart';
 import 'utility_dashboard_fac_details/api/utility_facade_service.dart';
+import 'monitoring/electricity/api/power_usage_api.dart';
+import 'monitoring/electricity/controller/power_usage_controller.dart';
+import 'monitoring/electricity/electricity_screen.dart';
+import 'monitoring/monitoring_screen.dart';
 import 'shared/visibility/app_visibility.dart';
+import 'utility_all_factory_chart/tabs/utility_chart_view.dart';
 import 'utility_all_factory_chart/controllers/utility_chart_catalog_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_chart_controller.dart';
 import 'utility_all_factory_chart/controllers/utility_daily_chart_controller.dart';
@@ -101,6 +106,12 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
   late final WaterCheckApi waterCheckApi;
   late final WaterCheckController waterCheckController;
+
+  late final PowerUsageApi powerUsageApi;
+  late final PowerUsageController powerUsageController;
+
+  /// Sub-tab dang chon trong MONITORING (Electricity | Water check).
+  MonitoringSubTab _monitoringSubTab = MonitoringSubTab.electricity;
 
   /// WATER CHECK › Open in Charts: CHARTS nghe va chon dung fac / box / device.
   final ValueNotifier<ChartFocusRequest?> _chartFocusRequest =
@@ -213,6 +224,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     overviewApi = UtilityDashboardOverviewApi();
     signalHealthApi = SignalHealthApi();
     waterCheckApi = WaterCheckApi(dio: dio);
+    powerUsageApi = PowerUsageApi(dio: dio);
 
     facade = UtilityFacadeService(dio);
 
@@ -252,6 +264,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     signalHealthController = SignalHealthMatrixController(signalHealthApi);
 
     waterCheckController = WaterCheckController(api: waterCheckApi);
+
+    powerUsageController = PowerUsageController(api: powerUsageApi);
 
     minuteDashboardProvider = UtilityMinuteDashboardProvider(overviewApi);
 
@@ -342,12 +356,21 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         action: waterCheckController.refresh,
         runImmediately: true,
       )
+      // MONITORING › Electricity: scope rieng, chi lam moi khi xem hom nay.
+      ..register(
+        id: PollingTaskIds.electricityPowerUsage,
+        scope: PollingScope.electricity,
+        interval: DashboardPollingIntervals.electricityPowerUsage,
+        action: powerUsageController.poll,
+        runImmediately: true,
+      )
       ..start(PollingTaskIds.mapMonthlySummary)
       ..start(PollingTaskIds.signalHealthMap)
       ..start(PollingTaskIds.signalHealthAlarms)
       ..start(PollingTaskIds.chartsMinuteSeries)
       ..start(PollingTaskIds.chartsHourlySeries)
-      ..start(PollingTaskIds.waterCheck);
+      ..start(PollingTaskIds.waterCheck)
+      ..start(PollingTaskIds.electricityPowerUsage);
   }
 
   void _initializeTabController() {
@@ -375,8 +398,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     final isMapTab = nextIndex == _mapTab;
     final wasChartsTab = _tabIndex == _chartsTab;
     final isChartsTab = nextIndex == _chartsTab;
-    final wasWaterCheckTab = _tabIndex == _waterCheckTab;
-    final isWaterCheckTab = nextIndex == _waterCheckTab;
     final wasScadaTableTab = _tabIndex == _scadaTableTab;
     final isScadaTableTab = nextIndex == _scadaTableTab;
     final wasAlarmsTab = _tabIndex == _alarmsTab;
@@ -395,9 +416,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     if (wasAlarmsTab && !isAlarmsTab) {
       pollingCoordinator.deactivateScope(PollingScope.alarms);
     }
-    if (wasWaterCheckTab && !isWaterCheckTab) {
-      pollingCoordinator.deactivateScope(PollingScope.waterCheck);
-    }
+    _syncMonitoringScopes();
 
     if (isMapTab) {
       pollingCoordinator.activateScope(PollingScope.map);
@@ -409,10 +428,6 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     if (isAlarmsTab) {
       pollingCoordinator.activateScope(PollingScope.alarms);
-    }
-
-    if (isWaterCheckTab) {
-      pollingCoordinator.activateScope(PollingScope.waterCheck);
     }
 
     if (isScadaTableTab) {
@@ -453,9 +468,48 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
       pollingCoordinator.activateScope(PollingScope.alarms);
     } else if (_tabIndex == _chartsTab) {
       pollingCoordinator.activateScope(PollingScope.charts);
-    } else if (_tabIndex == _waterCheckTab) {
-      pollingCoordinator.activateScope(PollingScope.waterCheck);
     }
+    _syncMonitoringScopes();
+  }
+
+  // ============================================================
+  // MONITORING (Electricity | Water check)
+  // ============================================================
+
+  /// Moi sub-tab mot scope: chi sub-tab dang hien trong MONITORING polling.
+  void _syncMonitoringScopes() {
+    final onMonitoring = _tabIndex == _waterCheckTab;
+
+    void sync(PollingScope scope, bool active) => active
+        ? pollingCoordinator.activateScope(scope)
+        : pollingCoordinator.deactivateScope(scope);
+
+    sync(
+      PollingScope.waterCheck,
+      onMonitoring && _monitoringSubTab == MonitoringSubTab.waterCheck,
+    );
+    sync(
+      PollingScope.electricity,
+      onMonitoring && _monitoringSubTab == MonitoringSubTab.electricity,
+    );
+  }
+
+  void _selectMonitoringSubTab(MonitoringSubTab tab) {
+    if (_monitoringSubTab == tab) return;
+    setState(() => _monitoringSubTab = tab);
+    _syncMonitoringScopes();
+  }
+
+  /// Electricity › Compressed air › meter: mo CHARTS › Hourly cua box.
+  void _openMeterInCharts(String facId, String boxDeviceId) {
+    _chartFocusRequest.value = ChartFocusRequest(
+      facId: facId,
+      cate: 'Electricity',
+      boxDeviceId: boxDeviceId,
+      plcAddress: '',
+      view: UtilityChartView.hours,
+    );
+    _tabController.animateTo(_chartsTab);
   }
 
   // ============================================================
@@ -594,7 +648,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                     children: [
                       _buildOverviewTab(),
                       _buildChartsTab(),
-                      _buildWaterCheckTab(),
+                      _buildMonitoringTab(),
                       _buildCatalogTab(),
                       _buildAlarmTab(),
                       _buildSettingTab(),
@@ -651,18 +705,27 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     );
   }
 
-  Widget _buildWaterCheckTab() {
+  Widget _buildMonitoringTab() {
     // IndexedStack khong tat ticker cua tab an: song nuoc cua bon chua dung
     // khi tab khong hien.
     return TickerMode(
       enabled: _tabIndex == _waterCheckTab,
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: WaterCheckScreen(
-          controller: waterCheckController,
-          onOpenInCharts: _openInCharts,
-          fullScreen: _waterFullScreen,
-          onToggleFullScreen: _toggleWaterFullScreen,
+        child: MonitoringScreen(
+          selected: _monitoringSubTab,
+          onChanged: _selectMonitoringSubTab,
+          hideSubTabBar: _waterFullScreen,
+          electricity: ElectricityScreen(
+            controller: powerUsageController,
+            onOpenMeter: _openMeterInCharts,
+          ),
+          waterCheck: WaterCheckScreen(
+            controller: waterCheckController,
+            onOpenInCharts: _openInCharts,
+            fullScreen: _waterFullScreen,
+            onToggleFullScreen: _toggleWaterFullScreen,
+          ),
         ),
       ),
     );
@@ -720,6 +783,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
 
     signalHealthController.dispose();
     waterCheckController.dispose();
+    powerUsageController.dispose();
     _chartFocusRequest.dispose();
 
     minuteDashboardProvider.dispose();

@@ -23,8 +23,10 @@ Color waterStatusColor(WaterStatus status) {
   return switch (status) {
     WaterStatus.ok => kWaterOkColor,
     WaterStatus.near => kWaterNearColor,
-    WaterStatus.over => kWaterOverColor,
-    WaterStatus.stale || WaterStatus.noThreshold => kWaterStaleColor,
+    WaterStatus.over || WaterStatus.sensorFault => kWaterOverColor,
+    WaterStatus.stale ||
+    WaterStatus.noThreshold ||
+    WaterStatus.stopped => kWaterStaleColor,
   };
 }
 
@@ -35,15 +37,17 @@ String waterStatusLabel(WaterStatus status) {
     WaterStatus.over => 'Over',
     WaterStatus.stale => 'No signal',
     WaterStatus.noThreshold => 'No threshold',
+    WaterStatus.stopped => 'Stopped',
+    WaterStatus.sensorFault => 'Sensor fault',
   };
 }
 
-/// Mau gia tri ben phai dong: chi NEAR / OVER co mau.
+/// Mau gia tri ben phai dong: chi NEAR / OVER / SENSOR_FAULT co mau.
 Color waterValueColor(WaterStatus status) {
   return switch (status) {
     WaterStatus.near => kWaterNearColor,
-    WaterStatus.over => kWaterOverColor,
-    WaterStatus.stale => kWaterStaleColor,
+    WaterStatus.over || WaterStatus.sensorFault => kWaterOverColor,
+    WaterStatus.stale || WaterStatus.stopped => kWaterStaleColor,
     _ => kWaterTextPrimary,
   };
 }
@@ -67,7 +71,10 @@ class WaterStatusDot extends StatelessWidget {
         shape: BoxShape.circle,
         color: hollow ? Colors.transparent : color,
         border: hollow ? Border.all(color: color, width: 1.4) : null,
-        boxShadow: hollow || status == WaterStatus.stale
+        boxShadow:
+            hollow ||
+                status == WaterStatus.stale ||
+                status == WaterStatus.stopped
             ? null
             : [BoxShadow(color: color.withValues(alpha: .5), blurRadius: 4)],
       ),
@@ -78,6 +85,24 @@ class WaterStatusDot extends StatelessWidget {
 // ============================================================
 // NUMBERS
 // ============================================================
+
+/// Gia tri dung de ve / hien thi: STALE -> null, STOPPED -> 0 (khong hien so
+/// am khi bom dung).
+double? waterDisplayValue(WaterSignal signal) {
+  return switch (signal.status) {
+    WaterStatus.stale => null,
+    WaterStatus.stopped => 0,
+    _ => signal.value,
+  };
+}
+
+/// Nhu formatValue nhung STOPPED giu du so le ("0.00").
+String formatWaterValue(WaterSignal signal, int decimals) {
+  if (signal.status == WaterStatus.stopped) {
+    return 0.toStringAsFixed(decimals.clamp(0, 12));
+  }
+  return formatValue(waterDisplayValue(signal), decimals: decimals);
+}
 
 /// So le theo SignalChartSpec cua group (code / unit).
 int waterDecimals({String? code, String? unit}) {
@@ -117,6 +142,61 @@ String? groupThresholdText(WaterGroup group, int decimals) {
   return 'min ${formatWithUnit(low, unit, decimals: decimals)}';
 }
 
+/// OVER / SENSOR_FAULT: do; NEAR: cam. Hinh co van de duoc vien + chip.
+bool waterIsAbnormal(WaterStatus status) =>
+    status == WaterStatus.over || status == WaterStatus.sensorFault;
+
+bool waterIsProblem(WaterStatus status) =>
+    waterIsAbnormal(status) || status == WaterStatus.near;
+
+/// Phia nguong lien quan cua NEAR / OVER (true = max): phia dang vuot,
+/// khong thi phia gan hon.
+bool waterLimitIsHigh(WaterSignal signal, WaterGroup group) {
+  final value = signal.value;
+  final rule = group.primaryThreshold;
+  final low = rule?.low;
+  final high = rule?.high;
+
+  if (value == null) return high != null;
+  return high != null &&
+      (low == null ||
+          (signal.status == WaterStatus.over
+              ? value > high
+              : (high - value).abs() < (value - low).abs()));
+}
+
+/// Dong ly do ngan duoi chip: "Below min 2.2", "Above max 4.0",
+/// "Near max 4.0", "No data since 09:12". Null khi binh thuong.
+String? waterShortReason(WaterSignal signal, WaterGroup group, int decimals) {
+  String fmt(double? v) => formatValue(v, decimals: decimals);
+
+  switch (signal.status) {
+    case WaterStatus.stale:
+      final lastSeen = signal.lastSeenAt;
+      return lastSeen == null
+          ? 'No data'
+          : 'No data since ${formatHhmm(lastSeen)}';
+    case WaterStatus.sensorFault:
+      return 'Invalid reading ${fmt(signal.value)}';
+    case WaterStatus.near:
+    case WaterStatus.over:
+      final isHigh = waterLimitIsHigh(signal, group);
+      final rule = group.primaryThreshold;
+      final limit = isHigh ? rule?.high : rule?.low;
+      final side = isHigh ? 'max' : 'min';
+
+      if (signal.status == WaterStatus.near) {
+        return limit == null ? 'Near limit' : 'Near $side ${fmt(limit)}';
+      }
+      if (limit == null) return 'Out of limit';
+      return '${isHigh ? 'Above' : 'Below'} $side ${fmt(limit)}';
+    case WaterStatus.ok:
+    case WaterStatus.noThreshold:
+    case WaterStatus.stopped:
+      return null;
+  }
+}
+
 /// Ly do cua trang thai (API khong tra truong rieng): suy tu status, gia tri
 /// va nguong chung cua group.
 String waterReason(WaterSignal signal, WaterGroup group, int decimals) {
@@ -133,26 +213,18 @@ String waterReason(WaterSignal signal, WaterGroup group, int decimals) {
           : 'No signal since ${formatHhmm(lastSeen)} · last '
                 '${fmt(signal.lastValue)}';
     case WaterStatus.noThreshold:
-      return value != null && value < 0
-          ? 'No limit set · pump stopped?'
-          : 'No limit set';
+      return 'No limit set';
+    case WaterStatus.stopped:
+      return 'Pump stopped';
+    case WaterStatus.sensorFault:
+      return 'Sensor fault · last ${fmt(value)}';
     case WaterStatus.ok:
       return 'Within limits';
     case WaterStatus.near:
     case WaterStatus.over:
-      final low = rule?.low;
-      final high = rule?.high;
       final over = signal.status == WaterStatus.over;
-
-      // Phia nguong lien quan: phia dang vuot, khong thi phia gan hon.
-      final isHigh = value == null
-          ? high != null
-          : high != null &&
-                (low == null ||
-                    (over
-                        ? value > high
-                        : (high - value).abs() < (value - low).abs()));
-      final limit = isHigh ? high : low;
+      final isHigh = waterLimitIsHigh(signal, group);
+      final limit = isHigh ? rule?.high : rule?.low;
       if (limit == null) return over ? 'Out of limit' : 'Near limit';
 
       final side = isHigh ? 'max' : 'min';

@@ -12,6 +12,7 @@ abstract final class PollingTaskIds {
   static const String mapSolarMonthly = 'map.solar-monthly';
   static const String mapWeather = 'map.weather';
   static const String waterCheck = 'water-check.summary';
+  static const String electricityPowerUsage = 'electricity.power-usage';
 
   /// Chart 1h trong dialog cua WATER CHECK.
   static String waterCheckSignalChart(Object owner) {

@@ -263,7 +263,7 @@ class _IssueRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 12.5,
+                  fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -276,7 +276,7 @@ class _IssueRow extends StatelessWidget {
               maxLines: 1,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -305,8 +305,8 @@ class _IssueRow extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           color: kWaterStaleColor,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
         ),
       );
     }
@@ -333,7 +333,7 @@ class _IssueRow extends StatelessWidget {
       ),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(fontSize: 12),
+      style: const TextStyle(fontSize: 13),
     );
   }
 

@@ -71,6 +71,95 @@ class SeriesBoxState<T> {
   }
 }
 
+/// Trang thai cua mot box sau lan tai gan nhat.
+enum SeriesBoxHealth {
+  ok,
+
+  /// DEVICE_STALE: mau moi nhat cua box cu hon nguong trong khi feed chung
+  /// van chay.
+  stale,
+
+  /// FETCH_FAILED: request cua box loi (timeout, mang, 5xx); giu du lieu cu.
+  fetchFailed,
+}
+
+/// Trang thai chung cua moi box dang hien thi.
+enum SeriesFeedState {
+  ok,
+
+  /// FEED_DELAYED: moi signal cung dung o mot moc (nguon du lieu tre).
+  feedDelayed,
+
+  /// Moi box deu FETCH_FAILED.
+  unreachable,
+}
+
+/// Ket qua phan loai sau moi lan tai (xem
+/// [SeriesHistoryChartController.feedStatus]).
+class SeriesFeedStatus {
+  final SeriesFeedState state;
+
+  /// FEED_DELAYED: mau moi nhat trong moi signal (dau bucket).
+  final DateTime? lastSampleAt;
+
+  /// Thoi diem phan loai.
+  final DateTime? evaluatedAt;
+
+  final Map<String, SeriesBoxHealth> boxes;
+
+  const SeriesFeedStatus({
+    required this.state,
+    this.lastSampleAt,
+    this.evaluatedAt,
+    this.boxes = const {},
+  });
+
+  static const SeriesFeedStatus ok = SeriesFeedStatus(
+    state: SeriesFeedState.ok,
+  );
+
+  SeriesBoxHealth boxHealth(String box) {
+    return boxes[box.trim()] ?? SeriesBoxHealth.ok;
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is SeriesFeedStatus &&
+        other.state == state &&
+        other.lastSampleAt == lastSampleAt &&
+        other.evaluatedAt == evaluatedAt &&
+        mapEquals(other.boxes, boxes);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    state,
+    lastSampleAt,
+    evaluatedAt,
+    Object.hashAllUnordered(
+      boxes.entries.map((entry) => Object.hash(entry.key, entry.value)),
+    ),
+  );
+}
+
+/// Huy [token] an toan: bo qua token da huy, khong de loi cua dio lan ra
+/// noi goi. Moi cho huy dung ham nay trong closure, khong dung tear-off.
+void cancelTokenQuietly(CancelToken token, String reason) {
+  if (token.isCancelled) return;
+
+  try {
+    token.cancel(reason);
+  } catch (error) {
+    if (kDebugMode) debugPrint('[CANCEL] $reason: $error');
+  }
+}
+
+/// Loi do chu dong huy request (doi lua chon / roi tab / superseded).
+bool isCancelError(Object error) {
+  return error is DioException &&
+      (error.type == DioExceptionType.cancel || CancelToken.isCancel(error));
+}
+
 // ============================================================
 // BATCH
 // ============================================================
@@ -112,9 +201,8 @@ List<SeriesRequestBatch> planSeriesBatches(
   void flush() {
     if (current.isEmpty) return;
 
-    final plcs = <String>{
-      for (final list in current.values) ...list,
-    }.toList()..sort();
+    final plcs = <String>{for (final list in current.values) ...list}.toList()
+      ..sort();
 
     batches.add(
       SeriesRequestBatch(
@@ -244,7 +332,29 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
   /// Ten trong log debug.
   String get debugLabel;
 
+  /// Dau bucket cua mau moi nhat cua [series]; null = khong xet stale.
+  DateTime? lastSampleAt(T series) => null;
+
+  /// Do rong bucket (mau tai ts thuoc [ts, ts + sampleBucket)).
+  Duration get sampleBucket => Duration.zero;
+
+  /// Mau cuoi cu hon nguong nay (tinh tu cuoi bucket) la stale; null = tab
+  /// khong phan loai stale (Hourly / Daily).
+  Duration? get staleAfter => null;
+
+  /// FEED_DELAYED: toi thieu so signal / box dang hien thi.
+  static const int feedDelayedMinSignals = 3;
+  static const int feedDelayedMinBoxes = 2;
+
+  /// FEED_DELAYED: moc dung cua cac signal chenh nhau toi da.
+  static const Duration feedDelayedMaxSpread = Duration(minutes: 2);
+
+  /// So request toi da khi tach lo loi thanh tung box.
+  static const int perBoxRetryConcurrency = 4;
+
   bool _disposed = false;
+
+  SeriesFeedStatus _feedStatus = SeriesFeedStatus.ok;
 
   /// Lan load gan nhat: box -> PLC da sort. Dung cho poll / retry.
   Map<String, List<String>> _request = const <String, List<String>>{};
@@ -271,6 +381,10 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
   bool get fetching => _boxes.values.any((state) => state.loading);
 
   bool get hasData => _boxes.values.any((state) => state.data != null);
+
+  /// Phan loai FEED_DELAYED / DEVICE_STALE / FETCH_FAILED, tinh lai sau moi
+  /// lan tai (khong doi khi lan poll moi bat dau).
+  SeriesFeedStatus get feedStatus => _feedStatus;
 
   // ============================================================
   // COMMANDS
@@ -300,6 +414,7 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
     _cache.removeWhere((_, entry) => !entry.isFresh(cacheTtl));
 
     if (request.isEmpty) {
+      _feedStatus = SeriesFeedStatus.ok;
       safeNotify();
       return;
     }
@@ -307,11 +422,15 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
     final tag = windowTag;
     final window = windowAt(DateTime.now());
 
+    // Khoa cache gom ca moc cua so: cua so truot (Minutes) sang phut moi thi
+    // khong dung lai du lieu cua cua so cu.
+    final cacheTag = _cacheTag(tag, window);
+
     final plans = <String, _BoxPlan<T>>{};
     final missingByBox = <String, List<String>>{};
 
     for (final MapEntry(key: box, value: plcs) in request.entries) {
-      final cacheKey = _cacheKey(tag, box, plcs);
+      final cacheKey = _cacheKey(cacheTag, box, plcs);
       final current = _boxes[box] ?? SeriesBoxState<T>();
 
       if (forceRefresh) {
@@ -322,7 +441,8 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
           baseCreatedAt: null,
         );
         missingByBox[box] = plcs;
-        _boxes[box] = current.copyWith(loading: true, clearError: true);
+        // Poll: giu loi cu toi khi co ket qua moi (chip khong nhap nhay).
+        _boxes[box] = current.copyWith(loading: true);
         continue;
       }
 
@@ -336,7 +456,7 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
         continue;
       }
 
-      final (:base, :oldest) = _cachedSignals(tag, box, plcs);
+      final (:base, :oldest) = _cachedSignals(cacheTag, box, plcs);
       final missing = plcs
           .where((plc) => !base.containsKey(plc))
           .toList(growable: false);
@@ -367,9 +487,13 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
       _boxes[box] = current.copyWith(loading: true, clearError: true);
     }
 
-    safeNotify();
+    if (plans.isEmpty) {
+      _updateFeedStatus();
+      safeNotify();
+      return;
+    }
 
-    if (plans.isEmpty) return;
+    safeNotify();
 
     final batches = planSeriesBatches(
       missingByBox,
@@ -387,7 +511,8 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
       debugPrint(
         '[$debugLabel] load boxes=${missingByBox.length} '
         'signals=${batches.fold<int>(0, (n, b) => n + b.signalCount)} '
-        'requests=${batches.length} force=$forceRefresh',
+        'requests=${batches.length} force=$forceRefresh '
+        'from=${window.from} to=${window.to}',
       );
     }
 
@@ -406,11 +531,21 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
         (_) => worker(),
       ),
     );
+
+    if (!_isCurrent(generation)) return;
+
+    _updateFeedStatus();
+    safeNotify();
   }
 
   /// Polling: lam moi lua chon hien tai, bo qua cache.
   Future<void> poll() async {
-    if (_disposed || _request.isEmpty) return;
+    if (_disposed) return;
+
+    if (_request.isEmpty) {
+      if (kDebugMode) debugPrint('[$debugLabel POLL] skip: chua co request');
+      return;
+    }
 
     await load(plcsByBox: _request, forceRefresh: true);
   }
@@ -536,7 +671,7 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
           .timeout(
             requestTimeout,
             onTimeout: () {
-              cancelToken.cancel('timeout');
+              cancelTokenQuietly(cancelToken, 'timeout');
               throw TimeoutException(
                 '$debugLabel request timed out',
                 requestTimeout,
@@ -545,6 +680,8 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
           );
 
       if (!_isCurrent(generation)) return;
+
+      if (kDebugMode) _logResponse(batch, response, window, forceRefresh);
 
       // PLC gui chung cho ca lo: chi nhan dung cap (box, plc) can, ghep
       // theo cap cua response (khong theo thu tu), khoa luu la box / PLC
@@ -589,10 +726,7 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
         final data = SeriesBoxData<T>(
           tag: tag,
           window: window,
-          signals: Map<String, T>.unmodifiable({
-            ...plan.base,
-            ...plan.fetched,
-          }),
+          signals: Map<String, T>.unmodifiable({...plan.base, ...plan.fetched}),
         );
 
         _cache[plan.cacheKey] = _CacheEntry<T>(
@@ -611,11 +745,27 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
 
       if (changed) safeNotify();
     } catch (error, stackTrace) {
-      // Huy chu dong (doi lua chon / range / roi tab): khong phai loi.
-      // Timeout den day duoi dang TimeoutException nen van bao loi.
-      if (error is DioException && CancelToken.isCancel(error)) return;
+      // Huy chu dong (doi lua chon / range / roi tab): khong phai loi, khong
+      // doi trang thai the. Timeout den day la TimeoutException nen van loi.
+      if (isCancelError(error)) {
+        if (kDebugMode) {
+          debugPrint('[$debugLabel] cancelled boxes=${batch.boxes.join(',')}');
+        }
+        return;
+      }
 
       if (!_isCurrent(generation)) return;
+
+      // Lo nhieu box loi: thu lai tung box de box tot van co du lieu, chi
+      // box loi hien FETCH_FAILED.
+      if (batch.boxes.length > 1) {
+        debugPrint(
+          '[$debugLabel ERROR] boxes=${batch.boxes.join(',')} '
+          'plcs=${batch.plcs.length} error=$error -> retry per box',
+        );
+        await _retryPerBox(batch, plans, tag, window, forceRefresh, generation);
+        return;
+      }
 
       debugPrint(
         '[$debugLabel ERROR] boxes=${batch.boxes.join(',')} '
@@ -649,6 +799,154 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
     } finally {
       _inFlight.remove(cancelToken);
     }
+  }
+
+  /// Tach [batch] loi thanh tung box, toi da [perBoxRetryConcurrency]
+  /// request song song. So lo cho cua moi box khong doi (mot lo -> mot lo).
+  Future<void> _retryPerBox(
+    SeriesRequestBatch batch,
+    Map<String, _BoxPlan<T>> plans,
+    String tag,
+    HistoryWindow window,
+    bool forceRefresh,
+    int generation,
+  ) async {
+    final singles = [
+      for (final box in batch.boxes)
+        if (batch.wanted[box] case final plcs?)
+          SeriesRequestBatch(
+            boxes: [box],
+            plcs: List<String>.unmodifiable(plcs.toList()..sort()),
+            wanted: {box: plcs},
+          ),
+    ];
+
+    var next = 0;
+
+    Future<void> worker() async {
+      while (next < singles.length && _isCurrent(generation)) {
+        final single = singles[next++];
+        await _fetchBatch(single, plans, tag, window, forceRefresh, generation);
+      }
+    }
+
+    await Future.wait(
+      List.generate(
+        math.min(perBoxRetryConcurrency, singles.length),
+        (_) => worker(),
+      ),
+    );
+  }
+
+  // ============================================================
+  // FEED STATUS
+  // ============================================================
+
+  /// FETCH_FAILED: box co loi (khong phai huy); moi box loi -> unreachable.
+  /// FEED_DELAYED / DEVICE_STALE: chi khi [staleAfter] khac null, xet cac
+  /// signal dang hien thi cua cac box khong loi.
+  void _updateFeedStatus() {
+    final now = DateTime.now();
+    final health = <String, SeriesBoxHealth>{};
+
+    for (final box in _request.keys) {
+      final error = _boxes[box]?.error;
+      if (error != null && !isCancelError(error)) {
+        health[box] = SeriesBoxHealth.fetchFailed;
+      }
+    }
+
+    SeriesFeedStatus status(SeriesFeedState state, {DateTime? lastSampleAt}) {
+      return SeriesFeedStatus(
+        state: state,
+        lastSampleAt: lastSampleAt,
+        evaluatedAt: now,
+        boxes: Map<String, SeriesBoxHealth>.unmodifiable(health),
+      );
+    }
+
+    if (_request.isNotEmpty && health.length == _request.length) {
+      _feedStatus = status(SeriesFeedState.unreachable);
+      return;
+    }
+
+    final threshold = staleAfter;
+    if (threshold == null) {
+      _feedStatus = status(SeriesFeedState.ok);
+      return;
+    }
+
+    bool isStale(DateTime ts) {
+      return now.difference(ts.add(sampleBucket)) > threshold;
+    }
+
+    // Mau cuoi cua tung signal dang hien thi (box khong loi).
+    final samples = <DateTime>[];
+    final newestByBox = <String, DateTime>{};
+
+    for (final MapEntry(key: box, value: plcs) in _request.entries) {
+      if (health.containsKey(box)) continue;
+
+      final signals = _boxes[box]?.data?.signals;
+      if (signals == null) continue;
+
+      for (final plc in plcs) {
+        final series = signals[plc];
+        final ts = series == null ? null : lastSampleAt(series);
+        if (ts == null) continue;
+
+        samples.add(ts);
+
+        final newest = newestByBox[box];
+        if (newest == null || ts.isAfter(newest)) newestByBox[box] = ts;
+      }
+    }
+
+    if (samples.length >= feedDelayedMinSignals &&
+        newestByBox.length >= feedDelayedMinBoxes &&
+        samples.every(isStale)) {
+      final oldest = samples.reduce((a, b) => a.isBefore(b) ? a : b);
+      final newest = samples.reduce((a, b) => a.isAfter(b) ? a : b);
+
+      if (newest.difference(oldest) <= feedDelayedMaxSpread) {
+        _feedStatus = status(SeriesFeedState.feedDelayed, lastSampleAt: newest);
+        return;
+      }
+    }
+
+    for (final MapEntry(key: box, value: newest) in newestByBox.entries) {
+      if (isStale(newest)) health[box] = SeriesBoxHealth.stale;
+    }
+
+    _feedStatus = status(SeriesFeedState.ok);
+  }
+
+  /// Log moi lan nhan du lieu (poll = forceRefresh): cua so, so diem va ts
+  /// cua bucket co mau cuoi cung.
+  void _logResponse(
+    SeriesRequestBatch batch,
+    SeriesHistoryResponse response,
+    HistoryWindow window,
+    bool forceRefresh,
+  ) {
+    var points = 0;
+    DateTime? lastTs;
+
+    for (final signal in response.signals) {
+      points += signal.points.length;
+
+      for (final point in signal.points) {
+        if (point.count == 0) continue;
+        if (lastTs == null || point.ts.isAfter(lastTs)) lastTs = point.ts;
+      }
+    }
+
+    debugPrint(
+      '[$debugLabel ${forceRefresh ? 'POLL' : 'LOAD'}] '
+      'from=${window.from} to=${window.to} '
+      'boxes=${batch.boxes.join(',')} signals=${response.signals.length} '
+      'points=$points lastTs=${lastTs ?? '-'}',
+    );
   }
 
   static String _norm(String value) => value.trim().toUpperCase();
@@ -692,9 +990,14 @@ abstract class SeriesHistoryChartController<T> extends ChangeNotifier
 
   void _cancelInFlight() {
     for (final token in _inFlight.toList(growable: false)) {
-      if (!token.isCancelled) token.cancel('superseded');
+      cancelTokenQuietly(token, 'superseded');
     }
     _inFlight.clear();
+  }
+
+  static String _cacheTag(String tag, HistoryWindow window) {
+    return '$tag@${window.from.toIso8601String()}'
+        '~${window.to.toIso8601String()}';
   }
 
   String _cachePrefix(String tag, String box) => '$tag|$box|';

@@ -107,21 +107,27 @@ class WaterPalette {
 Color waterFluidColor(WaterStatus status) {
   return switch (status) {
     WaterStatus.near => kWaterNearColor,
-    WaterStatus.over => kWaterOverColor,
-    WaterStatus.stale => kWaterStaleColor,
+    WaterStatus.over || WaterStatus.sensorFault => kWaterOverColor,
+    WaterStatus.stale || WaterStatus.stopped => kWaterStaleColor,
     _ => kWaterFluidColor,
   };
 }
 
 const Color kWaterFluidColor = Color(0xFF3B9EFF);
 
-/// Mau so / kim: chu chinh khi OK, cam NEAR, do OVER / abnormal.
+/// Mau so / kim: chu chinh khi OK, cam NEAR, do OVER / SENSOR_FAULT /
+/// abnormal, xam STALE / STOPPED.
 Color waterReadingColor(
   WaterStatus status,
   WaterPalette palette, {
   bool abnormal = false,
 }) {
-  if (abnormal || status == WaterStatus.over) return kWaterOverColor;
+  if (status == WaterStatus.stopped) return palette.muted;
+  if (abnormal ||
+      status == WaterStatus.over ||
+      status == WaterStatus.sensorFault) {
+    return kWaterOverColor;
+  }
   return switch (status) {
     WaterStatus.near => kWaterNearColor,
     WaterStatus.stale => palette.muted,
@@ -202,31 +208,14 @@ double tankMax(WaterGroup group, WaterSignal signal) {
   return niceCeil(math.max(math.max(low ?? 0, value), 1) * 1.2);
 }
 
-/// "near min ▼" / "near max ▲" cho bon chua dang NEAR.
-String? tankNearCaption(WaterGroup group, WaterSignal signal) {
-  final value = signal.value;
-  final rule = group.primaryThreshold;
-  if (signal.status != WaterStatus.near || value == null || rule == null) {
-    return null;
-  }
-
-  final low = rule.low;
-  final high = rule.high;
-  if (high == null && low == null) return null;
-
-  final nearHigh =
-      high != null &&
-      (low == null || (high - value).abs() < (value - low).abs());
-  return nearHigh ? 'near max ▲' : 'near min ▼';
-}
-
 // ============================================================
 // THERMOMETER
 // ============================================================
 
-/// Nhiet ke dung: ong bo tron co vien, chat long theo trang thai (co vet
-/// sang), bau tron 2 lop, vach chinh moi 10 (co so), vach phu moi 5, vach
-/// do net dut "max" tai nguong high.
+/// Nhiet ke dung: tu trai sang phai nhan thang | vach (chinh moi 10, phu
+/// moi 5) | dai mau nguong | ong bo tron + bau tron 2 lop | pill nguong.
+/// Chat long theo trang thai (co vet sang); vach do net dut tai nguong keo
+/// qua thang va ong; tam giac ◀ mau trang thai chi gia tri tren thang.
 class WaterThermometer extends StatelessWidget {
   final WaterGroup group;
   final WaterSignal signal;
@@ -247,13 +236,9 @@ class WaterThermometer extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = WaterPalette.of(context);
     final size = tier.figureSize(WaterVisualKind.thermometer);
-    final s = tier.scale;
-
-    final tube = 12 * s;
-    final bulb = 26 * s;
 
     final max = thermometerMax(group);
-    final high = group.primaryThreshold?.high;
+    final rule = group.primaryThreshold;
     final value = signal.status == WaterStatus.stale ? null : signal.value;
     final fluid = value == null
         ? palette.muted
@@ -262,161 +247,291 @@ class WaterThermometer extends StatelessWidget {
     return SizedBox(
       width: size.width,
       height: size.height,
-      child: SfLinearGauge(
-        orientation: LinearGaugeOrientation.vertical,
-        minimum: 0,
-        maximum: max,
-        interval: 10,
-        minorTicksPerInterval: 1,
-        animateAxis: false,
-        animateRange: false,
-        tickPosition: LinearElementPosition.outside,
-        labelPosition: LinearLabelPosition.outside,
-        tickOffset: 3 * s,
-        labelOffset: 3 * s,
-        majorTickStyle: LinearTickStyle(
-          length: 7 * s,
-          thickness: 1.2 * s,
-          color: palette.muted,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(
+          begin: 0,
+          end: (value ?? 0).clamp(0, max).toDouble(),
         ),
-        minorTickStyle: LinearTickStyle(
-          length: 4 * s,
-          thickness: .8 * s,
-          color: palette.muted.withValues(alpha: .7),
-        ),
-        axisLabelStyle: TextStyle(
-          color: palette.muted,
-          fontSize: tier.font(9),
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
-        axisTrackStyle: LinearAxisTrackStyle(
-          thickness: tube,
-          edgeStyle: LinearEdgeStyle.bothCurve,
-          color: palette.glass,
-          borderColor: palette.bezel,
-          borderWidth: 1.2 * s,
-        ),
-        barPointers: [
-          if (value != null)
-            LinearBarPointer(
-              value: value.clamp(0, max).toDouble(),
-              thickness: tube - 5 * s,
-              edgeStyle: LinearEdgeStyle.bothCurve,
-              enableAnimation: animate,
-              animationDuration: 300,
-              shaderCallback: (bounds) => LinearGradient(
-                colors: [
-                  _shade(fluid, -.12),
-                  _shade(fluid, .12),
-                  _shade(fluid, -.12),
-                ],
-              ).createShader(bounds),
-            ),
-          // Vet sang manh trong ong.
-          LinearBarPointer(
-            value: max,
-            thickness: 1.4 * s,
-            enableAnimation: false,
-            color: Colors.white.withValues(alpha: palette.isDark ? .16 : .45),
+        duration: animate ? const Duration(milliseconds: 300) : Duration.zero,
+        curve: Curves.easeOutCubic,
+        builder: (context, level, _) => CustomPaint(
+          painter: _ThermometerPainter(
+            level: value == null ? null : level,
+            max: max,
+            low: rule?.low,
+            high: rule?.high,
+            unit: group.unit,
+            decimals: decimals,
+            fluid: fluid,
+            pointer: _chipColor(signal.status, palette),
+            palette: palette,
+            tier: tier,
           ),
-        ],
-        markerPointers: [
-          LinearWidgetPointer(
-            value: 0,
-            enableAnimation: false,
-            child: SizedBox(
-              width: bulb,
-              height: bulb,
-              child: CustomPaint(
-                painter: _BulbPainter(
-                  fluid: fluid,
-                  rim: palette.bezel,
-                  glass: palette.faceEdge,
-                  scale: s,
-                ),
-              ),
-            ),
-          ),
-          if (high != null && high <= max) ...[
-            LinearWidgetPointer(
-              value: high,
-              enableAnimation: false,
-              child: SizedBox(
-                width: tube + 12 * s,
-                height: 1.6,
-                child: const CustomPaint(
-                  painter: _DashPainter(kWaterOverColor),
-                ),
-              ),
-            ),
-            LinearWidgetPointer(
-              value: high,
-              enableAnimation: false,
-              position: LinearElementPosition.inside,
-              offset: 4 * s,
-              child: Text(
-                'max',
-                style: TextStyle(
-                  color: kWaterOverColor,
-                  fontSize: tier.font(9),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Bau nhiet ke 2 lop: vong ngoai vien kim loai, loi cung mau chat long.
-class _BulbPainter extends CustomPainter {
+class _ThermometerPainter extends CustomPainter {
+  /// Gia tri dang ve (da clamp 0..max); null = khong co tin hieu.
+  final double? level;
+  final double max;
+  final double? low;
+  final double? high;
+  final String unit;
+  final int decimals;
   final Color fluid;
-  final Color rim;
-  final Color glass;
-  final double scale;
+  final Color pointer;
+  final WaterPalette palette;
+  final WaterVisualSize tier;
 
-  const _BulbPainter({
+  const _ThermometerPainter({
+    required this.level,
+    required this.max,
+    required this.low,
+    required this.high,
+    required this.unit,
+    required this.decimals,
     required this.fluid,
-    required this.rim,
-    required this.glass,
-    required this.scale,
+    required this.pointer,
+    required this.palette,
+    required this.tier,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = size.shortestSide / 2;
+    final s = tier.scale;
+    final tube = 12 * s;
+    final bulb = 26 * s;
+    final majorTick = 7 * s;
+    final minorTick = 4 * s;
+    final bandWidth = 4 * s;
 
-    canvas.drawCircle(center, radius - .6, Paint()..color = glass);
-    canvas.drawCircle(
-      center,
-      radius - .6,
+    final labels = [
+      for (var v = 0.0; v <= max + 1e-9; v += 10)
+        (
+          value: v,
+          text: _plainText(
+            formatValue(v, decimals: 0),
+            TextStyle(
+              color: palette.muted,
+              fontSize: tier.font(9),
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+    ];
+    final labelWidth = labels.fold<double>(
+      0,
+      (width, label) => math.max(width, label.text.width),
+    );
+
+    final pills = [
+      for (final edge in [high, low])
+        if (edge != null && edge >= 0 && edge <= max)
+          (
+            edge: edge,
+            pill: _Pill(formatWithUnit(edge, unit, decimals: decimals), tier),
+          ),
+    ];
+    final pillWidth = pills.fold<double>(
+      0,
+      (width, item) => math.max(width, item.pill.width),
+    );
+
+    // Bo cuc ngang (tuong doi), roi can giua trong khung.
+    final tickRightRel = labelWidth + 2 * s + majorTick;
+    final bandLeftRel = tickRightRel + s;
+    final tubeLeftRel = bandLeftRel + bandWidth + 6 * s;
+    final tubeRightRel = tubeLeftRel + tube;
+    final pillLeftRel = tubeRightRel + 4 * s;
+    final contentWidth = pills.isEmpty
+        ? tubeLeftRel + tube / 2 + bulb / 2
+        : pillLeftRel + pillWidth;
+    final dx = math.max(0.0, (size.width - contentWidth) / 2);
+
+    final tickRight = dx + tickRightRel;
+    final bandLeft = dx + bandLeftRel;
+    final bandRight = bandLeft + bandWidth;
+    final tubeLeft = dx + tubeLeftRel;
+    final tubeRight = dx + tubeRightRel;
+    final tubeCenter = (tubeLeft + tubeRight) / 2;
+
+    // Bo cuc doc: 0 ngay tren bau, max chua cho nua nhan / pill.
+    final bulbCenter = Offset(tubeCenter, size.height - bulb / 2 - 1);
+    final yZero = bulbCenter.dy - bulb / 2 - 2 * s;
+    final pillHalf = pills.isEmpty ? 0.0 : pills.first.pill.height / 2;
+    final yTop = math.max(labels.first.text.height / 2, pillHalf) + 2;
+    double yOf(double v) => yZero - (v / max).clamp(0.0, 1.0) * (yZero - yTop);
+
+    // Dai mau nguong.
+    for (final (from, to, color) in _thresholdBands(
+      max: max,
+      low: low,
+      high: high,
+      near: true,
+      neutral: palette.muted.withValues(alpha: .35),
+    )) {
+      canvas.drawRect(
+        Rect.fromLTRB(bandLeft, yOf(to), bandRight, yOf(from)),
+        Paint()..color = color,
+      );
+    }
+
+    // Vach + nhan thang.
+    final major = Paint()
+      ..color = palette.muted
+      ..strokeWidth = 1.2 * s;
+    final minor = Paint()
+      ..color = palette.muted.withValues(alpha: .7)
+      ..strokeWidth = .8 * s;
+    for (var v = 0.0; v <= max + 1e-9; v += 5) {
+      final y = yOf(v);
+      final isMajor = (v / 10 - (v / 10).round()).abs() < 1e-9;
+      canvas.drawLine(
+        Offset(tickRight - (isMajor ? majorTick : minorTick), y),
+        Offset(tickRight, y),
+        isMajor ? major : minor,
+      );
+    }
+    for (final label in labels) {
+      label.text.paint(
+        canvas,
+        Offset(
+          dx + labelWidth - label.text.width,
+          yOf(label.value) - label.text.height / 2,
+        ),
+      );
+    }
+
+    // Ong: long ong, chat long, vet sang, vien.
+    final tubeRect = RRect.fromRectAndRadius(
+      Rect.fromLTRB(tubeLeft, yTop - tube / 2, tubeRight, bulbCenter.dy),
+      Radius.circular(tube / 2),
+    );
+    canvas.drawRRect(tubeRect, Paint()..color = palette.glass);
+
+    final current = level;
+    if (current != null) {
+      final inset = 2.5 * s;
+      final fluidRect = Rect.fromLTRB(
+        tubeLeft + inset,
+        yOf(current),
+        tubeRight - inset,
+        bulbCenter.dy,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(fluidRect, Radius.circular(tube / 2 - inset)),
+        Paint()
+          ..shader = LinearGradient(
+            colors: [
+              _shade(fluid, -.12),
+              _shade(fluid, .12),
+              _shade(fluid, -.12),
+            ],
+          ).createShader(fluidRect),
+      );
+    }
+
+    canvas.drawRect(
+      Rect.fromLTWH(tubeCenter - .7 * s, yTop, 1.4 * s, yZero - yTop),
       Paint()
-        ..color = rim
+        ..color = Colors.white.withValues(alpha: palette.isDark ? .16 : .45),
+    );
+    canvas.drawRRect(
+      tubeRect,
+      Paint()
+        ..color = palette.bezel
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2 * scale,
+        ..strokeWidth = 1.2 * s,
     );
 
-    final core = radius - 4 * scale;
-    canvas.drawCircle(
-      center,
-      core,
-      Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-.35, -.35),
-          colors: [_shade(fluid, .16), _shade(fluid, -.1)],
-        ).createShader(Rect.fromCircle(center: center, radius: core)),
+    _paintBulb(
+      canvas,
+      center: bulbCenter,
+      radius: bulb / 2,
+      fluid: fluid,
+      rim: palette.bezel,
+      glass: palette.faceEdge,
+      scale: s,
     );
+
+    // Vach nguong qua thang + ong, pill ben phai ong.
+    final limit = Paint()
+      ..color = kWaterOverColor
+      ..strokeWidth = 2 * s;
+    for (final item in pills) {
+      final y = yOf(item.edge);
+      _dashed(
+        canvas,
+        Offset(tickRight - majorTick, y),
+        Offset(tubeRight + 2 * s, y),
+        limit,
+      );
+    }
+    _paintPills(
+      canvas,
+      [for (final item in pills) (y: yOf(item.edge), pill: item.pill)],
+      left: dx + pillLeftRel,
+      height: size.height,
+    );
+
+    if (current != null) {
+      _paintPointer(
+        canvas,
+        tip: Offset(bandRight + .5 * s, yOf(current)),
+        size: 5 * s,
+        color: pointer,
+        outline: palette.faceCenter,
+      );
+    }
   }
 
   @override
-  bool shouldRepaint(covariant _BulbPainter old) =>
+  bool shouldRepaint(covariant _ThermometerPainter old) =>
+      old.level != level ||
+      old.max != max ||
+      old.low != low ||
+      old.high != high ||
+      old.unit != unit ||
+      old.decimals != decimals ||
       old.fluid != fluid ||
-      old.rim != rim ||
-      old.glass != glass ||
-      old.scale != scale;
+      old.pointer != pointer ||
+      old.tier != tier ||
+      old.palette.brightness != palette.brightness;
+}
+
+/// Bau nhiet ke 2 lop: vong ngoai vien kim loai, loi cung mau chat long.
+void _paintBulb(
+  Canvas canvas, {
+  required Offset center,
+  required double radius,
+  required Color fluid,
+  required Color rim,
+  required Color glass,
+  required double scale,
+}) {
+  canvas.drawCircle(center, radius - .6, Paint()..color = glass);
+  canvas.drawCircle(
+    center,
+    radius - .6,
+    Paint()
+      ..color = rim
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2 * scale,
+  );
+
+  final core = radius - 4 * scale;
+  canvas.drawCircle(
+    center,
+    core,
+    Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-.35, -.35),
+        colors: [_shade(fluid, .16), _shade(fluid, -.1)],
+      ).createShader(Rect.fromCircle(center: center, radius: core)),
+  );
 }
 
 // ============================================================
@@ -450,7 +565,8 @@ class WaterPressureDial extends StatelessWidget {
     final band = 5 * s;
 
     final max = dialMax(group, signal);
-    final value = signal.status == WaterStatus.stale ? null : signal.value;
+    final stopped = signal.status == WaterStatus.stopped;
+    final value = waterDisplayValue(signal);
     final abnormal = value != null && value < 0;
     final needle = value == null
         ? palette.muted
@@ -508,7 +624,7 @@ class WaterPressureDial extends StatelessWidget {
                       ? ''
                       : formatValue(number, decimals: decimals);
                 },
-                ranges: _ranges(max, palette, band),
+                ranges: _ranges(max, palette, band, stopped: stopped),
                 pointers: [
                   NeedlePointer(
                     value: (value ?? 0).clamp(0, max).toDouble(),
@@ -543,10 +659,13 @@ class WaterPressureDial extends StatelessWidget {
                         Text(
                           value == null
                               ? kMissingValue
-                              : formatValue(value, decimals: decimals),
+                              : formatWaterValue(signal, decimals),
                           style: TextStyle(
                             color: needle,
-                            fontSize: tier.valueFont,
+                            fontSize: waterIsProblem(signal.status)
+                                ? tier.valueFont *
+                                      WaterVisualSize.problemValueScale
+                                : tier.valueFont,
                             fontWeight: FontWeight.w800,
                             height: 1.05,
                             fontFeatures: const [FontFeature.tabularFigures()],
@@ -573,7 +692,12 @@ class WaterPressureDial extends StatelessWidget {
     );
   }
 
-  List<GaugeRange> _ranges(double max, WaterPalette palette, double width) {
+  List<GaugeRange> _ranges(
+    double max,
+    WaterPalette palette,
+    double width, {
+    bool stopped = false,
+  }) {
     GaugeRange band(double from, double to, Color color) {
       return GaugeRange(
         startValue: from.clamp(0, max).toDouble(),
@@ -589,7 +713,8 @@ class WaterPressureDial extends StatelessWidget {
     final low = rule?.low;
     final high = rule?.high;
 
-    if (low == null && high == null) {
+    // Bom dung / khong nguong: ca dai mau xam.
+    if (stopped || (low == null && high == null)) {
       return [band(0, max, palette.muted.withValues(alpha: .35))];
     }
 
@@ -664,8 +789,10 @@ class _DialFacePainter extends CustomPainter {
 // ============================================================
 
 /// Bon chua hinh tru: nuoc gradient ngang, mat nuoc gon song (chu ky ~4s),
-/// thuoc met ben phai, vach do min / max, so muc nuoc trong bon. Song dung
-/// khi STALE va khi tab an (TickerMode).
+/// so muc nuoc trong bon. Ben phai: thuoc met co dai 3 vung nguong + tam
+/// giac ◀ chi muc nuoc, roi pill "max …" / "min …" ben ngoai; vach do net
+/// dut min / max tu mep trai than toi thuoc. Song dung khi STALE va khi tab
+/// an (TickerMode).
 class WaterTank extends StatefulWidget {
   final WaterGroup group;
   final WaterSignal signal;
@@ -751,9 +878,11 @@ class _WaterTankState extends State<WaterTank>
             low: rule?.low,
             high: rule?.high,
             water: waterFluidColor(signal.status),
+            pointer: _chipColor(signal.status, palette),
             palette: palette,
             decimals: widget.decimals,
             tier: widget.tier,
+            emphasize: waterIsProblem(signal.status),
           ),
         ),
       ),
@@ -772,9 +901,15 @@ class _TankPainter extends CustomPainter {
   final double? low;
   final double? high;
   final Color water;
+
+  /// Mau tam giac ◀ chi muc nuoc tren thuoc.
+  final Color pointer;
   final WaterPalette palette;
   final int decimals;
   final WaterVisualSize tier;
+
+  /// Hinh co van de: so muc nuoc to hon 15%.
+  final bool emphasize;
 
   _TankPainter({
     required this.wave,
@@ -785,20 +920,68 @@ class _TankPainter extends CustomPainter {
     required this.low,
     required this.high,
     required this.water,
+    required this.pointer,
     required this.palette,
     required this.decimals,
     required this.tier,
+    this.emphasize = false,
   }) : super(repaint: wave);
 
   double get _s => tier.scale;
 
+  /// Buoc vach thuoc: 0.5 m, thang lon thi gap doi; so moi 1 m.
+  double get _rulerStep {
+    var step = .5;
+    while (max / step > 16) {
+      step *= 2;
+    }
+    return step;
+  }
+
+  List<({double edge, _Pill pill})> get _pills => [
+    for (final (edge, label) in [(high, 'max'), (low, 'min')])
+      if (edge != null && edge >= 0 && edge <= max)
+        (
+          edge: edge,
+          pill: _Pill(
+            '$label ${formatWithUnit(edge, unit, decimals: decimals)}',
+            tier,
+          ),
+        ),
+  ];
+
+  TextPainter _rulerLabel(double v) => _plainText(
+    formatValue(v, decimals: 1),
+    TextStyle(
+      color: palette.muted,
+      fontSize: tier.font(9),
+      fontFeatures: const [FontFeature.tabularFigures()],
+    ),
+  );
+
   @override
   void paint(Canvas canvas, Size size) {
-    final rulerWidth = 34 * _s;
     final capHeight = 12 * _s;
+    final zoneWidth = 5 * _s;
+    final majorTick = 6 * _s;
+
+    // Bo cuc ngang tu phai sang trai: pill | so thuoc | vach | dai vung |
+    // than bon (phan con lai).
+    final pills = _pills;
+    final pillWidth = pills.fold<double>(
+      0,
+      (w, item) => math.max(w, item.pill.width),
+    );
+    final labelWidth = _rulerLabel(max).width;
+
+    final pillLeft = size.width - pillWidth - 1;
+    final labelLeft =
+        (pills.isEmpty ? size.width : pillLeft - 3 * _s) - labelWidth;
+    final zoneRight = labelLeft - 2 * _s - majorTick;
+    final zoneLeft = zoneRight - zoneWidth;
 
     final left = 3.0;
-    final right = size.width - rulerWidth - 4 * _s;
+    final right = zoneLeft - 5 * _s;
     final top = capHeight / 2 + 2;
     final bottom = size.height - capHeight / 2 - 2;
     final width = right - left;
@@ -890,8 +1073,42 @@ class _TankPainter extends CustomPainter {
     canvas.drawPath(body, rim);
     canvas.drawOval(topCap, rim);
 
-    _paintRuler(canvas, right + 6 * _s, fillTop, fillBottom, yOf);
-    _paintLimits(canvas, left, right, yOf);
+    _paintRuler(
+      canvas,
+      zoneLeft: zoneLeft,
+      zoneRight: zoneRight,
+      majorTick: majorTick,
+      labelLeft: labelLeft,
+      fillTop: fillTop,
+      fillBottom: fillBottom,
+      yOf: yOf,
+    );
+
+    // Vach min / max: tu mep trai than ra toi thuoc; pill ben ngoai thuoc.
+    final limit = Paint()
+      ..color = kWaterOverColor
+      ..strokeWidth = 1.5 * _s;
+    for (final item in pills) {
+      final y = yOf(item.edge);
+      _dashed(canvas, Offset(left, y), Offset(zoneRight, y), limit);
+    }
+    _paintPills(
+      canvas,
+      [for (final item in pills) (y: yOf(item.edge), pill: item.pill)],
+      left: pillLeft,
+      height: size.height,
+    );
+
+    final reading = value;
+    if (reading != null) {
+      _paintPointer(
+        canvas,
+        tip: Offset(zoneRight + .5 * _s, yOf(reading)),
+        size: 5 * _s,
+        color: pointer,
+        outline: palette.faceCenter,
+      );
+    }
   }
 
   /// So muc nuoc ngay duoi mat nuoc, chu trang vien toi.
@@ -910,7 +1127,9 @@ class _TankPainter extends CustomPainter {
       text: TextSpan(
         text: text,
         style: TextStyle(
-          fontSize: tier.font(12),
+          fontSize:
+              tier.font(12) *
+              (emphasize ? WaterVisualSize.problemValueScale : 1),
           fontWeight: FontWeight.w800,
           fontFeatures: const [FontFeature.tabularFigures()],
           foreground: stroke,
@@ -937,23 +1156,36 @@ class _TankPainter extends CustomPainter {
     fill.paint(canvas, offset);
   }
 
-  /// Thuoc met: vach moi 0.5 m, so moi 1 m (thang lon thi gian buoc).
+  /// Thuoc met ben phai than: dai 3 vung (do duoi min, xanh min–max, do tren
+  /// max), vach moi buoc (0.5 m, thang lon thi gap doi), so moi 1 m.
   void _paintRuler(
-    Canvas canvas,
-    double x,
-    double fillTop,
-    double fillBottom,
-    double Function(double) yOf,
-  ) {
+    Canvas canvas, {
+    required double zoneLeft,
+    required double zoneRight,
+    required double majorTick,
+    required double labelLeft,
+    required double fillTop,
+    required double fillBottom,
+    required double Function(double) yOf,
+  }) {
+    for (final (from, to, color) in _thresholdBands(
+      max: max,
+      low: low,
+      high: high,
+      near: false,
+      neutral: palette.muted.withValues(alpha: .35),
+    )) {
+      canvas.drawRect(
+        Rect.fromLTRB(zoneLeft, yOf(to), zoneRight, yOf(from)),
+        Paint()..color = color.withValues(alpha: .85),
+      );
+    }
+
     final line = Paint()
       ..color = palette.muted
       ..strokeWidth = 1;
-    canvas.drawLine(Offset(x, fillTop), Offset(x, fillBottom), line);
 
-    var step = .5;
-    while (max / step > 16) {
-      step *= 2;
-    }
+    final step = _rulerStep;
     final labelEvery = step < 1 ? 2 : 1;
 
     var i = 0;
@@ -962,58 +1194,14 @@ class _TankPainter extends CustomPainter {
       final major = i % labelEvery == 0;
 
       canvas.drawLine(
-        Offset(x, y),
-        Offset(x + (major ? 6 : 3.5) * _s, y),
+        Offset(zoneRight, y),
+        Offset(zoneRight + (major ? majorTick : majorTick * .6), y),
         line,
       );
       if (!major) continue;
 
-      final label = TextPainter(
-        text: TextSpan(
-          text: formatValue(v, decimals: 1),
-          style: TextStyle(
-            color: palette.muted,
-            fontSize: tier.font(9),
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-      )..layout();
-      label.paint(canvas, Offset(x + 8 * _s, y - label.height / 2));
-    }
-  }
-
-  /// Vach do net dut min / max qua than toi thuoc, chu ben trong than.
-  void _paintLimits(
-    Canvas canvas,
-    double left,
-    double right,
-    double Function(double) yOf,
-  ) {
-    final paint = Paint()
-      ..color = kWaterOverColor
-      ..strokeWidth = 1.3 * _s;
-
-    for (final (edge, label) in [(low, 'min'), (high, 'max')]) {
-      if (edge == null || edge < 0 || edge > max) continue;
-
-      final y = yOf(edge);
-      _dashed(canvas, Offset(left, y), Offset(right + 6 * _s, y), paint);
-
-      final text = TextPainter(
-        text: TextSpan(
-          text: '$label ${formatValue(edge, decimals: decimals)}',
-          style: TextStyle(
-            color: kWaterOverColor,
-            fontSize: tier.font(9),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-      )..layout();
-      text.paint(canvas, Offset(right - text.width - 4, y - text.height - 1));
+      final label = _rulerLabel(v);
+      label.paint(canvas, Offset(labelLeft, y - label.height / 2));
     }
   }
 
@@ -1025,9 +1213,11 @@ class _TankPainter extends CustomPainter {
         old.low != low ||
         old.high != high ||
         old.water != water ||
+        old.pointer != pointer ||
         old.unit != unit ||
         old.decimals != decimals ||
         old.tier != tier ||
+        old.emphasize != emphasize ||
         old.palette.brightness != palette.brightness;
   }
 }
@@ -1036,7 +1226,8 @@ class _TankPainter extends CustomPainter {
 // STATUS CHIP
 // ============================================================
 
-/// "Normal / Near limit / Abnormal / No signal / No limit".
+/// "Normal / Near limit / Abnormal / No signal / No limit / Stopped /
+/// Sensor fault".
 String waterChipLabel(WaterStatus status) {
   return switch (status) {
     WaterStatus.ok => 'Normal',
@@ -1044,32 +1235,58 @@ String waterChipLabel(WaterStatus status) {
     WaterStatus.over => 'Abnormal',
     WaterStatus.stale => 'No signal',
     WaterStatus.noThreshold => 'No limit',
+    WaterStatus.stopped => 'Stopped',
+    WaterStatus.sensorFault => 'Sensor fault',
+  };
+}
+
+/// Chip chi hien khi khac binh thuong (OK / NO_THRESHOLD: khong chip).
+bool waterChipVisible(WaterStatus status) =>
+    status != WaterStatus.ok && status != WaterStatus.noThreshold;
+
+IconData? _chipIcon(WaterStatus status, bool? nearHigh) {
+  return switch (status) {
+    WaterStatus.over => Icons.warning_amber_rounded,
+    WaterStatus.near =>
+      nearHigh == false
+          ? Icons.arrow_drop_down_rounded
+          : Icons.arrow_drop_up_rounded,
+    WaterStatus.stopped => Icons.pause_rounded,
+    WaterStatus.stale => Icons.wifi_off_rounded,
+    _ => null,
   };
 }
 
 Color _chipColor(WaterStatus status, WaterPalette palette) {
   final neutral =
-      status == WaterStatus.stale || status == WaterStatus.noThreshold;
+      status == WaterStatus.stale ||
+      status == WaterStatus.noThreshold ||
+      status == WaterStatus.stopped;
   return neutral ? palette.muted : waterStatusColor(status);
 }
 
-/// Chip trang thai bang chu; [dotOnly]: chi cham mau + tooltip.
+/// Chip trang thai: chu 12px dam, padding 3×10, bo tron, icon theo trang
+/// thai ([nearHigh]: NEAR phia max ▲ / min ▼). [dotOnly]: chi cham mau.
 class WaterStatusChip extends StatelessWidget {
   final WaterStatus status;
   final WaterVisualSize tier;
   final bool dotOnly;
+  final bool? nearHigh;
 
   const WaterStatusChip({
     super.key,
     required this.status,
     this.tier = WaterVisualSize.base,
     this.dotOnly = false,
+    this.nearHigh,
   });
 
   @override
   Widget build(BuildContext context) {
     final palette = WaterPalette.of(context);
     final color = _chipColor(status, palette);
+    final icon = _chipIcon(status, nearHigh);
+    final arrow = status == WaterStatus.near;
 
     if (dotOnly) {
       return Tooltip(
@@ -1081,24 +1298,187 @@ class WaterStatusChip extends StatelessWidget {
     return Container(
       height: tier.chipHeight,
       alignment: Alignment.center,
-      padding: EdgeInsets.symmetric(horizontal: 7 * tier.scale),
+      padding: EdgeInsets.symmetric(horizontal: arrow ? 6 : 10, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .14),
+        color: color.withValues(alpha: .18),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: .35), width: .8),
+        border: Border.all(color: color.withValues(alpha: .55)),
       ),
-      child: Text(
-        waterChipLabel(status),
-        maxLines: 1,
-        style: TextStyle(
-          color: color,
-          fontSize: tier.chipFont,
-          fontWeight: FontWeight.w800,
-          height: 1.1,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: arrow ? tier.chipFont + 6 : tier.chipFont + 1,
+              color: color,
+            ),
+            SizedBox(width: arrow ? 0 : 3),
+          ],
+          Text(
+            waterChipLabel(status),
+            maxLines: 1,
+            style: TextStyle(
+              color: color,
+              fontSize: tier.chipFont,
+              fontWeight: FontWeight.w800,
+              height: 1.15,
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+// ============================================================
+// THRESHOLD HELPERS (nhiet ke / bon chua)
+// ============================================================
+
+TextPainter _plainText(String text, TextStyle style) {
+  return TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: TextDirection.ltr,
+    maxLines: 1,
+  )..layout();
+}
+
+/// Dai mau doc theo thang 0..max: do duoi low, xanh giua, do tren high.
+/// [near]: them dai cam 10% sat duoi high (10% cua high - low, mot phia thi
+/// 10% cua |high|). Khong nguong: mot dai [neutral].
+List<(double, double, Color)> _thresholdBands({
+  required double max,
+  required double? low,
+  required double? high,
+  required bool near,
+  required Color neutral,
+}) {
+  if (low == null && high == null) return [(0, max, neutral)];
+
+  double clamp(double v) => v.clamp(0, max).toDouble();
+  final margin = !near || high == null
+      ? 0.0
+      : (low != null ? (high - low).abs() : high.abs()) * .1;
+
+  final bands = <(double, double, Color)>[
+    if (low != null) (0, clamp(low), kWaterOverColor),
+    (clamp(low ?? 0), clamp(high == null ? max : high - margin), kWaterOkColor),
+    if (high != null && margin > 0)
+      (clamp(high - margin), clamp(high), kWaterNearColor),
+    if (high != null) (clamp(high), max, kWaterOverColor),
+  ];
+  return [
+    for (final band in bands)
+      if (band.$2 > band.$1) band,
+  ];
+}
+
+/// Pill nguong: nen do nhat, chu do 11px (toi thieu 10px).
+class _Pill {
+  final TextPainter text;
+  final double padX;
+  final double padY;
+
+  _Pill(String label, WaterVisualSize tier)
+    : padX = 5 * tier.scale.clamp(.8, 1.4),
+      padY = 2 * tier.scale.clamp(.8, 1.4),
+      text = _plainText(
+        label,
+        TextStyle(
+          color: kWaterOverColor,
+          fontSize: tier.font(11, min: 10),
+          fontWeight: FontWeight.w800,
+          height: 1.1,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      );
+
+  double get width => text.width + padX * 2;
+  double get height => text.height + padY * 2;
+
+  void paint(Canvas canvas, Offset topLeft) {
+    final rect = RRect.fromRectAndRadius(
+      topLeft & Size(width, height),
+      Radius.circular(height / 2),
+    );
+    canvas.drawRRect(
+      rect,
+      Paint()..color = kWaterOverColor.withValues(alpha: .16),
+    );
+    canvas.drawRRect(
+      rect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .8
+        ..color = kWaterOverColor.withValues(alpha: .55),
+    );
+    text.paint(canvas, topLeft + Offset(padX, padY));
+  }
+}
+
+/// Ve pill can giua theo y cua vach; 2 pill qua gan thi day cach nhau toi
+/// thieu [minGap] (tam - tam, khong nho hon chieu cao pill), giu trong khung.
+void _paintPills(
+  Canvas canvas,
+  List<({double y, _Pill pill})> items, {
+  required double left,
+  required double height,
+  double minGap = 14,
+}) {
+  if (items.isEmpty) return;
+
+  final sorted = [...items]..sort((a, b) => a.y.compareTo(b.y));
+  final centers = [for (final item in sorted) item.y];
+
+  for (var i = 1; i < centers.length; i++) {
+    final gap = math.max(
+      minGap,
+      (sorted[i - 1].pill.height + sorted[i].pill.height) / 2 + 2,
+    );
+    if (centers[i] - centers[i - 1] < gap) {
+      // Day ca 2 ra hai phia tu diem giua.
+      final mid = (centers[i] + centers[i - 1]) / 2;
+      centers[i - 1] = mid - gap / 2;
+      centers[i] = mid + gap / 2;
+    }
+  }
+
+  // Giu ca cum trong [0, height].
+  final top = centers.first - sorted.first.pill.height / 2;
+  final bottom = centers.last + sorted.last.pill.height / 2;
+  final shift = top < 0
+      ? -top
+      : bottom > height
+      ? height - bottom
+      : 0.0;
+
+  for (var i = 0; i < sorted.length; i++) {
+    final pill = sorted[i].pill;
+    pill.paint(canvas, Offset(left, centers[i] + shift - pill.height / 2));
+  }
+}
+
+/// Tam giac ◀ mau trang thai, dinh tai [tip] (chi vao thang).
+void _paintPointer(
+  Canvas canvas, {
+  required Offset tip,
+  required double size,
+  required Color color,
+  required Color outline,
+}) {
+  final path = Path()
+    ..moveTo(tip.dx, tip.dy)
+    ..lineTo(tip.dx + size, tip.dy - size * .75)
+    ..lineTo(tip.dx + size, tip.dy + size * .75)
+    ..close();
+  canvas.drawPath(path, Paint()..color = color);
+  canvas.drawPath(
+    path,
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = outline,
+  );
 }
 
 // ============================================================
@@ -1119,26 +1499,4 @@ void _dashed(Canvas canvas, Offset from, Offset to, Paint paint) {
     canvas.drawLine(from + direction * t, from + direction * end, paint);
     t += dash + gap;
   }
-}
-
-class _DashPainter extends CustomPainter {
-  final Color color;
-
-  const _DashPainter(this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final y = size.height / 2;
-    _dashed(
-      canvas,
-      Offset(0, y),
-      Offset(size.width, y),
-      Paint()
-        ..color = color
-        ..strokeWidth = size.height,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashPainter old) => old.color != color;
 }

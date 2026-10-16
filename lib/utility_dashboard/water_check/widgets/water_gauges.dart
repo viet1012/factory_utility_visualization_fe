@@ -90,7 +90,7 @@ class WaterThresholdBar extends StatelessWidget {
         painter: _BarPainter(
           scale: scale,
           rules: group.visibleThresholds,
-          value: signal.status == WaterStatus.stale ? null : signal.value,
+          value: waterDisplayValue(signal),
           color: waterReadingColor(signal.status, palette),
           trackColor: palette.glass,
         ),

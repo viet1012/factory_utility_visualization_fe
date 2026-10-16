@@ -36,13 +36,15 @@ class WaterFacilityColumn extends StatelessWidget {
     required this.onOpenSignal,
   });
 
-  /// Do neu co OVER, cam neu co NEAR / STALE, xanh neu on.
+  /// Do neu co OVER, cam neu co NEAR / STALE / SENSOR_FAULT, xanh neu on
+  /// (STOPPED khong tinh la loi).
   Color get _overallColor {
     var near = false;
     for (final signal in facility.signals) {
       if (signal.status == WaterStatus.over) return kWaterOverColor;
       if (signal.status == WaterStatus.near ||
-          signal.status == WaterStatus.stale) {
+          signal.status == WaterStatus.stale ||
+          signal.status == WaterStatus.sensorFault) {
         near = true;
       }
     }
@@ -273,6 +275,10 @@ class _BlockSection extends StatelessWidget {
             name: block.title,
             thresholdText: block.thresholdText(decimalsOf),
             size: size,
+            issues: block.items.where((item) => _isIssue(item.signal)).length,
+            abnormal: block.items.any(
+              (item) => waterIsAbnormal(item.signal.status),
+            ),
           ),
           if (compact)
             for (final item in items)
@@ -312,18 +318,29 @@ class _BlockSection extends StatelessWidget {
   }
 }
 
-/// Icon + ten khoi ben trai, nguong chung ben phai.
+/// Diem do can xem (giong card To check): OVER / SENSOR_FAULT / NEAR /
+/// STALE. STOPPED khong phai loi.
+bool _isIssue(WaterSignal signal) =>
+    waterIsProblem(signal.status) || signal.status == WaterStatus.stale;
+
+/// Icon + ten khoi + badge "N issues" ben trai, nguong chung ben phai.
 class _BlockTitle extends StatelessWidget {
   final IconData icon;
   final String name;
   final String? thresholdText;
   final WaterVisualSize size;
 
+  /// So diem do co van de; badge do neu co abnormal, cam neu khong.
+  final int issues;
+  final bool abnormal;
+
   const _BlockTitle({
     required this.icon,
     required this.name,
     required this.thresholdText,
     required this.size,
+    this.issues = 0,
+    this.abnormal = false,
   });
 
   @override
@@ -343,15 +360,25 @@ class _BlockTitle extends StatelessWidget {
           Icon(icon, size: size.titleFont + 2, color: kWaterAccent),
           const SizedBox(width: 5),
           Expanded(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: kWaterAccent,
-                fontSize: size.titleFont,
-                fontWeight: FontWeight.w800,
-              ),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: kWaterAccent,
+                      fontSize: size.titleFont,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (issues > 0) ...[
+                  const SizedBox(width: 6),
+                  _IssuesBadge(count: issues, abnormal: abnormal, size: size),
+                ],
+              ],
             ),
           ),
           if (thresholdText != null) ...[
@@ -373,13 +400,51 @@ class _BlockTitle extends StatelessWidget {
   }
 }
 
+class _IssuesBadge extends StatelessWidget {
+  final int count;
+  final bool abnormal;
+  final WaterVisualSize size;
+
+  const _IssuesBadge({
+    required this.count,
+    required this.abnormal,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = abnormal ? kWaterOverColor : kWaterNearColor;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .2),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: .6)),
+      ),
+      child: Text(
+        count == 1 ? '1 issue' : '$count issues',
+        maxLines: 1,
+        style: TextStyle(
+          color: color,
+          fontSize: size.titleFont - 1.5,
+          fontWeight: FontWeight.w800,
+          height: 1.2,
+        ),
+      ),
+    );
+  }
+}
+
 // ============================================================
 // SIGNAL
 // ============================================================
 
 String _valueText(WaterSignal signal, String unit, int decimals) {
   if (signal.status == WaterStatus.stale) return kMissingValue;
-  return formatWithUnit(signal.value, unit, decimals: decimals);
+  final text = formatWaterValue(signal, decimals);
+  final u = unit.trim();
+  return text == kMissingValue || u.isEmpty ? text : '$text $u';
 }
 
 /// Mot diem do dang hinh, kich thuoc co dinh theo (loai, tier):
@@ -408,8 +473,15 @@ class _VisualTile extends StatefulWidget {
   State<_VisualTile> createState() => _VisualTileState();
 }
 
-class _VisualTileState extends State<_VisualTile> {
+class _VisualTileState extends State<_VisualTile>
+    with SingleTickerProviderStateMixin {
   bool _animate = true;
+
+  /// Halo pulse 2 lan khi vua chuyen sang trang thai co van de.
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  );
 
   @override
   void initState() {
@@ -417,27 +489,28 @@ class _VisualTileState extends State<_VisualTile> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _animate = false);
   }
 
-  String? get _caption {
-    final signal = widget.signal;
-    final value = signal.value;
+  @override
+  void didUpdateWidget(covariant _VisualTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final status = widget.signal.status;
+    if (status != oldWidget.signal.status && waterIsProblem(status)) {
+      _pulse.forward(from: 0);
+    }
+  }
 
-    if (widget.kind == WaterVisualKind.dial &&
-        signal.status != WaterStatus.stale &&
-        value != null &&
-        value < 0) {
-      return 'pump stopped?';
-    }
-    if (widget.kind == WaterVisualKind.tank) {
-      return tankNearCaption(widget.group, signal);
-    }
-    return null;
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final signal = widget.signal;
+    final status = signal.status;
     final tier = widget.tier;
-    final stale = signal.status == WaterStatus.stale;
+    final stale = status == WaterStatus.stale;
+    final problem = waterIsProblem(status);
     final palette = WaterPalette.of(context);
     final size = tier.figureSize(widget.kind);
 
@@ -465,18 +538,29 @@ class _VisualTileState extends State<_VisualTile> {
       ),
     };
 
-    final caption = _caption;
-    final nameText = Text(
+    // NO_THRESHOLD: khong chip, ten hoi mo, tooltip "No limit set".
+    final noLimit = status == WaterStatus.noThreshold;
+    Widget nameText = Text(
       widget.name,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       textAlign: TextAlign.center,
       style: TextStyle(
-        color: palette.text,
+        color: noLimit ? palette.text.withValues(alpha: .6) : palette.text,
         fontSize: tier.nameFont,
         fontWeight: FontWeight.w600,
       ),
     );
+    if (noLimit) {
+      nameText = Tooltip(message: 'No limit set', child: nameText);
+    }
+
+    final reason = waterShortReason(signal, widget.group, widget.decimals);
+    final reasonColor = waterIsAbnormal(status)
+        ? kWaterOverColor
+        : status == WaterStatus.near
+        ? kWaterNearColor
+        : palette.muted;
 
     return Tooltip(
       message: waterTooltip(signal, widget.group, widget.decimals),
@@ -489,8 +573,12 @@ class _VisualTileState extends State<_VisualTile> {
           height: tier.tileHeight(widget.kind),
           child: Column(
             children: [
-              RepaintBoundary(
-                child: Opacity(opacity: stale ? .5 : 1, child: figure),
+              _Halo(
+                color: problem ? waterStatusColor(status) : null,
+                pulse: _pulse,
+                child: RepaintBoundary(
+                  child: Opacity(opacity: stale ? .5 : 1, child: figure),
+                ),
               ),
               if (widget.kind == WaterVisualKind.thermometer)
                 SizedBox(
@@ -501,8 +589,10 @@ class _VisualTileState extends State<_VisualTile> {
                       _valueText(signal, widget.group.unit, widget.decimals),
                       maxLines: 1,
                       style: TextStyle(
-                        color: waterReadingColor(signal.status, palette),
-                        fontSize: tier.valueFont,
+                        color: waterReadingColor(status, palette),
+                        fontSize: problem
+                            ? tier.valueFont * WaterVisualSize.problemValueScale
+                            : tier.valueFont,
                         fontWeight: FontWeight.w800,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
@@ -512,50 +602,111 @@ class _VisualTileState extends State<_VisualTile> {
               const SizedBox(height: 2),
               SizedBox(
                 height: tier.nameHeight,
-                child: tier.showChip
-                    ? nameText
-                    : Row(
+                // Binh thuong: khong chip, chi cham xanh 6px canh ten.
+                child: status == WaterStatus.ok
+                    ? Row(
                         mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          WaterStatusChip(
-                            status: signal.status,
-                            tier: tier,
-                            dotOnly: true,
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: kWaterOkColor,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                           const SizedBox(width: 4),
                           Flexible(child: nameText),
                         ],
-                      ),
+                      )
+                    : nameText,
               ),
-              if (tier.showChip) ...[
-                const SizedBox(height: 2),
-                WaterStatusChip(status: signal.status, tier: tier),
-              ],
-              if (widget.kind != WaterVisualKind.thermometer)
-                SizedBox(
-                  height: tier.captionHeight,
-                  child: caption == null
-                      ? null
-                      : Align(
-                          alignment: Alignment.bottomCenter,
-                          child: Text(
-                            caption,
-                            maxLines: 1,
-                            style: TextStyle(
-                              color: signal.status == WaterStatus.near
-                                  ? kWaterNearColor
-                                  : kWaterOverColor,
-                              fontSize: tier.captionFont,
-                              fontWeight: FontWeight.w800,
-                              height: 1.1,
-                            ),
+              const SizedBox(height: 2),
+              SizedBox(
+                height: tier.chipHeight,
+                child: waterChipVisible(status)
+                    ? FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: WaterStatusChip(
+                          status: status,
+                          tier: tier,
+                          nearHigh: status == WaterStatus.near
+                              ? waterLimitIsHigh(signal, widget.group)
+                              : null,
+                        ),
+                      )
+                    : null,
+              ),
+              SizedBox(
+                height: tier.captionHeight,
+                child: reason == null
+                    ? null
+                    : Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Text(
+                          reason,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: reasonColor,
+                            fontSize: tier.captionFont,
+                            fontWeight: FontWeight.w700,
+                            height: 1.1,
                           ),
                         ),
-                ),
+                      ),
+              ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Vien + halo mo quanh hinh co van de (khong doi kich thuoc). [pulse] chay
+/// 0 -> 1: halo sang len 2 lan roi ve muc nghi, khong lap lai.
+class _Halo extends StatelessWidget {
+  final Color? color;
+  final Animation<double> pulse;
+  final Widget child;
+
+  const _Halo({required this.color, required this.pulse, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color;
+    if (c == null) return child;
+
+    return AnimatedBuilder(
+      animation: pulse,
+      builder: (context, child) {
+        final t = pulse.isAnimating ? pulse.value : 0.0;
+        // 2 dinh trong 0..1.
+        final boost = (1 - math.cos(t * 4 * math.pi)) / 2;
+
+        return DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: c.withValues(alpha: .55 + .4 * boost),
+              width: 1.4,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: c.withValues(alpha: .28 + .35 * boost),
+                blurRadius: 8 + 10 * boost,
+                spreadRadius: 1 + 2 * boost,
+                blurStyle: BlurStyle.outer,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: child,
     );
   }
 }
