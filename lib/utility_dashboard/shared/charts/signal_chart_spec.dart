@@ -56,13 +56,13 @@ class SignalChartSpec {
 
   String resolveUnit(String? unit) => unitOverride ?? unit?.trim() ?? '';
 
-  SignalChartSpec copyWith({ChartStyle? style, AxisMode? axis}) {
+  SignalChartSpec copyWith({ChartStyle? style, AxisMode? axis, int? decimals}) {
     return SignalChartSpec(
       style: style ?? this.style,
       axis: axis ?? this.axis,
       fixedMin: fixedMin,
       fixedMax: fixedMax,
-      decimals: decimals,
+      decimals: decimals ?? this.decimals,
       showThreshold: showThreshold,
       hideTrivialLowerThreshold: hideTrivialLowerThreshold,
       unitOverride: unitOverride,
