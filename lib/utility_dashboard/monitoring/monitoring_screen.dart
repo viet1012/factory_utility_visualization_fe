@@ -14,11 +14,16 @@ enum MonitoringSubTab {
 
 /// Tab MONITORING: sub-tab Electricity | Water check. Polling scope cua tung
 /// sub-tab do dashboard bat / tat qua [onChanged].
+///
+/// Electricity: thanh tab con la mot hang rieng phia tren. Water check: thanh
+/// tab con nam cung hang tieu de cua man (truyen vao [waterCheckBuilder]).
 class MonitoringScreen extends StatelessWidget {
   final MonitoringSubTab selected;
   final ValueChanged<MonitoringSubTab> onChanged;
   final ElectricityScreen electricity;
-  final Widget waterCheck;
+
+  /// [subTabs]: thanh tab con dat trong header Water check (null khi an).
+  final Widget Function(Widget? subTabs) waterCheckBuilder;
 
   /// WATER CHECK full screen: an thanh sub-tab.
   final bool hideSubTabBar;
@@ -28,43 +33,63 @@ class MonitoringScreen extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     required this.electricity,
-    required this.waterCheck,
+    required this.waterCheckBuilder,
     this.hideSubTabBar = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final subTabs = hideSubTabBar
+        ? null
+        : MonitoringSubTabBar(selected: selected, onChanged: onChanged);
+
+    return IndexedStack(
+      index: selected.index,
       children: [
-        if (!hideSubTabBar) ...[
-          Row(
-            children: [
-              for (final tab in MonitoringSubTab.values)
-                _SubTabButton(
-                  tab: tab,
-                  selected: tab == selected,
-                  onTap: () => onChanged(tab),
-                ),
-            ],
+        for (final tab in MonitoringSubTab.values)
+          // IndexedStack khong tat ticker cua sub-tab an.
+          TickerMode(
+            enabled: tab == selected,
+            child: tab == MonitoringSubTab.electricity
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (subTabs != null) ...[
+                        Align(alignment: Alignment.centerLeft, child: subTabs),
+                        const SizedBox(height: 8),
+                      ],
+                      Expanded(child: electricity),
+                    ],
+                  )
+                : waterCheckBuilder(subTabs),
           ),
-          const SizedBox(height: 8),
-        ],
-        Expanded(
-          child: IndexedStack(
-            index: selected.index,
-            children: [
-              for (final tab in MonitoringSubTab.values)
-                // IndexedStack khong tat ticker cua sub-tab an.
-                TickerMode(
-                  enabled: tab == selected,
-                  child: tab == MonitoringSubTab.electricity
-                      ? electricity
-                      : waterCheck,
-                ),
-            ],
+      ],
+    );
+  }
+}
+
+/// Electricity | Water check, gon (cao 30) de dat chung hang tieu de.
+class MonitoringSubTabBar extends StatelessWidget {
+  final MonitoringSubTab selected;
+  final ValueChanged<MonitoringSubTab> onChanged;
+
+  const MonitoringSubTabBar({
+    super.key,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final tab in MonitoringSubTab.values)
+          _SubTabButton(
+            tab: tab,
+            selected: tab == selected,
+            onTap: () => onChanged(tab),
           ),
-        ),
       ],
     );
   }
@@ -89,7 +114,7 @@ class _SubTabButton extends StatelessWidget {
     return InkWell(
       onTap: selected ? null : onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(

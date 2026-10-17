@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../models/water_check_models.dart';
 import 'water_check_format.dart';
 
-/// Header mot hang (~44px): "Water check" · "Updated hh:mm" · chu giai mau
-/// (thieu cho thi thu thanh icon "?") · pill tom tat (bam de loc) · nut
-/// Full screen.
+/// Header mot hang (36px): [subTabs] (Electricity | Water check) · "Water
+/// check · Updated hh:mm" · icon info (chu giai trong tooltip) · pill tom
+/// tat can phai (bam de loc) · nut Full screen cuoi hang.
 class WaterCheckHeader extends StatelessWidget {
   final DateTime? generatedAt;
   final WaterCheckSummary summary;
@@ -14,6 +14,9 @@ class WaterCheckHeader extends StatelessWidget {
   final ValueChanged<WaterStatus> onToggleFilter;
   final bool fullScreen;
   final VoidCallback? onToggleFullScreen;
+
+  /// Tab con cua MONITORING, cung hang tieu de (null khi full screen).
+  final Widget? subTabs;
 
   const WaterCheckHeader({
     super.key,
@@ -24,12 +27,10 @@ class WaterCheckHeader extends StatelessWidget {
     required this.onToggleFilter,
     this.fullScreen = false,
     this.onToggleFullScreen,
+    this.subTabs,
   });
 
-  static const double height = 44;
-
-  /// Be rong toi thieu de hien chu giai day du ben canh tieu de + pill.
-  static const double _legendBreakpoint = 1260;
+  static const double height = 36;
 
   static const List<WaterStatus> _pillOrder = [
     WaterStatus.ok,
@@ -46,85 +47,89 @@ class WaterCheckHeader extends StatelessWidget {
 
     return SizedBox(
       height: height,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final fullLegend = constraints.maxWidth >= _legendBreakpoint;
-
-          return Row(
-            children: [
-              const Icon(
-                Icons.water_drop_rounded,
-                color: kWaterAccent,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Water check',
-                style: TextStyle(
-                  color: scheme.onSurface,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: .2,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Updated ${formatHhmm(generatedAt)}',
-                style: TextStyle(
-                  color: scheme.onSurfaceVariant,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(
-                width: 22,
-                child: loading
-                    ? const Center(
-                        child: SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.6,
-                            color: kWaterAccent,
-                          ),
-                        ),
-                      )
-                    : null,
-              ),
-              if (fullLegend)
-                const Flexible(child: _ColorLegend())
-              else
-                const _LegendHelp(),
-              const Spacer(),
-              for (final status in _pillOrder) ...[
-                const SizedBox(width: 6),
-                _StatusPill(
-                  status: status,
-                  count: summary.countOf(status),
-                  selected: filter == status,
-                  dimmed: filter != null && filter != status,
-                  onTap: () => onToggleFilter(status),
-                ),
-              ],
-              if (onToggleFullScreen != null) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: fullScreen
-                      ? 'Exit full screen (Esc)'
-                      : 'Full screen',
-                  onPressed: onToggleFullScreen,
-                  visualDensity: VisualDensity.compact,
-                  color: scheme.onSurfaceVariant,
-                  icon: Icon(
-                    fullScreen
-                        ? Icons.fullscreen_exit_rounded
-                        : Icons.fullscreen_rounded,
+      child: Row(
+        children: [
+          if (subTabs != null) ...[
+            subTabs!,
+            Container(
+              width: 1,
+              height: 20,
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              color: scheme.onSurfaceVariant.withValues(alpha: .3),
+            ),
+          ],
+          const Icon(Icons.water_drop_rounded, color: kWaterAccent, size: 18),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'Water check',
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .2,
+                    ),
                   ),
-                ),
-              ],
-            ],
-          );
-        },
+                  TextSpan(
+                    text: ' · Updated ${formatHhmm(generatedAt)}',
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          SizedBox(
+            width: 20,
+            child: loading
+                ? const Center(
+                    child: SizedBox(
+                      width: 11,
+                      height: 11,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.6,
+                        color: kWaterAccent,
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+          const _LegendInfo(),
+          const Spacer(),
+          for (final status in _pillOrder) ...[
+            const SizedBox(width: 5),
+            _StatusPill(
+              status: status,
+              count: summary.countOf(status),
+              selected: filter == status,
+              dimmed: filter != null && filter != status,
+              onTap: () => onToggleFilter(status),
+            ),
+          ],
+          if (onToggleFullScreen != null) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: fullScreen ? 'Exit full screen (Esc)' : 'Full screen',
+              onPressed: onToggleFullScreen,
+              visualDensity: VisualDensity.compact,
+              iconSize: 20,
+              color: scheme.onSurfaceVariant,
+              icon: Icon(
+                fullScreen
+                    ? Icons.fullscreen_exit_rounded
+                    : Icons.fullscreen_rounded,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -161,41 +166,9 @@ class _LegendSwatch extends StatelessWidget {
   }
 }
 
-/// Chu giai mau day du tren cung hang.
-class _ColorLegend extends StatelessWidget {
-  const _ColorLegend();
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const NeverScrollableScrollPhysics(),
-      child: Row(
-        children: [
-          for (final (label, color, outlined) in _legendItems) ...[
-            const SizedBox(width: 12),
-            _LegendSwatch(color: color, outlined: outlined),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                color: muted,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Chu giai thu gon: icon "?" voi tooltip.
-class _LegendHelp extends StatelessWidget {
-  const _LegendHelp();
+/// Chu giai mau: icon info, chu giai trong tooltip.
+class _LegendInfo extends StatelessWidget {
+  const _LegendInfo();
 
   @override
   Widget build(BuildContext context) {
@@ -226,7 +199,7 @@ class _LegendHelp extends StatelessWidget {
         ),
       ),
       child: Icon(
-        Icons.help_outline_rounded,
+        Icons.info_outline_rounded,
         size: 16,
         color: scheme.onSurfaceVariant,
       ),
@@ -281,12 +254,12 @@ class _StatusPill extends StatelessWidget {
             customBorder: const StadiumBorder(),
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   WaterStatusDot(status: status, size: 7),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 5),
                   Text(
                     '${waterStatusLabel(status)} $count',
                     style: TextStyle(
@@ -295,6 +268,7 @@ class _StatusPill extends StatelessWidget {
                           : scheme.onSurface,
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
+                      height: 1.2,
                     ),
                   ),
                 ],

@@ -402,9 +402,7 @@ class _CompressedAirDetail extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final facId in facIds) ..._factoryBlock(facId),
-        ],
+        children: [for (final facId in facIds) ..._factoryBlock(facId)],
       ),
     );
   }

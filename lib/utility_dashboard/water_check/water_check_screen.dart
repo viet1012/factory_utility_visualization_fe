@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -27,12 +26,16 @@ class WaterCheckScreen extends StatefulWidget {
   final bool fullScreen;
   final VoidCallback? onToggleFullScreen;
 
+  /// Tab con Electricity | Water check, dat cung hang tieu de.
+  final Widget? subTabs;
+
   const WaterCheckScreen({
     super.key,
     required this.controller,
     required this.onOpenInCharts,
     this.fullScreen = false,
     this.onToggleFullScreen,
+    this.subTabs,
   });
 
   @override
@@ -105,20 +108,19 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
     return _plan;
   }
 
-  /// Chieu cao chua scale cua phan tren (khop voi [_buildTop]).
-  static double _topHeight(WaterCheckResponse data, bool hasError) {
-    final issues = data.issues.length;
-    final card = issues == 0
-        ? 32.0
-        : math.min(issues, WaterIssueCard.maxRows) * WaterIssueCard.rowHeight +
-              10;
-
+  /// Chieu cao chua scale cua phan tren (khop voi [_buildTop]): header 36
+  /// + 6 + hang chip To check 28 + 8 = 78px (+ banner loi). Khong phu thuoc
+  /// so issue nen polling khong lam tinh lai bo cuc.
+  static double _topHeight(bool hasError) {
     return (hasError ? _ErrorBanner.height : 0) +
         WaterCheckHeader.height +
-        6 +
-        card +
-        8;
+        _headerGap +
+        WaterIssueCard.height +
+        _topGap;
   }
+
+  static const double _headerGap = 6;
+  static const double _topGap = 8;
 
   GlobalKey _keyOf(String signalKey) {
     return _signalKeys.putIfAbsent(signalKey, GlobalKey.new);
@@ -233,7 +235,7 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
         _reindex(data);
 
         final hasError = controller.error != null;
-        final top = _topHeight(data, hasError);
+        final top = _topHeight(hasError);
 
         return DebouncedLayoutBuilder(
           builder: (context, constraints) {
@@ -276,8 +278,9 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
           onToggleFilter: _toggleFilter,
           fullScreen: widget.fullScreen,
           onToggleFullScreen: widget.onToggleFullScreen,
+          subTabs: widget.subTabs,
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: _headerGap),
         WaterIssueCard(
           issues: data.issues,
           deviceNameOf: (issue) =>
@@ -302,10 +305,22 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
               unit: group?.unit ?? issue.unit,
             );
           },
+          shortNameOf: (issue) {
+            final group =
+                _index[waterSignalKey(
+                      issue.facId,
+                      issue.boxDeviceId,
+                      issue.plcAddress,
+                    )]
+                    ?.group;
+            if (group == null) return issue.name;
+            final short = shortSignalName(issue.name, group.name);
+            return short.isEmpty ? issue.name : short;
+          },
           onFocus: _focusIssue,
           onOpenChart: _openIssue,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: _topGap),
       ],
     );
   }
@@ -363,9 +378,9 @@ class _WaterCheckSkeleton extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Container(
-          height: 32,
+          height: WaterIssueCard.height,
           decoration: BoxDecoration(
             color: block,
             borderRadius: BorderRadius.circular(10),

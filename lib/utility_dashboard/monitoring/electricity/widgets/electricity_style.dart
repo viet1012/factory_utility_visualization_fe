@@ -54,7 +54,8 @@ abstract final class ElectricityColors {
 String fmtKwh(num? kwh) => formatValue(kwh, decimals: 0);
 
 /// MWh: 1 so le.
-String fmtMwh(num? kwh) => formatValue(kwh == null ? null : kwh / 1000, decimals: 1);
+String fmtMwh(num? kwh) =>
+    formatValue(kwh == null ? null : kwh / 1000, decimals: 1);
 
 /// USD: 2 so le.
 String fmtUsd(num? usd) {
@@ -112,8 +113,18 @@ class PlantTime {
   DateTime get date => DateTime(year, month, day);
 
   static const List<String> _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   static String formatDate(DateTime d) => '${_months[d.month - 1]} ${d.day}';

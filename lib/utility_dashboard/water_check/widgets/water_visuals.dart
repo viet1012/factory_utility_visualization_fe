@@ -540,7 +540,8 @@ void _paintBulb(
 
 /// Dong ho kim 240°: bezel kim loai + mat gradient, vach chinh / phu, dai
 /// mau mong (do / cam / xanh, khong nguong: xam), kim co duoi, num 2 lop,
-/// gia tri + don vi trong mat.
+/// gia tri + don vi trong mat. Mini gauge ([WaterVisualSize.miniDial],
+/// 84×78): bo vach chia + nhan so, bezel mong, gia tri >= 14px.
 class WaterPressureDial extends StatelessWidget {
   final WaterGroup group;
   final WaterSignal signal;
@@ -562,7 +563,11 @@ class WaterPressureDial extends StatelessWidget {
     final palette = WaterPalette.of(context);
     final size = tier.figureSize(WaterVisualKind.dial);
     final s = tier.scale;
-    final band = 5 * s;
+
+    // Mini gauge: chi cung nguong (day hon), kim, gia tri; bezel mong.
+    final mini = tier.miniDial;
+    final band = (mini ? 6 : 5) * s;
+    final valueFont = mini ? math.max(14.0, 14 * s) : tier.valueFont;
 
     final max = dialMax(group, signal);
     final stopped = signal.status == WaterStatus.stopped;
@@ -578,7 +583,9 @@ class WaterPressureDial extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          CustomPaint(painter: _DialFacePainter(palette, s)),
+          CustomPaint(
+            painter: _DialFacePainter(palette, s, bezel: (mini ? 1.2 : 3) * s),
+          ),
           SfRadialGauge(
             enableLoadingAnimation: animate,
             animationDuration: 300,
@@ -589,8 +596,10 @@ class WaterPressureDial extends StatelessWidget {
                 interval: max / 4,
                 startAngle: 150,
                 endAngle: 30,
-                radiusFactor: .88,
+                radiusFactor: mini ? .92 : .88,
                 showAxisLine: false,
+                showTicks: !mini,
+                showLabels: !mini,
                 minorTicksPerInterval: 9,
                 tickOffset: band + 1,
                 labelOffset: 3 * s,
@@ -652,7 +661,7 @@ class WaterPressureDial extends StatelessWidget {
                 annotations: [
                   GaugeAnnotation(
                     angle: 90,
-                    positionFactor: .45,
+                    positionFactor: mini ? .5 : .45,
                     widget: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -663,9 +672,8 @@ class WaterPressureDial extends StatelessWidget {
                           style: TextStyle(
                             color: needle,
                             fontSize: waterIsProblem(signal.status)
-                                ? tier.valueFont *
-                                      WaterVisualSize.problemValueScale
-                                : tier.valueFont,
+                                ? valueFont * WaterVisualSize.problemValueScale
+                                : valueFont,
                             fontWeight: FontWeight.w800,
                             height: 1.05,
                             fontFeatures: const [FontFeature.tabularFigures()],
@@ -743,11 +751,14 @@ class _DialFacePainter extends CustomPainter {
   final WaterPalette palette;
   final double scale;
 
-  const _DialFacePainter(this.palette, this.scale);
+  /// Be day bezel (mini gauge: mong).
+  final double bezel;
+
+  const _DialFacePainter(this.palette, this.scale, {required this.bezel});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final stroke = 3 * scale;
+    final stroke = bezel;
     final center = size.center(Offset.zero);
     final radius = size.shortestSide / 2 - stroke / 2;
     final rect = Rect.fromCircle(center: center, radius: radius);
@@ -781,7 +792,9 @@ class _DialFacePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DialFacePainter old) =>
-      old.palette.brightness != palette.brightness || old.scale != scale;
+      old.palette.brightness != palette.brightness ||
+      old.scale != scale ||
+      old.bezel != bezel;
 }
 
 // ============================================================

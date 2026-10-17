@@ -4,7 +4,12 @@ import 'power_usage.dart';
 enum PurposeSlot {
   machining('Machining equipment', ['MACHIN']),
   heatFurnace('Heat furnace', ['FURNACE', 'HEAT']),
-  airConditioning('Air conditioning', ['AIR_COND', 'AIRCON', 'AIR COND', 'HVAC']),
+  airConditioning('Air conditioning', [
+    'AIR_COND',
+    'AIRCON',
+    'AIR COND',
+    'HVAC',
+  ]),
   compressedAir('Compressed air', ['COMPRESS']),
   lighting('Lighting', ['LIGHT']),
   other('Other', []);
@@ -75,13 +80,16 @@ bool isCompressedAirCabinet(PowerPurposeUsage p) =>
 
 /// `Fac_B`, `FAC-B`, `fac b` -> `Fac_B`; khong nhan ra thi tra nguyen chuoi.
 String normalizeFacId(String facId) {
-  final match = RegExp(r'^FAC[_\- ]?([A-Z])$').firstMatch(
-    facId.trim().toUpperCase(),
-  );
+  final match = RegExp(
+    r'^FAC[_\- ]?([A-Z])$',
+  ).firstMatch(facId.trim().toUpperCase());
   return match == null ? facId.trim() : 'Fac_${match.group(1)}';
 }
 
-final RegExp _facPattern = RegExp(r'FAC[_\- ]?([A-Z])(?![A-Z])', caseSensitive: false);
+final RegExp _facPattern = RegExp(
+  r'FAC[_\- ]?([A-Z])(?![A-Z])',
+  caseSensitive: false,
+);
 
 /// Fac cua tu: tim `FAC_X` trong code, roi description, roi name; cuoi cung
 /// la mot chu cai dung ngay sau `COMPRESSED_AIR_` (vd COMPRESSED_AIR_B_ACP).

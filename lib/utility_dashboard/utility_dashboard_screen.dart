@@ -720,11 +720,12 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
             controller: powerUsageController,
             onOpenMeter: _openMeterInCharts,
           ),
-          waterCheck: WaterCheckScreen(
+          waterCheckBuilder: (subTabs) => WaterCheckScreen(
             controller: waterCheckController,
             onOpenInCharts: _openInCharts,
             fullScreen: _waterFullScreen,
             onToggleFullScreen: _toggleWaterFullScreen,
+            subTabs: subTabs,
           ),
         ),
       ),

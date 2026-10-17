@@ -14,21 +14,40 @@ import 'water_visuals.dart';
 // SCALE
 // ============================================================
 
-/// He so scale s cua hinh, dung chung cho ca 3 cot. Co so s = 1: gauge
-/// 120×110, thermometer 96×136, tank 150×136, chu gia tri 16, ten 12; moi
-/// kich thuoc nhan s. Chieu cao trong tile co dinh theo s de
-/// [planWaterLayout] tinh dung.
+/// Cach hien nhom ap suat, giong nhau o ca 3 xuong (muc a / b / c cua
+/// [planWaterLayout]).
+enum WaterDialMode {
+  /// (a) dong ho day du: vach chia + nhan so.
+  full('a'),
+
+  /// (b) mini gauge 84×78: cung nguong, kim, gia tri; khong vach / nhan.
+  mini('b'),
+
+  /// (c) danh sach (dong gon).
+  list('c');
+
+  const WaterDialMode(this.stage);
+
+  final String stage;
+}
+
+/// He so scale s cua hinh + cach hien nhom ap suat, dung chung cho ca 3 cot.
+/// Co so s = 1: gauge 120×110 (mini 84×78), thermometer 96×136, tank
+/// 150×136, chu gia tri 16, ten 12; moi kich thuoc nhan s. Chieu cao trong
+/// tile co dinh theo s de [planWaterLayout] tinh dung.
 @immutable
 class WaterVisualSize {
   final double scale;
+  final WaterDialMode dialMode;
 
-  const WaterVisualSize(this.scale);
+  const WaterVisualSize(this.scale, {this.dialMode = WaterDialMode.full});
 
   static const WaterVisualSize base = WaterVisualSize(1);
 
-  static const double minScale = .7;
-  static const double maxScale = 2;
+  /// Buoc giam s khi do vua man hinh.
   static const double step = .05;
+
+  bool get miniDial => dialMode == WaterDialMode.mini;
 
   /// Co chu theo s (khong nho hon [min]).
   double font(double size, {double min = 8}) => math.max(min, size * scale);
@@ -66,7 +85,8 @@ class WaterVisualSize {
 
   Size figureSize(WaterVisualKind kind) {
     final base = switch (kind) {
-      WaterVisualKind.dial => const Size(120, 110),
+      WaterVisualKind.dial =>
+        miniDial ? const Size(84, 78) : const Size(120, 110),
       // Rong hon de co cho pill nguong ben phai ong / thuoc.
       WaterVisualKind.thermometer => const Size(96, 136),
       WaterVisualKind.tank => const Size(150, 136),
@@ -75,24 +95,32 @@ class WaterVisualSize {
     return base * scale;
   }
 
+  /// Mini gauge: khong co dong ly do duoi chip.
+  bool hasCaption(WaterVisualKind kind) =>
+      !(kind == WaterVisualKind.dial && miniDial);
+
   /// Chieu cao co dinh cua mot tile (hinh + gia tri + ten + chip + dong ly
   /// do). Cho chip / ly do luon giu de tile khong doi cao theo trang thai.
   double tileHeight(WaterVisualKind kind) {
     final figure = figureSize(kind).height;
     final value = kind == WaterVisualKind.thermometer ? valueHeight : 0.0;
+    final caption = hasCaption(kind) ? captionHeight : 0.0;
 
-    return figure + value + 2 + nameHeight + 2 + chipHeight + captionHeight;
+    return figure + value + 2 + nameHeight + 2 + chipHeight + caption;
   }
 
   @override
   bool operator ==(Object other) =>
-      other is WaterVisualSize && other.scale == scale;
+      other is WaterVisualSize &&
+      other.scale == scale &&
+      other.dialMode == dialMode;
 
   @override
-  int get hashCode => scale.hashCode;
+  int get hashCode => Object.hash(scale, dialMode);
 
   @override
-  String toString() => 's=${scale.toStringAsFixed(2)}';
+  String toString() =>
+      '(${dialMode.stage}) ${dialMode.name} s=${scale.toStringAsFixed(2)}';
 }
 
 // ============================================================
@@ -128,9 +156,6 @@ abstract final class WaterColumnMetrics {
 
   /// Sai so cho lam tron / vien.
   static const double slack = 4;
-
-  /// Be rong toi thieu cua khoi hep (de tieu de doc duoc).
-  static const double minNarrowWidth = 120;
 
   static double innerWidth(double columnWidth) =>
       columnWidth - padLeft - padRight - scrollPad;
@@ -180,11 +205,12 @@ class WaterBlock {
   bool get isNarrow =>
       kind == WaterVisualKind.thermometer || kind == WaterVisualKind.tank;
 
+  /// Ten ngan cua khoi (xem [waterGroupShortName]); cac group ten ngan
+  /// khac nhau thi dung ten theo loai hinh.
   String get title {
-    if (groups.length == 1) {
-      final group = groups.first;
-      return group.name.isEmpty ? group.code : group.name;
-    }
+    final names = {for (final group in groups) waterGroupShortName(group)};
+    if (names.length == 1) return names.first;
+
     return switch (kind) {
       WaterVisualKind.dial => 'Pipeline pressure',
       WaterVisualKind.thermometer => 'Water temperature',
@@ -207,6 +233,28 @@ class WaterBlock {
     }
     return shared;
   }
+}
+
+/// Ten day du cua cac group trong khoi (tooltip tieu de).
+extension WaterBlockNames on WaterBlock {
+  String get fullTitle {
+    final names = <String>{
+      for (final group in groups) group.name.isEmpty ? group.code : group.name,
+    };
+    return names.join('\n');
+  }
+}
+
+/// Ten nhom ngan theo code; code khac dung group.name (backend da ngan).
+String waterGroupShortName(WaterGroup group) {
+  final short = switch (group.code.trim().toUpperCase()) {
+    'W_COOL' => 'Cooling tanks',
+    'W_LEVCOOL' => 'Cooling pit level',
+    'W_DPIPEPRES' || 'W_VCH_DPIPEPRES' => 'Pipeline pressure',
+    _ => null,
+  };
+  if (short != null) return short;
+  return group.name.isEmpty ? group.code : group.name;
 }
 
 /// Khoi cua mot xuong, giu thu tu xuat hien dau tien cua group.
@@ -289,11 +337,15 @@ class WaterShelfItem {
   /// Dong gon thay cho hinh.
   final bool compact;
 
+  /// Canh giua noi dung (tieu de + hinh + chip): khoi muc nuoc.
+  final bool centered;
+
   const WaterShelfItem({
     required this.block,
     required this.width,
     required this.height,
     required this.compact,
+    this.centered = false,
   });
 }
 
@@ -316,6 +368,63 @@ class WaterColumnLayout {
       shelves.fold<double>(0, (sum, shelf) => sum + shelf.height);
 }
 
+TextPainter _measure(String text, TextStyle style, {double? maxWidth}) {
+  return TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: TextDirection.ltr,
+    maxLines: 2,
+  )..layout(maxWidth: maxWidth ?? double.infinity);
+}
+
+/// Chu nguong chung cua khoi (cung so le voi widget).
+String? waterBlockThresholdText(WaterBlock block) => block.thresholdText(
+  (group) => waterDecimals(code: group.code, unit: group.unit),
+);
+
+/// Cho cua badge "N issues" (luon chua san: badge doi theo polling ma bo
+/// cuc khong tinh lai).
+double waterIssueBadgeWidth(WaterVisualSize size) =>
+    _measure(
+      '99 issues',
+      TextStyle(fontSize: size.titleFont - 1.5, fontWeight: FontWeight.w800),
+    ).width +
+    14 +
+    2 +
+    6;
+
+/// Chieu cao tieu de khoi o be rong [width]: tieu de khong ellipsis, thieu
+/// cho thi xuong toi da 2 dong.
+double waterTitleHeight(WaterBlock block, WaterVisualSize size, double width) {
+  final threshold = waterBlockThresholdText(block);
+  final thresholdWidth = threshold == null
+      ? 0.0
+      : 8 +
+            _measure(
+              threshold,
+              TextStyle(
+                fontSize: size.titleFont - .5,
+                fontWeight: FontWeight.w600,
+              ),
+            ).width;
+  final room = math.max(
+    20.0,
+    width -
+        (size.titleFont + 2 + 5) -
+        waterIssueBadgeWidth(size) -
+        thresholdWidth,
+  );
+
+  final lines = _measure(
+    block.title,
+    TextStyle(fontSize: size.titleFont, fontWeight: FontWeight.w800),
+    maxWidth: room,
+  ).computeLineMetrics().length;
+
+  return lines > 1
+      ? size.titleHeight + (size.titleFont * 1.25).ceilToDouble()
+      : size.titleHeight;
+}
+
 /// Chieu cao mot khoi o be rong [width].
 double waterBlockHeight({
   required WaterBlock block,
@@ -325,7 +434,7 @@ double waterBlockHeight({
 }) {
   final chrome =
       WaterColumnMetrics.blockPad +
-      size.titleHeight +
+      waterTitleHeight(block, size, width) +
       WaterColumnMetrics.titleExtra;
   final count = block.count;
 
@@ -344,169 +453,59 @@ double waterBlockHeight({
       (rows - 1) * size.spacing;
 }
 
-/// Xep khoi cua mot cot: khoi rong (dong ho, dong gon) chiem ca hang; khoi
-/// hep (nhiet ke, bon) lien tiep xep canh nhau neu vua, phan du chia deu.
+/// Thu tu hang co dinh trong cot: Cooling tanks (nhiet ke) → Cooling pit
+/// level (muc nuoc) → Pipeline pressure (ap suat) → nhom khac.
+int _rowOrder(WaterVisualKind kind) => switch (kind) {
+  WaterVisualKind.thermometer => 0,
+  WaterVisualKind.tank => 1,
+  WaterVisualKind.dial => 2,
+  WaterVisualKind.compact => 3,
+};
+
+/// Xep khoi cua mot cot, doc lap voi cac cot khac: moi khoi mot hang full
+/// ngang cot theo [_rowOrder] (sap xep on dinh: cung loai giu thu tu hien
+/// co); xuong khong co nhom nao thi khong co hang do. Hinh canh giua; nhom
+/// ap suat dang danh sach khi [WaterDialMode.list].
 WaterColumnLayout arrangeWaterColumn(
   List<WaterBlock> blocks, {
   required WaterVisualSize size,
   required double innerWidth,
-  required Set<String> compactBlocks,
 }) {
-  final shelves = <WaterShelf>[];
-  final pending = <({WaterBlock block, double width})>[];
-  final gap = size.spacing;
+  final ordered =
+      [
+        for (final (index, block) in blocks.indexed)
+          (index: index, block: block),
+      ]..sort((a, b) {
+        final byKind = _rowOrder(
+          a.block.kind,
+        ).compareTo(_rowOrder(b.block.kind));
+        return byKind != 0 ? byKind : a.index.compareTo(b.index);
+      });
 
-  bool isCompact(WaterBlock block) =>
-      block.kind == WaterVisualKind.compact ||
-      compactBlocks.contains(block.key);
-
-  WaterShelfItem item(WaterBlock block, double width) {
-    final compact = isCompact(block);
+  WaterShelfItem item(WaterBlock block) {
+    final compact =
+        block.kind == WaterVisualKind.compact ||
+        (block.kind == WaterVisualKind.dial &&
+            size.dialMode == WaterDialMode.list);
     return WaterShelfItem(
       block: block,
-      width: width,
+      width: innerWidth,
       compact: compact,
+      centered: !compact,
       height: waterBlockHeight(
         block: block,
         size: size,
-        width: width,
+        width: innerWidth,
         compact: compact,
       ),
     );
   }
 
-  void flush() {
-    if (pending.isEmpty) return;
-
-    final used =
-        pending.fold<double>(0, (sum, entry) => sum + entry.width) +
-        gap * (pending.length - 1);
-    final extra = math.max(0.0, innerWidth - used) / pending.length;
-
-    shelves.add(
-      WaterShelf([
-        for (final entry in pending) item(entry.block, entry.width + extra),
-      ]),
-    );
-    pending.clear();
-  }
-
-  for (final block in blocks) {
-    if (!block.isNarrow || isCompact(block)) {
-      flush();
-      shelves.add(WaterShelf([item(block, innerWidth)]));
-      continue;
-    }
-
-    final tileWidth = size.figureSize(block.kind).width;
-    final natural = math.min(
-      innerWidth,
-      math.max(
-        WaterColumnMetrics.minNarrowWidth,
-        block.count * tileWidth + (block.count - 1) * gap,
-      ),
-    );
-
-    final used =
-        pending.fold<double>(0, (sum, entry) => sum + entry.width) +
-        gap * pending.length;
-
-    if (pending.isNotEmpty && used + natural > innerWidth) {
-      // Khong vua o be rong tu nhien: so sanh "ep hep (hinh xuong dong) van
-      // canh nhau" voi "sang hang moi", lay phuong an thap hon.
-      final squeezed = _squeeze(
-        [...pending, (block: block, width: natural)],
-        innerWidth: innerWidth,
-        gap: gap,
-        size: size,
-      );
-
-      if (squeezed != null) {
-        final separate =
-            _shelfHeight(pending, innerWidth, gap, size) +
-            waterBlockHeight(
-              block: block,
-              size: size,
-              width: innerWidth,
-              compact: false,
-            );
-        final together = squeezed.fold<double>(
-          0,
-          (max, entry) => math.max(
-            max,
-            waterBlockHeight(
-              block: entry.block,
-              size: size,
-              width: entry.width,
-              compact: false,
-            ),
-          ),
-        );
-
-        if (together <= separate) {
-          pending
-            ..clear()
-            ..addAll(squeezed);
-          continue;
-        }
-      }
-
-      flush();
-    }
-
-    pending.add((block: block, width: natural));
-  }
-  flush();
-
-  return WaterColumnLayout(List.unmodifiable(shelves));
-}
-
-/// Chia [innerWidth] cho cac khoi hep theo ty le be rong tu nhien; null khi
-/// co khoi khong con chua noi mot hinh.
-List<({WaterBlock block, double width})>? _squeeze(
-  List<({WaterBlock block, double width})> entries, {
-  required double innerWidth,
-  required double gap,
-  required WaterVisualSize size,
-}) {
-  final room = innerWidth - gap * (entries.length - 1);
-  final total = entries.fold<double>(0, (sum, entry) => sum + entry.width);
-  if (room <= 0 || total <= 0) return null;
-
-  final result = [
-    for (final entry in entries)
-      (block: entry.block, width: entry.width * room / total),
-  ];
-
-  final fits = result.every(
-    (entry) => entry.width >= size.figureSize(entry.block.kind).width,
-  );
-  return fits ? result : null;
-}
-
-/// Chieu cao hang cac khoi hep dang cho (phan du chia deu nhu flush).
-double _shelfHeight(
-  List<({WaterBlock block, double width})> entries,
-  double innerWidth,
-  double gap,
-  WaterVisualSize size,
-) {
-  final used =
-      entries.fold<double>(0, (sum, entry) => sum + entry.width) +
-      gap * (entries.length - 1);
-  final extra = math.max(0.0, innerWidth - used) / entries.length;
-
-  return entries.fold<double>(
-    0,
-    (max, entry) => math.max(
-      max,
-      waterBlockHeight(
-        block: entry.block,
-        size: size,
-        width: entry.width + extra,
-        compact: false,
-      ),
-    ),
+  return WaterColumnLayout(
+    List.unmodifiable([
+      for (final entry in ordered)
+        if (entry.block.count > 0) WaterShelf([item(entry.block)]),
+    ]),
   );
 }
 
@@ -515,12 +514,10 @@ double _shelfHeight(
 // ============================================================
 
 class WaterLayoutPlan {
+  /// s + cach hien nhom ap suat (giong nhau o ca 3 xuong).
   final WaterVisualSize size;
 
-  /// Khoi (theo [WaterBlock.key]) dang dong gon thay cho hinh.
-  final Set<String> compactBlocks;
-
-  /// Moi khoi da la dong gon ma van tran: cot cuon doc.
+  /// Muc (c) o s nho nhat van tran: cot cuon doc.
   final bool overflows;
 
   /// Xep khoi cua tung cot (theo facId).
@@ -530,7 +527,6 @@ class WaterLayoutPlan {
 
   const WaterLayoutPlan({
     required this.size,
-    required this.compactBlocks,
     required this.overflows,
     required this.columns,
     required this.tallestColumn,
@@ -538,7 +534,6 @@ class WaterLayoutPlan {
 
   static const WaterLayoutPlan fallback = WaterLayoutPlan(
     size: WaterVisualSize.base,
-    compactBlocks: {},
     overflows: false,
     columns: {},
     tallestColumn: 0,
@@ -549,8 +544,8 @@ class WaterLayoutPlan {
 
   @override
   String toString() =>
-      'WaterLayoutPlan($size, compact: ${compactBlocks.length}, '
-      'overflows: $overflows, tallest: ${tallestColumn.toStringAsFixed(0)})';
+      'WaterLayoutPlan($size, overflows: $overflows, '
+      'tallest: ${tallestColumn.toStringAsFixed(0)})';
 }
 
 /// Chu ky du lieu anh huong bo cuc: xuong, nhom, loai hinh, so diem do.
@@ -575,13 +570,17 @@ String waterLayoutSignature(List<WaterFacility> facilities) {
   return buffer.toString();
 }
 
-/// Chon s lon nhat (buoc 0.05, 0.7–2.0) ma cot cao nhat vua chieu cao con
-/// lai va hinh vua be ngang cot.
+/// Do vua man hinh: thu lan luot tung muc, moi muc giam s (buoc 0.05) tu
+/// lon toi nho, toi khi cot cao nhat vua chieu cao con lai va hinh vua be
+/// ngang cot:
+///   (a) dong ho day du, s 1.5 → 0.8;
+///   (b) nhom ap suat -> mini gauge, s 1.2 → 0.75 (nhiet ke / bon co theo s);
+///   (c) chi khi (b) van tran: nhom ap suat -> danh sach, s 1.2 → 0.75.
+/// (c) o s = 0.75 van tran thi [WaterLayoutPlan.overflows] (cot cuon doc).
+/// Cach hien nhom ap suat giong nhau o ca 3 xuong.
 ///
 /// [area] la ca vung noi dung; [reservedHeight] (s) = chieu cao header +
-/// To check o he so clamp(s, 1, 1.3), tru di truoc khi xep cot. s = 0.7 van
-/// tran: lan luot chuyen khoi nhieu diem do nhat sang dong gon; moi khoi da
-/// gon ma van tran thi [WaterLayoutPlan.overflows].
+/// To check o he so clamp(s, 1, 1.3), tru di truoc khi xep cot.
 WaterLayoutPlan planWaterLayout(
   List<WaterFacility> facilities,
   Size area, {
@@ -599,83 +598,57 @@ WaterLayoutPlan planWaterLayout(
 
   final kinds = {
     for (final list in blocks.values)
-      for (final block in list) block.kind,
+      for (final block in list)
+        if (block.kind != WaterVisualKind.compact) block.kind,
   };
 
   double available(double scale) =>
       area.height - (reservedHeight?.call(scale) ?? 0);
 
-  ({Map<String, WaterColumnLayout> columns, double tallest}) arrange(
-    WaterVisualSize size,
-    Set<String> compact,
-  ) {
+  WaterLayoutPlan arrange(WaterVisualSize size) {
     final result = <String, WaterColumnLayout>{};
     var tallest = 0.0;
     for (final MapEntry(key: facId, value: list) in blocks.entries) {
-      final layout = arrangeWaterColumn(
-        list,
-        size: size,
-        innerWidth: inner,
-        compactBlocks: compact,
-      );
+      final layout = arrangeWaterColumn(list, size: size, innerWidth: inner);
       result[facId] = layout;
       tallest = math.max(tallest, layout.height);
     }
-    return (columns: result, tallest: tallest);
+    return WaterLayoutPlan(
+      size: size,
+      overflows: tallest > available(size.scale),
+      columns: result,
+      tallestColumn: tallest,
+    );
   }
 
-  final maxSteps = (WaterVisualSize.maxScale / WaterVisualSize.step).round();
-  final minSteps = (WaterVisualSize.minScale / WaterVisualSize.step).round();
+  bool fitsWidth(WaterVisualSize size) => kinds.every(
+    (kind) =>
+        (kind == WaterVisualKind.dial && size.dialMode == WaterDialMode.list) ||
+        size.figureSize(kind).width <= inner,
+  );
 
-  for (var stepIndex = maxSteps; stepIndex >= minSteps; stepIndex--) {
-    final size = WaterVisualSize(stepIndex * WaterVisualSize.step);
+  const stages = [
+    (mode: WaterDialMode.full, from: 1.5, to: .8),
+    (mode: WaterDialMode.mini, from: 1.2, to: .75),
+    (mode: WaterDialMode.list, from: 1.2, to: .75),
+  ];
 
-    final fitsWidth = kinds.every(
-      (kind) => size.figureSize(kind).width <= inner,
-    );
-    if (!fitsWidth) continue;
+  for (final stage in stages) {
+    final first = (stage.from / WaterVisualSize.step).round();
+    final last = (stage.to / WaterVisualSize.step).round();
 
-    final result = arrange(size, const {});
-    if (result.tallest <= available(size.scale)) {
-      return WaterLayoutPlan(
-        size: size,
-        compactBlocks: const {},
-        overflows: false,
-        columns: result.columns,
-        tallestColumn: result.tallest,
+    for (var i = first; i >= last; i--) {
+      final size = WaterVisualSize(
+        i * WaterVisualSize.step,
+        dialMode: stage.mode,
       );
+      if (!fitsWidth(size)) continue;
+
+      final plan = arrange(size);
+      if (!plan.overflows) return plan;
     }
   }
 
-  const size = WaterVisualSize(WaterVisualSize.minScale);
-  final room = available(size.scale);
-
-  // Khoi co the gon lai, nhieu diem do truoc.
-  final candidates = [
-    for (final list in blocks.values)
-      for (final block in list)
-        if (block.kind != WaterVisualKind.compact && block.count > 0) block,
-  ]..sort((a, b) => b.count.compareTo(a.count));
-
-  // Hinh rong hon cot ngay o s nho nhat (bon 150·s, nhiet ke 96·s): gon
-  // ngay, khong thi tran ngang.
-  final compact = <String>{
-    for (final block in candidates)
-      if (size.figureSize(block.kind).width > inner) block.key,
-  };
-  var result = arrange(size, compact);
-
-  for (final block in candidates) {
-    if (result.tallest <= room) break;
-    compact.add(block.key);
-    result = arrange(size, compact);
-  }
-
-  return WaterLayoutPlan(
-    size: size,
-    compactBlocks: Set.unmodifiable(compact),
-    overflows: result.tallest > room,
-    columns: result.columns,
-    tallestColumn: result.tallest,
-  );
+  // (c) o s nho nhat van tran: giu hinh, cot cuon doc.
+  return arrange(const WaterVisualSize(.75, dialMode: WaterDialMode.list));
 }

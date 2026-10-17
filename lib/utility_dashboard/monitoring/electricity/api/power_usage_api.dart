@@ -24,7 +24,10 @@ class PowerUsageApi {
     try {
       final response = await _dio.get<dynamic>(
         '/api/utility/power-usage',
-        queryParameters: {'date': formatQueryDate(date), 'period': period.query},
+        queryParameters: {
+          'date': formatQueryDate(date),
+          'period': period.query,
+        },
         cancelToken: cancelToken,
         options: Options(receiveTimeout: const Duration(seconds: 30)),
       );

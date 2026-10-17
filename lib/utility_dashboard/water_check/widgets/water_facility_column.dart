@@ -11,10 +11,11 @@ import 'water_layout.dart';
 import 'water_signal_chart_dialog.dart';
 import 'water_visuals.dart';
 
-/// Mot cot xuong: tieu de + cac hang khoi (xem [arrangeWaterColumn]).
+/// Mot cot xuong: tieu de + cac hang khoi (xem [arrangeWaterColumn]), xep
+/// doc lap voi cac cot khac (khong canh hang tieu de nhom giua cac cot).
 ///
 /// Cao theo noi dung (khong keo gian), toi da bang chieu cao cha; chi cuon
-/// khi [WaterLayoutPlan] khong the gon them. Kich thuoc khung khop voi
+/// khi [WaterLayoutPlan.overflows]. Kich thuoc khung khop voi
 /// [WaterColumnMetrics].
 class WaterFacilityColumn extends StatelessWidget {
   final WaterFacility facility;
@@ -124,6 +125,8 @@ class WaterFacilityColumn extends StatelessWidget {
       facId: facility.facId,
       block: item.block,
       compact: item.compact,
+      centered: item.centered,
+      width: item.width,
       size: plan.size,
       isVisible: _isVisibleItem,
       keyOf: keyOf,
@@ -220,6 +223,12 @@ class _BlockSection extends StatelessWidget {
 
   /// Dang dong gon thay cho hinh (plan gon de vua man hinh).
   final bool compact;
+
+  /// Canh giua tieu de + hinh (khoi muc nuoc).
+  final bool centered;
+
+  /// Be rong planner chia cho khoi (tinh so dong tieu de).
+  final double width;
   final WaterVisualSize size;
   final bool Function(WaterBlockItem item) isVisible;
   final GlobalKey Function(String signalKey) keyOf;
@@ -232,6 +241,8 @@ class _BlockSection extends StatelessWidget {
     required this.block,
     required this.compact,
     required this.size,
+    required this.width,
+    this.centered = false,
     required this.isVisible,
     required this.keyOf,
     required this.flashKey,
@@ -273,8 +284,12 @@ class _BlockSection extends StatelessWidget {
           _BlockTitle(
             icon: block.kind.icon,
             name: block.title,
+            fullName: block.fullTitle,
             thresholdText: block.thresholdText(decimalsOf),
             size: size,
+            height: waterTitleHeight(block, size, width),
+            // Tieu de + nguong chung mot dong (ten trai, nguong phai); chi
+            // noi dung canh giua.
             issues: block.items.where((item) => _isIssue(item.signal)).length,
             abnormal: block.items.any(
               (item) => waterIsAbnormal(item.signal.status),
@@ -296,6 +311,7 @@ class _BlockSection extends StatelessWidget {
             Wrap(
               spacing: size.spacing,
               runSpacing: size.spacing,
+              alignment: centered ? WrapAlignment.center : WrapAlignment.start,
               children: [
                 for (final item in items)
                   flash(
@@ -323,12 +339,16 @@ class _BlockSection extends StatelessWidget {
 bool _isIssue(WaterSignal signal) =>
     waterIsProblem(signal.status) || signal.status == WaterStatus.stale;
 
-/// Icon + ten khoi + badge "N issues" ben trai, nguong chung ben phai.
+/// Icon + ten ngan khoi + badge "N issues" ben trai, nguong chung ben phai.
+/// Ten khong ellipsis: toi da 2 dong, chieu cao [height] tu
+/// [waterTitleHeight]; ten day du trong tooltip.
 class _BlockTitle extends StatelessWidget {
   final IconData icon;
   final String name;
+  final String fullName;
   final String? thresholdText;
   final WaterVisualSize size;
+  final double height;
 
   /// So diem do co van de; badge do neu co abnormal, cam neu khong.
   final int issues;
@@ -337,8 +357,10 @@ class _BlockTitle extends StatelessWidget {
   const _BlockTitle({
     required this.icon,
     required this.name,
+    required this.fullName,
     required this.thresholdText,
     required this.size,
+    required this.height,
     this.issues = 0,
     this.abnormal = false,
   });
@@ -347,8 +369,35 @@ class _BlockTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = WaterPalette.of(context);
 
+    final title = Tooltip(
+      message: fullName,
+      waitDuration: const Duration(milliseconds: 400),
+      child: Text(
+        name,
+        maxLines: 2,
+        softWrap: true,
+        overflow: TextOverflow.clip,
+        style: TextStyle(
+          color: kWaterAccent,
+          fontSize: size.titleFont,
+          fontWeight: FontWeight.w800,
+          height: 1.15,
+        ),
+      ),
+    );
+
+    final nameAndBadge = Row(
+      children: [
+        Flexible(child: title),
+        if (issues > 0) ...[
+          const SizedBox(width: 6),
+          _IssuesBadge(count: issues, abnormal: abnormal, size: size),
+        ],
+      ],
+    );
+
     return Container(
-      height: size.titleHeight,
+      height: height,
       margin: const EdgeInsets.only(bottom: WaterColumnMetrics.titleExtra - 1),
       decoration: BoxDecoration(
         border: Border(
@@ -359,28 +408,7 @@ class _BlockTitle extends StatelessWidget {
         children: [
           Icon(icon, size: size.titleFont + 2, color: kWaterAccent),
           const SizedBox(width: 5),
-          Expanded(
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: kWaterAccent,
-                      fontSize: size.titleFont,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                if (issues > 0) ...[
-                  const SizedBox(width: 6),
-                  _IssuesBadge(count: issues, abnormal: abnormal, size: size),
-                ],
-              ],
-            ),
-          ),
+          Expanded(child: nameAndBadge),
           if (thresholdText != null) ...[
             const SizedBox(width: 8),
             Text(
@@ -638,25 +666,27 @@ class _VisualTileState extends State<_VisualTile>
                       )
                     : null,
               ),
-              SizedBox(
-                height: tier.captionHeight,
-                child: reason == null
-                    ? null
-                    : Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Text(
-                          reason,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: reasonColor,
-                            fontSize: tier.captionFont,
-                            fontWeight: FontWeight.w700,
-                            height: 1.1,
+              // Mini gauge: chi chip, khong dong ly do.
+              if (tier.hasCaption(widget.kind))
+                SizedBox(
+                  height: tier.captionHeight,
+                  child: reason == null
+                      ? null
+                      : Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Text(
+                            reason,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: reasonColor,
+                              fontSize: tier.captionFont,
+                              fontWeight: FontWeight.w700,
+                              height: 1.1,
+                            ),
                           ),
                         ),
-                      ),
-              ),
+                ),
             ],
           ),
         ),
