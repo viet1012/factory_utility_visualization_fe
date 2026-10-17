@@ -19,10 +19,14 @@ const Color kWaterAccent = Color(0xFF38BDF8);
 const Color kWaterTextPrimary = Color(0xFFE2E8F0);
 const Color kWaterTextMuted = Color(0xFF94A3B8);
 
+/// NEAR: mau trung tinh (xanh nhat) cho chip / pill / cham; do chi danh cho
+/// bat thuong that (OVER / SENSOR_FAULT).
+const Color kWaterNearNeutralColor = Color(0xFF93C5FD);
+
 Color waterStatusColor(WaterStatus status) {
   return switch (status) {
     WaterStatus.ok => kWaterOkColor,
-    WaterStatus.near => kWaterNearColor,
+    WaterStatus.near => kWaterNearNeutralColor,
     WaterStatus.over || WaterStatus.sensorFault => kWaterOverColor,
     WaterStatus.stale ||
     WaterStatus.noThreshold ||
@@ -42,10 +46,9 @@ String waterStatusLabel(WaterStatus status) {
   };
 }
 
-/// Mau gia tri ben phai dong: chi NEAR / OVER / SENSOR_FAULT co mau.
+/// Mau gia tri ben phai dong: chi OVER / SENSOR_FAULT do; NEAR giu mau chu.
 Color waterValueColor(WaterStatus status) {
   return switch (status) {
-    WaterStatus.near => kWaterNearColor,
     WaterStatus.over || WaterStatus.sensorFault => kWaterOverColor,
     WaterStatus.stale || WaterStatus.stopped => kWaterStaleColor,
     _ => kWaterTextPrimary,

@@ -334,9 +334,11 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
       );
     }
 
-    // Cot cao theo noi dung, canh tren cung.
+    // 3 khung cao bang nhau = toan bo chieu cao con lai (Row stretch, khong
+    // IntrinsicHeight); noi dung canh tren, phan thua phia duoi de trong.
+    // Planner van chon scale theo cot cao nhat.
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (var i = 0; i < data.facilities.length; i++) ...[
           if (i > 0) const SizedBox(width: WaterColumnMetrics.columnGap),

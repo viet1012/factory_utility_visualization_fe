@@ -191,7 +191,9 @@ class WaterIssueCard extends StatelessWidget {
             insetPadding: const EdgeInsets.all(40),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: kWaterNearColor.withValues(alpha: .4)),
+              side: BorderSide(
+                color: kWaterNearNeutralColor.withValues(alpha: .4),
+              ),
             ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 980, maxHeight: 560),

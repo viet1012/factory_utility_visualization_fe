@@ -139,10 +139,13 @@ class WaterCheckHeader extends StatelessWidget {
 // LEGEND
 // ============================================================
 
+/// Thang: chi vung an toan xanh la, ngoai vung xam; do chi cho bat thuong
+/// that (kim / gia tri / chip / vien cua hinh do).
 const List<(String, Color, bool)> _legendItems = [
   ('Safe zone', kWaterOkColor, false),
-  ('Near limit', kWaterNearColor, false),
-  ('Out of limit', kWaterOverColor, false),
+  ('Outside safe zone', kWaterStaleColor, false),
+  ('Near limit (chip only)', kWaterNearNeutralColor, true),
+  ('Out of limit / sensor fault', kWaterOverColor, false),
   ('No limit set', kWaterStaleColor, true),
 ];
 

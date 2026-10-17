@@ -4,7 +4,7 @@ import 'electricity/electricity_screen.dart';
 
 enum MonitoringSubTab {
   electricity('Electricity', Icons.bolt_rounded),
-  waterCheck('Water check', Icons.water_drop_outlined);
+  waterCheck('Water', Icons.water_drop_outlined);
 
   const MonitoringSubTab(this.label, this.icon);
 

@@ -14,8 +14,9 @@ import 'water_visuals.dart';
 /// Mot cot xuong: tieu de + cac hang khoi (xem [arrangeWaterColumn]), xep
 /// doc lap voi cac cot khac (khong canh hang tieu de nhom giua cac cot).
 ///
-/// Cao theo noi dung (khong keo gian), toi da bang chieu cao cha; chi cuon
-/// khi [WaterLayoutPlan.overflows]. Kich thuoc khung khop voi
+/// Khung cao bang chieu cao cha (3 cot bang nhau); noi dung canh tren, hinh
+/// khong keo gian, phan thua de trong; chi cuon khi
+/// [WaterLayoutPlan.overflows]. Kich thuoc khung khop voi
 /// [WaterColumnMetrics].
 class WaterFacilityColumn extends StatelessWidget {
   final WaterFacility facility;
@@ -37,19 +38,18 @@ class WaterFacilityColumn extends StatelessWidget {
     required this.onOpenSignal,
   });
 
-  /// Do neu co OVER, cam neu co NEAR / STALE / SENSOR_FAULT, xanh neu on
-  /// (STOPPED khong tinh la loi).
+  /// Do chi khi co OVER / SENSOR_FAULT; NEAR / STALE trung tinh (xanh
+  /// nhat); con lai xanh la (STOPPED khong tinh la loi).
   Color get _overallColor {
-    var near = false;
+    var attention = false;
     for (final signal in facility.signals) {
-      if (signal.status == WaterStatus.over) return kWaterOverColor;
+      if (waterIsAbnormal(signal.status)) return kWaterOverColor;
       if (signal.status == WaterStatus.near ||
-          signal.status == WaterStatus.stale ||
-          signal.status == WaterStatus.sensorFault) {
-        near = true;
+          signal.status == WaterStatus.stale) {
+        attention = true;
       }
     }
-    return near ? kWaterNearColor : kWaterOkColor;
+    return attention ? kWaterNearNeutralColor : kWaterOkColor;
   }
 
   @override
@@ -441,7 +441,7 @@ class _IssuesBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = abnormal ? kWaterOverColor : kWaterNearColor;
+    final color = abnormal ? kWaterOverColor : WaterPalette.of(context).muted;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
@@ -505,7 +505,7 @@ class _VisualTileState extends State<_VisualTile>
     with SingleTickerProviderStateMixin {
   bool _animate = true;
 
-  /// Halo pulse 2 lan khi vua chuyen sang trang thai co van de.
+  /// Halo pulse 2 lan khi vua chuyen sang OVER / SENSOR_FAULT.
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1600),
@@ -521,7 +521,7 @@ class _VisualTileState extends State<_VisualTile>
   void didUpdateWidget(covariant _VisualTile oldWidget) {
     super.didUpdateWidget(oldWidget);
     final status = widget.signal.status;
-    if (status != oldWidget.signal.status && waterIsProblem(status)) {
+    if (status != oldWidget.signal.status && waterIsAbnormal(status)) {
       _pulse.forward(from: 0);
     }
   }
@@ -538,7 +538,9 @@ class _VisualTileState extends State<_VisualTile>
     final status = signal.status;
     final tier = widget.tier;
     final stale = status == WaterStatus.stale;
-    final problem = waterIsProblem(status);
+    // Do (vien, halo, so to hon) chi cho bat thuong that; NEAR giu nguyen
+    // mau hinh, chi co chip trung tinh.
+    final problem = waterIsAbnormal(status);
     final palette = WaterPalette.of(context);
     final size = tier.figureSize(widget.kind);
 
@@ -583,11 +585,11 @@ class _VisualTileState extends State<_VisualTile>
       nameText = Tooltip(message: 'No limit set', child: nameText);
     }
 
-    final reason = waterShortReason(signal, widget.group, widget.decimals);
+    final reason = status == WaterStatus.near
+        ? null
+        : waterShortReason(signal, widget.group, widget.decimals);
     final reasonColor = waterIsAbnormal(status)
         ? kWaterOverColor
-        : status == WaterStatus.near
-        ? kWaterNearColor
         : palette.muted;
 
     return Tooltip(
