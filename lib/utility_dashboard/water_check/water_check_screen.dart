@@ -57,7 +57,8 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
 
   /// Index theo khoa diem do, tinh lai khi response doi.
   WaterCheckResponse? _indexed;
-  Map<String, ({WaterSignal signal, WaterGroup group})> _index = const {};
+  Map<String, ({String facId, WaterSignal signal, WaterGroup group})> _index =
+      const {};
 
   /// Bo cuc: chi tinh lai khi kich thuoc vung noi dung (da debounce), chu ky
   /// du lieu (so diem do / nhom) hoac chieu cao phan tren doi; khong tinh
@@ -80,6 +81,7 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
         for (final group in fac.groups)
           for (final signal in group.signals)
             waterSignalKey(fac.facId, signal.boxDeviceId, signal.plcAddress): (
+              facId: fac.facId,
               signal: signal,
               group: group,
             ),
@@ -172,26 +174,44 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
       context,
       signal: signal,
       onOpenInCharts: widget.onOpenInCharts,
+      board: widget.controller,
+      resolve: _boardRefOf,
+      boardVersion: () => widget.controller.data,
+      onLoaded: widget.controller.retry,
     );
   }
 
+  /// Gia tri moi nhat cua diem do tren board (dong tren dau dialog).
+  WaterSignalRef? _boardRefOf(String key) {
+    final data = widget.controller.data;
+    if (data == null) return null;
+
+    _reindex(data);
+    final entry = _index[key];
+    if (entry == null) return null;
+
+    return WaterSignalRef.of(entry.facId, entry.signal, entry.group);
+  }
+
   void _openIssue(WaterIssue issue) {
-    final entry =
-        _index[waterSignalKey(
-          issue.facId,
-          issue.boxDeviceId,
-          issue.plcAddress,
-        )];
+    final key = waterSignalKey(
+      issue.facId,
+      issue.boxDeviceId,
+      issue.plcAddress,
+    );
 
     _openSignal(
-      WaterSignalRef(
-        facId: issue.facId,
-        boxDeviceId: issue.boxDeviceId,
-        plcAddress: issue.plcAddress,
-        name: issue.name,
-        deviceName: entry?.signal.deviceName ?? '',
-        unit: issue.unit,
-      ),
+      _boardRefOf(key) ??
+          WaterSignalRef(
+            facId: issue.facId,
+            boxDeviceId: issue.boxDeviceId,
+            plcAddress: issue.plcAddress,
+            name: issue.name,
+            deviceName: '',
+            unit: issue.unit,
+            value: issue.value,
+            recordedAt: issue.recordedAt,
+          ),
     );
   }
 

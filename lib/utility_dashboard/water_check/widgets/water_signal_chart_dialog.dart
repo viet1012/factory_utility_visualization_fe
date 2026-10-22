@@ -11,6 +11,7 @@ import '../../utility_all_factory_chart/controllers/utility_chart_catalog_contro
 import '../../utility_all_factory_chart/controllers/utility_minute_chart_controller.dart';
 import '../../utility_all_factory_chart/widgets/utility_minute_chart_panel.dart';
 import '../../utility_catalog/api/signal_history_repository.dart';
+import '../models/water_check_models.dart';
 import 'water_check_format.dart';
 
 /// Diem do can mo chart (dialog) / chuyen sang CHARTS › Minutes.
@@ -22,6 +23,14 @@ class WaterSignalRef {
   final String deviceName;
   final String unit;
 
+  /// Mau moi nhat + gio cua diem do tren board (dong tren dau dialog va
+  /// diem cuoi cua chart).
+  final double? value;
+  final DateTime? recordedAt;
+
+  /// Nhom muc nuoc: cua so median truot (status danh gia theo median).
+  final Duration? medianWindow;
+
   const WaterSignalRef({
     required this.facId,
     required this.boxDeviceId,
@@ -29,17 +38,49 @@ class WaterSignalRef {
     required this.name,
     required this.deviceName,
     required this.unit,
+    this.value,
+    this.recordedAt,
+    this.medianWindow,
   });
+
+  factory WaterSignalRef.of(
+    String facId,
+    WaterSignal signal,
+    WaterGroup group,
+  ) {
+    return WaterSignalRef(
+      facId: facId,
+      boxDeviceId: signal.boxDeviceId,
+      plcAddress: signal.plcAddress,
+      name: signal.name,
+      deviceName: signal.deviceName,
+      unit: group.unit,
+      value: waterDisplayValue(signal),
+      recordedAt: signal.recordedAt,
+      medianWindow: group.isLevel ? group.config.levelMedianWindow : null,
+    );
+  }
+
+  String get key => waterSignalKey(facId, boxDeviceId, plcAddress);
 }
 
 /// Chart 1h (bucket=1m) cua mot diem do, dung lai the Minutes cua CHARTS.
 ///
 /// Dialog nam tren Navigator, ngoai cay Provider cua dashboard: lay cac
 /// dependency tu [context] cua tab roi cap lai cho dialog.
+///
+/// [board] + [resolve]: dong gia tri tren dau theo board moi nhat;
+/// [boardVersion]: doi moi lan board poll xong -> tai lai series (khong co
+/// thi chart tu poll theo chu ky Minutes); [onLoaded]: goi mot lan khi
+/// chart tai xong (lam moi board).
 Future<void> showWaterSignalChartDialog(
   BuildContext context, {
   required WaterSignalRef signal,
   required void Function(WaterSignalRef signal) onOpenInCharts,
+  Listenable? board,
+  WaterSignalRef? Function(String key)? resolve,
+  Object? Function()? boardVersion,
+  VoidCallback? onLoaded,
 }) {
   final repository = context.read<SignalHistoryRepository>();
   final catalog = context.read<UtilityChartCatalogController>();
@@ -53,6 +94,10 @@ Future<void> showWaterSignalChartDialog(
       repository: repository,
       catalog: catalog,
       polling: polling,
+      board: board,
+      resolve: resolve,
+      boardVersion: boardVersion,
+      onLoaded: onLoaded,
       onOpenInCharts: () {
         Navigator.of(dialogContext).pop();
         onOpenInCharts(signal);
@@ -66,6 +111,10 @@ class _WaterSignalChartDialog extends StatefulWidget {
   final SignalHistoryRepository repository;
   final UtilityChartCatalogController catalog;
   final PollingCoordinator polling;
+  final Listenable? board;
+  final WaterSignalRef? Function(String key)? resolve;
+  final Object? Function()? boardVersion;
+  final VoidCallback? onLoaded;
   final VoidCallback onOpenInCharts;
 
   const _WaterSignalChartDialog({
@@ -73,6 +122,10 @@ class _WaterSignalChartDialog extends StatefulWidget {
     required this.repository,
     required this.catalog,
     required this.polling,
+    this.board,
+    this.resolve,
+    this.boardVersion,
+    this.onLoaded,
     required this.onOpenInCharts,
   });
 
@@ -82,44 +135,77 @@ class _WaterSignalChartDialog extends StatefulWidget {
 }
 
 class _WaterSignalChartDialogState extends State<_WaterSignalChartDialog> {
+  static final Listenable _never = ChangeNotifier();
+
   late final UtilityMinuteChartController _chart;
-  late final String _taskId;
+  String? _taskId;
+
+  /// Response board da dung cho lan tai series gan nhat.
+  Object? _boardVersion;
+
+  bool get _followsBoard =>
+      widget.board != null && widget.boardVersion != null;
 
   @override
   void initState() {
     super.initState();
 
+    // Cua so toi hien tai, gom ca bucket phut dang chay.
     _chart = UtilityMinuteChartController(
       repository: widget.repository,
       window: const Duration(minutes: 60),
       requestTimeout: const Duration(seconds: 15),
+      includeRunningBucket: true,
     );
+    _boardVersion = widget.boardVersion?.call();
 
+    // Tai xong: lam moi board de gia tri tren dau khop voi chart.
     unawaited(
-      _chart.load(
-        plcsByBox: {
-          widget.signal.boxDeviceId: [widget.signal.plcAddress],
-        },
-      ),
+      _chart
+          .load(
+            plcsByBox: {
+              widget.signal.boxDeviceId: [widget.signal.plcAddress],
+            },
+          )
+          .then((_) {
+            if (mounted) widget.onLoaded?.call();
+          }, onError: (_) {}),
     );
 
-    // Lam moi theo scope WATER CHECK: dung khi tab an / trinh duyet an.
-    _taskId = PollingTaskIds.waterCheckSignalChart(this);
+    if (_followsBoard) {
+      // Tai lai series moi lan board poll xong (15s): chart va header cung
+      // nhip. Board da dung theo scope WATER CHECK khi tab / trinh duyet an.
+      widget.board!.addListener(_onBoardChanged);
+      return;
+    }
+
+    // Khong co board: tu lam moi theo scope WATER CHECK.
+    final taskId = _taskId = PollingTaskIds.waterCheckSignalChart(this);
     if (!widget.polling.isDisposed) {
       widget.polling
         ..register(
-          id: _taskId,
+          id: taskId,
           scope: PollingScope.waterCheck,
           interval: DashboardPollingIntervals.chartsMinuteSeries,
           action: _chart.poll,
         )
-        ..start(_taskId);
+        ..start(taskId);
     }
+  }
+
+  void _onBoardChanged() {
+    final version = widget.boardVersion!.call();
+    if (version == null || identical(version, _boardVersion)) return;
+
+    _boardVersion = version;
+    unawaited(_chart.poll().catchError((_) {}));
   }
 
   @override
   void dispose() {
-    widget.polling.unregister(_taskId);
+    if (_followsBoard) widget.board!.removeListener(_onBoardChanged);
+    final taskId = _taskId;
+    if (taskId != null) widget.polling.unregister(taskId);
     _chart.dispose();
     super.dispose();
   }
@@ -191,17 +277,30 @@ class _WaterSignalChartDialogState extends State<_WaterSignalChartDialog> {
                       value: widget.catalog,
                     ),
                   ],
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return UtilityMinuteChartPanel(
-                        facId: signal.facId,
-                        cate: 'Water',
-                        boxDeviceId: signal.boxDeviceId,
-                        plcAddress: signal.plcAddress,
-                        signalName: signal.name,
-                        unit: signal.unit,
-                        width: constraints.maxWidth,
-                        height: constraints.maxHeight,
+                  child: ListenableBuilder(
+                    listenable: widget.board ?? _never,
+                    builder: (context, _) {
+                      final reading =
+                          widget.resolve?.call(signal.key) ?? signal;
+
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          return UtilityMinuteChartPanel(
+                            facId: signal.facId,
+                            cate: 'Water',
+                            boxDeviceId: signal.boxDeviceId,
+                            plcAddress: signal.plcAddress,
+                            signalName: signal.name,
+                            unit: signal.unit,
+                            latestReading: ChartLatestReading(
+                              value: reading.value,
+                              recordedAt: reading.recordedAt,
+                            ),
+                            medianWindow: reading.medianWindow,
+                            width: constraints.maxWidth,
+                            height: constraints.maxHeight,
+                          );
+                        },
                       );
                     },
                   ),

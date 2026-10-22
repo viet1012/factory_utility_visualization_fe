@@ -283,12 +283,50 @@ List<WaterBlock> waterBlocksOf(WaterFacility facility) {
   ];
 }
 
+/// Hau to model thiet bi cua box: "_PT100", "_MFM384"…
+final RegExp _boxModelSuffix = RegExp(r'_[A-Za-z]+\d+[A-Za-z]*$');
+final RegExp _tankNumber = RegExp(r'tank\s*(\d+)', caseSensitive: false);
+
+/// Ten mot nhiet ke Cooling tanks: label backend > "Left tank" / "Right
+/// tank" theo box (bo hau to model) > "Tank N" theo name (bo chu xuong
+/// sau so: 1A -> 1) > ten cat theo nhom. Khong dung deviceName / box lam ten.
+String coolingTankName(WaterSignal signal, WaterGroup group) {
+  if (signal.label.isNotEmpty) return signal.label;
+
+  final box = signal.boxDeviceId.replaceFirst(_boxModelSuffix, '').toLowerCase();
+  if (box.contains('left')) return 'Left tank';
+  if (box.contains('right')) return 'Right tank';
+
+  final tank = _tankNumber.firstMatch(signal.name);
+  if (tank != null) return 'Tank ${int.parse(tank.group(1)!)}';
+
+  final short = shortSignalName(signal.name, group.name);
+  if (short.isNotEmpty) return short;
+  return signal.name.isNotEmpty ? signal.name : signal.plcAddress;
+}
+
+/// Thu tu hien thi nhiet ke: Left, Right, Tank theo so tang dan, con lai
+/// giu thu tu cu.
+(int, int) _coolingTankOrder(String name) {
+  final lower = name.toLowerCase();
+  if (lower == 'left tank') return (0, 0);
+  if (lower == 'right tank') return (1, 0);
+
+  final tank = RegExp(r'^tank (\d+)').firstMatch(lower);
+  if (tank != null) return (2, int.parse(tank.group(1)!));
+  return (3, 0);
+}
+
 WaterBlock _buildBlock(
   String facId,
   String key,
   WaterVisualKind kind,
   List<WaterGroup> groups,
 ) {
+  if (kind == WaterVisualKind.thermometer) {
+    return _buildCoolingTankBlock(facId, key, groups);
+  }
+
   final raw = <({WaterSignal signal, WaterGroup group, String name})>[
     for (final group in groups)
       for (final (i, name) in displayNamesOf(group).indexed)
@@ -325,14 +363,75 @@ WaterBlock _buildBlock(
   );
 }
 
+/// Khoi nhiet ke (Cooling tanks): ten theo [coolingTankName], sap theo
+/// [_coolingTankOrder]; trung ten trong khoi -> " (2)", " (3)".
+WaterBlock _buildCoolingTankBlock(
+  String facId,
+  String key,
+  List<WaterGroup> groups,
+) {
+  final raw = [
+    for (final group in groups)
+      for (final signal in group.signals)
+        (signal: signal, group: group, name: coolingTankName(signal, group)),
+  ];
+
+  // Sap on dinh: cung hang giu thu tu xuat hien.
+  final ordered = [
+    for (final (i, item) in raw.indexed) (i: i, item: item),
+  ]..sort((a, b) {
+      final (ka, na) = _coolingTankOrder(a.item.name);
+      final (kb, nb) = _coolingTankOrder(b.item.name);
+      if (ka != kb) return ka.compareTo(kb);
+      if (na != nb) return na.compareTo(nb);
+      return a.i.compareTo(b.i);
+    });
+
+  final seen = <String, int>{};
+
+  return WaterBlock(
+    key: key,
+    kind: WaterVisualKind.thermometer,
+    unit: groups.first.unit,
+    groups: List.unmodifiable(groups),
+    items: List.unmodifiable([
+      for (final (i: _, :item) in ordered)
+        WaterBlockItem(
+          signal: item.signal,
+          group: item.group,
+          name: () {
+            final lower = item.name.toLowerCase();
+            final n = seen[lower] = (seen[lower] ?? 0) + 1;
+            return n == 1 ? item.name : '${item.name} ($n)';
+          }(),
+          key: waterSignalKey(
+            facId,
+            item.signal.boxDeviceId,
+            item.signal.plcAddress,
+          ),
+        ),
+    ]),
+  );
+}
+
 // ============================================================
 // ARRANGEMENT
 // ============================================================
 
+/// Hinh hoc cua mot khoi trong cot. Chi giu khoa khoi, KHONG giu signal /
+/// gia tri: cot tra khoi theo [blockKey] tu response moi nhat moi lan build
+/// (xem [waterBlocksOf]), plan cache lai giua cac lan polling.
 class WaterShelfItem {
-  final WaterBlock block;
+  final String blockKey;
+  final WaterVisualKind kind;
   final double width;
   final double height;
+
+  /// Chieu cao tieu de khoi (1 hoac 2 dong), xem [waterTitleHeight].
+  final double titleHeight;
+
+  /// So hinh moi hang (dong gon: 1).
+  final int perRow;
 
   /// Dong gon thay cho hinh.
   final bool compact;
@@ -341,9 +440,12 @@ class WaterShelfItem {
   final bool centered;
 
   const WaterShelfItem({
-    required this.block,
+    required this.blockKey,
+    required this.kind,
     required this.width,
     required this.height,
+    required this.titleHeight,
+    required this.perRow,
     required this.compact,
     this.centered = false,
   });
@@ -425,26 +527,43 @@ double waterTitleHeight(WaterBlock block, WaterVisualSize size, double width) {
       : size.titleHeight;
 }
 
+/// So hinh moi hang cua khoi o be rong [width] (dong gon: 1).
+int waterPerRow({
+  required WaterVisualKind kind,
+  required WaterVisualSize size,
+  required double width,
+  required bool compact,
+}) {
+  if (compact) return 1;
+  final tileWidth = size.figureSize(kind).width;
+  return math.max(
+    1,
+    ((width + size.spacing) / (tileWidth + size.spacing)).floor(),
+  );
+}
+
 /// Chieu cao mot khoi o be rong [width].
 double waterBlockHeight({
   required WaterBlock block,
   required WaterVisualSize size,
   required double width,
   required bool compact,
+  double? titleHeight,
 }) {
   final chrome =
       WaterColumnMetrics.blockPad +
-      waterTitleHeight(block, size, width) +
+      (titleHeight ?? waterTitleHeight(block, size, width)) +
       WaterColumnMetrics.titleExtra;
   final count = block.count;
 
   if (count == 0) return chrome;
   if (compact) return chrome + count * WaterColumnMetrics.compactRowHeight;
 
-  final tileWidth = size.figureSize(block.kind).width;
-  final perRow = math.max(
-    1,
-    ((width + size.spacing) / (tileWidth + size.spacing)).floor(),
+  final perRow = waterPerRow(
+    kind: block.kind,
+    size: size,
+    width: width,
+    compact: compact,
   );
   final rows = (count / perRow).ceil();
 
@@ -487,16 +606,26 @@ WaterColumnLayout arrangeWaterColumn(
         block.kind == WaterVisualKind.compact ||
         (block.kind == WaterVisualKind.dial &&
             size.dialMode == WaterDialMode.list);
+    final titleHeight = waterTitleHeight(block, size, innerWidth);
     return WaterShelfItem(
-      block: block,
+      blockKey: block.key,
+      kind: block.kind,
       width: innerWidth,
       compact: compact,
       centered: !compact,
+      titleHeight: titleHeight,
+      perRow: waterPerRow(
+        kind: block.kind,
+        size: size,
+        width: innerWidth,
+        compact: compact,
+      ),
       height: waterBlockHeight(
         block: block,
         size: size,
         width: innerWidth,
         compact: compact,
+        titleHeight: titleHeight,
       ),
     );
   }
@@ -548,8 +677,9 @@ class WaterLayoutPlan {
       'tallest: ${tallestColumn.toStringAsFixed(0)})';
 }
 
-/// Chu ky du lieu anh huong bo cuc: xuong, nhom, loai hinh, so diem do.
-/// Polling khong doi so diem do thi chu ky giu nguyen.
+/// Khoa CAU TRUC cua bo cuc: xuong, nhom (code / ten / unit) va danh sach
+/// boxDeviceId|plcAddress. Gia tri / status / nguong khong nam trong khoa:
+/// plan chi chua hinh hoc, du lieu doc lai tu response moi moi lan build.
 String waterLayoutSignature(List<WaterFacility> facilities) {
   final buffer = StringBuffer();
   for (final fac in facilities) {
@@ -562,8 +692,15 @@ String waterLayoutSignature(List<WaterFacility> facilities) {
         ..write(group.name)
         ..write('/')
         ..write(group.unit)
-        ..write(':')
-        ..write(group.signals.length);
+        ..write('[');
+      for (final signal in group.signals) {
+        buffer
+          ..write(signal.boxDeviceId)
+          ..write('|')
+          ..write(signal.plcAddress)
+          ..write(',');
+      }
+      buffer.write(']');
     }
     buffer.write(';');
   }

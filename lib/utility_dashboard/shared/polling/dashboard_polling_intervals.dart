@@ -13,7 +13,7 @@ abstract final class DashboardPollingIntervals {
   static const Duration mapSolarMonthly = Duration(minutes: 10);
   static const Duration solarDetail = Duration(hours: 1);
   static const Duration mapWeather = Duration(minutes: 45);
-  static const Duration waterCheck = Duration(minutes: 1);
+  static const Duration waterCheck = Duration(seconds: 15);
   /// MONITORING › Electricity: chi tai lai khi dang xem hom nay.
   static const Duration electricityPowerUsage = Duration(minutes: 1);
 

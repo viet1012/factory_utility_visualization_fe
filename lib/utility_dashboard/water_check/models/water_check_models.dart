@@ -103,7 +103,19 @@ class WaterSignal {
   final String deviceName;
   final String plcAddress;
   final String name;
+
+  /// Ten hien thi ngan do backend dat (uu tien hon ten tu suy).
+  final String label;
+
+  /// Mau moi nhat (so hien tren board / To check / popup).
   final double? value;
+
+  /// Mau goc moi nhat (thuong trung [value]).
+  final double? rawValue;
+
+  /// Nhom muc nuoc: median truot [WaterCheckConfig.levelMedianMinutes] phut
+  /// (status danh gia theo so nay). Null khi backend khong tra.
+  final double? median;
   final DateTime? recordedAt;
   final WaterStatus status;
   final double? distance;
@@ -117,7 +129,10 @@ class WaterSignal {
     required this.deviceName,
     required this.plcAddress,
     required this.name,
+    this.label = '',
     required this.value,
+    this.rawValue,
+    this.median,
     required this.recordedAt,
     required this.status,
     required this.distance,
@@ -133,7 +148,10 @@ class WaterSignal {
       deviceName: _readText(json['deviceName']),
       plcAddress: _readText(json['plcAddress']),
       name: _readText(json['name']),
+      label: _readText(json['label']),
       value: _readDouble(json['value']),
+      rawValue: _readDouble(json['rawValue']),
+      median: _readDouble(json['median'] ?? json['medianValue']),
       recordedAt: _readTime(json['recordedAt']),
       status: WaterStatus.parse(json['status']),
       distance: _readDouble(json['distance']),
@@ -145,12 +163,45 @@ class WaterSignal {
   }
 }
 
+/// Cau hinh danh gia cua response: cua so median nhom muc nuoc va thoi gian
+/// xac nhan status. Thieu thi dung mac dinh 10 / 3 phut.
+class WaterCheckConfig {
+  final int levelMedianMinutes;
+  final int statusConfirmMinutes;
+
+  const WaterCheckConfig({
+    this.levelMedianMinutes = 10,
+    this.statusConfirmMinutes = 3,
+  });
+
+  static const WaterCheckConfig fallback = WaterCheckConfig();
+
+  /// Doc o goc response hoac trong `config`.
+  factory WaterCheckConfig.fromJson(Map<String, dynamic> json) {
+    final nested = json['config'];
+    final config = nested is Map ? Map<String, dynamic>.from(nested) : json;
+
+    int read(String key, int fallback) {
+      final value = _readInt(config[key] ?? json[key], fallback: fallback);
+      return value > 0 ? value : fallback;
+    }
+
+    return WaterCheckConfig(
+      levelMedianMinutes: read('levelMedianMinutes', 10),
+      statusConfirmMinutes: read('statusConfirmMinutes', 3),
+    );
+  }
+
+  Duration get levelMedianWindow => Duration(minutes: levelMedianMinutes);
+}
+
 class WaterGroup {
   final String code;
   final String name;
   final String unit;
   final List<WaterThreshold> thresholds;
   final List<WaterSignal> signals;
+  final WaterCheckConfig config;
 
   const WaterGroup({
     required this.code,
@@ -158,9 +209,13 @@ class WaterGroup {
     required this.unit,
     required this.thresholds,
     required this.signals,
+    this.config = WaterCheckConfig.fallback,
   });
 
-  factory WaterGroup.fromJson(Map<String, dynamic> json) {
+  factory WaterGroup.fromJson(
+    Map<String, dynamic> json, {
+    WaterCheckConfig config = WaterCheckConfig.fallback,
+  }) {
     return WaterGroup(
       code: _readText(json['code']),
       name: _readText(json['name']),
@@ -171,6 +226,7 @@ class WaterGroup {
       signals: List.unmodifiable(
         _readList(json['signals']).map(WaterSignal.fromJson),
       ),
+      config: config,
     );
   }
 
@@ -202,11 +258,16 @@ class WaterFacility {
 
   const WaterFacility({required this.facId, required this.groups});
 
-  factory WaterFacility.fromJson(Map<String, dynamic> json) {
+  factory WaterFacility.fromJson(
+    Map<String, dynamic> json, {
+    WaterCheckConfig config = WaterCheckConfig.fallback,
+  }) {
     return WaterFacility(
       facId: _readText(json['facId']),
       groups: List.unmodifiable(
-        _readList(json['groups']).map(WaterGroup.fromJson),
+        _readList(
+          json['groups'],
+        ).map((group) => WaterGroup.fromJson(group, config: config)),
       ),
     );
   }
@@ -227,7 +288,11 @@ class WaterIssue {
   final String plcAddress;
   final String name;
   final String unit;
+
+  /// Trung [WaterSignal.value] (mau moi nhat).
   final double? value;
+  final double? rawValue;
+  final DateTime? recordedAt;
   final WaterStatus status;
   final String thresholdText;
   final DateTime? since;
@@ -242,6 +307,8 @@ class WaterIssue {
     required this.name,
     required this.unit,
     required this.value,
+    this.rawValue,
+    this.recordedAt,
     required this.status,
     required this.thresholdText,
     required this.since,
@@ -258,6 +325,8 @@ class WaterIssue {
       name: _readText(json['name']),
       unit: _readText(json['unit']),
       value: _readDouble(json['value']),
+      rawValue: _readDouble(json['rawValue']),
+      recordedAt: _readTime(json['recordedAt']),
       status: WaterStatus.parse(json['status']),
       thresholdText: _readText(json['thresholdText']),
       since: _readTime(json['since']),
@@ -271,26 +340,32 @@ class WaterIssue {
 class WaterCheckResponse {
   final DateTime? generatedAt;
   final WaterCheckSummary summary;
+  final WaterCheckConfig config;
   final List<WaterFacility> facilities;
   final List<WaterIssue> issues;
 
   const WaterCheckResponse({
     required this.generatedAt,
     required this.summary,
+    this.config = WaterCheckConfig.fallback,
     required this.facilities,
     required this.issues,
   });
 
   factory WaterCheckResponse.fromJson(Map<String, dynamic> json) {
     final summary = json['summary'];
+    final config = WaterCheckConfig.fromJson(json);
 
     return WaterCheckResponse(
       generatedAt: _readTime(json['generatedAt']),
       summary: summary is Map
           ? WaterCheckSummary.fromJson(Map<String, dynamic>.from(summary))
           : const WaterCheckSummary(),
+      config: config,
       facilities: List.unmodifiable(
-        _readList(json['facilities']).map(WaterFacility.fromJson),
+        _readList(
+          json['facilities'],
+        ).map((fac) => WaterFacility.fromJson(fac, config: config)),
       ),
       issues: List.unmodifiable(
         _readList(json['issues']).map(WaterIssue.fromJson),

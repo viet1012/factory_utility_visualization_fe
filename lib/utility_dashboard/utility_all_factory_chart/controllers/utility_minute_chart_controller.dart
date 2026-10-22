@@ -15,9 +15,14 @@ class UtilityMinuteChartController
   /// Khoang du lieu tren bieu do.
   final Duration window;
 
+  /// Cua so keo toi het phut hien tai: gom ca bucket dang chay (popup
+  /// WATER CHECK lam moi moi lan board poll).
+  final bool includeRunningBucket;
+
   UtilityMinuteChartController({
     required super.repository,
     this.window = const Duration(minutes: 60),
+    this.includeRunningBucket = false,
     super.requestTimeout,
     super.cacheTtl,
     super.maxConcurrentRequests,
@@ -44,7 +49,14 @@ class UtilityMinuteChartController
 
   @override
   HistoryWindow windowAt(DateTime now) {
-    final to = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+    final minute = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+      now.minute,
+    );
+    final to = includeRunningBucket ? minute.add(kMinuteBucket) : minute;
     return HistoryWindow(from: to.subtract(window), to: to);
   }
 

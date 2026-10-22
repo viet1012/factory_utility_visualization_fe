@@ -82,7 +82,7 @@ class WaterIssueCard extends StatelessWidget {
                     color: waterStatusColor(issues[i].status),
                     dot: true,
                     text: labels[i],
-                    tooltip: 'Show on the board · ${issues[i].name}',
+                    tooltip: _chipTooltip(issues[i]),
                     onTap: () => onFocus(issues[i]),
                   ),
                 ),
@@ -127,6 +127,19 @@ class WaterIssueCard extends StatelessWidget {
       reading,
       if (from != null) formatAge(from, now),
     ].join(' · ');
+  }
+
+  /// "Show on the board · ten\nLatest: 0.56 m at 09:12:05".
+  String _chipTooltip(WaterIssue issue) {
+    final head = 'Show on the board · ${issue.name}';
+    if (issue.status == WaterStatus.stale) return head;
+
+    final value = formatWithUnit(
+      issue.value,
+      issue.unit,
+      decimals: decimalsOf(issue),
+    );
+    return '$head\nLatest: $value at ${formatHhmmss(issue.recordedAt)}';
   }
 
   /// So chip vua hang; khong du thi chua cho chip "+N".
@@ -344,6 +357,15 @@ class _IssueRow extends StatelessWidget {
               fontWeight: FontWeight.w900,
             ),
           ),
+          if (issue.recordedAt != null)
+            TextSpan(
+              text: ' at ${formatHhmmss(issue.recordedAt)}',
+              style: const TextStyle(
+                color: kWaterTextMuted,
+                fontWeight: FontWeight.w600,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
           if (issue.thresholdText.isNotEmpty)
             TextSpan(
               text: '  ${issue.thresholdText}',

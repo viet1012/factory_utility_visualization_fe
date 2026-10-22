@@ -57,6 +57,12 @@ class WaterFacilityColumn extends StatelessWidget {
     final palette = WaterPalette.of(context);
     final layout = plan.columns[facility.facId];
 
+    // Plan chi co hinh hoc; khoi (signal / gia tri / status / nguong) luon
+    // dung lai tu response moi nhat, tra theo khoa khoi.
+    final blocks = {
+      for (final block in waterBlocksOf(facility)) block.key: block,
+    };
+
     final total = facility.signalCount;
     final shown = facility.signals.where(_isVisible).length;
 
@@ -64,7 +70,9 @@ class WaterFacilityColumn extends StatelessWidget {
     final shelves = [
       if (layout != null)
         for (final shelf in layout.shelves)
-          if (shelf.items.any((item) => item.block.items.any(_isVisibleItem)))
+          if (shelf.items.any(
+            (item) => blocks[item.blockKey]?.items.any(_isVisibleItem) ?? false,
+          ))
             shelf,
     ];
 
@@ -108,7 +116,9 @@ class WaterFacilityColumn extends StatelessWidget {
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [for (final shelf in shelves) _buildShelf(shelf)],
+                    children: [
+                      for (final shelf in shelves) _buildShelf(shelf, blocks),
+                    ],
                   ),
                 ),
               ),
@@ -120,20 +130,12 @@ class WaterFacilityColumn extends StatelessWidget {
 
   /// Mot hang: khoi rong chiem ca hang, khoi hep canh nhau theo be rong
   /// planner da chia.
-  Widget _buildShelf(WaterShelf shelf) {
-    Widget section(WaterShelfItem item) => _BlockSection(
-      facId: facility.facId,
-      block: item.block,
-      compact: item.compact,
-      centered: item.centered,
-      width: item.width,
-      size: plan.size,
-      isVisible: _isVisibleItem,
-      keyOf: keyOf,
-      flashKey: flashKey,
-      flashToken: flashToken,
-      onOpenSignal: onOpenSignal,
-    );
+  Widget _buildShelf(WaterShelf shelf, Map<String, WaterBlock> blocks) {
+    Widget section(WaterShelfItem item) {
+      final block = blocks[item.blockKey];
+      if (block == null) return const SizedBox.shrink();
+      return _section(item, block);
+    }
 
     if (shelf.items.length == 1) return section(shelf.items.first);
 
@@ -151,6 +153,21 @@ class WaterFacilityColumn extends StatelessWidget {
       ],
     );
   }
+
+  Widget _section(WaterShelfItem item, WaterBlock block) => _BlockSection(
+      key: ValueKey(item.blockKey),
+      facId: facility.facId,
+      block: block,
+      compact: item.compact,
+      centered: item.centered,
+      titleHeight: item.titleHeight,
+      size: plan.size,
+      isVisible: _isVisibleItem,
+      keyOf: keyOf,
+      flashKey: flashKey,
+      flashToken: flashToken,
+      onOpenSignal: onOpenSignal,
+    );
 
   bool _isVisible(WaterSignal signal) =>
       filter == null || signal.status == filter;
@@ -227,8 +244,8 @@ class _BlockSection extends StatelessWidget {
   /// Canh giua tieu de + hinh (khoi muc nuoc).
   final bool centered;
 
-  /// Be rong planner chia cho khoi (tinh so dong tieu de).
-  final double width;
+  /// Chieu cao tieu de planner da tinh (1 / 2 dong).
+  final double titleHeight;
   final WaterVisualSize size;
   final bool Function(WaterBlockItem item) isVisible;
   final GlobalKey Function(String signalKey) keyOf;
@@ -237,11 +254,12 @@ class _BlockSection extends StatelessWidget {
   final ValueChanged<WaterSignalRef> onOpenSignal;
 
   const _BlockSection({
+    super.key,
     required this.facId,
     required this.block,
     required this.compact,
     required this.size,
-    required this.width,
+    required this.titleHeight,
     this.centered = false,
     required this.isVisible,
     required this.keyOf,
@@ -258,14 +276,8 @@ class _BlockSection extends StatelessWidget {
     final items = block.items.where(isVisible).toList();
     if (items.isEmpty) return const SizedBox.shrink();
 
-    WaterSignalRef refOf(WaterBlockItem item) => WaterSignalRef(
-      facId: facId,
-      boxDeviceId: item.signal.boxDeviceId,
-      plcAddress: item.signal.plcAddress,
-      name: item.signal.name,
-      deviceName: item.signal.deviceName,
-      unit: item.group.unit,
-    );
+    WaterSignalRef refOf(WaterBlockItem item) =>
+        WaterSignalRef.of(facId, item.signal, item.group);
 
     Widget flash(String key, Widget child) => _Flash(
       key: keyOf(key),
@@ -287,7 +299,7 @@ class _BlockSection extends StatelessWidget {
             fullName: block.fullTitle,
             thresholdText: block.thresholdText(decimalsOf),
             size: size,
-            height: waterTitleHeight(block, size, width),
+            height: titleHeight,
             // Tieu de + nguong chung mot dong (ten trai, nguong phai); chi
             // noi dung canh giua.
             issues: block.items.where((item) => _isIssue(item.signal)).length,
@@ -543,6 +555,7 @@ class _VisualTileState extends State<_VisualTile>
     final problem = waterIsAbnormal(status);
     final palette = WaterPalette.of(context);
     final size = tier.figureSize(widget.kind);
+    final displayValue = waterDisplayValue(signal);
 
     final figure = switch (widget.kind) {
       WaterVisualKind.thermometer => WaterThermometer(
@@ -607,7 +620,11 @@ class _VisualTileState extends State<_VisualTile>
                 color: problem ? waterStatusColor(status) : null,
                 pulse: _pulse,
                 child: RepaintBoundary(
-                  child: Opacity(opacity: stale ? .5 : 1, child: figure),
+                  child: Opacity(
+                    opacity: stale ? .5 : 1,
+                    // So nam trong hinh (dong ho / bon): nhay ca hinh.
+                    child: _ValueBlink(value: displayValue, child: figure),
+                  ),
                 ),
               ),
               if (widget.kind == WaterVisualKind.thermometer)
@@ -615,16 +632,20 @@ class _VisualTileState extends State<_VisualTile>
                   height: tier.valueHeight,
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text(
-                      _valueText(signal, widget.group.unit, widget.decimals),
-                      maxLines: 1,
-                      style: TextStyle(
-                        color: waterReadingColor(status, palette),
-                        fontSize: problem
-                            ? tier.valueFont * WaterVisualSize.problemValueScale
-                            : tier.valueFont,
-                        fontWeight: FontWeight.w800,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+                    child: _ValueBlink(
+                      value: displayValue,
+                      child: Text(
+                        _valueText(signal, widget.group.unit, widget.decimals),
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: waterReadingColor(status, palette),
+                          fontSize: problem
+                              ? tier.valueFont *
+                                    WaterVisualSize.problemValueScale
+                              : tier.valueFont,
+                          fontWeight: FontWeight.w800,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ),
                   ),
@@ -806,16 +827,19 @@ class _SignalRow extends StatelessWidget {
                     ),
                     SizedBox(
                       width: 84,
-                      child: Text(
-                        _valueText(signal, group.unit, decimals),
-                        textAlign: TextAlign.right,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: waterReadingColor(signal.status, palette),
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          fontFeatures: const [FontFeature.tabularFigures()],
+                      child: _ValueBlink(
+                        value: waterDisplayValue(signal),
+                        child: Text(
+                          _valueText(signal, group.unit, decimals),
+                          textAlign: TextAlign.right,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: waterReadingColor(signal.status, palette),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
                         ),
                       ),
                     ),
@@ -826,6 +850,57 @@ class _SignalRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ============================================================
+// VALUE BLINK
+// ============================================================
+
+/// Nhay nhe 200ms khi [value] doi giua 2 lan build (lan dau khong nhay):
+/// nguoi xem thay so vua cap nhat.
+class _ValueBlink extends StatefulWidget {
+  final double? value;
+  final Widget child;
+
+  const _ValueBlink({required this.value, required this.child});
+
+  @override
+  State<_ValueBlink> createState() => _ValueBlinkState();
+}
+
+class _ValueBlinkState extends State<_ValueBlink>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  );
+
+  @override
+  void didUpdateWidget(covariant _ValueBlink oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != oldWidget.value) _controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        // 1 -> .45 -> 1 trong 200ms.
+        final dip = _controller.isAnimating
+            ? math.sin(_controller.value * math.pi) * .55
+            : 0.0;
+        return Opacity(opacity: 1 - dip, child: child);
+      },
     );
   }
 }

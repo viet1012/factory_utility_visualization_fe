@@ -573,10 +573,10 @@ class WaterPressureDial extends StatelessWidget {
     final max = dialMax(group, signal);
     final stopped = signal.status == WaterStatus.stopped;
     final value = waterDisplayValue(signal);
-    final abnormal = value != null && value < 0;
+    // Mau kim chi theo status (gia tri am da la SENSOR_FAULT phia backend).
     final needle = value == null
         ? palette.muted
-        : waterReadingColor(signal.status, palette, abnormal: abnormal);
+        : waterReadingColor(signal.status, palette);
 
     return SizedBox(
       width: size.width,

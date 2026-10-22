@@ -37,6 +37,7 @@ class WaterCheckController extends ChangeNotifier with SafeChangeNotifier {
       final next = await api.fetch(cancelToken: token);
       if (_disposed || token.isCancelled) return;
 
+      _logPoll(_data, next);
       _data = next;
       _error = null;
     } catch (error) {
@@ -50,6 +51,40 @@ class WaterCheckController extends ChangeNotifier with SafeChangeNotifier {
         safeNotify();
       }
     }
+  }
+
+  /// "[WATER] poll HH:mm:ss · signals N · changed M": M = diem do moi hoac
+  /// doi value / rawValue / status / recordedAt so voi lan truoc.
+  static void _logPoll(WaterCheckResponse? prev, WaterCheckResponse next) {
+    if (!kDebugMode) return;
+
+    String fingerprint(WaterSignal s) =>
+        '${s.value}|${s.rawValue}|${s.status.code}|${s.recordedAt}';
+
+    final before = <String, String>{
+      if (prev != null)
+        for (final fac in prev.facilities)
+          for (final s in fac.signals)
+            waterSignalKey(fac.facId, s.boxDeviceId, s.plcAddress):
+                fingerprint(s),
+    };
+
+    var total = 0;
+    var changed = 0;
+    for (final fac in next.facilities) {
+      for (final s in fac.signals) {
+        total++;
+        final key = waterSignalKey(fac.facId, s.boxDeviceId, s.plcAddress);
+        if (before[key] != fingerprint(s)) changed++;
+      }
+    }
+
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    debugPrint(
+      '[WATER] poll ${two(now.hour)}:${two(now.minute)}:${two(now.second)} '
+      '· signals $total · changed $changed',
+    );
   }
 
   /// Nut Retry: loi da hien tren UI, khong nem tiep.

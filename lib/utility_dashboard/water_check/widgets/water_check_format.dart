@@ -200,8 +200,9 @@ String? waterShortReason(WaterSignal signal, WaterGroup group, int decimals) {
   }
 }
 
-/// Ly do cua trang thai (API khong tra truong rieng): suy tu status, gia tri
-/// va nguong chung cua group.
+/// Ly do cua trang thai (API khong tra truong rieng): chi theo status + nguong
+/// chung cua group. Khong dung distance: co the am khi OK / NEAR (chua du 3
+/// bucket xac nhan). "Above / Below" chi khi OVER.
 String waterReason(WaterSignal signal, WaterGroup group, int decimals) {
   final unit = group.unit;
   final value = signal.value;
@@ -231,16 +232,31 @@ String waterReason(WaterSignal signal, WaterGroup group, int decimals) {
       if (limit == null) return over ? 'Out of limit' : 'Near limit';
 
       final side = isHigh ? 'max' : 'min';
-      final distance = signal.distance;
-      final gap = distance == null ? '' : ' (${fmt(distance.abs())})';
 
       return over
-          ? '${isHigh ? 'Above' : 'Below'} $side ${fmt(limit)}$gap'
-          : 'Near $side ${fmt(limit)}$gap';
+          ? '${isHigh ? 'Above' : 'Below'} $side ${fmt(limit)}'
+          : 'Near $side ${fmt(limit)}';
   }
 }
 
-/// Tooltip cua mot diem do: ten day du, box, PLC, recordedAt, reason, trend1h.
+/// Dong gia tri trong tooltip. Muc nuoc: "Latest: x at HH:mm:ss · 10-min
+/// median: y · status confirmed over 3 min"; nhom khac: "Latest: x at
+/// HH:mm:ss".
+String waterReadingLine(WaterSignal signal, WaterGroup group, int decimals) {
+  String fmt(double? v) => formatWithUnit(v, group.unit, decimals: decimals);
+  final latest =
+      'Latest: ${fmt(waterDisplayValue(signal))} '
+      'at ${formatHhmmss(signal.recordedAt)}';
+  if (!group.isLevel) return latest;
+
+  final config = group.config;
+  return '$latest · ${config.levelMedianMinutes}-min median: '
+      '${fmt(signal.median)} · status confirmed over '
+      '${config.statusConfirmMinutes} min';
+}
+
+/// Tooltip cua mot diem do: ten day du, box, PLC, gia tri + gio, reason,
+/// trend1h.
 String waterTooltip(WaterSignal signal, WaterGroup group, int decimals) {
   final device = signal.deviceName.isEmpty ? '' : ' (${signal.deviceName})';
 
@@ -248,7 +264,7 @@ String waterTooltip(WaterSignal signal, WaterGroup group, int decimals) {
     signal.name,
     'Box: ${signal.boxDeviceId}$device',
     'PLC: ${signal.plcAddress}',
-    'Recorded: ${formatDayTime(signal.recordedAt)}',
+    waterReadingLine(signal, group, decimals),
     'Reason: ${waterReason(signal, group, decimals)}',
     'Trend 1h: '
         '${formatTrend(signal.trend1h, group.unit, decimals) ?? kMissingValue}',
@@ -270,6 +286,11 @@ String formatDayTime(DateTime? time) {
 final DateFormat _hhmm = DateFormat('HH:mm');
 
 String formatHhmm(DateTime? time) => time == null ? '—' : _hhmm.format(time);
+
+final DateFormat _hhmmss = DateFormat('HH:mm:ss');
+
+String formatHhmmss(DateTime? time) =>
+    time == null ? '—' : _hhmmss.format(time);
 
 /// "12 min" / "2h 05m".
 String formatAge(DateTime since, DateTime now) {

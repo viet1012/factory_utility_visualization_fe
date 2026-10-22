@@ -152,6 +152,41 @@ String _errorMessage(Object? error) {
   return 'Please check your connection or try again.';
 }
 
+/// Gia tri dong tren dau the do noi khac cung cap (vd board WATER CHECK),
+/// thay cho mau cuoi cua bucket 1 phut. [note]: ghi chu nho canh gio.
+/// Moi hon bucket cuoi thi them thanh diem cuoi cua chart.
+class ChartLatestReading {
+  final double? value;
+  final DateTime? recordedAt;
+  final String? note;
+
+  const ChartLatestReading({this.value, this.recordedAt, this.note});
+
+  bool sameAs(ChartLatestReading? other) =>
+      other != null && other.value == value && other.recordedAt == recordedAt;
+}
+
+/// Mot diem cua duong median truot; [level]: level vuot nguong theo median.
+class _MedianPoint {
+  final DateTime ts;
+  final double value;
+  final int? level;
+
+  const _MedianPoint(this.ts, this.value, this.level);
+}
+
+/// Du lieu ve da chuan bi cho mot series: diem ve (kem diem cuoi tu
+/// [ChartLatestReading]) va duong median (rong khi khong bat).
+class _Prepared {
+  final List<MinutePoint> readings;
+  final List<_MedianPoint> median;
+
+  const _Prepared(this.readings, this.median);
+
+  Iterable<_MedianPoint> get medianBreaches =>
+      median.where((point) => point.level != null);
+}
+
 // ============================================================
 // PANEL
 // ============================================================
@@ -170,6 +205,13 @@ class UtilityMinuteChartPanel extends StatefulWidget {
   final String? signalName;
   final String? unit;
 
+  /// Co thi dong gia tri tren dau dung gia tri nay; chart van ve bucket 1m.
+  final ChartLatestReading? latestReading;
+
+  /// Co thi ve them duong median truot (mo, net dut) voi cua so nay; cham
+  /// vuot nguong va badge breaches tinh theo median.
+  final Duration? medianWindow;
+
   const UtilityMinuteChartPanel({
     super.key,
     required this.facId,
@@ -178,6 +220,8 @@ class UtilityMinuteChartPanel extends StatefulWidget {
     this.plcAddress,
     this.signalName,
     this.unit,
+    this.latestReading,
+    this.medianWindow,
     this.width = 520,
     this.height,
   });
@@ -203,6 +247,7 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   static const Color _alertColor = Colors.redAccent;
 
   static final DateFormat _latestTimeFormat = DateFormat('HH:mm');
+  static final DateFormat _readingTimeFormat = DateFormat('HH:mm:ss');
   static final DateFormat _axisTimeFormat = DateFormat('HH:mm');
   static final DateFormat _hoverTimeFormat = DateFormat('dd/MM HH:mm');
 
@@ -221,6 +266,12 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   /// "Value unchanged", tinh lai khi series doi.
   MinuteSignalSeries? _analyzedSeries;
   bool _isFlat = false;
+
+  /// [_prepare] nho theo (series, reading, cua so median).
+  MinuteSignalSeries? _preparedSeries;
+  ChartLatestReading? _preparedReading;
+  Duration? _preparedWindow;
+  _Prepared? _prepared;
 
   String get _box => widget.boxDeviceId?.trim() ?? '';
 
@@ -312,7 +363,25 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
         ? series!.name
         : widget.signalName;
 
-    final breachCount = series?.visibleBreachCount ?? 0;
+    // Median: badge dem theo phut co median vuot nguong (khop status).
+    final medianBreaches = series != null && widget.medianWindow != null
+        ? _prepare(series).medianBreaches.toList()
+        : null;
+
+    final int breachCount;
+    final DateTime? lastBreachAt;
+    final Iterable<int?> breachLevels;
+    if (medianBreaches != null) {
+      breachCount = series!.showThresholds ? medianBreaches.length : 0;
+      lastBreachAt = medianBreaches.isEmpty ? null : medianBreaches.last.ts;
+      breachLevels = medianBreaches.map((point) => point.level);
+    } else {
+      breachCount = series?.visibleBreachCount ?? 0;
+      lastBreachAt = series?.lastBreachAt;
+      breachLevels = series == null
+          ? const []
+          : series.points.map(series.breachLevel);
+    }
 
     return Container(
       width: widget.width,
@@ -333,12 +402,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
             hasError: hasError && state.data == null,
             err: hasError ? _errorMessage(state.error) : null,
             breachCount: breachCount,
-            lastBreachAt: series?.lastBreachAt,
+            lastBreachAt: lastBreachAt,
             breachColor: breachCount > 0
-                ? breachBadgeColor(
-                    series!.points.map(series.breachLevel),
-                    series.thresholds,
-                  )
+                ? breachBadgeColor(breachLevels, series!.thresholds)
                 : _alertColor,
           ),
           Expanded(
@@ -479,18 +545,41 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     String unit,
   ) {
     final status = _resolveSignalStatus(vm, latest);
-
-    final latestValue = spec.style == ChartStyle.step
-        ? 'Code ${latest.value!.round()}'
-        : formatWithUnit(latest.value, unit, decimals: spec.decimals);
-
-    // Mau cuoi cu hon 2 phut (tinh tu cuoi bucket): "HH:mm · x min ago".
+    final reading = widget.latestReading;
     final now = DateTime.now();
-    final aged = now.difference(latest.ts.add(kMinuteBucket)) > _agedAfter;
-    final latestTime = aged
-        ? '${_latestTimeFormat.format(latest.ts)} · '
-              '${now.difference(latest.ts).inMinutes} min ago'
-        : _latestTimeFormat.format(latest.ts);
+
+    final String latestValue;
+    final bool aged;
+    final String latestTime;
+
+    if (reading != null) {
+      // Gia tri cua noi goi (vd board WATER CHECK): dung nguyen value + gio.
+      final at = reading.recordedAt;
+      latestValue = formatWithUnit(
+        reading.value,
+        unit,
+        decimals: spec.decimals,
+      );
+      aged = at != null && now.difference(at) > _agedAfter;
+      latestTime = at == null
+          ? kMissingValue
+          : aged
+          ? '${_readingTimeFormat.format(at)} · '
+                '${now.difference(at).inMinutes} min ago'
+          : _readingTimeFormat.format(at);
+    } else {
+      latestValue = spec.style == ChartStyle.step
+          ? 'Code ${latest.value!.round()}'
+          : formatWithUnit(latest.value, unit, decimals: spec.decimals);
+
+      // Mau cuoi cu hon 2 phut (tinh tu cuoi bucket): "HH:mm · x min ago".
+      aged = now.difference(latest.ts.add(kMinuteBucket)) > _agedAfter;
+      latestTime = aged
+          ? '${_latestTimeFormat.format(latest.ts)} · '
+                '${now.difference(latest.ts).inMinutes} min ago'
+          : _latestTimeFormat.format(latest.ts);
+    }
+    final note = reading?.note;
 
     return Container(
       height: 42,
@@ -547,6 +636,22 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
                     height: 1,
                   ),
                 ),
+                if (note != null && note.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      note,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: .42),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -650,6 +755,73 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
   // CHART
   // ============================================================
 
+  /// Diem ve + duong median, nho lai khi series / reading / cua so khong doi.
+  _Prepared _prepare(MinuteSignalSeries series) {
+    final reading = widget.latestReading;
+    final window = widget.medianWindow;
+    final cached = _prepared;
+
+    if (cached != null &&
+        identical(_preparedSeries, series) &&
+        _preparedWindow == window &&
+        (reading == null
+            ? _preparedReading == null
+            : reading.sameAs(_preparedReading))) {
+      return cached;
+    }
+
+    // Diem cuoi = gia tri tren header khi moi hon bucket cuoi.
+    final last = series.latest;
+    final at = reading?.recordedAt;
+    final value = reading?.value;
+    final tail =
+        at != null && value != null && (last == null || at.isAfter(last.ts))
+        ? MinutePoint(ts: at, value: value, min: null, max: null, count: 1)
+        : null;
+
+    final readings = [...series.plotPoints, if (tail != null) tail];
+
+    final median = <_MedianPoint>[];
+    if (window != null) {
+      final valued = [
+        for (final point in readings)
+          if (point.hasValue) point,
+      ];
+
+      for (var i = 0; i < valued.length; i++) {
+        final end = valued[i].ts;
+        final from = end.subtract(window);
+        final values = [
+          for (var j = i; j >= 0 && valued[j].ts.isAfter(from); j--)
+            valued[j].value!,
+        ]..sort();
+
+        final mid = values.length ~/ 2;
+        final m = values.length.isOdd
+            ? values[mid]
+            : (values[mid - 1] + values[mid]) / 2;
+
+        median.add(
+          _MedianPoint(
+            end,
+            m,
+            series.showThresholds
+                ? thresholdBreachLevel(series.thresholds, value: m)
+                : null,
+          ),
+        );
+      }
+    }
+
+    _preparedSeries = series;
+    _preparedReading = reading;
+    _preparedWindow = window;
+    return _prepared = _Prepared(
+      List.unmodifiable(readings),
+      List.unmodifiable(median),
+    );
+  }
+
   Widget _buildChart(
     MinuteSignalSeries series,
     SeriesBoxData<MinuteSignalSeries> data,
@@ -657,7 +829,9 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
     String unit,
     _PanelVm vm,
   ) {
-    final readings = series.plotPoints;
+    final prepared = _prepare(series);
+    final readings = prepared.readings;
+    final useMedian = widget.medianWindow != null;
 
     if (readings.where((point) => point.hasValue).length < 2) {
       return const CenterMessage(message: 'Not enough points');
@@ -682,21 +856,30 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
       thresholds: series.showThresholds ? series.thresholds : const [],
     );
 
-    // Vuot nguong: line them cham mau level.
+    // Vuot nguong: line them cham mau level. Co median: cham theo median
+    // (khop status), dat tren duong median.
     final breaches = <_BreachMark>[
-      for (final point in points)
-        if (series.breachLevel(point) case final level?)
+      if (useMedian)
+        for (final point in prepared.medianBreaches)
           _BreachMark(
             point.ts,
-            breachMarkValue(
-              series.thresholds,
+            breachMarkValue(series.thresholds, point.level!, value: point.value),
+            point.level!,
+          )
+      else
+        for (final point in points)
+          if (series.breachLevel(point) case final level?)
+            _BreachMark(
+              point.ts,
+              breachMarkValue(
+                series.thresholds,
+                level,
+                value: point.value!,
+                min: analog ? point.min : null,
+                max: analog ? point.max : null,
+              ),
               level,
-              value: point.value!,
-              min: analog ? point.min : null,
-              max: analog ? point.max : null,
             ),
-            level,
-          ),
     ];
 
     final noData = _noDataBands(series, data.window.to, vm);
@@ -804,6 +987,18 @@ class _UtilityMinuteChartPanelState extends State<UtilityMinuteChartPanel> {
             emptyPointSettings: gap,
           ),
         },
+        // Median truot: mo + net dut; gia tri tung phut van la duong chinh.
+        if (prepared.median.length >= 2)
+          LineSeries<_MedianPoint, DateTime>(
+            animationDuration: animationMs,
+            dataSource: prepared.median,
+            enableTrackball: false,
+            xValueMapper: (point, _) => point.ts,
+            yValueMapper: (point, _) => point.value,
+            color: _theme.line.withValues(alpha: .4),
+            width: 1.5,
+            dashArray: const <double>[6, 4],
+          ),
         if (breaches.isNotEmpty)
           ScatterSeries<_BreachMark, DateTime>(
             dataSource: breaches,
