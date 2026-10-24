@@ -27,6 +27,10 @@ class WaterFacilityColumn extends StatelessWidget {
   final int flashToken;
   final ValueChanged<WaterSignalRef> onOpenSignal;
 
+  /// Đang phóng to cột này (chỉ hiện 1 Fac).
+  final bool expanded;
+  final VoidCallback? onToggleExpand;
+
   const WaterFacilityColumn({
     super.key,
     required this.facility,
@@ -36,6 +40,8 @@ class WaterFacilityColumn extends StatelessWidget {
     required this.flashKey,
     required this.flashToken,
     required this.onOpenSignal,
+    this.expanded = false,
+    this.onToggleExpand,
   });
 
   /// Do chi khi co OVER / SENSOR_FAULT; NEAR / STALE trung tinh (xanh
@@ -95,6 +101,8 @@ class WaterFacilityColumn extends StatelessWidget {
                   ? '$total points'
                   : '$shown / $total points',
               color: _overallColor,
+              expanded: expanded,
+              onToggleExpand: onToggleExpand,
             ),
             const SizedBox(height: WaterColumnMetrics.headerGap),
             if (shelves.isEmpty)
@@ -155,19 +163,19 @@ class WaterFacilityColumn extends StatelessWidget {
   }
 
   Widget _section(WaterShelfItem item, WaterBlock block) => _BlockSection(
-      key: ValueKey(item.blockKey),
-      facId: facility.facId,
-      block: block,
-      compact: item.compact,
-      centered: item.centered,
-      titleHeight: item.titleHeight,
-      size: plan.size,
-      isVisible: _isVisibleItem,
-      keyOf: keyOf,
-      flashKey: flashKey,
-      flashToken: flashToken,
-      onOpenSignal: onOpenSignal,
-    );
+    key: ValueKey(item.blockKey),
+    facId: facility.facId,
+    block: block,
+    compact: item.compact,
+    centered: item.centered,
+    titleHeight: item.titleHeight,
+    size: plan.size,
+    isVisible: _isVisibleItem,
+    keyOf: keyOf,
+    flashKey: flashKey,
+    flashToken: flashToken,
+    onOpenSignal: onOpenSignal,
+  );
 
   bool _isVisible(WaterSignal signal) =>
       filter == null || signal.status == filter;
@@ -179,16 +187,21 @@ class _ColumnHeader extends StatelessWidget {
   final String facId;
   final String count;
   final Color color;
+  final bool expanded;
+  final VoidCallback? onToggleExpand;
 
   const _ColumnHeader({
     required this.facId,
     required this.count,
     required this.color,
+    this.expanded = false,
+    this.onToggleExpand,
   });
 
   @override
   Widget build(BuildContext context) {
     final palette = WaterPalette.of(context);
+    final toggle = onToggleExpand;
 
     return SizedBox(
       height: WaterColumnMetrics.headerHeight,
@@ -223,6 +236,40 @@ class _ColumnHeader extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+          if (toggle != null) ...[
+            const SizedBox(width: 6),
+            Tooltip(
+              message: expanded ? 'Exit full screen' : 'Full screen',
+              waitDuration: const Duration(milliseconds: 400),
+              child: InkWell(
+                onTap: toggle,
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  width: 24,
+                  height: 22,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    color: expanded
+                        ? kWaterAccent.withValues(alpha: .18)
+                        : Colors.white.withValues(alpha: .06),
+                    border: Border.all(
+                      color: kWaterAccent.withValues(
+                        alpha: expanded ? .6 : .25,
+                      ),
+                    ),
+                  ),
+                  child: Icon(
+                    expanded
+                        ? Icons.fullscreen_exit_rounded
+                        : Icons.fullscreen_rounded,
+                    size: 16,
+                    color: expanded ? kWaterAccent : palette.muted,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

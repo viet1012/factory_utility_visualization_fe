@@ -91,15 +91,19 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
 
   /// [top]: chieu cao chua scale cua banner + header + To check + khoang
   /// cach; phan tren scale theo clamp(s, 1.0, 1.3) nen tru theo s.
-  WaterLayoutPlan _planFor(WaterCheckResponse data, Size area, double top) {
+  WaterLayoutPlan _planFor(
+    List<WaterFacility> facilities,
+    Size area,
+    double top,
+  ) {
     final key =
-        '${waterLayoutSignature(data.facilities)}#$area#'
+        '${waterLayoutSignature(facilities)}#${_expandedFacId ?? ''}#$area#'
         '${top.toStringAsFixed(1)}';
     if (key == _planKey) return _plan;
 
     _planKey = key;
     _plan = planWaterLayout(
-      data.facilities,
+      facilities,
       area,
       reservedHeight: (scale) => top * scale.clamp(1.0, 1.3),
     );
@@ -144,7 +148,9 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
     if (_filter != null && entry != null && entry.signal.status != _filter) {
       setState(() => _filter = null);
     }
-
+    if (_expandedFacId != null && _expandedFacId != issue.facId) {
+      setState(() => _expandedFacId = null);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
@@ -230,6 +236,21 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
     );
   }
 
+  /// Fac đang phóng to (null = hiện cả 3).
+  String? _expandedFacId;
+
+  void _toggleExpand(String facId) {
+    setState(() => _expandedFacId = _expandedFacId == facId ? null : facId);
+  }
+
+  /// Facility đang hiển thị: chỉ Fac phóng to (nếu còn trong data).
+  List<WaterFacility> _visibleFacilities(WaterCheckResponse data) {
+    final id = _expandedFacId;
+    if (id == null) return data.facilities;
+    final only = data.facilities.where((f) => f.facId == id).toList();
+    return only.isEmpty ? data.facilities : only;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Theme(data: _themeOf(context), child: _buildBody());
@@ -259,7 +280,8 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
 
         return DebouncedLayoutBuilder(
           builder: (context, constraints) {
-            final plan = _planFor(data, constraints.biggest, top);
+            final facilities = _visibleFacilities(data);
+            final plan = _planFor(facilities, constraints.biggest, top);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -269,7 +291,7 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
                   width: constraints.maxWidth,
                   child: _buildTop(data, controller, hasError),
                 ),
-                Expanded(child: _buildColumns(data, plan)),
+                Expanded(child: _buildColumns(facilities, plan)),
               ],
             );
           },
@@ -345,8 +367,8 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
     );
   }
 
-  Widget _buildColumns(WaterCheckResponse data, WaterLayoutPlan plan) {
-    if (data.facilities.isEmpty) {
+   Widget _buildColumns(List<WaterFacility> facilities, WaterLayoutPlan plan) {
+    if (facilities.isEmpty) {
       return const EmptyChartState(
         icon: Icons.water_drop_outlined,
         title: 'No water points',
@@ -354,23 +376,22 @@ class _WaterCheckScreenState extends State<WaterCheckScreen> {
       );
     }
 
-    // 3 khung cao bang nhau = toan bo chieu cao con lai (Row stretch, khong
-    // IntrinsicHeight); noi dung canh tren, phan thua phia duoi de trong.
-    // Planner van chon scale theo cot cao nhat.
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var i = 0; i < data.facilities.length; i++) ...[
+        for (var i = 0; i < facilities.length; i++) ...[
           if (i > 0) const SizedBox(width: WaterColumnMetrics.columnGap),
           Expanded(
             child: WaterFacilityColumn(
-              facility: data.facilities[i],
+              facility: facilities[i],
               filter: _filter,
               plan: plan,
               keyOf: _keyOf,
               flashKey: _flashKey,
               flashToken: _flashToken,
               onOpenSignal: _openSignal,
+              expanded: _expandedFacId == facilities[i].facId,
+              onToggleExpand: () => _toggleExpand(facilities[i].facId),
             ),
           ),
         ],
