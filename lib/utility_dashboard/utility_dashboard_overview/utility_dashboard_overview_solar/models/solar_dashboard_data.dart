@@ -1,3 +1,5 @@
+import '../../../shared/json/json_read.dart';
+
 class SolarDashboardData {
   final double solarKwh;
   final double gridKwh;
@@ -24,11 +26,5 @@ class SolarDashboardData {
     );
   }
 
-  static double _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(value?.toString() ?? '') ?? 0;
-  }
+  static double _toDouble(dynamic value) => jsonDouble(value) ?? 0;
 }

@@ -3,6 +3,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../json/json_read.dart';
+
 /// Mot duong nguong (mot phia LOW hoac HIGH) da tach tu `thresholds[]`.
 ///
 /// Moi rule cua backend co dang
@@ -63,13 +65,13 @@ class SignalThreshold {
     );
 
     final type = _readText(json['type'])?.toUpperCase();
-    final legacyValue = _readNumber(json['value']);
+    final legacyValue = jsonDouble(json['value']);
     if ((type == 'HIGH' || type == 'LOW') && legacyValue != null) {
       return [line(legacyValue, type == 'HIGH')];
     }
 
-    final low = _readNumber(json['low']);
-    final high = _readNumber(json['high']);
+    final low = jsonDouble(json['low']);
+    final high = jsonDouble(json['high']);
 
     return [
       if (high != null) line(high, true),
@@ -129,18 +131,8 @@ bool sameThresholds(List<SignalThreshold> a, List<SignalThreshold> b) {
   return true;
 }
 
-double? _readNumber(dynamic raw) {
-  final value = raw is num
-      ? raw.toDouble()
-      : double.tryParse('${raw ?? ''}'.trim());
-  return (value == null || !value.isFinite) ? null : value;
-}
-
 /// Level 1..3; null khi khong doc duoc so.
-int? _readLevel(Object? raw) {
-  final value = raw is num ? raw.toInt() : int.tryParse('${raw ?? ''}'.trim());
-  return value?.clamp(1, 3);
-}
+int? _readLevel(Object? raw) => jsonInt(raw)?.clamp(1, 3);
 
 String? _readText(dynamic raw) {
   final value = raw?.toString().trim();

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/json/json_read.dart';
+
 /// Domain models for `GET /api/utility/signal-health/history/hourly`.
 ///
 /// The endpoint returns a nested hierarchy:
@@ -128,12 +130,12 @@ class SignalHealthHistorySignal {
 
   factory SignalHealthHistorySignal.fromJson(Map<String, dynamic> json) {
     return SignalHealthHistorySignal(
-      plcAddress: readText(json['plcAddress']),
-      signalName: readText(json['signalName']),
-      currentValue: readDouble(json['currentValue']),
-      previousValue: readDouble(json['previousValue']),
-      recordedAt: readDateTime(json['recordedAt']),
-      count: readInt(json['count']),
+      plcAddress: jsonText(json['plcAddress']),
+      signalName: jsonText(json['signalName']),
+      currentValue: jsonDouble(json['currentValue']),
+      previousValue: jsonDouble(json['previousValue']),
+      recordedAt: jsonDateTime(json['recordedAt']),
+      count: _intOrZero(json['count']),
     );
   }
 
@@ -177,8 +179,8 @@ class SignalHealthHistoryDevice {
 
   factory SignalHealthHistoryDevice.fromJson(Map<String, dynamic> json) {
     return SignalHealthHistoryDevice(
-      boxDeviceId: readText(json['boxDeviceId']),
-      count: readInt(json['count']),
+      boxDeviceId: jsonText(json['boxDeviceId']),
+      count: _intOrZero(json['count']),
       signals: readList(json['signals'], SignalHealthHistorySignal.fromJson),
     );
   }
@@ -206,10 +208,10 @@ class SignalHealthHistoryDescription {
 
   factory SignalHealthHistoryDescription.fromJson(Map<String, dynamic> json) {
     return SignalHealthHistoryDescription(
-      parameterCode: readText(json['parameterCode']),
-      ruleType: readText(json['ruleType']),
-      description: readText(json['description']),
-      count: readInt(json['count']),
+      parameterCode: jsonText(json['parameterCode']),
+      ruleType: jsonText(json['ruleType']),
+      description: jsonText(json['description']),
+      count: _intOrZero(json['count']),
       devices: readList(json['devices'], SignalHealthHistoryDevice.fromJson),
     );
   }
@@ -251,7 +253,7 @@ class SignalHealthHistoryLevel {
 
   factory SignalHealthHistoryLevel.fromJson(Map<String, dynamic> json) {
     return SignalHealthHistoryLevel(
-      level: SignalHealthAlertLevel.fromCode(readInt(json['level'])),
+      level: SignalHealthAlertLevel.fromCode(_intOrZero(json['level'])),
       descriptions: readList(
         json['descriptions'],
         SignalHealthHistoryDescription.fromJson,
@@ -287,13 +289,13 @@ class SignalHealthHistoryBucket {
   /// Returns null when `bucketTime` is missing or unparseable: a bucket with no
   /// time cannot be placed on the trend chart, so the caller drops it.
   static SignalHealthHistoryBucket? tryFromJson(Map<String, dynamic> json) {
-    final bucketTime = readDateTime(json['bucketTime']);
+    final bucketTime = jsonDateTime(json['bucketTime']);
 
     if (bucketTime == null) return null;
 
     return SignalHealthHistoryBucket(
       bucketTime: bucketTime,
-      errorCount: readInt(json['errorCount']),
+      errorCount: _intOrZero(json['errorCount']),
       alerts: readList(json['alerts'], SignalHealthHistoryLevel.fromJson),
     );
   }
@@ -404,42 +406,7 @@ class SignalHealthHistoryFilter {
 // PARSE HELPERS
 // ============================================================
 
-/// Parses a history timestamp as local wall-clock time.
-///
-/// Mirrors the Utility Minute contract: the backend sends offset-less ISO-8601
-/// strings, which `DateTime.parse` already treats as local. Converting an
-/// explicit UTC instant back to local keeps age/ordering maths correct if the
-/// backend ever starts emitting `Z`.
-DateTime? readDateTime(dynamic value) {
-  if (value == null) return null;
-  if (value is DateTime) return value.isUtc ? value.toLocal() : value;
-
-  final text = value.toString().trim();
-
-  if (text.isEmpty) return null;
-
-  final parsed = DateTime.tryParse(text);
-
-  if (parsed == null) return null;
-
-  return parsed.isUtc ? parsed.toLocal() : parsed;
-}
-
-String readText(dynamic value) => value?.toString().trim() ?? '';
-
-int readInt(dynamic value) {
-  if (value == null) return 0;
-  if (value is num) return value.toInt();
-
-  return int.tryParse(value.toString().trim()) ?? 0;
-}
-
-double? readDouble(dynamic value) {
-  if (value == null) return null;
-  if (value is num) return value.toDouble();
-
-  return double.tryParse(value.toString().trim());
-}
+int _intOrZero(Object? value) => jsonInt(value) ?? 0;
 
 List<T> readList<T>(dynamic raw, T Function(Map<String, dynamic>) parser) {
   if (raw is! List) return const [];

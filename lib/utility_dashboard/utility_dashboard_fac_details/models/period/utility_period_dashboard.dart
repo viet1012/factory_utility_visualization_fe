@@ -1,3 +1,5 @@
+import '../../../shared/json/json_read.dart';
+
 class UtilityPeriodDashboard {
   final DateTime fromDate;
   final DateTime toDate;
@@ -74,17 +76,7 @@ class UtilityPeriodDashboard {
     );
   }
 
-  static double _toDouble(dynamic value) {
-    if (value == null) {
-      return 0;
-    }
-
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(value.toString()) ?? 0;
-  }
+  static double _toDouble(dynamic value) => jsonDouble(value) ?? 0;
 }
 
 class UtilityPeriodTrend {

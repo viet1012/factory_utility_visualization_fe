@@ -2,6 +2,8 @@
 /// USD/kWh. changePct null khi ky truoc bang 0.
 library;
 
+import '../../../shared/json/json_read.dart';
+
 enum PowerPeriod {
   day('day', 'Day'),
   week('week', 'Week'),
@@ -22,19 +24,7 @@ enum PowerUnit {
   final String label;
 }
 
-double? _toDouble(Object? value) {
-  if (value is num) return value.toDouble();
-  if (value is String) return double.tryParse(value);
-  return null;
-}
-
-int _toInt(Object? value) {
-  if (value is num) return value.toInt();
-  if (value is String) return int.tryParse(value) ?? 0;
-  return 0;
-}
-
-String _toStr(Object? value) => value?.toString() ?? '';
+int _toInt(Object? value) => jsonInt(value) ?? 0;
 
 List<T> _toList<T>(Object? value, T Function(Map<String, dynamic>) parse) {
   if (value is! List) return const [];
@@ -63,11 +53,11 @@ class PowerUsageTotal {
 
   factory PowerUsageTotal.fromJson(Map<String, dynamic> json) {
     return PowerUsageTotal(
-      kwh: _toDouble(json['kwh']),
-      prevKwh: _toDouble(json['prevKwh']),
-      changePct: _toDouble(json['changePct']),
-      usd: _toDouble(json['usd']),
-      blendedRate: _toDouble(json['blendedRate']),
+      kwh: jsonDouble(json['kwh']),
+      prevKwh: jsonDouble(json['prevKwh']),
+      changePct: jsonDouble(json['changePct']),
+      usd: jsonDouble(json['usd']),
+      blendedRate: jsonDouble(json['blendedRate']),
     );
   }
 }
@@ -90,11 +80,11 @@ class PowerUsageForecast {
 
   factory PowerUsageForecast.fromJson(Map<String, dynamic> json) {
     return PowerUsageForecast(
-      monthToDateKwh: _toDouble(json['monthToDateKwh']),
-      projectedKwh: _toDouble(json['projectedKwh']),
+      monthToDateKwh: jsonDouble(json['monthToDateKwh']),
+      projectedKwh: jsonDouble(json['projectedKwh']),
       dayOfMonth: _toInt(json['dayOfMonth']),
       daysInMonth: _toInt(json['daysInMonth']),
-      changePctVsPrevMonth: _toDouble(json['changePctVsPrevMonth']),
+      changePctVsPrevMonth: jsonDouble(json['changePctVsPrevMonth']),
     );
   }
 }
@@ -116,11 +106,11 @@ class PowerFactoryUsage {
 
   factory PowerFactoryUsage.fromJson(Map<String, dynamic> json) {
     return PowerFactoryUsage(
-      facId: _toStr(json['facId']),
-      kwh: _toDouble(json['kwh']),
-      prevKwh: _toDouble(json['prevKwh']),
-      sharePct: _toDouble(json['sharePct']),
-      changePct: _toDouble(json['changePct']),
+      facId: jsonText(json['facId']),
+      kwh: jsonDouble(json['kwh']),
+      prevKwh: jsonDouble(json['prevKwh']),
+      sharePct: jsonDouble(json['sharePct']),
+      changePct: jsonDouble(json['changePct']),
     );
   }
 }
@@ -142,11 +132,11 @@ class PowerPurposeMeter {
 
   factory PowerPurposeMeter.fromJson(Map<String, dynamic> json) {
     return PowerPurposeMeter(
-      boxDeviceId: _toStr(json['boxDeviceId']),
-      label: _toStr(json['label']),
-      kwh: _toDouble(json['kwh']),
-      prevKwh: _toDouble(json['prevKwh']),
-      changePct: _toDouble(json['changePct']),
+      boxDeviceId: jsonText(json['boxDeviceId']),
+      label: jsonText(json['label']),
+      kwh: jsonDouble(json['kwh']),
+      prevKwh: jsonDouble(json['prevKwh']),
+      changePct: jsonDouble(json['changePct']),
     );
   }
 }
@@ -169,10 +159,10 @@ class PowerPurposeFactory {
 
   factory PowerPurposeFactory.fromJson(Map<String, dynamic> json) {
     return PowerPurposeFactory(
-      facId: _toStr(json['facId']),
-      kwh: _toDouble(json['kwh']),
-      prevKwh: _toDouble(json['prevKwh']),
-      changePct: _toDouble(json['changePct']),
+      facId: jsonText(json['facId']),
+      kwh: jsonDouble(json['kwh']),
+      prevKwh: jsonDouble(json['prevKwh']),
+      changePct: jsonDouble(json['changePct']),
       meters: _toList(json['meters'], PowerPurposeMeter.fromJson),
     );
   }
@@ -204,14 +194,14 @@ class PowerPurposeUsage {
   factory PowerPurposeUsage.fromJson(Map<String, dynamic> json) {
     final last7 = json['last7'];
     return PowerPurposeUsage(
-      code: _toStr(json['code']),
-      name: _toStr(json['name']),
+      code: jsonText(json['code']),
+      name: jsonText(json['name']),
       description: json['description']?.toString(),
-      kwh: _toDouble(json['kwh']),
-      prevKwh: _toDouble(json['prevKwh']),
-      changePct: _toDouble(json['changePct']),
+      kwh: jsonDouble(json['kwh']),
+      prevKwh: jsonDouble(json['prevKwh']),
+      changePct: jsonDouble(json['changePct']),
       last7: last7 is List
-          ? last7.map(_toDouble).toList(growable: false)
+          ? last7.map(jsonDouble).toList(growable: false)
           : const [],
       byFactory: _toList(json['byFactory'], PowerPurposeFactory.fromJson),
     );
@@ -253,11 +243,11 @@ class PowerSupplyBand {
 
   factory PowerSupplyBand.fromJson(Map<String, dynamic> json) {
     return PowerSupplyBand(
-      band: _toStr(json['band']),
-      kwh: _toDouble(json['kwh']),
-      sharePct: _toDouble(json['sharePct']),
-      rate: _toDouble(json['rate']),
-      usd: _toDouble(json['usd']),
+      band: jsonText(json['band']),
+      kwh: jsonDouble(json['kwh']),
+      sharePct: jsonDouble(json['sharePct']),
+      rate: jsonDouble(json['rate']),
+      usd: jsonDouble(json['usd']),
     );
   }
 }
@@ -271,8 +261,8 @@ class PowerDayTotal {
 
   factory PowerDayTotal.fromJson(Map<String, dynamic> json) {
     return PowerDayTotal(
-      date: _toStr(json['date']),
-      kwh: _toDouble(json['kwh']),
+      date: jsonText(json['date']),
+      kwh: jsonDouble(json['kwh']),
     );
   }
 }
@@ -312,11 +302,11 @@ class PowerUsageResponse {
     final total = json['total'];
     final forecast = json['forecast'];
     return PowerUsageResponse(
-      period: _toStr(json['period']),
-      from: _toStr(json['from']),
-      to: _toStr(json['to']),
-      prevFrom: _toStr(json['prevFrom']),
-      prevTo: _toStr(json['prevTo']),
+      period: jsonText(json['period']),
+      from: jsonText(json['from']),
+      to: jsonText(json['to']),
+      prevFrom: jsonText(json['prevFrom']),
+      prevTo: jsonText(json['prevTo']),
       total: total is Map
           ? PowerUsageTotal.fromJson(Map<String, dynamic>.from(total))
           : const PowerUsageTotal(),

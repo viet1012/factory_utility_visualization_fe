@@ -1,6 +1,8 @@
 /// Model cua `GET /api/utility/water-check`.
 library;
 
+import '../../shared/json/json_read.dart';
+
 enum WaterStatus {
   ok('OK'),
   near('NEAR'),
@@ -90,8 +92,8 @@ class WaterThreshold {
 
     return WaterThreshold(
       level: _readInt(json['level'], fallback: 3).clamp(1, 3),
-      low: _readDouble(json['low']),
-      high: _readDouble(json['high']),
+      low: jsonDouble(json['low']),
+      high: jsonDouble(json['high']),
       trivial:
           rawTrivial == true || '$rawTrivial'.trim().toLowerCase() == 'true',
     );
@@ -144,21 +146,21 @@ class WaterSignal {
 
   factory WaterSignal.fromJson(Map<String, dynamic> json) {
     return WaterSignal(
-      boxDeviceId: _readText(json['boxDeviceId']),
-      deviceName: _readText(json['deviceName']),
-      plcAddress: _readText(json['plcAddress']),
-      name: _readText(json['name']),
-      label: _readText(json['label']),
-      value: _readDouble(json['value']),
-      rawValue: _readDouble(json['rawValue']),
-      median: _readDouble(json['median'] ?? json['medianValue']),
-      recordedAt: _readTime(json['recordedAt']),
+      boxDeviceId: jsonText(json['boxDeviceId']),
+      deviceName: jsonText(json['deviceName']),
+      plcAddress: jsonText(json['plcAddress']),
+      name: jsonText(json['name']),
+      label: jsonText(json['label']),
+      value: jsonDouble(json['value']),
+      rawValue: jsonDouble(json['rawValue']),
+      median: jsonDouble(json['median'] ?? json['medianValue']),
+      recordedAt: jsonDateTime(json['recordedAt']),
       status: WaterStatus.parse(json['status']),
-      distance: _readDouble(json['distance']),
-      trend1h: _readDouble(json['trend1h']),
-      since: _readTime(json['since']),
-      lastValue: _readDouble(json['lastValue']),
-      lastSeenAt: _readTime(json['lastSeenAt']),
+      distance: jsonDouble(json['distance']),
+      trend1h: jsonDouble(json['trend1h']),
+      since: jsonDateTime(json['since']),
+      lastValue: jsonDouble(json['lastValue']),
+      lastSeenAt: jsonDateTime(json['lastSeenAt']),
     );
   }
 }
@@ -217,9 +219,9 @@ class WaterGroup {
     WaterCheckConfig config = WaterCheckConfig.fallback,
   }) {
     return WaterGroup(
-      code: _readText(json['code']),
-      name: _readText(json['name']),
-      unit: _readText(json['unit']),
+      code: jsonText(json['code']),
+      name: jsonText(json['name']),
+      unit: jsonText(json['unit']),
       thresholds: List.unmodifiable(
         _readList(json['thresholds']).map(WaterThreshold.fromJson),
       ),
@@ -263,7 +265,7 @@ class WaterFacility {
     WaterCheckConfig config = WaterCheckConfig.fallback,
   }) {
     return WaterFacility(
-      facId: _readText(json['facId']),
+      facId: jsonText(json['facId']),
       groups: List.unmodifiable(
         _readList(
           json['groups'],
@@ -319,20 +321,20 @@ class WaterIssue {
 
   factory WaterIssue.fromJson(Map<String, dynamic> json) {
     return WaterIssue(
-      facId: _readText(json['facId']),
-      boxDeviceId: _readText(json['boxDeviceId']),
-      plcAddress: _readText(json['plcAddress']),
-      name: _readText(json['name']),
-      unit: _readText(json['unit']),
-      value: _readDouble(json['value']),
-      rawValue: _readDouble(json['rawValue']),
-      recordedAt: _readTime(json['recordedAt']),
+      facId: jsonText(json['facId']),
+      boxDeviceId: jsonText(json['boxDeviceId']),
+      plcAddress: jsonText(json['plcAddress']),
+      name: jsonText(json['name']),
+      unit: jsonText(json['unit']),
+      value: jsonDouble(json['value']),
+      rawValue: jsonDouble(json['rawValue']),
+      recordedAt: jsonDateTime(json['recordedAt']),
       status: WaterStatus.parse(json['status']),
-      thresholdText: _readText(json['thresholdText']),
-      since: _readTime(json['since']),
-      trend1h: _readDouble(json['trend1h']),
-      lastValue: _readDouble(json['lastValue']),
-      lastSeenAt: _readTime(json['lastSeenAt']),
+      thresholdText: jsonText(json['thresholdText']),
+      since: jsonDateTime(json['since']),
+      trend1h: jsonDouble(json['trend1h']),
+      lastValue: jsonDouble(json['lastValue']),
+      lastSeenAt: jsonDateTime(json['lastSeenAt']),
     );
   }
 }
@@ -357,7 +359,7 @@ class WaterCheckResponse {
     final config = WaterCheckConfig.fromJson(json);
 
     return WaterCheckResponse(
-      generatedAt: _readTime(json['generatedAt']),
+      generatedAt: jsonDateTime(json['generatedAt']),
       summary: summary is Map
           ? WaterCheckSummary.fromJson(Map<String, dynamic>.from(summary))
           : const WaterCheckSummary(),
@@ -392,23 +394,4 @@ List<Map<String, dynamic>> _readList(Object? raw) {
   ];
 }
 
-String _readText(Object? raw) => raw?.toString().trim() ?? '';
-
-int _readInt(Object? raw, {int fallback = 0}) {
-  if (raw is num) return raw.toInt();
-  return int.tryParse('${raw ?? ''}'.trim()) ?? fallback;
-}
-
-double? _readDouble(Object? raw) {
-  final value = raw is num
-      ? raw.toDouble()
-      : double.tryParse('${raw ?? ''}'.trim());
-  return (value == null || !value.isFinite) ? null : value;
-}
-
-/// Chuoi ISO co offset (+07:00) -> gio dia phuong.
-DateTime? _readTime(Object? raw) {
-  final text = raw?.toString().trim() ?? '';
-  if (text.isEmpty) return null;
-  return DateTime.tryParse(text)?.toLocal();
-}
+int _readInt(Object? raw, {int fallback = 0}) => jsonInt(raw) ?? fallback;

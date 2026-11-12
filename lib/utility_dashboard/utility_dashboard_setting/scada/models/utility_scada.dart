@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../../shared/json/json_read.dart';
+
 class UtilityScada {
   final int? id;
   final String? scadaId;
@@ -29,11 +31,11 @@ class UtilityScada {
 
   factory UtilityScada.fromJson(Map<String, dynamic> json) {
     return UtilityScada(
-      id: _toInt(json['id']),
+      id: jsonInt(json['id']),
       scadaId: json['scadaId']?.toString(),
       fac: json['fac']?.toString(),
       plcIp: json['plcIp']?.toString(),
-      plcPort: _toInt(json['plcPort']),
+      plcPort: jsonInt(json['plcPort']),
       pcName: json['pcName']?.toString(),
       wlan: json['wlan']?.toString(),
       connected: json['connected'],
@@ -88,12 +90,6 @@ class UtilityScada {
       timeUpdate: timeUpdate ?? this.timeUpdate,
       raw: raw ?? this.raw,
     );
-  }
-
-  static int? _toInt(dynamic value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    return int.tryParse(value.toString());
   }
 
   static bool? _toBool(dynamic value) {

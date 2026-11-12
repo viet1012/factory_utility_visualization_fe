@@ -4,6 +4,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../shared/download/file_download.dart';
+import '../../shared/json/json_read.dart';
 import '../api/signal_health_api.dart';
 
 class SignalHealthMatrixController extends ChangeNotifier {
@@ -217,17 +218,7 @@ class SignalHealthMatrixController extends ChangeNotifier {
     });
   }
 
-  static int _toInt(dynamic value) {
-    if (value == null) {
-      return 0;
-    }
-
-    if (value is num) {
-      return value.toInt();
-    }
-
-    return int.tryParse(value.toString().trim()) ?? 0;
-  }
+  static int _toInt(dynamic value) => jsonInt(value) ?? 0;
 
   // ============================================================
   // ERROR

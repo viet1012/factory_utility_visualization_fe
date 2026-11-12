@@ -1,4 +1,5 @@
 import '../../shared/charts/signal_thresholds.dart';
+import '../../shared/json/json_read.dart';
 
 /// Response cua `GET /api/utility/series/history`.
 ///
@@ -62,9 +63,9 @@ class SeriesHistoryResponse {
     final rawSignals = json['signals'];
 
     return SeriesHistoryResponse(
-      bucket: _readString(json['bucket']),
-      source: _readString(json['source']),
-      aggregation: _readString(json['aggregation']),
+      bucket: jsonText(json['bucket']),
+      source: jsonText(json['source']),
+      aggregation: jsonText(json['aggregation']),
       signals: rawSignals is List
           ? List<SeriesHistorySignalDto>.unmodifiable(
               rawSignals.whereType<Map>().map(
@@ -135,8 +136,8 @@ class SeriesHistorySignalDto {
       return SeriesHistorySignalDto.fromJson(json);
     } catch (error) {
       return SeriesHistorySignalDto(
-        boxDeviceId: _readString(json['boxDeviceId']),
-        plcAddress: _readString(json['plcAddress']),
+        boxDeviceId: jsonText(json['boxDeviceId']),
+        plcAddress: jsonText(json['plcAddress']),
         name: '',
         code: '',
         unit: '',
@@ -154,17 +155,17 @@ class SeriesHistorySignalDto {
     final rawPoints = json['points'];
 
     final alertLevel = json['alertLevel']?.toString().trim();
-    final thresholdLow = _readDouble(json['thresholdLow']);
-    final thresholdHigh = _readDouble(json['thresholdHigh']);
+    final thresholdLow = jsonDouble(json['thresholdLow']);
+    final thresholdHigh = jsonDouble(json['thresholdHigh']);
     final breachCount = json['breachCount'];
 
     return SeriesHistorySignalDto(
-      boxDeviceId: _readString(json['boxDeviceId']),
-      plcAddress: _readString(json['plcAddress']),
-      name: _readString(json['name']),
-      code: _readString(json['code']),
-      unit: _readString(json['unit']),
-      kind: _readString(json['kind']).toUpperCase(),
+      boxDeviceId: jsonText(json['boxDeviceId']),
+      plcAddress: jsonText(json['plcAddress']),
+      name: jsonText(json['name']),
+      code: jsonText(json['code']),
+      unit: jsonText(json['unit']),
+      kind: jsonText(json['kind']).toUpperCase(),
       thresholdLow: thresholdLow,
       thresholdHigh: thresholdHigh,
       alertLevel: (alertLevel == null || alertLevel.isEmpty)
@@ -179,7 +180,7 @@ class SeriesHistorySignalDto {
       breachCount: breachCount is num
           ? breachCount.toInt()
           : int.tryParse('${breachCount ?? ''}') ?? 0,
-      lastBreachAt: _readDateTime(json['lastBreachAt']),
+      lastBreachAt: jsonDateTime(json['lastBreachAt']),
       points: rawPoints is List
           ? List<SeriesHistoryPointDto>.unmodifiable(
               rawPoints
@@ -222,7 +223,7 @@ class SeriesHistoryPointDto {
 
   /// Null khi ts thieu / sai dinh dang: bo diem do thay vi lam hong ca series.
   static SeriesHistoryPointDto? tryParse(Map<String, dynamic> json) {
-    final ts = _readDateTime(json['ts']);
+    final ts = jsonDateTime(json['ts']);
     if (ts == null) return null;
 
     final count = json['count'];
@@ -259,7 +260,7 @@ List<SeriesHistoryPointDto> dropIncompleteEmptyBuckets(
 /// (40.29990000000001); lam tron ve dung luoi 1e-6 cua DB de cac gia tri
 /// bang nhau that su bang nhau o FE.
 double? _readMeasure(dynamic value) {
-  final parsed = _readDouble(value);
+  final parsed = jsonDouble(value);
   if (parsed == null) return null;
 
   // roundToDouble: khong qua int, an toan voi gia tri lon (tranh tran int64).
@@ -286,27 +287,4 @@ Duration? parseSeriesBucket(String raw) {
   if (unit.startsWith('D')) return Duration(days: amount);
   if (unit.startsWith('H')) return Duration(hours: amount);
   return Duration(minutes: amount);
-}
-
-String _readString(dynamic value) => value?.toString().trim() ?? '';
-
-double? _readDouble(dynamic value) {
-  if (value == null) return null;
-
-  final parsed = value is num
-      ? value.toDouble()
-      : double.tryParse(value.toString());
-
-  return (parsed == null || !parsed.isFinite) ? null : parsed;
-}
-
-/// ISO-8601 kem offset -> gio dia phuong. Chuoi khong offset giu nguyen
-/// (DateTime.parse da hieu la gio dia phuong).
-DateTime? _readDateTime(dynamic value) {
-  if (value == null) return null;
-
-  final parsed = DateTime.tryParse(value.toString().trim());
-  if (parsed == null) return null;
-
-  return parsed.isUtc ? parsed.toLocal() : parsed;
 }

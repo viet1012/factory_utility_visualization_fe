@@ -1,3 +1,5 @@
+import '../../shared/json/json_read.dart';
+
 class LatestFacilityDto {
   final String fac;
   final List<LatestCategoryDto> categories;
@@ -6,7 +8,7 @@ class LatestFacilityDto {
 
   factory LatestFacilityDto.fromJson(Map<String, dynamic> json) {
     return LatestFacilityDto(
-      fac: _readString(json['fac']),
+      fac: jsonText(json['fac']),
       categories: _readList(json['categories'], LatestCategoryDto.fromJson),
     );
   }
@@ -20,7 +22,7 @@ class LatestCategoryDto {
 
   factory LatestCategoryDto.fromJson(Map<String, dynamic> json) {
     return LatestCategoryDto(
-      cate: _readString(json['cate']),
+      cate: jsonText(json['cate']),
       scadas: _readList(json['scadas'], LatestScadaDto.fromJson),
     );
   }
@@ -34,7 +36,7 @@ class LatestScadaDto {
 
   factory LatestScadaDto.fromJson(Map<String, dynamic> json) {
     return LatestScadaDto(
-      scadaId: _readString(json['scadaId']),
+      scadaId: jsonText(json['scadaId']),
       boxes: _readList(json['boxes'], LatestBoxDto.fromJson),
     );
   }
@@ -48,7 +50,7 @@ class LatestBoxDto {
 
   factory LatestBoxDto.fromJson(Map<String, dynamic> json) {
     return LatestBoxDto(
-      boxId: _readString(json['boxId']),
+      boxId: jsonText(json['boxId']),
       devices: _readList(json['devices'], LatestDeviceDto.fromJson),
     );
   }
@@ -62,7 +64,7 @@ class LatestDeviceDto {
 
   factory LatestDeviceDto.fromJson(Map<String, dynamic> json) {
     return LatestDeviceDto(
-      boxDeviceId: _readString(json['boxDeviceId']),
+      boxDeviceId: jsonText(json['boxDeviceId']),
       signals: _readList(json['signals'], LatestSignalDto.fromJson),
     );
   }
@@ -91,13 +93,13 @@ class LatestSignalDto {
 
   factory LatestSignalDto.fromJson(Map<String, dynamic> json) {
     return LatestSignalDto(
-      plcAddress: _readString(json['plcAddress']),
-      cateId: _readString(json['cateId']),
-      nameEn: _readString(json['nameEn']),
-      value: _readDouble(json['value']),
-      unit: _readString(json['unit']),
+      plcAddress: jsonText(json['plcAddress']),
+      cateId: jsonText(json['cateId']),
+      nameEn: jsonText(json['nameEn']),
+      value: jsonDouble(json['value']),
+      unit: jsonText(json['unit']),
       recordedAt: _readDateTime(json['recordedAt']),
-      kind: switch (_readString(json['kind']).toUpperCase()) {
+      kind: switch (jsonText(json['kind']).toUpperCase()) {
         '' => null,
         final kind => kind,
       },
@@ -115,17 +117,7 @@ List<T> _readList<T>(dynamic raw, T Function(Map<String, dynamic>) parser) {
   );
 }
 
-String _readString(dynamic value) {
-  return value?.toString().trim() ?? '';
-}
-
-double? _readDouble(dynamic value) {
-  if (value == null) return null;
-  if (value is num) return value.toDouble();
-
-  return double.tryParse(value.toString());
-}
-
+/// Khong doi sang local (khac [jsonDateTime]): giu mui gio cua chuoi.
 DateTime? _readDateTime(dynamic value) {
   if (value == null) return null;
 

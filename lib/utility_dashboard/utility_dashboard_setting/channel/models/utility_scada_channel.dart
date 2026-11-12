@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../../shared/json/json_read.dart';
+
 class UtilityScadaChannel {
   final int? id;
   final String? scadaId;
@@ -19,7 +21,7 @@ class UtilityScadaChannel {
 
   factory UtilityScadaChannel.fromJson(Map<String, dynamic> json) {
     return UtilityScadaChannel(
-      id: _toInt(json['id']),
+      id: jsonInt(json['id']),
       scadaId: json['scadaId']?.toString(),
       cate: json['cate']?.toString(),
       boxDeviceId: json['boxDeviceId']?.toString(),
@@ -58,12 +60,6 @@ class UtilityScadaChannel {
       boxId: boxId ?? this.boxId,
       raw: raw ?? this.raw,
     );
-  }
-
-  static int? _toInt(dynamic value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    return int.tryParse(value.toString());
   }
 
   @override

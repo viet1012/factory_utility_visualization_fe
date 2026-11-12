@@ -1,3 +1,5 @@
+import '../../../shared/json/json_read.dart';
+
 class UtilityParaTreeFacGroup {
   final String fac;
   final List<UtilityParaTreeFac> scadas;
@@ -108,14 +110,8 @@ class UtilityParaItem {
       nameEn: json['nameEn']?.toString() ?? '',
       isImportant: json['isImportant'] as int?,
       isAlert: json['isAlert'] as int?,
-      minAlert: _toInt(json['minAlert']),
-      maxAlert: _toInt(json['maxAlert']),
+      minAlert: jsonInt(json['minAlert']),
+      maxAlert: jsonInt(json['maxAlert']),
     );
-  }
-
-  static int? _toInt(dynamic value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    return int.tryParse(value.toString());
   }
 }

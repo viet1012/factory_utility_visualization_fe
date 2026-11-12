@@ -275,14 +275,6 @@ String waterTooltip(WaterSignal signal, WaterGroup group, int decimals) {
 // TIME
 // ============================================================
 
-/// "15/10 09:12".
-String formatDayTime(DateTime? time) {
-  if (time == null) return kMissingValue;
-  final d = time.day.toString().padLeft(2, '0');
-  final m = time.month.toString().padLeft(2, '0');
-  return '$d/$m ${formatHhmm(time)}';
-}
-
 final DateFormat _hhmm = DateFormat('HH:mm');
 
 String formatHhmm(DateTime? time) => time == null ? '—' : _hhmm.format(time);

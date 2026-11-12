@@ -1,3 +1,5 @@
+import '../../shared/json/json_read.dart';
+
 class UtilityDailyDashboardResponse {
   final List<UtilityDailyElectricityPoint> electricity;
   final List<UtilityDailyPoint> water;
@@ -76,12 +78,4 @@ class UtilityDailyPoint {
   }
 }
 
-double _toDouble(dynamic value) {
-  if (value == null) return 0;
-
-  if (value is num) {
-    return value.toDouble();
-  }
-
-  return double.tryParse(value.toString()) ?? 0;
-}
+double _toDouble(dynamic value) => jsonDouble(value) ?? 0;
