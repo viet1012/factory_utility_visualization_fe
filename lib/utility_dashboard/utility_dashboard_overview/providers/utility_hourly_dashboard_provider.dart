@@ -23,7 +23,6 @@ class UtilityHourlyDashboardProvider extends ChangeNotifier {
   int _requestToken = 0;
 
   String? _facId;
-  int _hours = 48;
 
   List<HourlyEnergyPoint> _electricity = const [];
   List<HourlySensorPoint> _water = const [];
@@ -39,8 +38,6 @@ class UtilityHourlyDashboardProvider extends ChangeNotifier {
 
   String? get facId => _facId;
 
-  int get hours => _hours;
-
   List<HourlyEnergyPoint> get electricity => _electricity;
 
   List<HourlySensorPoint> get water => _water;
@@ -52,19 +49,14 @@ class UtilityHourlyDashboardProvider extends ChangeNotifier {
 
   bool get hasValidParams => _facId != null && _facId!.isNotEmpty;
 
-  void configure({
-    required String facId,
-    int hours = 48,
-  }) {
+  void configure({required String facId}) {
     if (_disposed) return;
 
     final normalizedFac = facId.trim();
-    final normalizedHours = hours <= 0 ? 48 : hours.clamp(1, 168);
 
-    final changed = normalizedFac != _facId || normalizedHours != _hours;
+    final changed = normalizedFac != _facId;
 
     _facId = normalizedFac;
-    _hours = normalizedHours;
 
     if (changed) {
       _requestToken++;
@@ -110,7 +102,7 @@ class UtilityHourlyDashboardProvider extends ChangeNotifier {
 
     try {
       final response = await api
-          .getHourlyDashboard(facId: facId, hours: _hours)
+          .getHourlyDashboard(facId: facId)
           .timeout(requestTimeout);
 
       if (!_isValidRequest(token)) return;

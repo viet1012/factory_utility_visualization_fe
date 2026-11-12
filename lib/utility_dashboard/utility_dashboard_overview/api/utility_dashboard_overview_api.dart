@@ -51,19 +51,19 @@ class UtilityDashboardOverviewApi {
 
   // ============================================================
   // HOURLY
+  //
+  // Backend luôn trả 24 giờ: hôm nay vs hôm qua (không có tham số hours).
   // ============================================================
 
   Future<UtilityHourlyDashboardResponse> getHourlyDashboard({
     required String facId,
-    int hours = 48,
   }) async {
     final normalizedFac = _requiredText(facId, fieldName: 'facId');
 
-    final safeHours = _safeRange(hours, fallback: 48, min: 1, max: 24 * 31);
-
-    final query = <String, dynamic>{'facId': normalizedFac, 'hours': safeHours};
-
-    final response = await _get(_hourlyDashboardPath, queryParameters: query);
+    final response = await _get(
+      _hourlyDashboardPath,
+      queryParameters: {'facId': normalizedFac},
+    );
 
     return UtilityHourlyDashboardResponse.fromJson(
       _asMap(response.data, errorMessage: 'Invalid hourly dashboard response'),
