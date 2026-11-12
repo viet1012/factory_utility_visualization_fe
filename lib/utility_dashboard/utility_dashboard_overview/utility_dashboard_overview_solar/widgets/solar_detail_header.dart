@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/formatters/period_basis_formatter.dart';
+import '../../../shared/widgets/period_basis_note.dart';
 import '../../utility_dashboard_overview_widgets/month_label_badge.dart';
 import '../helpers/solar_detail_formatters.dart';
 
 /// Header cua Solar Detail: back, tieu de, month badge, facility badge, refresh.
 class SolarDetailHeader extends StatelessWidget {
   final String facId;
+
+  /// yyyyMM (de ghi khoang ngay thang duong lich duoi tieu de).
+  final String month;
 
   /// Gia tri hien thi tren [MonthLabelBadge].
   final String monthLabel;
@@ -19,6 +24,7 @@ class SolarDetailHeader extends StatelessWidget {
   const SolarDetailHeader({
     super.key,
     required this.facId,
+    required this.month,
     required this.monthLabel,
     required this.refreshing,
     required this.onBack,
@@ -48,17 +54,33 @@ class SolarDetailHeader extends StatelessWidget {
 
           const SizedBox(width: 12),
 
-          const Text(
-            'SOLAR ENERGY ANALYTICS',
-            style: TextStyle(
-              color: SolarDetailColors.yellow,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: .6,
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SOLAR ENERGY ANALYTICS',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: SolarDetailColors.yellow,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .6,
+                  ),
+                ),
+                // Ky tinh: thang duong lich (khac ky hoa don cua
+                // Elec. consumption).
+                PeriodBasisNote(
+                  text: PeriodBasisFormatter.calendarMonthLabel(month),
+                  tooltip: PeriodBasisFormatter.calendarMonthHint,
+                ),
+              ],
             ),
           ),
 
-          const Spacer(),
+          const SizedBox(width: 10),
 
           MonthLabelBadge(monthLabel: monthLabel),
 

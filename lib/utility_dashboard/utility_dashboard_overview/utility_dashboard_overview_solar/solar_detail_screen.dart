@@ -409,6 +409,7 @@ class _SolarDetailScreenState extends State<SolarDetailScreen> {
               children: [
                 SolarDetailHeader(
                   facId: widget.facId,
+                  month: widget.month,
                   monthLabel: SolarDetailFormatters.monthLabel(widget.month),
                   refreshing: _refreshing,
                   onBack: () => Navigator.of(context).pop(),

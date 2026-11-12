@@ -6,6 +6,7 @@ abstract final class DashboardPollingIntervals {
   static const Duration signalHealthMap = Duration(minutes: 5);
   static const Duration signalHealthAlarms = Duration(minutes: 1);
   static const Duration mapDailyDashboard = Duration(hours: 1);
+
   /// Panel SUMMARY + 3 o Fac tren MAP (MonthlySummaryStore.refreshWatched).
   static const Duration mapMonthlySummary = Duration(hours: 1);
   static const Duration chartsMinuteSeries = Duration(minutes: 1);
@@ -14,8 +15,13 @@ abstract final class DashboardPollingIntervals {
   static const Duration solarDetail = Duration(hours: 1);
   static const Duration mapWeather = Duration(minutes: 45);
   static const Duration waterCheck = Duration(seconds: 15);
+
   /// MONITORING › Electricity: chi tai lai khi dang xem hom nay.
   static const Duration electricityPowerUsage = Duration(minutes: 1);
+
+  /// MONITORING › Elec. consumption: so lieu theo ngay, chi tai lai khi dang
+  /// xem ky hoa don hien tai.
+  static const Duration electricConsumption = Duration(minutes: 10);
 
   /// Nhip kiem tra cache het han cua sparkline / Filter chart (SCADA TABLE).
   static const Duration filterHistoryCheck = Duration(seconds: 30);

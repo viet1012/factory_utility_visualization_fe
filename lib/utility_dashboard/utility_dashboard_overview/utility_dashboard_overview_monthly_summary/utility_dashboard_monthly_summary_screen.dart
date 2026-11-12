@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../shared/formatters/month_formatter.dart';
+import '../../shared/formatters/period_basis_formatter.dart';
+import '../../shared/widgets/period_basis_note.dart';
 import '../models/energy_monthly_summary.dart';
 import '../providers/utility_monthly_summary_provider.dart';
 import '../utility_dashboard_overview_widgets/month_label_badge.dart';
@@ -157,6 +159,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                 Column(
                   children: [
                     _Header(
+                      month: widget.month,
                       monthLabel: monthLabel,
                       forceRefreshing: vm.forceRefreshing,
                       onRefresh: _forceRefresh,
@@ -261,11 +264,14 @@ String monthSubtitle(String month, {required bool isMtd}) {
 }
 
 class _Header extends StatelessWidget {
+  /// yyyyMM cua panel (de ghi khoang ngay thang duong lich).
+  final String month;
   final String monthLabel;
   final bool forceRefreshing;
   final Future<void> Function() onRefresh;
 
   const _Header({
+    required this.month,
     required this.monthLabel,
     required this.forceRefreshing,
     required this.onRefresh,
@@ -300,7 +306,18 @@ class _Header extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
+          // Ky tinh: thang duong lich (khac ky hoa don cua Elec. consumption).
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: PeriodBasisNote(
+                text: PeriodBasisFormatter.calendarMonthLabel(month),
+                tooltip: PeriodBasisFormatter.calendarMonthHint,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
           MonthLabelBadge(monthLabel: monthLabel),
           const SizedBox(width: 4),
           Tooltip(

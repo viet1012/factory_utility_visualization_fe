@@ -33,6 +33,9 @@ import 'package:provider/provider.dart';
 import '../utility_api/api_config.dart';
 import '../utility_api/dio_client.dart';
 import 'utility_dashboard_fac_details/api/utility_facade_service.dart';
+import 'monitoring/electric_consumption/api/electric_consumption_api.dart';
+import 'monitoring/electric_consumption/controller/electric_consumption_controller.dart';
+import 'monitoring/electric_consumption/electric_consumption_screen.dart';
 import 'monitoring/electricity/api/power_usage_api.dart';
 import 'monitoring/electricity/controller/power_usage_controller.dart';
 import 'monitoring/electricity/electricity_screen.dart';
@@ -110,7 +113,11 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   late final PowerUsageApi powerUsageApi;
   late final PowerUsageController powerUsageController;
 
-  /// Sub-tab dang chon trong MONITORING (Electricity | Water check).
+  late final ElectricConsumptionApi electricConsumptionApi;
+  late final ElectricConsumptionController electricConsumptionController;
+
+  /// Sub-tab dang chon trong MONITORING (Electricity | Elec. consumption |
+  /// Water check).
   MonitoringSubTab _monitoringSubTab = MonitoringSubTab.electricity;
 
   /// WATER CHECK › Open in Charts: CHARTS nghe va chon dung fac / box / device.
@@ -225,6 +232,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     signalHealthApi = SignalHealthApi();
     waterCheckApi = WaterCheckApi(dio: dio);
     powerUsageApi = PowerUsageApi(dio: dio);
+    electricConsumptionApi = ElectricConsumptionApi(dio: dio);
 
     facade = UtilityFacadeService(dio);
 
@@ -266,6 +274,10 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     waterCheckController = WaterCheckController(api: waterCheckApi);
 
     powerUsageController = PowerUsageController(api: powerUsageApi);
+
+    electricConsumptionController = ElectricConsumptionController(
+      api: electricConsumptionApi,
+    );
 
     minuteDashboardProvider = UtilityMinuteDashboardProvider(overviewApi);
 
@@ -364,13 +376,22 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
         action: powerUsageController.poll,
         runImmediately: true,
       )
+      // MONITORING › Elec. consumption: chi lam moi khi xem ky hien tai.
+      ..register(
+        id: PollingTaskIds.electricConsumption,
+        scope: PollingScope.electricConsumption,
+        interval: DashboardPollingIntervals.electricConsumption,
+        action: electricConsumptionController.poll,
+        runImmediately: true,
+      )
       ..start(PollingTaskIds.mapMonthlySummary)
       ..start(PollingTaskIds.signalHealthMap)
       ..start(PollingTaskIds.signalHealthAlarms)
       ..start(PollingTaskIds.chartsMinuteSeries)
       ..start(PollingTaskIds.chartsHourlySeries)
       ..start(PollingTaskIds.waterCheck)
-      ..start(PollingTaskIds.electricityPowerUsage);
+      ..start(PollingTaskIds.electricityPowerUsage)
+      ..start(PollingTaskIds.electricConsumption);
   }
 
   void _initializeTabController() {
@@ -491,6 +512,11 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     sync(
       PollingScope.electricity,
       onMonitoring && _monitoringSubTab == MonitoringSubTab.electricity,
+    );
+    sync(
+      PollingScope.electricConsumption,
+      onMonitoring &&
+          _monitoringSubTab == MonitoringSubTab.electricConsumption,
     );
   }
 
@@ -720,6 +746,9 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
             controller: powerUsageController,
             onOpenMeter: _openMeterInCharts,
           ),
+          electricConsumption: ElectricConsumptionScreen(
+            controller: electricConsumptionController,
+          ),
           waterCheckBuilder: (subTabs) => WaterCheckScreen(
             controller: waterCheckController,
             onOpenInCharts: _openInCharts,
@@ -785,6 +814,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
     signalHealthController.dispose();
     waterCheckController.dispose();
     powerUsageController.dispose();
+    electricConsumptionController.dispose();
     _chartFocusRequest.dispose();
 
     minuteDashboardProvider.dispose();
