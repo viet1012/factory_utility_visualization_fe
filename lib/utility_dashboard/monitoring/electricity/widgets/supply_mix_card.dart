@@ -10,8 +10,17 @@ Color supplyColor(PowerSupplyBandType type) => switch (type) {
   PowerSupplyBandType.normal => ElectricityColors.normal,
   PowerSupplyBandType.lowPeak => ElectricityColors.lowPeak,
   PowerSupplyBandType.solar => ElectricityColors.solar,
+  // khong co gia / band chua biet: xam
+  PowerSupplyBandType.unpriced => ElectricityColors.other,
   PowerSupplyBandType.unknown => ElectricityColors.other,
 };
+
+/// rate / usd null (gio khong co gia) -> "–".
+const String _noPrice = '–';
+
+String _bandRate(num? rate) => rate == null ? _noPrice : fmtRate(rate);
+
+String _bandUsd(num? usd) => usd == null ? _noPrice : fmtUsd(usd);
 
 class SupplyMixCard extends StatelessWidget {
   final PowerUsageResponse data;
@@ -103,7 +112,7 @@ class SupplyMixCard extends StatelessWidget {
                         child: Padding(
                           padding: const EdgeInsets.only(right: 6),
                           child: Text(
-                            '${fmtMwh(band.kwh)} MWh @ ${fmtRate(band.rate)} = ${fmtUsd(band.usd)}',
+                            '${fmtMwh(band.kwh)} MWh @ ${_bandRate(band.rate)} = ${_bandUsd(band.usd)}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
