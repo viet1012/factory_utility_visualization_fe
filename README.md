@@ -31,7 +31,7 @@ Dữ liệu lấy từ backend Utility qua REST API (Dio), tự làm mới theo 
 | Khác | `intl`, `shimmer`, `web` |
 | Dev | `flutter_lints ^5.0.0`, `fake_async ^1.3.1` (test polling) |
 
-Assets: `assets/images/` (ảnh nền MAP `SPC2_AM.png`, `SPC2_CyberBunk.jpg`, …), font `Roboto`.
+Assets: `assets/images/` (ảnh nền MAP `SPC2_AM.png` ban ngày, `SPC2_AM_night.png` ban đêm (tạo từ ảnh ngày), `SPC2_*_trees.png` lớp tán cây che xe, …), font `Roboto`.
 
 ---
 

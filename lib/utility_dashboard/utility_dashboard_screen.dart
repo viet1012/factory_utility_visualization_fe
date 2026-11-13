@@ -82,7 +82,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   ];
 
   final String mainImageUrl = 'assets/images/SPC2_AM.png';
-  final String nightImageUrl = 'assets/images/SPC2_CyberBunk.jpg';
+  final String nightImageUrl = 'assets/images/SPC2_AM_night.png';
 
   late final Dio dio;
 

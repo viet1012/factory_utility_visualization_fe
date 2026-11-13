@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui';
 
+import 'package:factory_utility_visualization/weather_widgets/clock/map_clock_weather_badge.dart';
+import 'package:factory_utility_visualization/weather_widgets/day_night/solar_day_night.dart';
 import 'package:factory_utility_visualization/weather_widgets/weather/api/weather_api_service.dart';
 import 'package:factory_utility_visualization/weather_widgets/weather/api_rain_painter.dart';
 import 'package:factory_utility_visualization/weather_widgets/weather/model/rain_drop.dart';
@@ -24,6 +26,9 @@ class ApiControlledRainImage extends StatefulWidget {
   final WeatherApiService weatherService;
   final bool showWeatherInfo;
 
+  /// Lớp cảnh động (vd: xe chạy) vẽ ngay trên ảnh nền, dưới lớp tối + mưa.
+  final Widget Function(BuildContext context, bool isDay)? sceneLayerBuilder;
+
   const ApiControlledRainImage({
     super.key,
     required this.isActive,
@@ -34,6 +39,7 @@ class ApiControlledRainImage extends StatefulWidget {
     this.width,
     this.height,
     this.showWeatherInfo = true,
+    this.sceneLayerBuilder,
   });
 
   @override
@@ -52,15 +58,25 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
   late final PollingCoordinator _pollingCoordinator;
 
   WeatherData? _currentWeather;
+  bool _weatherUnavailable = false;
+  Timer? _weatherRetryTimer;
   bool _isRaining = false;
   double _rainIntensity = 0.0;
   int _rainDropCount = 0;
 
-  bool get _isDay => _currentWeather?.isDaytime ?? true;
+  /// Ngày/đêm tính offline theo giờ mặt trời mọc/lặn tại nhà máy,
+  /// không phụ thuộc API thời tiết (API lỗi vẫn đổi nền đúng giờ).
+  final DayNightController _dayNight = DayNightController();
+
+  bool get _isDay => _dayNight.value;
+
+  static const _weatherRetryDelay = Duration(minutes: 2);
 
   @override
   void initState() {
     super.initState();
+
+    _dayNight.addListener(_onDayNightChanged);
 
     _rainController = AnimationController(
       vsync: this,
@@ -77,8 +93,22 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
     _pollingCoordinator.start(PollingTaskIds.mapWeather);
 
     if (widget.isActive) {
-      _rainController.repeat();
       _fetchWeather();
+    }
+  }
+
+  void _onDayNightChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Chỉ chạy animation mưa khi đang active VÀ đang mưa — AnimationController
+  /// chạy không sẽ ép Flutter vẽ frame liên tục dù không có gì thay đổi.
+  void _syncRainAnimation() {
+    final shouldRun = widget.isActive && _isRaining;
+    if (shouldRun && !_rainController.isAnimating) {
+      _rainController.repeat();
+    } else if (!shouldRun && _rainController.isAnimating) {
+      _rainController.stop();
     }
   }
 
@@ -88,13 +118,9 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
 
     if (oldWidget.isActive == widget.isActive) return;
 
-    if (widget.isActive) {
-      _rainController.repeat();
-      if (_currentWeather == null) {
-        _fetchWeather();
-      }
-    } else {
-      _rainController.stop();
+    _syncRainAnimation();
+    if (widget.isActive && _currentWeather == null) {
+      _fetchWeather();
     }
   }
 
@@ -102,14 +128,25 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
     if (_weatherRequestRunning || !widget.isActive) return;
 
     _weatherRequestRunning = true;
+    _weatherRetryTimer?.cancel();
 
     try {
       final weather = await widget.weatherService.fetchWeatherData();
-      if (!mounted || !widget.isActive || weather == null) return;
+      if (!mounted || !widget.isActive) return;
+
+      if (weather == null) {
+        // API lỗi: giữ số liệu cũ (nếu có), báo N/A và thử lại sớm
+        // thay vì đợi chu kỳ polling 45 phút.
+        setState(() => _weatherUnavailable = true);
+        _weatherRetryTimer = Timer(_weatherRetryDelay, _fetchWeather);
+        return;
+      }
 
       setState(() {
+        _weatherUnavailable = false;
         _applyWeather(weather);
       });
+      _syncRainAnimation();
     } finally {
       _weatherRequestRunning = false;
     }
@@ -186,6 +223,10 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
   void dispose() {
     _pollingCoordinator.stop(PollingTaskIds.mapWeather);
     _pollingCoordinator.unregister(PollingTaskIds.mapWeather);
+    _weatherRetryTimer?.cancel();
+    _dayNight
+      ..removeListener(_onDayNightChanged)
+      ..dispose();
     _rainController.dispose();
     super.dispose();
   }
@@ -199,14 +240,19 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
         fit: StackFit.expand,
         children: [
           _buildBackgroundImage(),
+          if (widget.sceneLayerBuilder != null)
+            Positioned.fill(child: widget.sceneLayerBuilder!(context, _isDay)),
           _buildWeatherOverlay(),
           if (_isRaining) _buildRainLayer(),
           if (widget.showWeatherInfo)
             Positioned(
               right: 10,
               top: 10,
-              child: _WeatherInfoBadge(
+              child: MapClockWeatherBadge(
+                isActive: widget.isActive,
+                dayNight: _dayNight,
                 weather: _currentWeather,
+                weatherUnavailable: _weatherUnavailable,
                 isRaining: _isRaining,
                 rainIntensity: _rainIntensity,
               ),
@@ -231,8 +277,6 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
       width: double.infinity,
       height: double.infinity,
       alignment: Alignment.center,
-      color: Colors.blueGrey.withValues(alpha: 0.3),
-      colorBlendMode: BlendMode.darken,
     );
 
     return Positioned.fill(
@@ -288,273 +332,5 @@ class _ApiControlledRainImageState extends State<ApiControlledRainImage>
         ),
       ),
     );
-  }
-}
-
-class _WeatherInfoBadge extends StatelessWidget {
-  final WeatherData? weather;
-  final bool isRaining;
-  final double rainIntensity;
-
-  const _WeatherInfoBadge({
-    required this.weather,
-    required this.isRaining,
-    required this.rainIntensity,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (weather == null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: .16)),
-            ),
-            child: const Text(
-              'Loading weather...',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    final currentWeather = weather!;
-    final condition = currentWeather.condition;
-
-    final accentColor = isRaining
-        ? const Color(0xff22d3ee)
-        : const Color(0xff60a5fa);
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-
-            // Glass background
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: .16),
-                accentColor.withValues(alpha: .08),
-                Colors.black.withValues(alpha: .18),
-              ],
-            ),
-
-            border: Border.all(
-              color: Colors.white.withValues(alpha: .22),
-              width: 1,
-            ),
-
-            boxShadow: [
-              BoxShadow(
-                color: accentColor.withValues(alpha: .18),
-                blurRadius: 18,
-                spreadRadius: -8,
-                offset: const Offset(0, 8),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .25),
-                blurRadius: 16,
-                spreadRadius: -8,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              // Ánh sáng phản chiếu phía trên
-              Positioned(
-                top: 0,
-                left: 12,
-                right: 12,
-                child: Container(
-                  height: 1,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.transparent,
-                        Colors.white.withValues(alpha: .65),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // Glow nhẹ góc phải
-              Positioned(
-                top: -24,
-                right: -24,
-                child: Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: accentColor.withValues(alpha: .12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: accentColor.withValues(alpha: .25),
-                        blurRadius: 30,
-                        spreadRadius: 4,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 30,
-                        height: 30,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: accentColor.withValues(alpha: .16),
-                          border: Border.all(
-                            color: accentColor.withValues(alpha: .45),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: accentColor.withValues(alpha: .22),
-                              blurRadius: 12,
-                              spreadRadius: -3,
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          _getWeatherIcon(condition),
-                          color: Colors.white,
-                          size: 17,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          condition.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: .3,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        currentWeather.temperature.toStringAsFixed(1),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          height: 1,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -.7,
-                        ),
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.only(left: 2, bottom: 2),
-                        child: Text(
-                          '°C',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  if (isRaining) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: accentColor.withValues(alpha: .12),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: accentColor.withValues(alpha: .35),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.water_drop_rounded,
-                            color: accentColor,
-                            size: 13,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Rain ${(rainIntensity * 100).round()}%',
-                            style: TextStyle(
-                              color: accentColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static IconData _getWeatherIcon(String condition) {
-    switch (condition) {
-      case 'rain':
-      case 'drizzle':
-        return Icons.water_drop;
-      case 'storm':
-      case 'thunderstorm':
-        return Icons.flash_on;
-      case 'clouds':
-      case 'cloudy':
-        return Icons.cloud;
-      case 'clear':
-        return Icons.wb_sunny;
-      default:
-        return Icons.wb_cloudy;
-    }
   }
 }

@@ -147,16 +147,19 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
             nightImageUrl: widget.nightImageUrl,
           ),
 
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.10),
-                  Colors.transparent,
-                  Colors.black.withValues(alpha: 0.15),
-                ],
+          // Lớp tối trang trí: không chặn click/hover của badge đồng hồ bên dưới.
+          IgnorePointer(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.10),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.15),
+                  ],
+                ),
               ),
             ),
           ),
