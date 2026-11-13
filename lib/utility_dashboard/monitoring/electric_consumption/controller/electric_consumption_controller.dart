@@ -29,7 +29,7 @@ class ElectricConsumptionController extends ChangeNotifier
   ElectricConsumptionResponse? _data;
   String? _error;
   bool _loading = false;
-  int _months = 12;
+  int _months = 6;
 
   /// null: luon theo ky hien tai (qua ngay 21 tu sang ky moi).
   DateTime? _month;
@@ -50,6 +50,17 @@ class ElectricConsumptionController extends ChangeNotifier
 
   void toggleDetail() {
     _showDetail = !_showDetail;
+    safeNotify();
+  }
+
+  /// Toggle "Values" o legend chart: ghi so giua tung doan chong. Dung chung
+  /// cho moi chart cua man hinh (chart phong to co trang thai rieng).
+  bool _showValues = false;
+  bool get showValues => _showValues;
+
+  void setShowValues(bool value) {
+    if (_showValues == value) return;
+    _showValues = value;
     safeNotify();
   }
 

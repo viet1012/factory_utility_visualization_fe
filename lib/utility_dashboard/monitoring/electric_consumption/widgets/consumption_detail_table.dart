@@ -22,6 +22,9 @@ class ConsumptionDetailTable extends StatefulWidget {
   final String billLabel;
   final String? partialDate;
 
+  /// Nguong ngay du (response.minCoveragePct), cho chu thich `*`.
+  final double? minCoveragePct;
+
   const ConsumptionDetailTable({
     super.key,
     required this.scope,
@@ -30,6 +33,7 @@ class ConsumptionDetailTable extends StatefulWidget {
     required this.unitPrices,
     required this.billLabel,
     required this.partialDate,
+    this.minCoveragePct,
   });
 
   @override
@@ -58,12 +62,12 @@ class _RowDef {
 
 class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
   /// Cot ten dong (kem don gia o bang K$), giong nhau o 2 bang.
-  static const double _descWidth = 210;
-  static const double _monthWidth = 62;
-  static const double _dayWidth = 56;
-  static const double _sumWidth = 74;
-  static const double _rowHeight = 28;
-  static const double _headHeight = 20;
+  static const double _descWidth = 230;
+  static const double _monthWidth = 68;
+  static const double _dayWidth = 62;
+  static const double _sumWidth = 88;
+  static const double _rowHeight = 34;
+  static const double _headHeight = 22;
 
   static final NumberFormat _price = NumberFormat('0.0000');
 
@@ -321,8 +325,8 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
               _isMwh ? 'Consumption [MWh]' : r'Amount [K$]',
               style: const TextStyle(
                 color: ElectricityColors.text,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
               ),
             ),
             const Spacer(),
@@ -388,8 +392,30 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
             ],
           ),
         ),
+        // Chu thich `*` ngay duoi dong "Data coverage".
+        if (showCoverage)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 2),
+            child: Text(
+              _incompleteNote(),
+              style: const TextStyle(
+                color: ConsumptionColors.muted,
+                fontSize: 11.5,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
       ],
     );
+  }
+
+  String _incompleteNote() {
+    final pct = widget.minCoveragePct;
+    final threshold = pct == null
+        ? ''
+        : ' (coverage < ${formatValue(pct, decimals: 0)}%)';
+    return '* incomplete day$threshold – values under-counted, '
+        'excluded from Avg / day';
   }
 
   // ---------------- pinned right (Total / Avg per day) ----------------
@@ -421,7 +447,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
               'This period',
               style: TextStyle(
                 color: ConsumptionColors.subtle,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -486,7 +512,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
                       'Description',
                       style: TextStyle(
                         color: ConsumptionColors.subtle,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -496,7 +522,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
                       r'$/kWh',
                       style: TextStyle(
                         color: ConsumptionColors.muted,
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -594,7 +620,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: ConsumptionColors.subtle,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -774,7 +800,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           color: ConsumptionColors.subtle,
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -822,7 +848,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
             top,
             TextStyle(
               color: base,
-              fontSize: 12,
+              fontSize: 13.5,
               fontWeight: FontWeight.w700,
               fontStyle: italic ? FontStyle.italic : FontStyle.normal,
             ),
@@ -833,12 +859,12 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
               accent
                   ? const TextStyle(
                       color: ConsumptionColors.titleAccent,
-                      fontSize: 9.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w800,
                     )
                   : TextStyle(
                       color: color ?? ConsumptionColors.muted,
-                      fontSize: 9.5,
+                      fontSize: 11,
                     ),
             ),
         ],
@@ -855,12 +881,12 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
         child: Row(
           children: [
             SizedBox(
-              width: 14,
+              width: 18,
               child: row.swatch == null
                   ? null
                   : Container(
-                      width: 9,
-                      height: 9,
+                      width: 11,
+                      height: 11,
                       decoration: BoxDecoration(
                         color: row.swatch,
                         borderRadius: BorderRadius.circular(2),
@@ -874,7 +900,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: ElectricityColors.text,
-                  fontSize: 12,
+                  fontSize: 13.5,
                   fontWeight: row.emphasis ? FontWeight.w800 : FontWeight.w500,
                 ),
               ),
@@ -886,7 +912,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
                 row.unitText,
                 style: const TextStyle(
                   color: ConsumptionColors.muted,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontFeatures: [FontFeature.tabularFigures()],
                 ),
               ),
@@ -916,7 +942,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: color ?? ElectricityColors.text,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
             fontStyle: italic ? FontStyle.italic : FontStyle.normal,
           ),
@@ -938,7 +964,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
       width: width,
       color: bg,
       alignment: Alignment.centerRight,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Text(
         ConsumptionFormat.fixed(
           value,
@@ -951,7 +977,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
               : partial
               ? ConsumptionColors.partial
               : ElectricityColors.text,
-          fontSize: 12,
+          fontSize: 14,
           fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
           fontStyle: partial ? FontStyle.italic : FontStyle.normal,
           fontFeatures: const [FontFeature.tabularFigures()],
@@ -976,7 +1002,7 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: warn ? ConsumptionColors.warning : ConsumptionColors.muted,
-          fontSize: 10,
+          fontSize: 11.5,
           fontStyle: FontStyle.italic,
         ),
       ),

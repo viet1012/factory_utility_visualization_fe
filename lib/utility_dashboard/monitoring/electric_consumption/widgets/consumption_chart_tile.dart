@@ -27,6 +27,10 @@ class ConsumptionChartTile extends StatelessWidget {
   /// Chieu cao vung chart; null: chiem het cho con lai (trong Expanded).
   final double? chartHeight;
 
+  /// Toggle "Values" dung chung (controller.showValues / setShowValues).
+  final bool showValues;
+  final ValueChanged<bool>? onShowValuesChanged;
+
   const ConsumptionChartTile({
     super.key,
     required this.data,
@@ -34,6 +38,8 @@ class ConsumptionChartTile extends StatelessWidget {
     required this.unit,
     this.title,
     this.chartHeight,
+    this.showValues = false,
+    this.onShowValuesChanged,
   });
 
   @override
@@ -45,6 +51,9 @@ class ConsumptionChartTile extends StatelessWidget {
       partialDate: data.partialDate,
       partialUntil: data.partialUntil,
       billLabel: billLabelOf(data),
+      minCoveragePct: data.minCoveragePct,
+      showValues: showValues,
+      onShowValuesChanged: onShowValuesChanged,
     );
 
     return Column(
@@ -157,6 +166,9 @@ class _ChartDialogState extends State<_ChartDialog> {
   late String _scopeCode = widget.scope.code;
   late ConsumptionUnit _unit = widget.unit;
 
+  /// Chart phong to: mac dinh ghi so tung doan (rieng, khong luu controller).
+  bool _showValues = true;
+
   ConsumptionScope get _scope => widget.data.scopes.firstWhere(
     (s) => s.code == _scopeCode,
     orElse: () => widget.scope,
@@ -248,6 +260,9 @@ class _ChartDialogState extends State<_ChartDialog> {
                 partialDate: data.partialDate,
                 partialUntil: data.partialUntil,
                 billLabel: billLabelOf(data),
+                minCoveragePct: data.minCoveragePct,
+                showValues: _showValues,
+                onShowValuesChanged: (v) => setState(() => _showValues = v),
               ),
             ),
           ],

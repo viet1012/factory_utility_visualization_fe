@@ -201,12 +201,24 @@ class MeterIssue {
   final int? missingHours;
   final String? lastDataAt;
 
+  /// `MAJOR` (co ngay NO_DATA hoac thieu >= 24 h trong ky) / `MINOR`; null
+  /// khi backend cu chua tra.
+  final String? severity;
+
   const MeterIssue({
     required this.meter,
     required this.fac,
     this.missingHours,
     this.lastDataAt,
+    this.severity,
   });
+
+  /// Backend cu (khong co severity): thieu >= 24 h coi la MAJOR.
+  bool get isMajor => switch (severity?.toUpperCase()) {
+    'MAJOR' => true,
+    'MINOR' => false,
+    _ => (missingHours ?? 0) >= 24,
+  };
 
   factory MeterIssue.fromJson(Map<String, dynamic> json) {
     return MeterIssue(
@@ -214,6 +226,7 @@ class MeterIssue {
       fac: jsonText(json['fac']),
       missingHours: jsonInt(json['missingHours']),
       lastDataAt: _toText(json['lastDataAt']),
+      severity: _toText(json['severity']),
     );
   }
 }
@@ -289,6 +302,16 @@ class ConsumptionPoint {
   bool isPartial(String? partialDate) {
     if (isMonthly || isNoData) return false;
     return partialFlag ?? key == partialDate;
+  }
+
+  /// Monthly co du lieu nhung completeDays < days: trung binh / ngay chi
+  /// tinh tren mot phan ky (chart ve mo nhu ngay partial).
+  bool get isIncompleteMonth {
+    if (!isMonthly || isNoData) return false;
+    final complete = completeDays;
+    final total = days;
+    if (complete == null || total == null || total == 0) return false;
+    return complete < total;
   }
 
   /// Gia tri tho tu API.
@@ -371,6 +394,10 @@ class ConsumptionScope {
   /// Co gio trong ky khong co bang gia -> K$ chi mot phan.
   final bool priceMissing;
 
+  /// MWh luoi uoc tinh bi thieu do meter MAJOR (kWh/gio trung binh cua
+  /// meter x so gio thieu); null khi khong co.
+  final double? estimatedMissingMwh;
+
   const ConsumptionScope({
     required this.code,
     required this.name,
@@ -386,7 +413,18 @@ class ConsumptionScope {
     this.completeDays,
     this.meterIssues = const [],
     this.priceMissing = false,
+    this.estimatedMissingMwh,
   });
+
+  List<MeterIssue> get majorIssues => [
+    for (final m in meterIssues)
+      if (m.isMajor) m,
+  ];
+
+  List<MeterIssue> get minorIssues => [
+    for (final m in meterIssues)
+      if (!m.isMajor) m,
+  ];
 
   /// KVH co solar (Excel: cot chong + Solar, duong Total); fac chi dien luoi.
   bool get includesSolar => code.toUpperCase() == 'KVH';
@@ -445,6 +483,7 @@ class ConsumptionScope {
       completeDays: jsonInt(json['completeDays']),
       meterIssues: _toList(json['meterIssues'], MeterIssue.fromJson),
       priceMissing: json['priceMissing'] == true,
+      estimatedMissingMwh: jsonDouble(json['estimatedMissingMwh']),
     );
   }
 }

@@ -81,7 +81,12 @@ class ElectricConsumptionScreen extends StatelessWidget {
             final sideBySide = box.maxWidth >= _sideBySideBreakpoint;
 
             if (controller.view == ConsumptionView.charts) {
-              return _ChartsGrid(data: data, box: box);
+              return _ChartsGrid(
+                data: data,
+                box: box,
+                showValues: controller.showValues,
+                onShowValuesChanged: controller.setShowValues,
+              );
             }
 
             return ListView(
@@ -113,6 +118,8 @@ class ElectricConsumptionScreen extends StatelessWidget {
                     sideBySide: sideBySide,
                     chartHeight: _chartHeight,
                     showDetail: controller.showDetail,
+                    showValues: controller.showValues,
+                    onShowValuesChanged: controller.setShowValues,
                     unitPrices: data.unitPrices,
                     billLabel: data.billPeriod.label.isEmpty
                         ? data.month
@@ -519,8 +526,15 @@ class _PriceGroup extends StatelessWidget {
 class _ChartsGrid extends StatelessWidget {
   final ElectricConsumptionResponse data;
   final BoxConstraints box;
+  final bool showValues;
+  final ValueChanged<bool> onShowValuesChanged;
 
-  const _ChartsGrid({required this.data, required this.box});
+  const _ChartsGrid({
+    required this.data,
+    required this.box,
+    required this.showValues,
+    required this.onShowValuesChanged,
+  });
 
   static const double _gap = 10;
   static const double _minTile = 260;
@@ -556,6 +570,8 @@ class _ChartsGrid extends StatelessWidget {
         scope: scope,
         unit: unit,
         title: scopeShortName(scope),
+        showValues: showValues,
+        onShowValuesChanged: onShowValuesChanged,
       ),
     );
 
@@ -592,6 +608,8 @@ class _ScopeSection extends StatelessWidget {
   final bool sideBySide;
   final double chartHeight;
   final bool showDetail;
+  final bool showValues;
+  final ValueChanged<bool> onShowValuesChanged;
   final UnitPrices? unitPrices;
   final String billLabel;
 
@@ -605,6 +623,8 @@ class _ScopeSection extends StatelessWidget {
     required this.sideBySide,
     required this.chartHeight,
     required this.showDetail,
+    required this.showValues,
+    required this.onShowValuesChanged,
     required this.unitPrices,
     required this.billLabel,
   });
@@ -618,12 +638,16 @@ class _ScopeSection extends StatelessWidget {
       unitPrices: unitPrices,
       billLabel: billLabel,
       partialDate: partialDate,
+      minCoveragePct: data.minCoveragePct,
     );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _PanelTitle(title: 'Detail', subtitle: 'same rows as the Excel'),
+        _PanelTitle(
+          title: 'Detail',
+          subtitle: 'daily MWh & K\$ by time-of-use band · $billLabel',
+        ),
         const SizedBox(height: 8),
         table(ConsumptionUnit.mwh),
         const SizedBox(height: 14),
@@ -639,6 +663,8 @@ class _ScopeSection extends StatelessWidget {
       scope: scope,
       unit: unit,
       chartHeight: chartHeight,
+      showValues: showValues,
+      onShowValuesChanged: onShowValuesChanged,
     );
   }
 
@@ -668,14 +694,26 @@ class _ScopeSection extends StatelessWidget {
       return '  ${parts.join(' · ')}';
     }
 
+    final major = scope.majorIssues;
+    final minor = scope.minorIssues;
     return [
-      'Meters with missing hours this period:',
-      for (final m in scope.meterIssues) line(m),
+      if (major.isNotEmpty) ...[
+        'MAJOR · whole day without data or ≥ 24 h missing (${major.length}):',
+        for (final m in major) line(m),
+      ],
+      if (major.isNotEmpty && minor.isNotEmpty) '',
+      if (minor.isNotEmpty) ...[
+        'MINOR · a few hours missing (${minor.length}):',
+        for (final m in minor) line(m),
+      ],
       '',
       'Totals and averages exclude these hours; affected days are marked '
           'incomplete.',
     ].join('\n');
   }
+
+  int get _majorCount => scope.majorIssues.length;
+  int get _minorCount => scope.minorIssues.length;
 
   /// Ky truoc backend tra 0 (chua co du lieu).
   int get _noDataMonths => scope.monthly.where((p) => p.isNoData).length;
@@ -725,13 +763,30 @@ class _ScopeSection extends StatelessWidget {
                 ],
               ),
               _Pill(text: _progressText()),
-              if (scope.meterIssues.isNotEmpty)
+              // Pill cam chi dem MAJOR; MINOR gop thanh chu mo canh do.
+              if (_majorCount > 0)
                 _WarnPill(
                   text:
-                      '⚠ ${scope.meterIssues.length} '
-                      'meter${scope.meterIssues.length == 1 ? '' : 's'} '
+                      '⚠ $_majorCount '
+                      'meter${_majorCount == 1 ? '' : 's'} '
                       'missing data',
                   tooltip: _meterIssuesTooltip(),
+                ),
+              if (_minorCount > 0)
+                Tooltip(
+                  message: _meterIssuesTooltip(),
+                  waitDuration: const Duration(milliseconds: 200),
+                  child: Text(
+                    '${_majorCount > 0 ? '· ' : ''}$_minorCount minor '
+                    'gap${_minorCount == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                      color: ConsumptionColors.muted,
+                      fontSize: 11.5,
+                      decoration: TextDecoration.underline,
+                      decorationStyle: TextDecorationStyle.dotted,
+                      decorationColor: ConsumptionColors.muted,
+                    ),
+                  ),
                 ),
               if (scope.priceMissing)
                 const _WarnPill(
@@ -1028,6 +1083,19 @@ class _KpiRow extends StatelessWidget {
     return part / whole * 100;
   }
 
+  /// Trung binh / ngay chi dien luoi, cung tap ngay du nhu "Avg / day".
+  double? _gridOnlyAverage() {
+    var sum = 0.0;
+    var count = 0;
+    for (final p in scope.fullDays(partialDate)) {
+      final value = p.valuesOf(ConsumptionUnit.mwh)?.totalElectricity;
+      if (value == null) continue;
+      sum += value;
+      count++;
+    }
+    return count == 0 ? null : sum / count;
+  }
+
   @override
   Widget build(BuildContext context) {
     final totalMwh = scope.dailyTotalMwh;
@@ -1042,78 +1110,144 @@ class _KpiRow extends StatelessWidget {
     final prevMwh = scope.headlineOf(previous?.valuesOf(ConsumptionUnit.mwh));
     final prevKusd = scope.headlineOf(previous?.valuesOf(ConsumptionUnit.kusd));
 
-    Widget delta(double? now, double? before) {
+    Widget? delta(double? now, double? before) {
       final pct = _changePct(now, before);
-      if (pct == null || vsText == null) return const SizedBox.shrink();
-      return ChangeBadge(changePct: pct, suffix: vsText);
+      if (pct == null || vsText == null) return null;
+      return ChangeBadge(changePct: pct, suffix: vsText, fontSize: 11.5);
     }
 
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        _KpiTile(
-          label: 'Period to date',
-          value: ConsumptionFormat.fixed(
-            scope.headlineOf(totalMwh),
-            ConsumptionFormat.total(ConsumptionUnit.mwh),
-          ),
-          unit: 'MWh',
-          footer: tariffAvailable
-              ? Text(
-                  '${ConsumptionFormat.fixed(scope.headlineOf(scope.dailyTotalKusd), ConsumptionFormat.total(ConsumptionUnit.kusd))} K\$',
-                  style: _KpiTile.footerStyle,
-                )
-              : null,
+    final highPeakShare = _share(
+      totalMwh?.highPeak,
+      totalMwh?.totalElectricity,
+    );
+    final solarShare = _share(totalMwh?.solar, totalMwh?.total);
+
+    // KVH: so tong gom solar -> ghi ro so chi dien luoi (Total Electricity).
+    final solar = scope.includesSolar;
+    String mwhText(double? v, int decimals) =>
+        '${ConsumptionFormat.fixed(v, decimals)} MWh';
+    final totalDecimals = ConsumptionFormat.total(ConsumptionUnit.mwh);
+    final valueDecimals = ConsumptionFormat.value(ConsumptionUnit.mwh);
+
+    final totalTooltip = solar
+        ? 'Grid + solar energy, period to date\n'
+              'Grid only (Total Electricity): '
+              '${mwhText(totalMwh?.totalElectricity, totalDecimals)}'
+        : null;
+    final avgTooltip = solar
+        ? 'Average over complete days only, grid + solar\n'
+              'Grid only (Total Electricity): '
+              '${mwhText(_gridOnlyAverage(), valueDecimals)} / day'
+        : 'Average over complete days only';
+
+    // Uoc tinh MWh thieu do meter MAJOR (BE: estimatedMissingMwh).
+    final missingMwh = scope.estimatedMissingMwh;
+    final majorCount = scope.majorIssues.length;
+    final missingNote = missingMwh == null || missingMwh <= 0
+        ? null
+        : '≈ ${ConsumptionFormat.fixed(missingMwh, missingMwh < 10 ? 1 : 0)} '
+              'MWh missing'
+              '${majorCount > 0 ? ' ($majorCount meter${majorCount == 1 ? '' : 's'})' : ''}';
+
+    final tiles = <Widget>[
+      _KpiTile(
+        label: 'Period to date',
+        labelSuffix: solar ? 'incl. solar' : null,
+        tooltip: totalTooltip,
+        value: ConsumptionFormat.fixed(
+          scope.headlineOf(totalMwh),
+          totalDecimals,
         ),
+        unit: 'MWh',
+        footer: tariffAvailable
+            ? Text(
+                '${ConsumptionFormat.fixed(scope.headlineOf(scope.dailyTotalKusd), ConsumptionFormat.total(ConsumptionUnit.kusd))} K\$',
+                style: _KpiTile.footerStyle,
+              )
+            : null,
+        note: missingNote,
+        noteTooltip: missingNote == null
+            ? null
+            : 'Estimate of grid energy not recorded because of meters with '
+                  'a whole day without data or ≥ 24 h missing: each meter\'s '
+                  'average kWh per recorded hour this period × its missing '
+                  'hours. Not included in the totals.',
+      ),
+      _KpiTile(
+        label: 'Avg / day',
+        labelSuffix: solar ? 'incl. solar' : null,
+        tooltip: avgTooltip,
+        value: ConsumptionFormat.fixed(avgMwh, valueDecimals),
+        unit: 'MWh',
+        footer: delta(avgMwh, prevMwh),
+      ),
+      if (tariffAvailable)
         _KpiTile(
-          label: 'Avg / day',
+          label: 'Cost / day',
           tooltip: 'Average over complete days only',
           value: ConsumptionFormat.fixed(
-            avgMwh,
-            ConsumptionFormat.value(ConsumptionUnit.mwh),
+            avgKusd,
+            ConsumptionFormat.value(ConsumptionUnit.kusd),
           ),
-          unit: 'MWh',
-          footer: delta(avgMwh, prevMwh),
+          unit: 'K\$',
+          footer: delta(avgKusd, prevKusd),
         ),
-        if (tariffAvailable)
-          _KpiTile(
-            label: 'Cost / day',
-            tooltip: 'Average over complete days only',
-            value: ConsumptionFormat.fixed(
-              avgKusd,
-              ConsumptionFormat.value(ConsumptionUnit.kusd),
+      if (tariffAvailable)
+        _KpiTile(
+          label: 'High-peak share',
+          tooltip: 'High-peak energy / grid energy, period to date',
+          value: formatValue(highPeakShare, decimals: 0),
+          unit: '%',
+          footer: const Text('of grid energy', style: _KpiTile.footerStyle),
+          share: highPeakShare,
+          shareColor: ConsumptionColors.highPeak,
+        ),
+      if (scope.includesSolar)
+        _KpiTile(
+          label: 'Solar share',
+          tooltip: 'Solar energy / total energy, period to date',
+          value: formatValue(solarShare, decimals: 0),
+          unit: '%',
+          footer: const Text('of total energy', style: _KpiTile.footerStyle),
+          share: solarShare,
+          shareColor: ConsumptionColors.solar,
+        ),
+    ];
+
+    // Dan ngang het chieu rong (thay vi don ben trai): du rong thi 1 hang,
+    // cac o cao bang nhau; hep thi chia 2–3 cot.
+    return LayoutBuilder(
+      builder: (context, box) {
+        const gap = 10.0;
+        if (box.maxWidth >= tiles.length * 190) {
+          return IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (i, tile) in tiles.indexed) ...[
+                  if (i > 0) const SizedBox(width: gap),
+                  Expanded(child: tile),
+                ],
+              ],
             ),
-            unit: 'K\$',
-            footer: delta(avgKusd, prevKusd),
-          ),
-        if (tariffAvailable)
-          _KpiTile(
-            label: 'High-peak share',
-            tooltip: 'High-peak energy / grid energy, period to date',
-            value: formatValue(
-              _share(totalMwh?.highPeak, totalMwh?.totalElectricity),
-              decimals: 0,
-            ),
-            unit: '%',
-            footer: const Text('of grid energy', style: _KpiTile.footerStyle),
-          ),
-        if (scope.includesSolar)
-          _KpiTile(
-            label: 'Solar share',
-            tooltip: 'Solar energy / total energy, period to date',
-            value: formatValue(
-              _share(totalMwh?.solar, totalMwh?.total),
-              decimals: 0,
-            ),
-            unit: '%',
-            footer: const Text('of total energy', style: _KpiTile.footerStyle),
-          ),
-      ],
+          );
+        }
+        final cols = box.maxWidth >= 600 ? 3 : 2;
+        final width = (box.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final tile in tiles) SizedBox(width: width, child: tile),
+          ],
+        );
+      },
     );
   }
 }
 
+/// O KPI gon chieu cao: nhan o tren, gia tri lon va ghi chu / so sanh nam
+/// NGANG cung mot dong; o ty trong co them thanh % mong ben duoi.
 class _KpiTile extends StatelessWidget {
   final String label;
   final String value;
@@ -1121,69 +1255,168 @@ class _KpiTile extends StatelessWidget {
   final Widget? footer;
   final String? tooltip;
 
+  /// 0–100: ve thanh ty trong (null: khong ve).
+  final double? share;
+  final Color? shareColor;
+
+  /// Hau to nho, mo sau nhan (vd `incl. solar`).
+  final String? labelSuffix;
+
+  /// Dong ghi chu mo duoi gia tri (vd `≈ 12 MWh missing (3 meters)`);
+  /// [noteTooltip] duoc noi vao tooltip cua o.
+  final String? note;
+  final String? noteTooltip;
+
   const _KpiTile({
     required this.label,
     required this.value,
     required this.unit,
     this.footer,
     this.tooltip,
+    this.share,
+    this.shareColor,
+    this.labelSuffix,
+    this.note,
+    this.noteTooltip,
   });
 
   static const TextStyle footerStyle = TextStyle(
     color: ConsumptionColors.subtle,
-    fontSize: 11,
+    fontSize: 12,
   );
 
   @override
   Widget build(BuildContext context) {
+    final parts = [?tooltip, if (note != null) ?noteTooltip];
+    final message = parts.isEmpty ? null : parts.join('\n\n');
+
     final tile = Container(
-      constraints: const BoxConstraints(minWidth: 150),
-      padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: BoxDecoration(
         color: ElectricityColors.track.withValues(alpha: .6),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: ElectricityColors.cardBorder),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: ConsumptionColors.subtle,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: value,
+          Row(
+            children: [
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    text: label,
+                    children: [
+                      if (labelSuffix != null)
+                        TextSpan(
+                          text: '  $labelSuffix',
+                          style: const TextStyle(
+                            color: ConsumptionColors.muted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: ElectricityColors.text,
-                    fontSize: 20,
+                    color: ConsumptionColors.subtle,
+                    fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+              ),
+              if (message != null)
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 14,
+                  color: ConsumptionColors.muted,
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text.rich(
                 TextSpan(
-                  text: ' $unit',
-                  style: const TextStyle(
-                    color: ConsumptionColors.subtle,
-                    fontSize: 12,
+                  children: [
+                    TextSpan(
+                      text: value,
+                      style: const TextStyle(
+                        color: ElectricityColors.text,
+                        fontSize: 24,
+                        height: 1.1,
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' $unit',
+                      style: const TextStyle(
+                        color: ConsumptionColors.subtle,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                maxLines: 1,
+              ),
+              if (footer != null) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: footer,
+                    ),
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-          if (footer != null) ...[const SizedBox(height: 4), footer!],
+          if (note != null) ...[
+            const SizedBox(height: 5),
+            Text(
+              note!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: ConsumptionColors.muted,
+                fontSize: 11.5,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+          if (share != null) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: (share! / 100).clamp(0.0, 1.0),
+                minHeight: 4,
+                color: shareColor ?? ConsumptionColors.titleAccent,
+                backgroundColor: Colors.white.withValues(alpha: .08),
+              ),
+            ),
+          ],
         ],
       ),
     );
 
-    return tooltip == null ? tile : Tooltip(message: tooltip!, child: tile);
+    return message == null
+        ? tile
+        : Tooltip(
+            message: message,
+            waitDuration: const Duration(milliseconds: 300),
+            child: tile,
+          );
   }
 }
 
