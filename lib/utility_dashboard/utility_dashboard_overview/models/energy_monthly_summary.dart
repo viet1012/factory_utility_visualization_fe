@@ -26,6 +26,9 @@ class EnergyMonthlySummary {
   final bool priceMissing;
   final bool prevPriceMissing;
 
+  /// Gio cua du lieu moi nhat (chuoi ISO gio nha may); null khi chua co.
+  final String? pickAt;
+
   const EnergyMonthlySummary({
     required this.cate,
     required this.name,
@@ -44,6 +47,7 @@ class EnergyMonthlySummary {
     required this.unit,
     this.priceMissing = false,
     this.prevPriceMissing = false,
+    this.pickAt,
   });
 
   factory EnergyMonthlySummary.fromJson(Map<String, dynamic> json) {
@@ -75,6 +79,7 @@ class EnergyMonthlySummary {
 
       priceMissing: json['priceMissing'] == true,
       prevPriceMissing: json['prevPriceMissing'] == true,
+      pickAt: _JsonReader.optionalString(json['pickAt']),
     );
   }
 
@@ -183,6 +188,11 @@ class _JsonReader {
 
   static String string(dynamic value) {
     return value?.toString().trim() ?? '';
+  }
+
+  static String? optionalString(dynamic value) {
+    final text = string(value);
+    return text.isEmpty ? null : text;
   }
 
   static double? number(dynamic value) {

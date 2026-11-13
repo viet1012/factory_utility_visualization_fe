@@ -6,6 +6,7 @@
 /// toan bo kusd va unitPrices null, cac field tong van co.
 library;
 
+import '../../../shared/formatters/period_basis_formatter.dart';
 import '../../../shared/json/json_read.dart';
 
 int _toInt(Object? value) => jsonInt(value) ?? 0;
@@ -526,10 +527,12 @@ class ElectricConsumptionResponse {
 // BILL MONTH (yyyy-MM, ky 21 thang truoc ~ 20 thang nay)
 // ============================================================
 
-/// Ngay 21 tro di thuoc ky cua thang sau.
+/// Ngay `billCutoffDay` (21) tro di thuoc ky cua thang sau.
 DateTime billMonthOf(DateTime date) {
   final first = DateTime(date.year, date.month);
-  return date.day >= 21 ? DateTime(first.year, first.month + 1) : first;
+  return date.day >= PeriodBasisFormatter.billCutoffDay
+      ? DateTime(first.year, first.month + 1)
+      : first;
 }
 
 DateTime? parseBillMonth(String? text) {

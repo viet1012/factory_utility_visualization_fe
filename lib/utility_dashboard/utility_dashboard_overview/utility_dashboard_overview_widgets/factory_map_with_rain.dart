@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../weather_widgets/rain_effect_image_realtime.dart';
 import '../../../weather_widgets/weather/api/weather_api_service.dart';
+import 'factory_traffic_layer.dart';
 
 class FactoryMapWithRain extends StatelessWidget {
   final bool isActive;
@@ -40,6 +41,11 @@ class FactoryMapWithRain extends StatelessWidget {
             nightImageUrl: nightImageUrl,
             weatherService: weatherService,
             fit: BoxFit.cover,
+            sceneLayerBuilder: (context, isDay) => FactoryTrafficLayer(
+              isActive: isActive,
+              isDay: isDay,
+              fit: BoxFit.cover,
+            ),
           ),
         ),
       ),
