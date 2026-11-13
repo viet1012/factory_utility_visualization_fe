@@ -4,8 +4,13 @@ class HourlyEnergyPoint {
   final double? today;
   final double? yesterday;
 
+  /// null khi gio do khong co bang gia.
   final double? todayUsd;
   final double? yesterdayUsd;
+
+  /// Co gio khong co bang gia -> USD chi mot phan. Lay tu diem hoac tu
+  /// `priceMissing` cap response.
+  final bool priceMissing;
 
   const HourlyEnergyPoint({
     required this.scaleHour,
@@ -13,9 +18,13 @@ class HourlyEnergyPoint {
     required this.yesterday,
     required this.todayUsd,
     required this.yesterdayUsd,
+    this.priceMissing = false,
   });
 
-  factory HourlyEnergyPoint.fromJson(Map<String, dynamic> json) {
+  factory HourlyEnergyPoint.fromJson(
+    Map<String, dynamic> json, {
+    bool priceMissing = false,
+  }) {
     double? toDouble(dynamic value) {
       if (value == null) return null;
       if (value is num) return value.toDouble();
@@ -35,6 +44,7 @@ class HourlyEnergyPoint {
       yesterday: toDouble(json['yesterday']),
       todayUsd: toDouble(json['todayUsd']),
       yesterdayUsd: toDouble(json['yesterdayUsd']),
+      priceMissing: priceMissing || json['priceMissing'] == true,
     );
   }
 }
@@ -85,6 +95,8 @@ class UtilityHourlyDashboardResponse {
   });
 
   factory UtilityHourlyDashboardResponse.fromJson(Map<String, dynamic> json) {
+    final priceMissing = json['priceMissing'] == true;
+
     List<HourlyEnergyPoint> parseEnergy(dynamic raw) {
       if (raw is! List) return const [];
 
@@ -92,8 +104,10 @@ class UtilityHourlyDashboardResponse {
           raw
               .whereType<Map>()
               .map(
-                (item) =>
-                    HourlyEnergyPoint.fromJson(Map<String, dynamic>.from(item)),
+                (item) => HourlyEnergyPoint.fromJson(
+                  Map<String, dynamic>.from(item),
+                  priceMissing: priceMissing,
+                ),
               )
               .where((item) => item.scaleHour >= 0 && item.scaleHour <= 23)
               .toList()

@@ -132,6 +132,15 @@ class PlantTime {
   static String formatHour(int hour) => '${hour.toString().padLeft(2, '0')}:00';
 }
 
+/// `Nov 4 18:00` tu chuoi ISO; null / sai dinh dang -> null.
+String? formatPlantDateTime(String? iso) {
+  final t = PlantTime.tryParse(iso);
+  if (t == null) return null;
+  final mm = t.minute.toString().padLeft(2, '0');
+  final hh = t.hour.toString().padLeft(2, '0');
+  return '${PlantTime.formatDate(t.date)} $hh:$mm';
+}
+
 /// `Oct 12–Oct 18`; `to` la moc ket thuc (00:00 duoc coi la ngay truoc).
 String formatPlantRange(String from, String to) {
   final start = PlantTime.tryParse(from);

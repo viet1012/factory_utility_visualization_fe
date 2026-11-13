@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/widgets/price_missing_icon.dart';
 import '../helpers/solar_detail_formatters.dart';
 import '../models/solar_detail_data.dart';
 import 'solar_detail_panel.dart';
@@ -37,10 +38,10 @@ class SolarImpactPanel extends StatelessWidget {
                     child: _miniImpactValue(
                       icon: Icons.account_balance_wallet_outlined,
                       title: 'NORMAL COST',
-                      value:
-                          '\$${SolarDetailFormatters.money(cost.normalCostUsd)}',
+                      value: SolarDetailFormatters.usd(cost.normalCostUsd),
                       color: SolarDetailColors.cyan,
                       note: 'EVN × 100%',
+                      priceMissing: cost.priceMissing,
                     ),
                   ),
 
@@ -50,10 +51,10 @@ class SolarImpactPanel extends StatelessWidget {
                     child: _miniImpactValue(
                       icon: Icons.solar_power_rounded,
                       title: 'SOLAR COST',
-                      value:
-                          '\$${SolarDetailFormatters.money(cost.solarCostUsd)}',
+                      value: SolarDetailFormatters.usd(cost.solarCostUsd),
                       color: SolarDetailColors.yellow,
                       note: 'EVN × 83%',
+                      priceMissing: cost.priceMissing,
                     ),
                   ),
 
@@ -63,9 +64,10 @@ class SolarImpactPanel extends StatelessWidget {
                     child: _miniImpactValue(
                       icon: Icons.savings_rounded,
                       title: 'SAVING',
-                      value: '\$${SolarDetailFormatters.money(cost.savingUsd)}',
+                      value: SolarDetailFormatters.usd(cost.savingUsd),
                       color: SolarDetailColors.green,
-                      note: '${cost.savingPercent.toStringAsFixed(0)}%',
+                      note: SolarDetailFormatters.percent0(cost.savingPercent),
+                      priceMissing: cost.priceMissing,
                     ),
                   ),
                 ],
@@ -148,7 +150,7 @@ class SolarImpactPanel extends StatelessWidget {
                   ),
 
                   Text(
-                    'SAVE ${cost.savingPercent.toStringAsFixed(0)}%',
+                    'SAVE ${SolarDetailFormatters.percent0(cost.savingPercent)}',
                     style: const TextStyle(
                       color: SolarDetailColors.green,
                       fontSize: 12,
@@ -170,6 +172,7 @@ class SolarImpactPanel extends StatelessWidget {
     required String value,
     required Color color,
     String? note,
+    bool priceMissing = false,
   }) {
     return Container(
       padding: const EdgeInsets.all(7),
@@ -199,13 +202,19 @@ class SolarImpactPanel extends StatelessWidget {
 
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                PriceMissingIcon(visible: priceMissing),
+              ],
             ),
           ),
 

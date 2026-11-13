@@ -106,12 +106,16 @@ class ChartHoverCard extends StatelessWidget {
   /// Chi so dong to do (vuot nguong).
   final Set<int> alerts;
 
+  /// Dong ghi chu tu do sau [rows] (khong co `label:`), mau null = mo.
+  final List<(String, Color?)> notes;
+
   const ChartHoverCard({
     super.key,
     required this.title,
     required this.rows,
     this.swatches,
     this.alerts = const <int>{},
+    this.notes = const [],
   });
 
   static const Color alertColor = Colors.redAccent;
@@ -150,6 +154,18 @@ class ChartHoverCard extends StatelessWidget {
                   ],
                   Flexible(child: _row(label, value, alerts.contains(index))),
                 ],
+              ),
+            ),
+          for (final (text, color) in notes)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: color ?? Colors.white.withValues(alpha: .62),
+                  fontSize: ChartHoverStyle.rowFontSize,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
         ],

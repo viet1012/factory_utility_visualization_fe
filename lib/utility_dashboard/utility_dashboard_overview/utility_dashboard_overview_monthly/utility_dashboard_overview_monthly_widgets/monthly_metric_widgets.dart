@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/charts/value_format.dart';
+import '../../../shared/widgets/price_missing_icon.dart';
 import '../../../utility_dashboard_common/chart_theme.dart';
 import '../../models/energy_monthly_summary.dart';
 
@@ -19,7 +21,7 @@ class MonthlyMetricFormat {
 
   static String utility(EnergyMonthlySummary item, double? value) {
     if (value == null) {
-      return '--';
+      return kMissingValue;
     }
 
     if (item.isElectricity) {
@@ -31,7 +33,7 @@ class MonthlyMetricFormat {
 
   static String money(double? value) {
     if (value == null) {
-      return '--';
+      return kMissingValue;
     }
 
     return _money.format(value);
@@ -70,7 +72,7 @@ class MonthlyMetricDeltaBadge extends StatelessWidget {
         fit: BoxFit.scaleDown,
         alignment: Alignment.centerRight,
         child: Text(
-          '--',
+          kMissingValue,
           maxLines: 1,
           style: TextStyle(
             color: Colors.white.withValues(alpha: .35),
@@ -291,6 +293,10 @@ class MonthlyMetricComparisonRow extends StatelessWidget {
 
   final Color currentColor;
 
+  /// Tien ky nay / ky truoc chi mot phan (co gio khong co bang gia).
+  final bool currentPriceMissing;
+  final bool previousPriceMissing;
+
   const MonthlyMetricComparisonRow({
     super.key,
     required this.currentValue,
@@ -300,12 +306,26 @@ class MonthlyMetricComparisonRow extends StatelessWidget {
     required this.mode,
     required this.delta,
     required this.currentColor,
+    this.currentPriceMissing = false,
+    this.previousPriceMissing = false,
   });
+
+  /// Gia tri + icon info khi [priceMissing].
+  static Widget _withPriceIcon(Widget value, bool priceMissing) {
+    if (!priceMissing) return value;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(child: value),
+        const PriceMissingIcon(visible: true, size: 12),
+      ],
+    );
+  }
 
   bool get _hasPrevious {
     final value = previousValue.trim();
 
-    return value.isNotEmpty && value != '--';
+    return value.isNotEmpty && value != kMissingValue;
   }
 
   @override
@@ -326,12 +346,15 @@ class MonthlyMetricComparisonRow extends StatelessWidget {
                 flex: 11,
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: MonthlyMetricValueText(
-                    value: currentValue,
-                    unit: currentUnit,
-                    badge: mode,
-                    color: currentColor,
-                    textAlign: TextAlign.left,
+                  child: _withPriceIcon(
+                    MonthlyMetricValueText(
+                      value: currentValue,
+                      unit: currentUnit,
+                      badge: mode,
+                      color: currentColor,
+                      textAlign: TextAlign.left,
+                    ),
+                    currentPriceMissing,
                   ),
                 ),
               ),
@@ -346,14 +369,17 @@ class MonthlyMetricComparisonRow extends StatelessWidget {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: _hasPrevious
-                      ? MonthlyMetricValueText(
-                          value: previousValue,
-                          unit: previousUnit,
-                          color: Colors.white,
-                          textAlign: TextAlign.left,
+                      ? _withPriceIcon(
+                          MonthlyMetricValueText(
+                            value: previousValue,
+                            unit: previousUnit,
+                            color: Colors.white,
+                            textAlign: TextAlign.left,
+                          ),
+                          previousPriceMissing,
                         )
                       : Text(
-                          '--',
+                          kMissingValue,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: .35),
                             fontSize: 17,

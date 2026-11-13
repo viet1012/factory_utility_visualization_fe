@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../shared/charts/value_format.dart';
 import '../../shared/formatters/month_formatter.dart';
+import '../../shared/widgets/price_missing_icon.dart';
 import '../../shared/formatters/period_basis_formatter.dart';
 import '../../shared/widgets/period_basis_note.dart';
 import '../models/energy_monthly_summary.dart';
@@ -253,9 +255,9 @@ class _MonthlySummaryViewModel {
 final _numFmt = NumberFormat('#,##0');
 final _moneyFmt = NumberFormat('#,##0');
 
-String fmt(num? v) => v == null ? '--' : _numFmt.format(v);
+String fmt(num? v) => v == null ? kMissingValue : _numFmt.format(v);
 
-String money(num? v) => v == null ? '--' : _moneyFmt.format(v);
+String money(num? v) => v == null ? kMissingValue : _moneyFmt.format(v);
 
 String monthSubtitle(String month, {required bool isMtd}) {
   final label = MonthFormatter.uppercaseLabel(month);
@@ -375,7 +377,12 @@ class _ElectricCard extends StatelessWidget {
           _MainValue(value: fmt(item.value), unit: unit, color: color),
 
           // const SizedBox(height: 6),
-          _MainValue(value: money(item.currentCost), unit: 'USD', color: color),
+          _MainValue(
+            value: money(item.currentCost),
+            unit: 'USD',
+            color: color,
+            priceMissing: item.priceMissing,
+          ),
 
           // const SizedBox(height: 6),
           Text(
@@ -405,6 +412,7 @@ class _ElectricCard extends StatelessWidget {
                   label: 'USD',
                   value: money(item.previousCost),
                   color: Colors.white70,
+                  priceMissing: item.prevPriceMissing,
                 ),
               ),
             ],
@@ -414,7 +422,11 @@ class _ElectricCard extends StatelessWidget {
           Expanded(
             child: Align(
               alignment: Alignment.bottomCenter,
-              child: _DeltaPill(delta: item.deltaPercent),
+              child: _DeltaPill(
+                delta: item.value == null || item.previousDisplayValue == null
+                    ? null
+                    : item.deltaPercent,
+              ),
             ),
           ),
         ],
@@ -593,11 +605,13 @@ class _MainValue extends StatelessWidget {
   final String value;
   final String unit;
   final Color color;
+  final bool priceMissing;
 
   const _MainValue({
     required this.value,
     required this.unit,
     required this.color,
+    this.priceMissing = false,
   });
 
   @override
@@ -642,6 +656,7 @@ class _MainValue extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
+          PriceMissingIcon(visible: priceMissing),
         ],
       ),
     );
@@ -710,12 +725,14 @@ class _InfoTile extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final bool priceMissing;
 
   const _InfoTile({
     required this.icon,
     required this.label,
     required this.value,
     required this.color,
+    this.priceMissing = false,
   });
 
   @override
@@ -748,13 +765,19 @@ class _InfoTile extends StatelessWidget {
               );
             },
           ),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              PriceMissingIcon(visible: priceMissing, size: 12),
+            ],
           ),
         ],
       ),
@@ -822,7 +845,9 @@ class _DeltaPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final d = delta ?? 0;
+    // Thieu mot trong hai ky: bo trong thay vi ghi 0%.
+    if (delta == null) return const SizedBox.shrink();
+    final d = delta!;
     final isUp = d > 0;
     final color = isUp ? Colors.redAccent : Colors.lightGreenAccent;
 

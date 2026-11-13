@@ -12,6 +12,12 @@ int _toInt(Object? value) => jsonInt(value) ?? 0;
 
 bool? _toBool(Object? value) => value is bool ? value : null;
 
+/// Chuoi rong -> null.
+String? _toText(Object? value) {
+  final text = jsonText(value);
+  return text.isEmpty ? null : text;
+}
+
 Map<String, dynamic>? _toMap(Object? value) =>
     value is Map ? Map<String, dynamic>.from(value) : null;
 
@@ -112,6 +118,9 @@ class UnitPrices {
   final double? solarHighPeak;
   final double? solarLowPeak;
 
+  /// Ngay bang gia bat dau hieu luc (`yyyy-MM-dd`), null khi BE khong tra.
+  final String? effectiveFrom;
+
   const UnitPrices({
     this.gridNormal,
     this.gridHighPeak,
@@ -119,6 +128,7 @@ class UnitPrices {
     this.solarNormal,
     this.solarHighPeak,
     this.solarLowPeak,
+    this.effectiveFrom,
   });
 
   static UnitPrices? fromJson(Object? json) {
@@ -131,6 +141,78 @@ class UnitPrices {
       solarNormal: jsonDouble(map['solarNormal']),
       solarHighPeak: jsonDouble(map['solarHighPeak']),
       solarLowPeak: jsonDouble(map['solarLowPeak']),
+      effectiveFrom: _toText(map['effectiveFrom']),
+    );
+  }
+}
+
+/// Ly do meter thieu du lieu trong mot ngay.
+enum MissingReason {
+  noData,
+  partial,
+  outlier,
+  unknown;
+
+  static MissingReason parse(Object? value) =>
+      switch (jsonText(value).toUpperCase()) {
+        'NO_DATA' => noData,
+        'PARTIAL' => partial,
+        'OUTLIER' => outlier,
+        _ => unknown,
+      };
+}
+
+/// `daily[].missingMeters[]`: meter thieu gio trong ngay.
+class MissingMeter {
+  final String meter;
+  final String fac;
+
+  /// So gio co du lieu (PARTIAL) / so gio bi loai (OUTLIER).
+  final int? hours;
+  final MissingReason reason;
+
+  /// ISO kem offset nha may, null khi meter chua tung gui du lieu.
+  final String? lastDataAt;
+
+  const MissingMeter({
+    required this.meter,
+    required this.fac,
+    this.hours,
+    required this.reason,
+    this.lastDataAt,
+  });
+
+  factory MissingMeter.fromJson(Map<String, dynamic> json) {
+    return MissingMeter(
+      meter: jsonText(json['meter']),
+      fac: jsonText(json['fac']),
+      hours: jsonInt(json['hours']),
+      reason: MissingReason.parse(json['reason']),
+      lastDataAt: _toText(json['lastDataAt']),
+    );
+  }
+}
+
+/// `scope.meterIssues[]`: meter thieu gio trong ca ky.
+class MeterIssue {
+  final String meter;
+  final String fac;
+  final int? missingHours;
+  final String? lastDataAt;
+
+  const MeterIssue({
+    required this.meter,
+    required this.fac,
+    this.missingHours,
+    this.lastDataAt,
+  });
+
+  factory MeterIssue.fromJson(Map<String, dynamic> json) {
+    return MeterIssue(
+      meter: jsonText(json['meter']),
+      fac: jsonText(json['fac']),
+      missingHours: jsonInt(json['missingHours']),
+      lastDataAt: _toText(json['lastDataAt']),
     );
   }
 }
@@ -168,6 +250,15 @@ class ConsumptionPoint {
   /// MWh bi loai (meter loi / delta bat thuong).
   final double? excludedMwh;
 
+  /// Daily: so meter co gui du lieu ([meters] = so meter cau hinh).
+  final int? reportingMeters;
+
+  /// Daily: meter thieu gio trong ngay.
+  final List<MissingMeter> missingMeters;
+
+  /// Co gio khong co bang gia -> K$ thieu.
+  final bool priceMissing;
+
   const ConsumptionPoint({
     required this.key,
     required this.isMonthly,
@@ -182,7 +273,14 @@ class ConsumptionPoint {
     this.daysWithData,
     this.completeDays,
     this.excludedMwh,
+    this.reportingMeters,
+    this.missingMeters = const [],
+    this.priceMissing = false,
   });
+
+  /// Daily co MWh nhung khong co K$ (ngay chua co bang gia).
+  bool get noTariff =>
+      !isMonthly && mwh != null && (kusd == null || kusd!.isBlank);
 
   /// Ngay chua du du lieu: uu tien co `partial` cua backend, khong co thi
   /// suy tu `dataUntil` ([partialDate]). Monthly luon false (gia tri la
@@ -196,9 +294,13 @@ class ConsumptionPoint {
   EnergyValues? rawValuesOf(ConsumptionUnit unit) =>
       unit == ConsumptionUnit.mwh ? mwh : kusd;
 
-  /// Gia tri de hien thi: null khi [isNoData].
-  EnergyValues? valuesOf(ConsumptionUnit unit) =>
-      isNoData ? null : rawValuesOf(unit);
+  /// Gia tri de hien thi: null khi [isNoData], K$ null khi [noTariff]
+  /// (khong ve cot 0).
+  EnergyValues? valuesOf(ConsumptionUnit unit) {
+    if (isNoData) return null;
+    if (unit == ConsumptionUnit.kusd && noTariff) return null;
+    return rawValuesOf(unit);
+  }
 
   /// Daily: mwh / kusd null (ngay chua toi). Monthly: backend tra 0.000 cho
   /// ky chua co du lieu thay vi null -> ky toan 0 coi la khong co du lieu.
@@ -222,6 +324,7 @@ class ConsumptionPoint {
       daysWithData: jsonInt(json['daysWithData']),
       completeDays: jsonInt(json['completeDays']),
       excludedMwh: jsonDouble(json['excludedMwh']),
+      priceMissing: json['priceMissing'] == true,
     );
   }
 
@@ -237,6 +340,9 @@ class ConsumptionPoint {
       hoursWithData: jsonInt(json['hoursWithData']),
       meters: jsonInt(json['meters']),
       excludedMwh: jsonDouble(json['excludedMwh']),
+      reportingMeters: jsonInt(json['reportingMeters']),
+      missingMeters: _toList(json['missingMeters'], MissingMeter.fromJson),
+      priceMissing: json['priceMissing'] == true,
     );
   }
 }
@@ -258,6 +364,12 @@ class ConsumptionScope {
   final int? daysWithData;
   final int? completeDays;
 
+  /// Meter thieu gio trong ky.
+  final List<MeterIssue> meterIssues;
+
+  /// Co gio trong ky khong co bang gia -> K$ chi mot phan.
+  final bool priceMissing;
+
   const ConsumptionScope({
     required this.code,
     required this.name,
@@ -271,6 +383,8 @@ class ConsumptionScope {
     this.meters,
     this.daysWithData,
     this.completeDays,
+    this.meterIssues = const [],
+    this.priceMissing = false,
   });
 
   /// KVH co solar (Excel: cot chong + Solar, duong Total); fac chi dien luoi.
@@ -328,6 +442,8 @@ class ConsumptionScope {
       meters: jsonInt(json['meters']),
       daysWithData: jsonInt(json['daysWithData']),
       completeDays: jsonInt(json['completeDays']),
+      meterIssues: _toList(json['meterIssues'], MeterIssue.fromJson),
+      priceMissing: json['priceMissing'] == true,
     );
   }
 }

@@ -43,21 +43,30 @@ class PowerUsageTotal {
   final double? usd;
   final double? blendedRate;
 
+  /// Co gio khong co bang gia -> USD chi mot phan.
+  final bool priceMissing;
+
   const PowerUsageTotal({
     this.kwh,
     this.prevKwh,
     this.changePct,
     this.usd,
     this.blendedRate,
+    this.priceMissing = false,
   });
 
-  factory PowerUsageTotal.fromJson(Map<String, dynamic> json) {
+  /// [priceMissing]: co cap response (BE co the dat o `total` hoac ngoai).
+  factory PowerUsageTotal.fromJson(
+    Map<String, dynamic> json, {
+    bool priceMissing = false,
+  }) {
     return PowerUsageTotal(
       kwh: jsonDouble(json['kwh']),
       prevKwh: jsonDouble(json['prevKwh']),
       changePct: jsonDouble(json['changePct']),
       usd: jsonDouble(json['usd']),
       blendedRate: jsonDouble(json['blendedRate']),
+      priceMissing: priceMissing || json['priceMissing'] == true,
     );
   }
 }
@@ -305,6 +314,7 @@ class PowerUsageResponse {
   factory PowerUsageResponse.fromJson(Map<String, dynamic> json) {
     final total = json['total'];
     final forecast = json['forecast'];
+    final priceMissing = json['priceMissing'] == true;
     return PowerUsageResponse(
       period: jsonText(json['period']),
       from: jsonText(json['from']),
@@ -312,8 +322,11 @@ class PowerUsageResponse {
       prevFrom: jsonText(json['prevFrom']),
       prevTo: jsonText(json['prevTo']),
       total: total is Map
-          ? PowerUsageTotal.fromJson(Map<String, dynamic>.from(total))
-          : const PowerUsageTotal(),
+          ? PowerUsageTotal.fromJson(
+              Map<String, dynamic>.from(total),
+              priceMissing: priceMissing,
+            )
+          : PowerUsageTotal(priceMissing: priceMissing),
       forecast: forecast is Map
           ? PowerUsageForecast.fromJson(Map<String, dynamic>.from(forecast))
           : null,

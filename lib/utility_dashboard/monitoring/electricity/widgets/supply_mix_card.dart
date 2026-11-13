@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../shared/widgets/price_missing_icon.dart';
 import '../model/power_usage.dart';
 import 'electricity_style.dart';
 
@@ -14,13 +15,6 @@ Color supplyColor(PowerSupplyBandType type) => switch (type) {
   PowerSupplyBandType.unpriced => ElectricityColors.other,
   PowerSupplyBandType.unknown => ElectricityColors.other,
 };
-
-/// rate / usd null (gio khong co gia) -> "–".
-const String _noPrice = '–';
-
-String _bandRate(num? rate) => rate == null ? _noPrice : fmtRate(rate);
-
-String _bandUsd(num? usd) => usd == null ? _noPrice : fmtUsd(usd);
 
 class SupplyMixCard extends StatelessWidget {
   final PowerUsageResponse data;
@@ -46,12 +40,18 @@ class SupplyMixCard extends StatelessWidget {
       title: 'Energy supply mix',
       trailing: summary == null
           ? null
-          : Text(
-              summary,
-              style: const TextStyle(
-                color: ElectricityColors.textDim,
-                fontSize: 11.5,
-              ),
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  summary,
+                  style: const TextStyle(
+                    color: ElectricityColors.textDim,
+                    fontSize: 11.5,
+                  ),
+                ),
+                PriceMissingIcon(visible: data.total.priceMissing),
+              ],
             ),
       child: data.supplyMix.isEmpty
           ? const Padding(
@@ -112,7 +112,8 @@ class SupplyMixCard extends StatelessWidget {
                         child: Padding(
                           padding: const EdgeInsets.only(right: 6),
                           child: Text(
-                            '${fmtMwh(band.kwh)} MWh @ ${_bandRate(band.rate)} = ${_bandUsd(band.usd)}',
+                            // rate / usd null (gio khong co gia) -> kMissingValue.
+                            '${fmtMwh(band.kwh)} MWh @ ${fmtRate(band.rate)} = ${fmtUsd(band.usd)}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(

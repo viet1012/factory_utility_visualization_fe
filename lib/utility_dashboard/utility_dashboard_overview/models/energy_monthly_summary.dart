@@ -22,6 +22,10 @@ class EnergyMonthlySummary {
 
   final String unit;
 
+  /// Co gio khong co bang gia -> tien ky nay / ky truoc chi mot phan.
+  final bool priceMissing;
+  final bool prevPriceMissing;
+
   const EnergyMonthlySummary({
     required this.cate,
     required this.name,
@@ -38,6 +42,8 @@ class EnergyMonthlySummary {
     required this.prevUsdCost,
     required this.deltaPercent,
     required this.unit,
+    this.priceMissing = false,
+    this.prevPriceMissing = false,
   });
 
   factory EnergyMonthlySummary.fromJson(Map<String, dynamic> json) {
@@ -66,6 +72,9 @@ class EnergyMonthlySummary {
       deltaPercent: _JsonReader.number(json['deltaPercent']),
 
       unit: _JsonReader.string(json['unit']),
+
+      priceMissing: json['priceMissing'] == true,
+      prevPriceMissing: json['prevPriceMissing'] == true,
     );
   }
 

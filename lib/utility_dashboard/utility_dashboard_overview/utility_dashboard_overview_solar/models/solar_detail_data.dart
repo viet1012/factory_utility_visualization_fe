@@ -24,7 +24,10 @@ class SolarDetailData {
                 )
                 .toList(growable: false)
           : const [],
-      costImpact: SolarCostImpact.fromJson(_map(json['costImpact'])),
+      costImpact: SolarCostImpact.fromJson(
+        _map(json['costImpact']),
+        priceMissing: json['priceMissing'] == true,
+      ),
       environmentalImpact: SolarEnvironmentalImpact.fromJson(
         _map(json['environmentalImpact']),
       ),
@@ -103,25 +106,35 @@ class SolarDailyTrend {
   }
 }
 
+/// Backend tra `costImpact: null` (hoac tung field null) khi khong co bang
+/// gia -> moi field null.
 class SolarCostImpact {
-  final double normalCostUsd;
-  final double solarCostUsd;
-  final double savingUsd;
-  final double savingPercent;
+  final double? normalCostUsd;
+  final double? solarCostUsd;
+  final double? savingUsd;
+  final double? savingPercent;
+
+  /// Co gio khong co bang gia -> chi phi chi mot phan.
+  final bool priceMissing;
 
   const SolarCostImpact({
     required this.normalCostUsd,
     required this.solarCostUsd,
     required this.savingUsd,
     required this.savingPercent,
+    this.priceMissing = false,
   });
 
-  factory SolarCostImpact.fromJson(Map<String, dynamic> json) {
+  factory SolarCostImpact.fromJson(
+    Map<String, dynamic> json, {
+    bool priceMissing = false,
+  }) {
     return SolarCostImpact(
-      normalCostUsd: _num(json['normalCostUsd']),
-      solarCostUsd: _num(json['solarCostUsd']),
-      savingUsd: _num(json['savingUsd']),
-      savingPercent: _num(json['savingPercent']),
+      normalCostUsd: _numOrNull(json['normalCostUsd']),
+      solarCostUsd: _numOrNull(json['solarCostUsd']),
+      savingUsd: _numOrNull(json['savingUsd']),
+      savingPercent: _numOrNull(json['savingPercent']),
+      priceMissing: priceMissing || json['priceMissing'] == true,
     );
   }
 }

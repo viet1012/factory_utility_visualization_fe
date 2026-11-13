@@ -416,9 +416,14 @@ class _TariffBar extends StatelessWidget {
         runSpacing: 6,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          const Text(
-            'Unit price [\$/kWh]',
-            style: TextStyle(
+          Text(
+            switch (PlantTime.tryParse(prices.effectiveFrom)) {
+              final from? =>
+                'Unit price [\$/kWh] · from '
+                    '${PlantTime.formatDate(from.date)}, ${from.year}',
+              null => 'Unit price [\$/kWh]',
+            },
+            style: const TextStyle(
               color: ConsumptionColors.subtle,
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -652,6 +657,26 @@ class _ScopeSection extends StatelessWidget {
     return '$full full days$partial / $billDays days';
   }
 
+  /// Tooltip cua pill "N meters missing data".
+  String _meterIssuesTooltip() {
+    String line(MeterIssue m) {
+      final parts = [
+        m.fac.isEmpty ? m.meter : '${m.meter} (${m.fac})',
+        if (m.missingHours != null) '${m.missingHours} h',
+        if (formatPlantDateTime(m.lastDataAt) case final last?) 'last $last',
+      ];
+      return '  ${parts.join(' · ')}';
+    }
+
+    return [
+      'Meters with missing hours this period:',
+      for (final m in scope.meterIssues) line(m),
+      '',
+      'Totals and averages exclude these hours; affected days are marked '
+          'incomplete.',
+    ].join('\n');
+  }
+
   /// Ky truoc backend tra 0 (chua co du lieu).
   int get _noDataMonths => scope.monthly.where((p) => p.isNoData).length;
 
@@ -700,6 +725,18 @@ class _ScopeSection extends StatelessWidget {
                 ],
               ),
               _Pill(text: _progressText()),
+              if (scope.meterIssues.isNotEmpty)
+                _WarnPill(
+                  text:
+                      '⚠ ${scope.meterIssues.length} '
+                      'meter${scope.meterIssues.length == 1 ? '' : 's'} '
+                      'missing data',
+                  tooltip: _meterIssuesTooltip(),
+                ),
+              if (scope.priceMissing)
+                const _WarnPill(
+                  text: r'Some hours have no tariff – K$ partial',
+                ),
               if (_noDataMonths > 0)
                 Text(
                   '$_noDataMonths of ${scope.monthly.length} past periods '
@@ -792,6 +829,50 @@ class _Pill extends StatelessWidget {
         text,
         style: const TextStyle(color: ConsumptionColors.subtle, fontSize: 11),
       ),
+    );
+  }
+}
+
+/// Pill canh bao (mau cam), co tooltip khi [tooltip] != null.
+class _WarnPill extends StatelessWidget {
+  final String text;
+  final String? tooltip;
+
+  const _WarnPill({required this.text, this.tooltip});
+
+  @override
+  Widget build(BuildContext context) {
+    // Text da co ⚠ thi khong lap icon.
+    final hasGlyph = text.startsWith('⚠');
+    final pill = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: ElectricityColors.up.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: ElectricityColors.up.withValues(alpha: .5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.warning_amber_rounded,
+            size: 13,
+            color: ElectricityColors.up,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            hasGlyph ? text.substring(1).trimLeft() : text,
+            style: const TextStyle(color: ElectricityColors.up, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+
+    if (tooltip == null) return pill;
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 200),
+      child: pill,
     );
   }
 }

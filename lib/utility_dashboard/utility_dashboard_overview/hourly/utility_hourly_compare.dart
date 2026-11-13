@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
+import '../../shared/charts/value_format.dart';
+import '../../shared/widgets/price_missing_icon.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../models/utility_hourly_dashboard_response.dart';
@@ -14,6 +16,7 @@ class _HourlyCompareDto {
   final double? yesterday;
   final double? todayUsd;
   final double? yesterdayUsd;
+  final bool priceMissing;
 
   const _HourlyCompareDto({
     required this.scaleHour,
@@ -21,6 +24,7 @@ class _HourlyCompareDto {
     required this.yesterday,
     required this.todayUsd,
     required this.yesterdayUsd,
+    this.priceMissing = false,
   });
 }
 
@@ -101,11 +105,13 @@ class _SummaryData {
   final double? pct;
   final bool trendUp;
 
-  final double sumTodayUsd;
-  final double sumYdayUsd;
-  final double deltaUsd;
+  /// null khi khong gio nao co USD (khong co bang gia).
+  final double? sumTodayUsd;
+  final double? sumYdayUsd;
+  final double? deltaUsd;
   final double? pctUsd;
   final bool trendUpUsd;
+  final bool priceMissing;
 
   const _SummaryData({
     required this.sumToday,
@@ -118,15 +124,18 @@ class _SummaryData {
     required this.deltaUsd,
     required this.pctUsd,
     required this.trendUpUsd,
+    required this.priceMissing,
   });
 
   static _SummaryData from(List<_HourlyCompareDto> rows) {
     double sumToday = 0;
     double sumYday = 0;
-    double sumTodayUsd = 0;
-    double sumYdayUsd = 0;
+    double? sumTodayUsd;
+    double? sumYdayUsd;
+    var priceMissing = false;
 
     for (final r in rows) {
+      priceMissing = priceMissing || r.priceMissing;
       final hasToday = r.today != null || r.todayUsd != null;
 
       if (!hasToday) continue;
@@ -134,15 +143,20 @@ class _SummaryData {
       sumToday += r.today ?? 0;
       sumYday += r.yesterday ?? 0;
 
-      sumTodayUsd += r.todayUsd ?? 0;
-      sumYdayUsd += r.yesterdayUsd ?? 0;
+      // Gio khong co gia (null) khong tinh la 0.
+      if (r.todayUsd case final v?) sumTodayUsd = (sumTodayUsd ?? 0) + v;
+      if (r.yesterdayUsd case final v?) sumYdayUsd = (sumYdayUsd ?? 0) + v;
     }
 
     final delta = sumToday - sumYday;
     final pct = sumYday == 0 ? null : delta / sumYday * 100;
 
-    final deltaUsd = sumTodayUsd - sumYdayUsd;
-    final pctUsd = sumYdayUsd == 0 ? null : deltaUsd / sumYdayUsd * 100;
+    final deltaUsd = sumTodayUsd == null || sumYdayUsd == null
+        ? null
+        : sumTodayUsd - sumYdayUsd;
+    final pctUsd = deltaUsd == null || sumYdayUsd == 0
+        ? null
+        : deltaUsd / sumYdayUsd! * 100;
 
     return _SummaryData(
       sumToday: sumToday,
@@ -154,7 +168,8 @@ class _SummaryData {
       sumYdayUsd: sumYdayUsd,
       deltaUsd: deltaUsd,
       pctUsd: pctUsd,
-      trendUpUsd: deltaUsd >= 0,
+      trendUpUsd: (deltaUsd ?? 0) >= 0,
+      priceMissing: priceMissing,
     );
   }
 }
@@ -192,6 +207,7 @@ class UtilityHourlyCompare extends StatelessWidget {
             yesterday: item.yesterday,
             todayUsd: item.todayUsd,
             yesterdayUsd: item.yesterdayUsd,
+            priceMissing: item.priceMissing,
           ),
         )
         .toList(growable: false);
@@ -328,19 +344,24 @@ class _SummaryBar extends StatelessWidget {
               TextSpan(
                 children: [
                   TextSpan(
-                    text: '${s.sumTodayUsd.toStringAsFixed(2)}\$ / ',
+                    text: '${_usd(s.sumTodayUsd)} / ',
                     style: TextStyle(
                       color: const Color(0xFF5CFF7A).withValues(alpha: 0.9),
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   TextSpan(
-                    text: '${s.sumYdayUsd.toStringAsFixed(2)}\$',
+                    text: _usd(s.sumYdayUsd),
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.60),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  if (s.priceMissing)
+                    const WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: PriceMissingIcon(visible: true),
+                    ),
                 ],
               ),
               maxLines: 2,
@@ -352,6 +373,9 @@ class _SummaryBar extends StatelessWidget {
       ),
     );
   }
+
+  static String _usd(double? v) =>
+      v == null ? kMissingValue : '${v.toStringAsFixed(2)}\$';
 
   Widget _wrapState(String s) {
     final isError = s == 'N/A';

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/widgets/price_missing_icon.dart';
 import '../model/power_usage.dart';
 import 'electricity_style.dart';
 
@@ -49,17 +50,25 @@ class TotalCard extends StatelessWidget {
                   fontSize: 14,
                 ),
               ),
+              PriceMissingIcon(visible: usdMode && total.priceMissing),
             ],
           ),
           if (total.usd != null)
-            Text(
-              usdMode
-                  ? '= ${fmtKwh(kwh)} kWh at blended ${fmtRate(total.blendedRate)}/kWh'
-                  : '= ${fmtUsd(total.usd)} at blended ${fmtRate(total.blendedRate)}/kWh',
-              style: const TextStyle(
-                color: ElectricityColors.textDim,
-                fontSize: 11.5,
-              ),
+            Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    usdMode
+                        ? '= ${fmtKwh(kwh)} kWh at blended ${fmtRate(total.blendedRate)}/kWh'
+                        : '= ${fmtUsd(total.usd)} at blended ${fmtRate(total.blendedRate)}/kWh',
+                    style: const TextStyle(
+                      color: ElectricityColors.textDim,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+                PriceMissingIcon(visible: !usdMode && total.priceMissing),
+              ],
             ),
           const SizedBox(height: 8),
           Wrap(

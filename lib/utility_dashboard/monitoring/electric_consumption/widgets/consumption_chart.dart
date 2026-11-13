@@ -208,8 +208,7 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
   }
 
   /// MOT dong phu "Data" gop do phu du lieu (giu tooltip thap): vd
-  /// `93% coverage · 55 meters · incomplete`,
-  /// `100% coverage · 51 meters (−4 vs day before)`,
+  /// `92.7% · 51/55 meters · incomplete`,
   /// `18/30 full days · 3,466.3 MWh excluded`. null khi khong co gi.
   (String, String)? _dataRow(ConsumptionPoint p) {
     final meters = p.isMonthly ? null : _metersText(p);
@@ -217,7 +216,7 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
       if (p.isMonthly && p.completeDays != null)
         '${p.completeDays}/${p.days ?? '?'} full days',
       if (!p.isMonthly && p.coveragePct != null)
-        '${formatValue(p.coveragePct, decimals: 0)}% coverage',
+        '${formatValue(p.coveragePct, decimals: 1)}%',
       ?meters,
       if (_isPartial(p)) 'incomplete',
       if (p.excludedMwh != null && p.excludedMwh! > 0)
@@ -226,11 +225,15 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
     return parts.isEmpty ? null : ('Data', parts.join(' · '));
   }
 
-  /// `55 meters`; doi so voi ngay co du lieu lien truoc thi them
-  /// `(−4 vs day before)` de thay meter nao do ngung gui du lieu.
+  /// `51/55 meters` (co meter gui du lieu / cau hinh). BE cu khong co
+  /// `reportingMeters`: `55 meters`, doi so voi ngay lien truoc thi them
+  /// `(−4 vs day before)`.
   String? _metersText(ConsumptionPoint p) {
     final meters = p.meters;
     if (meters == null || meters == 0) return null;
+    if (p.reportingMeters case final reporting?) {
+      return '$reporting/$meters meters';
+    }
 
     int? previous;
     for (final d in scope.daily) {
@@ -241,6 +244,82 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
     final delta = meters - previous;
     final sign = delta > 0 ? '+' : '−';
     return '$meters meters ($sign${delta.abs()} vs day before)';
+  }
+
+  static const int _maxMissingLines = 5;
+
+  /// Dong canh bao meter thieu du lieu + ngay khong co gia.
+  List<(String, Color?)> _notes(ConsumptionPoint p) {
+    final missing = p.isMonthly ? const <MissingMeter>[] : p.missingMeters;
+    final notes = <(String, Color?)>[];
+
+    if (missing.isNotEmpty) {
+      notes.add((
+        '⚠ ${missing.length} meter${missing.length == 1 ? '' : 's'} missing',
+        ElectricityColors.up,
+      ));
+
+      // (text, so meter) - NO_DATA cung lastDataAt gop thanh mot dong.
+      final lines = <(String, int)>[];
+      final noData = <String?, List<String>>{};
+      for (final m in missing) {
+        if (m.reason == MissingReason.noData) {
+          noData.putIfAbsent(m.lastDataAt, () => []).add(m.meter);
+        }
+      }
+      final groupedDone = <String?>{};
+      for (final m in missing) {
+        switch (m.reason) {
+          case MissingReason.noData:
+            if (!groupedDone.add(m.lastDataAt)) continue;
+            final names = noData[m.lastDataAt]!;
+            final last = formatPlantDateTime(m.lastDataAt);
+            if (names.length == 1) {
+              lines.add((
+                last == null
+                    ? '${m.meter} · no data'
+                    : '${m.meter} · no data (last $last)',
+                1,
+              ));
+            } else {
+              final since = last == null ? 'no data' : 'no data since $last';
+              lines.add(('$since: ${names.join(', ')}', names.length));
+            }
+          case MissingReason.partial:
+            lines.add((
+              m.hours == null
+                  ? '${m.meter} · partial'
+                  : '${m.meter} · ${m.hours}/24 h',
+              1,
+            ));
+          case MissingReason.outlier:
+            lines.add((
+              m.hours == null
+                  ? '${m.meter} · dropped (outlier)'
+                  : '${m.meter} · ${m.hours} h dropped (outlier)',
+              1,
+            ));
+          case MissingReason.unknown:
+            lines.add(('${m.meter} · missing', 1));
+        }
+      }
+
+      for (final (text, _) in lines.take(_maxMissingLines)) {
+        notes.add(('  $text', ElectricityColors.up));
+      }
+      if (lines.length > _maxMissingLines) {
+        var more = 0;
+        for (final (_, count) in lines.skip(_maxMissingLines)) {
+          more += count;
+        }
+        notes.add(('  +$more more', ElectricityColors.up));
+      }
+    }
+
+    if (widget.tariffAvailable && p.noTariff) {
+      notes.add((r'No tariff for this day – K$ not available', null));
+    }
+    return notes;
   }
 
   // ============================================================
@@ -473,6 +552,21 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
         ? kMissingValue
         : '${ConsumptionFormat.fixed(value, decimals)} ${unit.label}';
 
+    final dataRow = _dataRow(p);
+    final notes = _notes(p);
+
+    // Ngay co MWh nhung chua co gia: chart K$ khong co cot, tooltip chi ghi
+    // do phu du lieu + ly do.
+    if (v == null && unit == ConsumptionUnit.kusd && p.noTariff) {
+      return _FitTooltip(
+        child: ChartHoverCard(
+          title: _tooltipTitle(p),
+          rows: [?dataRow],
+          notes: notes,
+        ),
+      );
+    }
+
     if (v == null) {
       return _FitTooltip(
         child: ChartHoverCard(
@@ -484,11 +578,11 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
 
     final stacks = _stacks;
     final showGridTotal = _splitByTime && scope.includesSolar;
-    final dataRow = _dataRow(p);
 
     return _FitTooltip(
       child: ChartHoverCard(
         title: _tooltipTitle(p),
+        notes: notes,
         rows: [
           for (final s in stacks) (s.name, fmt(s.pick(v))),
           if (showGridTotal) ('Grid total', fmt(v.totalElectricity)),

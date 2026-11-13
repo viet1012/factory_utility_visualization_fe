@@ -36,6 +36,8 @@ class MonthlyElectricityCard extends StatelessWidget {
               mode: MonthlyMetricFormat.mode(item),
               delta: item.costDeltaPercent,
               currentColor: color,
+              currentPriceMissing: item.priceMissing,
+              previousPriceMissing: item.prevPriceMissing,
             ),
             const SizedBox(height: 3),
             Divider(

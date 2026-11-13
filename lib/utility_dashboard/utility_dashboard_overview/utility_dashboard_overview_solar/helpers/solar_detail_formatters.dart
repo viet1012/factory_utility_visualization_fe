@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/charts/value_format.dart';
 import '../../../shared/formatters/month_formatter.dart';
 
 /// Bang mau dung chung cho cac panel cua Solar Detail.
@@ -60,6 +61,14 @@ abstract final class SolarDetailFormatters {
   static String money(double value) {
     return NumberFormat('#,##0.00').format(value);
   }
+
+  /// `$1,234.50`; null (khong co bang gia) -> kMissingValue.
+  static String usd(double? value) =>
+      value == null ? kMissingValue : '\$${money(value)}';
+
+  /// `12%`; null -> kMissingValue.
+  static String percent0(double? value) =>
+      value == null ? kMissingValue : '${value.toStringAsFixed(0)}%';
 
   static String compact(double value) {
     if (value >= 1000) {

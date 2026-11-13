@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/widgets/price_missing_icon.dart';
 import '../helpers/solar_detail_formatters.dart';
 import '../models/solar_detail_data.dart';
 import 'solar_detail_panel.dart';
@@ -84,10 +85,11 @@ class SolarDetailKpiSection extends StatelessWidget {
         Expanded(
           child: _SolarKpiTile(
             title: 'SOLAR COST',
-            value: '\$${SolarDetailFormatters.money(cost.solarCostUsd)}',
+            value: SolarDetailFormatters.usd(cost.solarCostUsd),
             icon: Icons.attach_money_rounded,
             color: SolarDetailColors.green,
             note: 'RATE × 83%',
+            priceMissing: cost.priceMissing,
           ),
         ),
 
@@ -96,10 +98,11 @@ class SolarDetailKpiSection extends StatelessWidget {
         Expanded(
           child: _SolarKpiTile(
             title: 'SAVING',
-            value: '\$${SolarDetailFormatters.money(cost.savingUsd)}',
+            value: SolarDetailFormatters.usd(cost.savingUsd),
             icon: Icons.savings_rounded,
             color: SolarDetailColors.green,
-            note: '${cost.savingPercent.toStringAsFixed(0)}%',
+            note: SolarDetailFormatters.percent0(cost.savingPercent),
+            priceMissing: cost.priceMissing,
           ),
         ),
 
@@ -130,12 +133,15 @@ class _SolarKpiTile extends StatelessWidget {
 
   final String? note;
 
+  final bool priceMissing;
+
   const _SolarKpiTile({
     required this.title,
     required this.value,
     required this.icon,
     required this.color,
     this.note,
+    this.priceMissing = false,
   });
 
   @override
@@ -179,14 +185,20 @@ class _SolarKpiTile extends StatelessWidget {
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        value,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      PriceMissingIcon(visible: priceMissing),
+                    ],
                   ),
                 ),
 
