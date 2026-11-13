@@ -207,7 +207,11 @@ class _MovingMascotState extends State<MovingMascot>
         ? (dx >= 0 ? 1.0 : -1.0)
         : _lastFacing;
 
-    final walkStrength = isWalking ? (distance * 1.75).clamp(0.25, 1.0) : 0.0;
+    // gait fades in on departure and out on arrival (no pose snapping)
+    final gaitEnvelope = math.min(1.0, math.sin(rawProgress * math.pi) * 2.2);
+    final walkStrength = isWalking
+        ? (distance * 1.75).clamp(0.25, 1.0) * gaitEnvelope
+        : 0.0;
 
     // NghiÃƒÂªng mÃ¡ÂºÂ¡nh nhÃ¡ÂºÂ¥t Ã¡Â»Å¸ giÃ¡Â»Â¯a Ã„â€˜Ã†Â°Ã¡Â»Âng, vÃ¡Â»Â 0 Ã¡Â»Å¸ Ã„â€˜Ã¡ÂºÂ§u vÃƒÂ  cuÃ¡Â»â€˜i.
     final movementEnvelope = math.sin(easedProgress * math.pi);
@@ -217,9 +221,12 @@ class _MovingMascotState extends State<MovingMascot>
         : 0.0;
 
     // Ã„Âi xa thÃƒÂ¬ cÃƒÂ³ nhiÃ¡Â»Âu bÃ†Â°Ã¡Â»â€ºc hÃ†Â¡n.
-    final stepCount = (distance * 6.5).clamp(2.0, 10.0);
+    // whole number of steps so both feet are down on arrival
+    final stepCount = (distance * 6.5).clamp(2.0, 10.0).roundToDouble();
 
-    final walkPhase = rawProgress * math.pi * stepCount;
+    // steps follow the distance actually covered (eased), so feet don't
+    // shuffle in place while the body is slowly accelerating
+    final walkPhase = easedProgress * math.pi * stepCount;
 
     return _MascotMoveFrame(
       alignment: alignment,

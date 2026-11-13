@@ -16,8 +16,6 @@ class _RobotPainter extends CustomPainter {
   double get foreSwing => pose.forearmSwing;
   double get legSwingL => pose.legSwingLeft;
   double get legSwingR => pose.legSwingRight;
-  double get kneeBendL => pose.kneeBendLeft;
-  double get kneeBendR => pose.kneeBendRight;
   double get footLiftL => pose.footLiftLeft;
   double get footLiftR => pose.footLiftRight;
   double get hairOffset => pose.hairOffset;
@@ -80,8 +78,8 @@ class _RobotPainter extends CustomPainter {
     final cx = l.cx;
 
     // limb lengths scale with the mascot; legs end exactly on the ground
-    _upperLen = h * 0.115;
-    _foreLen = h * 0.10;
+    _upperLen = h * 0.105;
+    _foreLen = h * 0.092;
     // legs are solved with IK; lengths match the standing height so the
     // legs are straight at rest and only bend when the body dips.
     final ankleGroundY = l.groundY - 7.5;
@@ -89,22 +87,44 @@ class _RobotPainter extends CustomPainter {
     _thighLen = (legSpan + 0.5) * 0.5;
     _shinLen = (legSpan + 0.5) * 0.5;
 
-    canvas.save();
-    canvas.translate(0, bodyBob);
-    _drawArm(
+    final hop = pose.hop;
+
+    // upper-body sway pivots around the hips
+    void applyBodyTilt() {
+      if (pose.bodyTilt == 0) return;
+      final p = l.hipPivot;
+      canvas.translate(p.dx, p.dy);
+      canvas.rotate(pose.bodyTilt);
+      canvas.translate(-p.dx, -p.dy);
+    }
+
+    void leftArm() => _drawArm(
       canvas: canvas,
       shoulder: Offset(bodyX + 2, bodyY + bodyH * 0.20),
       swing: armSwingL,
       foreSwing: foreSwing,
       isLeft: true,
+      raise: pose.raiseLeft,
     );
-    _drawArm(
+    void rightArm() => _drawArm(
       canvas: canvas,
       shoulder: Offset(bodyX + bodyW - 2, bodyY + bodyH * 0.20),
       swing: armSwingR,
       foreSwing: -foreSwing,
       isLeft: false,
+      raise: pose.raiseRight,
+      wiggle: pose.waveWiggle,
     );
+    // a raised arm must overlap the head, so it is drawn last; the swap
+    // happens mid-raise while the hand is still clear of the head
+    final leftOverHead = pose.raiseLeft > 0.5;
+    final rightOverHead = pose.raiseRight > 0.5;
+
+    canvas.save();
+    canvas.translate(0, bodyBob - hop);
+    applyBodyTilt();
+    if (!leftOverHead) leftArm();
+    if (!rightOverHead) rightArm();
     canvas.restore();
 
     // ===== SHADOW =====
@@ -120,14 +140,24 @@ class _RobotPainter extends CustomPainter {
         : 0.22;
 
     final shadowCenter = Offset(w / 2, l.groundY - 1);
+    // shadow stays on the ground and shrinks while airborne
+    final air = (1 - hop / 40).clamp(0.5, 1.0);
 
     canvas.drawOval(
-      Rect.fromCenter(center: shadowCenter, width: shadowWidth, height: 10),
+      Rect.fromCenter(
+        center: shadowCenter,
+        width: shadowWidth * air,
+        height: 10 * air,
+      ),
       Paint()
         ..color = Colors.black.withValues(
-          alpha: shadowOpacity.clamp(0.08, 0.22),
+          alpha: shadowOpacity.clamp(0.08, 0.22) * air,
         ),
     );
+
+    // everything below leaves the ground during a hop
+    canvas.save();
+    canvas.translate(0, -hop);
 
     // ===== LEGS =====
 
@@ -150,9 +180,10 @@ class _RobotPainter extends CustomPainter {
       isLeft: false,
     );
 
-    // ===== UPPER BODY (bobs) =====
+    // ===== UPPER BODY (bobs + sways) =====
     canvas.save();
     canvas.translate(0, bodyBob);
+    applyBodyTilt();
 
     final neckRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(cx - 7, headY + headH - 2, 14, bodyY - headY - headH + 6),
@@ -206,6 +237,15 @@ class _RobotPainter extends CustomPainter {
         ..strokeWidth = 1.2,
     );
     _drawCollarAndPads(canvas, bodyRect);
+
+    // ===== HEAD (tilts around the neck) =====
+    canvas.save();
+    if (pose.headTilt != 0) {
+      final p = l.neckPivot;
+      canvas.translate(p.dx, p.dy);
+      canvas.rotate(pose.headTilt);
+      canvas.translate(-p.dx, -p.dy);
+    }
 
     _drawHair(
       canvas: canvas,
@@ -305,7 +345,10 @@ class _RobotPainter extends CustomPainter {
     _drawAntenna(
       canvas,
       base: Offset(cx, headY - 2),
-      tip: Offset(cx + hairOffset * 0.4, headY - 30 + hairOffset * 0.6),
+      tip: Offset(
+        cx + hairOffset * 0.4 + pose.antennaSway,
+        headY - 30 + hairOffset * 0.6,
+      ),
     );
 
     _drawHairFringe(
@@ -315,7 +358,18 @@ class _RobotPainter extends CustomPainter {
       headW: headW,
       offset: hairOffset,
     );
-    canvas.restore();
+    canvas.restore(); // head tilt
+
+    if (leftOverHead) {
+      leftArm();
+      _drawShoulderPad(canvas, bodyRect.outerRect, left: true);
+    }
+    if (rightOverHead) {
+      rightArm();
+      _drawShoulderPad(canvas, bodyRect.outerRect, left: false);
+    }
+    canvas.restore(); // upper body
+    canvas.restore(); // hop
   }
 
   void _drawHair({
@@ -326,18 +380,84 @@ class _RobotPainter extends CustomPainter {
     required double headH,
     required double offset,
   }) {
-    // fluffy cloud of silver hair behind the head (top + sides)
+    // short curly silver hair behind the top of the head
     final c = Offset(headX + headW / 2, headY + headH * 0.48 + offset);
     final rx = headW * 0.47;
     final ry = headH * 0.60;
-    const n = 9;
+
+    // short crop: curls only cover the top of the head and stop above the
+    // ears (arc from ~upper-left to ~upper-right, nothing hangs down)
+    const arcStart = 1.10, arcSpan = 0.80; // in units of pi
+
+    // dark under-layer fills the gaps between curls
+    const nBack = 7;
+    for (int i = 0; i < nBack; i++) {
+      final t = i / (nBack - 1);
+      final a = math.pi * (arcStart + arcSpan * t);
+      final p = Offset(c.dx + math.cos(a) * rx * 0.92, c.dy + math.sin(a) * ry * 0.92);
+      canvas.drawCircle(
+        p,
+        headH * (0.14 + 0.04 * math.sin(t * math.pi)),
+        Paint()..color = _hairDark,
+      );
+    }
+
+    // ring of tight curls, alternating size + spin direction
+    const n = 11;
     for (int i = 0; i < n; i++) {
       final t = i / (n - 1);
-      final a = math.pi * (0.96 + 1.08 * t);
+      final a = math.pi * (arcStart + arcSpan * t);
       final p = Offset(c.dx + math.cos(a) * rx, c.dy + math.sin(a) * ry);
-      final r = headH * (0.17 + 0.06 * math.sin(t * math.pi));
-      _drawPuff(canvas, p, r);
+      final r =
+          headH * (0.115 + 0.045 * math.sin(t * math.pi)) * (i.isEven ? 1.08 : 0.92);
+      _drawCurl(canvas, p, r, clockwise: i.isEven, spin: i * 1.3);
     }
+  }
+
+  /// One curl: shaded ball of hair with a spiral groove and a glint.
+  void _drawCurl(
+    Canvas canvas,
+    Offset c,
+    double r, {
+    bool clockwise = true,
+    double spin = 0,
+  }) {
+    _drawPuff(canvas, c, r);
+
+    final dir = clockwise ? 1.0 : -1.0;
+    const turns = 2.4 * math.pi;
+    final spiral = Path();
+    for (int k = 0; k <= 28; k++) {
+      final th = turns * k / 28;
+      final rad = r * (0.12 + 0.62 * th / turns);
+      final p = c + Offset(math.cos(spin + dir * th), math.sin(spin + dir * th)) * rad;
+      if (k == 0) {
+        spiral.moveTo(p.dx, p.dy);
+      } else {
+        spiral.lineTo(p.dx, p.dy);
+      }
+    }
+    canvas.drawPath(
+      spiral,
+      Paint()
+        ..color = _hairDark.withValues(alpha: 0.60)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(0.8, r * 0.14)
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    // glint on the upper-left of the curl
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r * 0.74),
+      -2.7,
+      1.0,
+      false,
+      Paint()
+        ..color = _hairShine.withValues(alpha: 0.75)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(0.7, r * 0.12)
+        ..strokeCap = StrokeCap.round,
+    );
   }
 
   void _drawPuff(Canvas canvas, Offset c, double r) {
@@ -366,15 +486,18 @@ class _RobotPainter extends CustomPainter {
     required double headW,
     required double offset,
   }) {
-    // soft hairline across the top of the head
-    const xs = [0.20, 0.35, 0.50, 0.65, 0.80];
-    const rs = [6.5, 7.5, 8.5, 7.5, 6.5];
+    // curly hairline across the top of the head
+    const xs = [0.17, 0.30, 0.43, 0.57, 0.70, 0.83];
+    const rs = [5.6, 6.6, 7.2, 7.2, 6.6, 5.6];
+    final s = headW / 88.2; // detail sizes tuned at the 210 px mascot
     for (int i = 0; i < xs.length; i++) {
-      final lift = math.sin(xs[i] * math.pi) * 3;
-      _drawPuff(
+      final lift = math.sin(xs[i] * math.pi) * 3 * s;
+      _drawCurl(
         canvas,
-        Offset(headX + headW * xs[i], headY + 3 - lift + offset * 0.6),
-        rs[i],
+        Offset(headX + headW * xs[i], headY + 3 * s - lift + offset * 0.6),
+        rs[i] * s,
+        clockwise: i < 3,
+        spin: 0.8 + i * 1.7,
       );
     }
   }
@@ -655,42 +778,37 @@ class _RobotPainter extends CustomPainter {
         ..strokeWidth = 0.8,
     );
 
-    // shoulder pads
-    for (final left in [true, false]) {
-      final c = Offset(
-        left ? r.left + 3 : r.right - 3,
-        r.top + r.height * 0.17,
-      );
-      final pad = Rect.fromCenter(center: c, width: 20, height: 16);
-      canvas.drawOval(
-        pad.shift(const Offset(0, 1.5)),
-        Paint()..color = Colors.black.withValues(alpha: 0.30),
-      );
-      canvas.drawOval(
-        pad,
-        Paint()
-          ..shader = const RadialGradient(
-            center: Alignment(-0.3, -0.5),
-            colors: [Color(0xFF5A93EA), _bodyTop, _bodyBottom],
-            stops: [0.0, 0.45, 1.0],
-          ).createShader(pad),
-      );
-      canvas.drawOval(
-        pad,
-        Paint()
-          ..color = accentColor.withValues(alpha: 0.55)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.9,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: c + const Offset(-2, -3.5),
-          width: 9,
-          height: 3.5,
-        ),
-        Paint()..color = Colors.white.withValues(alpha: 0.30),
-      );
-    }
+    _drawShoulderPad(canvas, r, left: true);
+    _drawShoulderPad(canvas, r, left: false);
+  }
+
+  void _drawShoulderPad(Canvas canvas, Rect r, {required bool left}) {
+    final c = Offset(left ? r.left + 3 : r.right - 3, r.top + r.height * 0.17);
+    final pad = Rect.fromCenter(center: c, width: 20, height: 16);
+    canvas.drawOval(
+      pad.shift(const Offset(0, 1.5)),
+      Paint()..color = Colors.black.withValues(alpha: 0.30),
+    );
+    canvas.drawOval(
+      pad,
+      Paint()
+        ..shader = const RadialGradient(
+          center: Alignment(-0.3, -0.5),
+          colors: [Color(0xFF5A93EA), _bodyTop, _bodyBottom],
+          stops: [0.0, 0.45, 1.0],
+        ).createShader(pad),
+    );
+    canvas.drawOval(
+      pad,
+      Paint()
+        ..color = accentColor.withValues(alpha: 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: c + const Offset(-2, -3.5), width: 9, height: 3.5),
+      Paint()..color = Colors.white.withValues(alpha: 0.30),
+    );
   }
 
   void _drawMustache({required Canvas canvas, required Offset center}) {
@@ -805,14 +923,24 @@ class _RobotPainter extends CustomPainter {
     required double swing,
     required double foreSwing,
     required bool isLeft,
+    double raise = 0,
+    double wiggle = 0,
   }) {
     final upperLen = _upperLen;
     final foreLen = _foreLen;
 
     // relaxed pose: arms hang close to the body, forearms bend slightly in
     final baseUpper = isLeft ? 1.97 : 1.17;
-    final upperAngle = baseUpper + swing;
-    final foreAngle = upperAngle + (isLeft ? -0.30 : 0.30) + foreSwing;
+    var upperAngle = baseUpper + swing;
+    var foreAngle = upperAngle + (isLeft ? -0.30 : 0.30) + foreSwing;
+    if (raise > 0) {
+      // blend into a raised pose (left arm mirrors the right one);
+      // the forearm wiggle turns it into a wave
+      final upTarget = isLeft ? math.pi + 0.40 : -0.40;
+      final foreTarget = isLeft ? math.pi + 1.30 - wiggle : -1.30 + wiggle;
+      upperAngle = ui.lerpDouble(upperAngle, upTarget, raise)!;
+      foreAngle = ui.lerpDouble(foreAngle, foreTarget, raise)!;
+    }
 
     final elbow = Offset(
       shoulder.dx + math.cos(upperAngle) * upperLen,
@@ -1195,26 +1323,13 @@ class _RobotPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RobotPainter old) {
+    // pose equality already covers every animated value
     return old.accentColor != accentColor ||
         old.pose != pose ||
         old.eyeTrackX != eyeTrackX ||
         old.eyeTrackY != eyeTrackY ||
         old.antennaScale != antennaScale ||
-        old.bodyBob != bodyBob ||
-        old.armSwingL != armSwingL ||
-        old.armSwingR != armSwingR ||
-        old.foreSwing != foreSwing ||
-        old.legSwingL != legSwingL ||
-        old.legSwingR != legSwingR ||
-        old.kneeBendL != kneeBendL ||
-        old.kneeBendR != kneeBendR ||
-        old.footLiftL != footLiftL ||
-        old.footLiftR != footLiftR ||
-        old.hairOffset != hairOffset ||
-        old.walkStrength != walkStrength ||
-        old.isWalking != isWalking ||
-        old.walkPhase != walkPhase ||
-        old.facing != facing;
+        old.bodyBob != bodyBob;
   }
 }
 
@@ -1226,16 +1341,26 @@ class _BadgePainter extends CustomPainter {
 
   final double bodyBob;
 
+  /// Upper-body sway (screen space, i.e. already corrected for facing).
+  final double bodyTilt;
+
   const _BadgePainter({
     required this.accentColor,
     this.logoImage,
     this.bodyBob = 0,
+    this.bodyTilt = 0,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final l = _MascotLayout.of(size);
     canvas.translate(0, bodyBob);
+    if (bodyTilt != 0) {
+      final p = l.hipPivot;
+      canvas.translate(p.dx, p.dy);
+      canvas.rotate(bodyTilt);
+      canvas.translate(-p.dx, -p.dy);
+    }
     _drawSPCOnly(
       canvas: canvas,
       bodyX: l.bodyX,
@@ -1301,6 +1426,7 @@ class _BadgePainter extends CustomPainter {
   bool shouldRepaint(covariant _BadgePainter oldDelegate) {
     return oldDelegate.accentColor != accentColor ||
         oldDelegate.logoImage != logoImage ||
-        oldDelegate.bodyBob != bodyBob;
+        oldDelegate.bodyBob != bodyBob ||
+        oldDelegate.bodyTilt != bodyTilt;
   }
 }
