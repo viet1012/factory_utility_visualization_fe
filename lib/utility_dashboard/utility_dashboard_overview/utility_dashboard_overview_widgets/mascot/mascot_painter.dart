@@ -336,6 +336,14 @@ class _RobotPainter extends CustomPainter {
       cheekPaint,
     );
 
+    _drawGlasses(
+      canvas,
+      left: Offset(leftEyeX, eyeY),
+      right: Offset(rightEyeX, eyeY),
+      headX: headX,
+      headW: headW,
+    );
+
     final mouthCenter = Offset(cx, headY + headH * 0.80);
 
     _drawMouth(canvas: canvas, center: mouthCenter);
@@ -499,6 +507,95 @@ class _RobotPainter extends CustomPainter {
         clockwise: i < 3,
         spin: 0.8 + i * 1.7,
       );
+    }
+  }
+
+  /// Round wire-frame glasses over both eyes. Fixed to the head, so the
+  /// eyes can still glance around behind the lenses.
+  void _drawGlasses(
+    Canvas canvas, {
+    required Offset left,
+    required Offset right,
+    required double headX,
+    required double headW,
+  }) {
+    final s = headW / 88.2; // tuned at the 210 px mascot
+    final lensW = 20.0 * s;
+    final lensH = 17.0 * s;
+    const frameColor = Color(0xFFD9E2E8);
+
+    final outline = Paint()
+      ..color = Colors.black.withValues(alpha: 0.55)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0 * s
+      ..strokeCap = StrokeCap.round;
+    final frame = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Colors.white, frameColor, _hairDark],
+      ).createShader(
+        Rect.fromLTRB(left.dx - lensW, left.dy - lensH / 2, right.dx + lensW, left.dy + lensH / 2),
+      )
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.7 * s
+      ..strokeCap = StrokeCap.round;
+
+    RRect lens(Offset c) => RRect.fromRectAndRadius(
+      Rect.fromCenter(center: c, width: lensW, height: lensH),
+      Radius.circular(lensH * 0.5),
+    );
+
+    // bridge arching over the nose + temples running to the ear modules
+    final bridge = Path()
+      ..moveTo(left.dx + lensW / 2, left.dy - 1.5 * s)
+      ..quadraticBezierTo(
+        (left.dx + right.dx) / 2,
+        left.dy - 5.5 * s,
+        right.dx - lensW / 2,
+        right.dy - 1.5 * s,
+      );
+    final temples = Path()
+      ..moveTo(left.dx - lensW / 2, left.dy - 2.5 * s)
+      ..lineTo(headX + 3 * s, left.dy - 4 * s)
+      ..moveTo(right.dx + lensW / 2, right.dy - 2.5 * s)
+      ..lineTo(headX + headW - 3 * s, right.dy - 4 * s);
+
+    for (final p in [bridge, temples]) {
+      canvas.drawPath(p, outline);
+      canvas.drawPath(p, frame);
+    }
+
+    for (final c in [left, right]) {
+      final r = lens(c);
+      // faint glass tint
+      canvas.drawRRect(
+        r,
+        Paint()..color = Colors.white.withValues(alpha: 0.06),
+      );
+      canvas.drawRRect(r, outline);
+      canvas.drawRRect(r, frame);
+
+      // glint across the upper-left of the lens
+      canvas.save();
+      canvas.clipRRect(r);
+      canvas.drawLine(
+        c + Offset(-lensW * 0.36, -lensH * 0.02),
+        c + Offset(-lensW * 0.08, -lensH * 0.42),
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.45)
+          ..strokeWidth = 1.6 * s
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawLine(
+        c + Offset(-lensW * 0.18, lensH * 0.10),
+        c + Offset(lensW * 0.04, -lensH * 0.24),
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.22)
+          ..strokeWidth = 0.9 * s
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.restore();
     }
   }
 

@@ -287,10 +287,20 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
       _StackDef('Solar', ConsumptionColors.solar, (v) => v.solar),
   ];
 
-  /// Bo cac ky truoc rong o dau (backend chua co lich su).
+  /// Bo cac ngay rong o cuoi ky (ngay chua toi) - khong ve cot xam trong.
+  List<ConsumptionPoint> get _daily {
+    final daily = scope.daily;
+    var end = daily.length;
+    while (end > 0 && daily[end - 1].isNoData) {
+      end--;
+    }
+    return daily.sublist(0, end);
+  }
+
+  /// Bo cac ky truoc rong o dau (backend chua co lich su) va ngay chua toi.
   List<ConsumptionPoint> get _points => [
     ...scope.monthly.skipWhile((p) => p.isNoData),
-    ...scope.daily,
+    ..._daily,
   ];
 
   // ============================================================
@@ -478,7 +488,7 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
       for (final p in points)
         if (p.isMonthly) p,
     ];
-    final daily = scope.daily;
+    final daily = _daily;
     final firstDayKey = daily.isEmpty ? null : daily.first.key;
     final decimals = ConsumptionFormat.value(unit);
     final axisDecimals = ConsumptionFormat.axis(unit);
