@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../monitoring/electricity/widgets/electricity_style.dart'
+    show PlantTime;
 import '../../shared/formatters/month_formatter.dart';
 import '../../shared/formatters/period_basis_formatter.dart';
 import '../../shared/widgets/period_basis_note.dart';
@@ -160,6 +162,9 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                   children: [
                     _Header(
                       month: widget.month,
+                      pickAt: PeriodBasisFormatter.latestPickAt(
+                        vm.rows.map((row) => row.pickAt),
+                      ),
                       monthLabel: monthLabel,
                       forceRefreshing: vm.forceRefreshing,
                       onRefresh: _forceRefresh,
@@ -266,12 +271,16 @@ String monthSubtitle(String month, {required bool isMtd}) {
 class _Header extends StatelessWidget {
   /// yyyyMM cua panel (de ghi khoang ngay thang duong lich).
   final String month;
+
+  /// Gio du lieu moi nhat (pickAt) cua response monthly-summary.
+  final PlantTime? pickAt;
   final String monthLabel;
   final bool forceRefreshing;
   final Future<void> Function() onRefresh;
 
   const _Header({
     required this.month,
+    required this.pickAt,
     required this.monthLabel,
     required this.forceRefreshing,
     required this.onRefresh,
@@ -312,8 +321,19 @@ class _Header extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerLeft,
               child: PeriodBasisNote(
-                text: PeriodBasisFormatter.calendarMonthLabel(month),
-                tooltip: PeriodBasisFormatter.calendarMonthHint,
+                text: PeriodBasisFormatter.calendarMonthDataLabel(
+                  month,
+                  pickAt: pickAt,
+                ),
+                compactText: PeriodBasisFormatter.calendarMonthDataLabel(
+                  month,
+                  pickAt: pickAt,
+                  compact: true,
+                ),
+                tooltip: PeriodBasisFormatter.billPeriodHint(
+                  month,
+                  pickAt: pickAt,
+                ),
               ),
             ),
           ),

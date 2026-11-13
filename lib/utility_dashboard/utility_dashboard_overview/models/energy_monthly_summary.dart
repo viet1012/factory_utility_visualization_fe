@@ -22,6 +22,9 @@ class EnergyMonthlySummary {
 
   final String unit;
 
+  /// Gio cua du lieu moi nhat (chuoi ISO gio nha may); null khi chua co.
+  final String? pickAt;
+
   const EnergyMonthlySummary({
     required this.cate,
     required this.name,
@@ -38,6 +41,7 @@ class EnergyMonthlySummary {
     required this.prevUsdCost,
     required this.deltaPercent,
     required this.unit,
+    this.pickAt,
   });
 
   factory EnergyMonthlySummary.fromJson(Map<String, dynamic> json) {
@@ -66,6 +70,8 @@ class EnergyMonthlySummary {
       deltaPercent: _JsonReader.number(json['deltaPercent']),
 
       unit: _JsonReader.string(json['unit']),
+
+      pickAt: _JsonReader.optionalString(json['pickAt']),
     );
   }
 
@@ -174,6 +180,11 @@ class _JsonReader {
 
   static String string(dynamic value) {
     return value?.toString().trim() ?? '';
+  }
+
+  static String? optionalString(dynamic value) {
+    final text = string(value);
+    return text.isEmpty ? null : text;
   }
 
   static double? number(dynamic value) {

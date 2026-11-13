@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../shared/formatters/period_basis_formatter.dart';
 import 'electric_consumption/electric_consumption_screen.dart';
 import 'electricity/electricity_screen.dart';
 
@@ -26,7 +27,8 @@ enum MonitoringSubTab {
     'Bill period',
     Icons.receipt_long_outlined,
     MonitoringGroup.electricity,
-    'Daily consumption & cost per bill period (21st → 20th), '
+    'Daily consumption & cost per bill period '
+        '(${PeriodBasisFormatter.billPeriodSpanText}), '
         'as in the F2 Excel report',
   ),
   waterCheck(

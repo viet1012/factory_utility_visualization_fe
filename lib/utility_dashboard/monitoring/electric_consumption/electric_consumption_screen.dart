@@ -207,7 +207,7 @@ class _Header extends StatelessWidget {
             // cua SUMMARY / Solar.
             PeriodBasisNote(
               text: _subtitle(),
-              tooltip: PeriodBasisFormatter.billPeriodHint,
+              tooltip: PeriodBasisFormatter.billPeriodScreenHint(month),
               style: const TextStyle(
                 color: ConsumptionColors.subtle,
                 fontSize: 12,
