@@ -60,11 +60,11 @@ abstract final class ConsumptionColors {
 
 /// Quy tac lam tron hien thi (so goc giu nguyen trong model va khi copy
 /// sang Excel):
-/// - gia tri ngay / trung binh ngay: MWh 1 so le (24.7), K$ 2 so le (1.96)
+/// - gia tri ngay / trung binh ngay: MWh so nguyen (50), K$ 1 so le (2.0)
 /// - tong ky: MWh so nguyen (1,172), K$ 1 so le (94.3)
 /// - truc Y: MWh so nguyen, K$ 1 so le
 abstract final class ConsumptionFormat {
-  static int value(ConsumptionUnit unit) => unit == ConsumptionUnit.mwh ? 1 : 2;
+  static int value(ConsumptionUnit unit) => unit == ConsumptionUnit.mwh ? 0 : 1;
 
   static int total(ConsumptionUnit unit) => unit == ConsumptionUnit.mwh ? 0 : 1;
 

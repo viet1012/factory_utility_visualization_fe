@@ -208,7 +208,9 @@ class PowerPurposeUsage {
   }
 }
 
-enum PowerSupplyBandType { highPeak, normal, lowPeak, solar, unknown }
+/// unpriced = grid kWh cua gio khong co version gia (backend band 'UNPRICED',
+/// rate / usd null); unknown = band khac chua biet (khong crash, hien ten goc).
+enum PowerSupplyBandType { highPeak, normal, lowPeak, solar, unpriced, unknown }
 
 class PowerSupplyBand {
   final String band;
@@ -225,11 +227,12 @@ class PowerSupplyBand {
     this.usd,
   });
 
-  PowerSupplyBandType get type => switch (band.toUpperCase()) {
+  PowerSupplyBandType get type => switch (band.trim().toUpperCase()) {
     'HIGH_PEAK' => PowerSupplyBandType.highPeak,
     'NORMAL' => PowerSupplyBandType.normal,
     'LOW_PEAK' => PowerSupplyBandType.lowPeak,
     'SOLAR' => PowerSupplyBandType.solar,
+    'UNPRICED' => PowerSupplyBandType.unpriced,
     _ => PowerSupplyBandType.unknown,
   };
 
@@ -238,7 +241,8 @@ class PowerSupplyBand {
     PowerSupplyBandType.normal => 'Normal',
     PowerSupplyBandType.lowPeak => 'Low-peak',
     PowerSupplyBandType.solar => 'Solar',
-    PowerSupplyBandType.unknown => band,
+    PowerSupplyBandType.unpriced => 'Unpriced',
+    PowerSupplyBandType.unknown => band.trim().isEmpty ? 'Unknown' : band,
   };
 
   factory PowerSupplyBand.fromJson(Map<String, dynamic> json) {
