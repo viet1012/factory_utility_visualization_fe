@@ -33,17 +33,24 @@ class _RobotPainter extends CustomPainter {
   static const _visorBg = Color(0xFF0D1117);
   static const _limbUp = Color(0xFF164EA6);
   static const _limbMid = Color(0xFF8B949E);
-  static const _limbLow = Color(0xFF6E7681);
   static const _joint = Color(0xFF484F58);
   static const _jointRim = Color(0xFF6E7681);
-  static const _footBg = Color(0xFF30363D);
-  static const _footRim = Color(0xFF484F58);
   static const _cheek = Color(0xFFF97583);
   static const _hairBase = Color(0xFFB0BEC5);
   static const _hairMid = Color(0xFFCFD8DC);
   static const _hairLight = Color(0xFFECEFF1);
   static const _hairDark = Color(0xFF78909C);
   static const _hairShine = Color(0xFFFFFFFF);
+  static const _bodyTop = Color(0xFF2F6FD6);
+  static const _bodyBottom = Color(0xFF0E3478);
+  static const _headTop = Color(0xFF2A313B);
+  static const _headBottom = Color(0xFF0B0F14);
+
+  // limb lengths, recomputed from the layout on every paint
+  double _upperLen = 27;
+  double _foreLen = 23;
+  double _thighLen = 31;
+  double _shinLen = 30;
 
   _RobotPainter({
     required this.accentColor,
@@ -51,23 +58,39 @@ class _RobotPainter extends CustomPainter {
     required this.eyeTrackX,
     required this.eyeTrackY,
     required this.antennaScale,
+    this.bodyBob = 0,
   });
+
+  /// Vertical bob applied to the upper body only; feet stay planted.
+  final double bodyBob;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
+    final l = _MascotLayout.of(size);
+    final w = l.w;
+    final h = l.h;
+    final headW = l.headW;
+    final headH = l.headH;
+    final bodyW = l.bodyW;
+    final bodyH = l.bodyH;
+    final headX = l.headX;
+    final headY = l.headY;
+    final bodyX = l.bodyX;
+    final bodyY = l.bodyY;
+    final cx = l.cx;
 
-    final headW = w * 0.6;
-    final headH = h * 0.22;
-    final bodyW = w * 0.56;
-    final bodyH = h * 0.3;
-    final headX = (w - headW) / 2;
-    final headY = h * 0.15;
-    final bodyX = (w - bodyW) / 2;
-    final bodyY = headY + headH + h * 0.032;
-    final cx = w / 2;
+    // limb lengths scale with the mascot; legs end exactly on the ground
+    _upperLen = h * 0.115;
+    _foreLen = h * 0.10;
+    // legs are solved with IK; lengths match the standing height so the
+    // legs are straight at rest and only bend when the body dips.
+    final ankleGroundY = l.groundY - 7.5;
+    final legSpan = ankleGroundY - (bodyY + bodyH - 1);
+    _thighLen = (legSpan + 0.5) * 0.5;
+    _shinLen = (legSpan + 0.5) * 0.5;
 
+    canvas.save();
+    canvas.translate(0, bodyBob);
     _drawArm(
       canvas: canvas,
       shoulder: Offset(bodyX + 2, bodyY + bodyH * 0.20),
@@ -82,18 +105,21 @@ class _RobotPainter extends CustomPainter {
       foreSwing: -foreSwing,
       isLeft: false,
     );
+    canvas.restore();
+
     // ===== SHADOW =====
     final shadowPhase = math.cos(walkPhase).abs();
 
+    final shadowBase = bodyW * 0.80;
     final shadowWidth = isWalking
-        ? (44 - shadowPhase * 10 * walkStrength)
-        : 42.0;
+        ? (shadowBase + 2 - shadowPhase * 10 * walkStrength)
+        : shadowBase;
 
     final shadowOpacity = isWalking
         ? (0.22 - shadowPhase * 0.08 * walkStrength)
         : 0.22;
 
-    final shadowCenter = Offset(w / 2, h * 0.90);
+    final shadowCenter = Offset(w / 2, l.groundY - 1);
 
     canvas.drawOval(
       Rect.fromCenter(center: shadowCenter, width: shadowWidth, height: 10),
@@ -107,26 +133,38 @@ class _RobotPainter extends CustomPainter {
 
     _drawLeg(
       canvas: canvas,
-      hip: Offset(bodyX + bodyW * 0.33, bodyY + bodyH - 1),
+      hip: Offset(bodyX + bodyW * 0.29, bodyY + bodyH - 1 + bodyBob),
+      ankleGroundY: ankleGroundY,
+      legSpan: legSpan,
       swing: legSwingL,
-      kneeBend: kneeBendL,
       footLift: footLiftL,
       isLeft: true,
     );
     _drawLeg(
       canvas: canvas,
-      hip: Offset(bodyX + bodyW * 0.67, bodyY + bodyH - 1),
+      hip: Offset(bodyX + bodyW * 0.71, bodyY + bodyH - 1 + bodyBob),
+      ankleGroundY: ankleGroundY,
+      legSpan: legSpan,
       swing: legSwingR,
-      kneeBend: kneeBendR,
       footLift: footLiftR,
       isLeft: false,
     );
 
+    // ===== UPPER BODY (bobs) =====
+    canvas.save();
+    canvas.translate(0, bodyBob);
+
     final neckRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(cx - 7, headY + headH - 2, 14, h * 0.045),
+      Rect.fromLTWH(cx - 7, headY + headH - 2, 14, bodyY - headY - headH + 6),
       const Radius.circular(4),
     );
-    canvas.drawRRect(neckRect, Paint()..color = _neckBg);
+    canvas.drawRRect(
+      neckRect,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [_neckBg, Color(0xFF3A424D), _neckBg],
+        ).createShader(neckRect.outerRect),
+    );
     canvas.drawRRect(
       neckRect,
       Paint()
@@ -134,25 +172,32 @@ class _RobotPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8,
     );
+    // neck segment rings
+    final neckR = neckRect.outerRect;
+    for (final f in [0.38, 0.68]) {
+      final y = neckR.top + neckR.height * f;
+      canvas.drawLine(
+        Offset(neckR.left + 1.5, y),
+        Offset(neckR.right - 1.5, y),
+        Paint()
+          ..color = Colors.black.withValues(alpha: 0.45)
+          ..strokeWidth = 1.0,
+      );
+    }
 
     final bodyRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(bodyX, bodyY, bodyW, bodyH),
-      const Radius.circular(8),
+      const Radius.circular(12),
     );
     // Cyber Glow
     canvas.drawRRect(
-      bodyRect.inflate(12),
+      bodyRect.inflate(6),
       Paint()
-        ..color = accentColor.withValues(alpha: 0.22)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
+        ..color = accentColor.withValues(alpha: 0.10)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
     );
 
-    canvas.drawRRect(
-      bodyRect.inflate(4),
-      Paint()..color = accentColor.withValues(alpha: 0.08),
-    );
-
-    canvas.drawRRect(bodyRect, Paint()..color = _bodyBg);
+    _drawBodyShell(canvas, bodyRect);
     canvas.drawRRect(
       bodyRect,
       Paint()
@@ -160,6 +205,7 @@ class _RobotPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2,
     );
+    _drawCollarAndPads(canvas, bodyRect);
 
     _drawHair(
       canvas: canvas,
@@ -176,18 +222,23 @@ class _RobotPainter extends CustomPainter {
     );
 
     canvas.drawRRect(
-      headRRect.inflate(10),
+      headRRect.inflate(5),
       Paint()
-        ..color = accentColor.withValues(alpha: 0.18)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+        ..color = accentColor.withValues(alpha: 0.10)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
     );
 
     canvas.drawRRect(
-      headRRect.inflate(4),
-      Paint()..color = accentColor.withValues(alpha: 0.08),
+      headRRect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_headTop, _headBg, _headBottom],
+          stops: [0.0, 0.55, 1.0],
+        ).createShader(headRRect.outerRect),
     );
-
-    canvas.drawRRect(headRRect, Paint()..color = _headBg);
+    _drawHeadGloss(canvas, headRRect);
     canvas.drawRRect(
       headRRect,
       Paint()
@@ -206,46 +257,18 @@ class _RobotPainter extends CustomPainter {
         ..strokeWidth = 1,
     );
 
-    final visorW = headW - 28;
-    const visorH = 10.0;
-    final visorX = headX + 14;
-    final visorY = headY + 11;
-    final visorRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(visorX, visorY, visorW, visorH),
-      const Radius.circular(visorH / 2),
-    );
-    canvas.drawRRect(visorRect, Paint()..color = _visorBg);
-    canvas.drawRRect(
-      visorRect,
-      Paint()
-        ..color = accentColor.withValues(alpha: 0.25)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(visorX + 2, visorY + 2, visorW - 4, 5),
-        const Radius.circular(3),
+    // ===== FACE SCREEN + EAR MODULES =====
+    final screenRRect = RRect.fromRectAndRadius(
+      Rect.fromLTRB(
+        headX + 9,
+        headY + headH * 0.34,
+        headX + headW - 9,
+        headY + headH - 5,
       ),
-      Paint()..color = accentColor.withValues(alpha: 0.65),
+      const Radius.circular(14),
     );
-
-    // ===== VISOR SCAN =====
-
-    final scanProgress =
-        ((DateTime.now().millisecondsSinceEpoch % 1800) / 1800);
-
-    final scanX = visorX + (visorW - 6) * scanProgress;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(scanX, visorY, 6, visorH),
-        const Radius.circular(3),
-      ),
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.75)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-    );
+    _drawFaceScreen(canvas, screenRRect);
+    _drawEarModules(canvas, headRRect);
 
     final eyeY = headY + headH * 0.57;
     final leftEyeX = headX + headW * 0.32;
@@ -253,7 +276,9 @@ class _RobotPainter extends CustomPainter {
     _drawEye(canvas, Offset(leftEyeX, eyeY));
     _drawEye(canvas, Offset(rightEyeX, eyeY));
 
-    final cheekPaint = Paint()..color = _cheek.withValues(alpha: 0.22);
+    final cheekPaint = Paint()
+      ..color = _cheek.withValues(alpha: 0.38)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(leftEyeX - 14, eyeY + 9),
@@ -275,12 +300,13 @@ class _RobotPainter extends CustomPainter {
 
     _drawMouth(canvas: canvas, center: mouthCenter);
     _drawMustache(canvas: canvas, center: mouthCenter);
-    canvas.save();
-    canvas.translate(cx, headY - 14 + hairOffset * 0.6);
-    canvas.scale(antennaScale, antennaScale);
-    _glowCircle(canvas, Offset.zero, 4, accentColor);
+    _drawScreenGlare(canvas, screenRRect);
 
-    canvas.restore();
+    _drawAntenna(
+      canvas,
+      base: Offset(cx, headY - 2),
+      tip: Offset(cx + hairOffset * 0.4, headY - 30 + hairOffset * 0.6),
+    );
 
     _drawHairFringe(
       canvas: canvas,
@@ -289,6 +315,7 @@ class _RobotPainter extends CustomPainter {
       headW: headW,
       offset: hairOffset,
     );
+    canvas.restore();
   }
 
   void _drawHair({
@@ -299,301 +326,37 @@ class _RobotPainter extends CustomPainter {
     required double headH,
     required double offset,
   }) {
-    final dy = offset;
-
-    _drawHairPuffs(canvas, headX, headY, headW, headH, dy);
-
-    final curlPaint = Paint()
-      ..color = _hairMid
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final coilPaint = Paint()
-      ..color = _hairBase
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final shinePaint = Paint()..color = _hairShine.withValues(alpha: 0.55);
-
-    for (final c in _buildTopCurls(headX, headY, headW, dy)) {
-      _drawCurlArc(canvas, c, curlPaint);
-    }
-
-    for (final c in _buildSideCurls(
-      headX: headX,
-      headY: headY,
-      headW: headW,
-      headH: headH,
-      dy: dy,
-      isLeft: true,
-    )) {
-      _drawCurlArc(canvas, c, curlPaint);
-    }
-
-    for (final c in _buildSideCurls(
-      headX: headX,
-      headY: headY,
-      headW: headW,
-      headH: headH,
-      dy: dy,
-      isLeft: false,
-    )) {
-      _drawCurlArc(canvas, c, curlPaint);
-    }
-
-    for (final c in _buildCoils(headX, headY, headW, headH, dy)) {
-      _drawSpringCoil(canvas, c, coilPaint);
-    }
-
-    for (final s in _buildShines(headX, headY, headW, headH, dy)) {
-      _drawShine(canvas, s, shinePaint);
+    // fluffy cloud of silver hair behind the head (top + sides)
+    final c = Offset(headX + headW / 2, headY + headH * 0.48 + offset);
+    final rx = headW * 0.47;
+    final ry = headH * 0.60;
+    const n = 9;
+    for (int i = 0; i < n; i++) {
+      final t = i / (n - 1);
+      final a = math.pi * (0.96 + 1.08 * t);
+      final p = Offset(c.dx + math.cos(a) * rx, c.dy + math.sin(a) * ry);
+      final r = headH * (0.17 + 0.06 * math.sin(t * math.pi));
+      _drawPuff(canvas, p, r);
     }
   }
 
-  void _drawHairPuffs(
-    Canvas canvas,
-    double headX,
-    double headY,
-    double headW,
-    double headH,
-    double dy,
-  ) {
-    final puffPaint = Paint()..color = _hairDark;
-
-    final puffCenters = <Offset>[
-      Offset(headX + 13, headY + headH * 0.28 + dy),
-      Offset(headX + headW - 13, headY + headH * 0.28 + dy),
-    ];
-
-    for (final center in puffCenters) {
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      canvas.scale(1, 1.4);
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset.zero, width: 30, height: 22),
-        puffPaint,
-      );
-      canvas.restore();
-    }
-
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(headX + headW / 2, headY - 4 + dy),
-        width: 54,
-        height: 34,
-      ),
-      puffPaint,
+  void _drawPuff(Canvas canvas, Offset c, double r) {
+    canvas.drawCircle(
+      c + const Offset(0, 1.6),
+      r,
+      Paint()..color = _hairDark.withValues(alpha: 0.9),
     );
-  }
-
-  List<_CurlSpec> _buildTopCurls(
-    double headX,
-    double headY,
-    double headW,
-    double dy,
-  ) {
-    return [
-      _CurlSpec(
-        cx: headX + headW * 0.26,
-        cy: headY + 2 + dy,
-        rx: 11,
-        ry: 10,
-        startAngle: -math.pi * 0.95,
-        sweep: math.pi * 1.85,
-        thickness: 5.4,
-      ),
-      _CurlSpec(
-        cx: headX + headW * 0.50,
-        cy: headY - 6 + dy,
-        rx: 13,
-        ry: 11,
-        startAngle: -math.pi * 0.85,
-        sweep: math.pi * 1.75,
-        thickness: 5.8,
-      ),
-      _CurlSpec(
-        cx: headX + headW * 0.74,
-        cy: headY + 2 + dy,
-        rx: 11,
-        ry: 10,
-        startAngle: -math.pi * 0.95,
-        sweep: math.pi * 1.85,
-        thickness: 5.4,
-      ),
-    ];
-  }
-
-  List<_CurlSpec> _buildSideCurls({
-    required double headX,
-    required double headY,
-    required double headW,
-    required double headH,
-    required double dy,
-    required bool isLeft,
-  }) {
-    final x1 = isLeft ? headX + 8 : headX + headW - 8;
-    final x2 = isLeft ? headX + 6 : headX + headW - 6;
-    final x3 = isLeft ? headX + 8 : headX + headW - 8;
-
-    final sweep1 = isLeft ? math.pi * 1.65 : -math.pi * 1.65;
-    final sweep2 = isLeft ? math.pi * 1.50 : -math.pi * 1.50;
-    final sweep3 = isLeft ? math.pi * 1.35 : -math.pi * 1.35;
-
-    return [
-      _CurlSpec(
-        cx: x1,
-        cy: headY + headH * 0.14 + dy,
-        rx: 8.5,
-        ry: 12,
-        startAngle: -math.pi * 0.55,
-        sweep: sweep1,
-        thickness: 4.8,
-      ),
-      _CurlSpec(
-        cx: x2,
-        cy: headY + headH * 0.42 + dy,
-        rx: 7.5,
-        ry: 10.5,
-        startAngle: -math.pi * 0.42,
-        sweep: sweep2,
-        thickness: 4.2,
-      ),
-      _CurlSpec(
-        cx: x3,
-        cy: headY + headH * 0.67 + dy,
-        rx: 7.5,
-        ry: 8.5,
-        startAngle: -math.pi * 0.32,
-        sweep: sweep3,
-        thickness: 3.8,
-      ),
-    ];
-  }
-
-  List<_CoilSpec> _buildCoils(
-    double headX,
-    double headY,
-    double headW,
-    double headH,
-    double dy,
-  ) {
-    return [
-      _CoilSpec(
-        cx: headX + headW * 0.20,
-        cy: headY - 1 + dy,
-        rx: 5.2,
-        ry: 6.6,
-        loops: 1.8,
-        thickness: 3.4,
-      ),
-      _CoilSpec(
-        cx: headX + headW * 0.35,
-        cy: headY - 5 + dy,
-        rx: 5.4,
-        ry: 7.4,
-        loops: 1.9,
-        thickness: 3.6,
-      ),
-      _CoilSpec(
-        cx: headX + headW * 0.50,
-        cy: headY - 10 + dy,
-        rx: 6.2,
-        ry: 8.8,
-        loops: 2.1,
-        thickness: 4.0,
-      ),
-      _CoilSpec(
-        cx: headX + headW * 0.65,
-        cy: headY - 5 + dy,
-        rx: 5.4,
-        ry: 7.4,
-        loops: 1.9,
-        thickness: 3.6,
-      ),
-      _CoilSpec(
-        cx: headX + headW * 0.80,
-        cy: headY - 1 + dy,
-        rx: 5.2,
-        ry: 6.6,
-        loops: 1.8,
-        thickness: 3.4,
-      ),
-      _CoilSpec(
-        cx: headX + 2,
-        cy: headY + headH * 0.52 + dy,
-        rx: 4.3,
-        ry: 6.4,
-        loops: 1.5,
-        thickness: 3.0,
-      ),
-      _CoilSpec(
-        cx: headX + headW - 2,
-        cy: headY + headH * 0.52 + dy,
-        rx: 4.3,
-        ry: 6.4,
-        loops: 1.5,
-        thickness: 3.0,
-      ),
-    ];
-  }
-
-  List<_ShineSpec> _buildShines(
-    double headX,
-    double headY,
-    double headW,
-    double headH,
-    double dy,
-  ) {
-    return [
-      _ShineSpec(
-        cx: headX + headW * 0.28,
-        cy: headY - 2 + dy,
-        rx: 3.0,
-        ry: 2.5,
-        angle: -0.4,
-      ),
-      _ShineSpec(
-        cx: headX + headW * 0.50,
-        cy: headY - 7 + dy,
-        rx: 4.0,
-        ry: 3.0,
-        angle: 0.0,
-      ),
-      _ShineSpec(
-        cx: headX + headW * 0.72,
-        cy: headY - 2 + dy,
-        rx: 3.0,
-        ry: 2.5,
-        angle: 0.4,
-      ),
-      _ShineSpec(
-        cx: headX + 10,
-        cy: headY + headH * 0.18 + dy,
-        rx: 2.5,
-        ry: 2.0,
-        angle: -0.5,
-      ),
-      _ShineSpec(
-        cx: headX + headW - 10,
-        cy: headY + headH * 0.18 + dy,
-        rx: 2.5,
-        ry: 2.0,
-        angle: 0.5,
-      ),
-    ];
-  }
-
-  void _drawShine(Canvas canvas, _ShineSpec s, Paint paint) {
-    canvas.save();
-    canvas.translate(s.cx, s.cy);
-    canvas.rotate(s.angle);
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset.zero, width: s.rx * 2, height: s.ry * 2),
-      paint,
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = const RadialGradient(
+          center: Alignment(-0.35, -0.45),
+          radius: 0.95,
+          colors: [_hairShine, _hairLight, _hairMid, _hairBase],
+          stops: [0.0, 0.35, 0.75, 1.0],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
     );
-    canvas.restore();
   }
 
   void _drawHairFringe({
@@ -603,126 +366,331 @@ class _RobotPainter extends CustomPainter {
     required double headW,
     required double offset,
   }) {
-    final fringeY = headY + 9 + offset;
-    final fringe = [
-      _CurlSpec(
-        cx: headX + headW * 0.20,
-        cy: fringeY,
-        rx: 5,
-        ry: 6,
-        startAngle: -math.pi * 0.7,
-        sweep: math.pi * 1.2,
-        thickness: 3.0,
-      ),
-      _CurlSpec(
-        cx: headX + headW * 0.37,
-        cy: fringeY - 3,
-        rx: 5,
-        ry: 7,
-        startAngle: -math.pi * 0.7,
-        sweep: math.pi * 1.3,
-        thickness: 3.2,
-      ),
-      _CurlSpec(
-        cx: headX + headW * 0.54,
-        cy: fringeY - 4,
-        rx: 5,
-        ry: 7,
-        startAngle: -math.pi * 0.7,
-        sweep: math.pi * 1.3,
-        thickness: 3.2,
-      ),
-      _CurlSpec(
-        cx: headX + headW * 0.72,
-        cy: fringeY - 2,
-        rx: 5,
-        ry: 6,
-        startAngle: -math.pi * 0.7,
-        sweep: math.pi * 1.2,
-        thickness: 3.0,
-      ),
-    ];
-    final paint = Paint()
-      ..color = _hairLight
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    for (final c in fringe) {
-      _drawCurlArc(canvas, c, paint);
+    // soft hairline across the top of the head
+    const xs = [0.20, 0.35, 0.50, 0.65, 0.80];
+    const rs = [6.5, 7.5, 8.5, 7.5, 6.5];
+    for (int i = 0; i < xs.length; i++) {
+      final lift = math.sin(xs[i] * math.pi) * 3;
+      _drawPuff(
+        canvas,
+        Offset(headX + headW * xs[i], headY + 3 - lift + offset * 0.6),
+        rs[i],
+      );
     }
-  }
-
-  void _drawCurlArc(Canvas canvas, _CurlSpec c, Paint basePaint) {
-    const steps = 20;
-    final path = Path();
-    for (int i = 0; i <= steps; i++) {
-      final t = i / steps;
-      final angle = c.startAngle + c.sweep * t;
-      final x = c.cx + math.cos(angle) * c.rx;
-      final y = c.cy + math.sin(angle) * c.ry;
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    canvas.drawPath(path, basePaint..strokeWidth = c.thickness);
-  }
-
-  void _drawSpringCoil(Canvas canvas, _CoilSpec c, Paint basePaint) {
-    final steps = (c.loops * 28).round();
-    final path = Path();
-    for (int i = 0; i <= steps; i++) {
-      final prog = i / steps;
-      final angle = -math.pi / 2 + prog * math.pi * 2 * c.loops;
-      final spiralRx = c.rx * (0.52 + 0.48 * (1 - prog * 0.25));
-      final spiralRy = c.ry * (0.52 + 0.48 * (1 - prog * 0.18));
-      final x = c.cx + math.cos(angle) * spiralRx;
-      final y = c.cy + math.sin(angle) * spiralRy;
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    canvas.drawPath(path, basePaint..strokeWidth = c.thickness);
   }
 
   void _drawEye(Canvas canvas, Offset center) {
-    const ew = 26.0, eh = 14.0;
-    final socketRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: center, width: ew, height: eh),
-      const Radius.circular(99),
-    );
-    canvas.drawRRect(socketRect, Paint()..color = const Color(0xFF0D1117));
-    canvas.drawRRect(
-      socketRect,
+    canvas.save();
+    canvas.translate(center.dx + eyeTrackX, center.dy + eyeTrackY);
+    canvas.scale(1.0, blinkScale);
+
+    // bloom
+    canvas.drawCircle(
+      Offset.zero,
+      10,
       Paint()
-        ..color = accentColor.withValues(alpha: 0.20)
+        ..color = accentColor.withValues(alpha: 0.28)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+
+    // iris
+    const irisR = 6.2;
+    final irisRect = Rect.fromCircle(center: Offset.zero, radius: irisR);
+    canvas.drawCircle(
+      Offset.zero,
+      irisR,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.3, -0.35),
+          colors: [
+            Color.lerp(accentColor, Colors.white, 0.6)!,
+            accentColor,
+            Color.lerp(accentColor, Colors.black, 0.45)!,
+          ],
+          stops: const [0.0, 0.55, 1.0],
+        ).createShader(irisRect),
+    );
+
+    // pupil
+    canvas.drawCircle(
+      const Offset(0.3, 0.4),
+      2.5,
+      Paint()..color = const Color(0xFF04140A).withValues(alpha: 0.85),
+    );
+
+    // sparkles
+    canvas.drawCircle(
+      const Offset(-2.0, -2.1),
+      1.8,
+      Paint()..color = Colors.white.withValues(alpha: 0.95),
+    );
+    canvas.drawCircle(
+      const Offset(2.2, 1.8),
+      0.9,
+      Paint()..color = Colors.white.withValues(alpha: 0.65),
+    );
+    canvas.restore();
+  }
+
+  void _drawFaceScreen(Canvas canvas, RRect screen) {
+    final r = screen.outerRect;
+
+    // recessed bezel
+    canvas.drawRRect(
+      screen.inflate(2.2),
+      Paint()..color = Colors.black.withValues(alpha: 0.55),
+    );
+
+    // glass
+    canvas.drawRRect(
+      screen,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF0E1A24), Color(0xFF060B10)],
+        ).createShader(r),
+    );
+
+    canvas.save();
+    canvas.clipRRect(screen);
+
+    // inner accent ambience
+    canvas.drawRect(
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(0, 0.2),
+          radius: 0.9,
+          colors: [
+            accentColor.withValues(alpha: 0.12),
+            accentColor.withValues(alpha: 0.0),
+          ],
+        ).createShader(r),
+    );
+
+    // CRT scanlines
+    final linePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.035)
+      ..strokeWidth = 0.6;
+    for (double y = r.top + 1.5; y < r.bottom; y += 2.6) {
+      canvas.drawLine(Offset(r.left, y), Offset(r.right, y), linePaint);
+    }
+
+    // moving scan band
+    final p = (DateTime.now().millisecondsSinceEpoch % 2600) / 2600;
+    final bandY = r.top - 6 + (r.height + 12) * p;
+    final band = Rect.fromLTWH(r.left, bandY - 4, r.width, 8);
+    canvas.drawRect(
+      band,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            accentColor.withValues(alpha: 0.0),
+            accentColor.withValues(alpha: 0.16),
+            accentColor.withValues(alpha: 0.0),
+          ],
+        ).createShader(band),
+    );
+    canvas.restore();
+
+    canvas.drawRRect(
+      screen,
+      Paint()
+        ..color = accentColor.withValues(alpha: 0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8,
+    );
+  }
+
+  void _drawScreenGlare(Canvas canvas, RRect screen) {
+    final r = screen.outerRect;
+    canvas.save();
+    canvas.clipRRect(screen);
+    final glare = Path()
+      ..moveTo(r.left + r.width * 0.06, r.top)
+      ..lineTo(r.left + r.width * 0.30, r.top)
+      ..lineTo(r.left + r.width * 0.12, r.bottom)
+      ..lineTo(r.left - r.width * 0.12, r.bottom)
+      ..close();
+    canvas.drawPath(
+      glare,
+      Paint()..color = Colors.white.withValues(alpha: 0.06),
+    );
+    canvas.drawLine(
+      Offset(r.left + 10, r.top + 2.2),
+      Offset(r.right - 10, r.top + 2.2),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.14)
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.restore();
+  }
+
+  void _drawEarModules(Canvas canvas, RRect headRRect) {
+    final r = headRRect.outerRect;
+    final pulse = _pulse;
+    for (final left in [true, false]) {
+      final c = Offset(left ? r.left + 0.5 : r.right - 0.5, r.top + r.height * 0.58);
+      final ear = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: c, width: 10, height: 22),
+        const Radius.circular(5),
+      );
+      canvas.drawRRect(
+        ear,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_bodyTop, _bodyBottom],
+          ).createShader(ear.outerRect),
+      );
+      canvas.drawRRect(
+        ear,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8,
+      );
+      canvas.drawLine(
+        Offset(c.dx - 2, ear.top + 4),
+        Offset(c.dx - 2, ear.bottom - 4),
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.22)
+          ..strokeWidth = 1.2
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawCircle(
+        c,
+        4.5,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.25 + 0.25 * pulse)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+      );
+      canvas.drawCircle(c, 1.9, Paint()..color = accentColor);
+    }
+  }
+
+  void _drawAntenna(
+    Canvas canvas, {
+    required Offset base,
+    required Offset tip,
+  }) {
+    canvas.drawCircle(base, 3.2, Paint()..color = _joint);
+    canvas.drawLine(
+      base,
+      tip,
+      Paint()
+        ..color = _limbMid
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawLine(
+      base + const Offset(-0.6, 0),
+      tip + const Offset(-0.6, 0),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.35)
+        ..strokeWidth = 0.7
+        ..strokeCap = StrokeCap.round,
+    );
+
+    canvas.save();
+    canvas.translate(tip.dx, tip.dy);
+    canvas.scale(antennaScale, antennaScale);
+    final pulse = _pulse;
+    canvas.drawCircle(
+      Offset.zero,
+      9 + 3 * pulse,
+      Paint()
+        ..color = accentColor.withValues(alpha: 0.18 + 0.14 * pulse)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+    const ballR = 4.6;
+    canvas.drawCircle(
+      Offset.zero,
+      ballR,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.35, -0.4),
+          colors: [
+            Colors.white,
+            Color.lerp(accentColor, Colors.white, 0.3)!,
+            accentColor,
+          ],
+          stops: const [0.0, 0.35, 1.0],
+        ).createShader(Rect.fromCircle(center: Offset.zero, radius: ballR)),
+    );
+    canvas.restore();
+  }
+
+  void _drawCollarAndPads(Canvas canvas, RRect bodyRect) {
+    final r = bodyRect.outerRect;
+
+    // collar
+    final collar = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(r.center.dx, r.top + 1.5),
+        width: r.width * 0.42,
+        height: 8,
+      ),
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(
+      collar,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF3A424D), _neckBg],
+        ).createShader(collar.outerRect),
+    );
+    canvas.drawRRect(
+      collar,
+      Paint()
+        ..color = accentColor.withValues(alpha: 0.45)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8,
     );
 
-    canvas.save();
-    canvas.translate(center.dx + eyeTrackX, center.dy + eyeTrackY);
-    canvas.scale(1.0, blinkScale);
-    canvas.drawCircle(
-      Offset.zero,
-      9,
-      Paint()..color = accentColor.withValues(alpha: 0.08),
-    );
-    canvas.drawCircle(
-      Offset.zero,
-      6.5,
-      Paint()..color = accentColor.withValues(alpha: 0.16),
-    );
-    canvas.drawCircle(Offset.zero, 4.2, Paint()..color = accentColor);
-    canvas.drawCircle(
-      const Offset(-1.3, -1.3),
-      1.4,
-      Paint()..color = Colors.white.withValues(alpha: 0.88),
-    );
-    canvas.restore();
+    // shoulder pads
+    for (final left in [true, false]) {
+      final c = Offset(
+        left ? r.left + 3 : r.right - 3,
+        r.top + r.height * 0.17,
+      );
+      final pad = Rect.fromCenter(center: c, width: 20, height: 16);
+      canvas.drawOval(
+        pad.shift(const Offset(0, 1.5)),
+        Paint()..color = Colors.black.withValues(alpha: 0.30),
+      );
+      canvas.drawOval(
+        pad,
+        Paint()
+          ..shader = const RadialGradient(
+            center: Alignment(-0.3, -0.5),
+            colors: [Color(0xFF5A93EA), _bodyTop, _bodyBottom],
+            stops: [0.0, 0.45, 1.0],
+          ).createShader(pad),
+      );
+      canvas.drawOval(
+        pad,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.55)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.9,
+      );
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: c + const Offset(-2, -3.5),
+          width: 9,
+          height: 3.5,
+        ),
+        Paint()..color = Colors.white.withValues(alpha: 0.30),
+      );
+    }
   }
 
   void _drawMustache({required Canvas canvas, required Offset center}) {
@@ -801,12 +769,6 @@ class _RobotPainter extends CustomPainter {
     );
 
     // highlight cÃ¡ÂºÂ±m
-    canvas.drawPath(
-      Path()
-        ..moveTo(cx - 6, cy + 26)
-        ..quadraticBezierTo(cx, cy + 29, cx + 6, cy + 26),
-      highlightPaint,
-    );
   }
 
   void _drawMouth({required Canvas canvas, required Offset center}) {
@@ -821,7 +783,16 @@ class _RobotPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = accentColor
+        ..color = accentColor.withValues(alpha: 0.45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Color.lerp(accentColor, Colors.white, 0.25)!
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.6
         ..strokeCap = StrokeCap.round,
@@ -835,280 +806,391 @@ class _RobotPainter extends CustomPainter {
     required double foreSwing,
     required bool isLeft,
   }) {
-    const upperLen = 32.0;
-    const foreLen = 24.0;
+    final upperLen = _upperLen;
+    final foreLen = _foreLen;
 
-    final baseUpper = isLeft ? -2.38 : -0.76;
+    // relaxed pose: arms hang close to the body, forearms bend slightly in
+    final baseUpper = isLeft ? 1.97 : 1.17;
     final upperAngle = baseUpper + swing;
-    final foreAngle = upperAngle + (isLeft ? 0.58 : -0.58) + foreSwing;
+    final foreAngle = upperAngle + (isLeft ? -0.30 : 0.30) + foreSwing;
 
     final elbow = Offset(
       shoulder.dx + math.cos(upperAngle) * upperLen,
       shoulder.dy + math.sin(upperAngle) * upperLen,
     );
-
     final wrist = Offset(
       elbow.dx + math.cos(foreAngle) * foreLen,
       elbow.dy + math.sin(foreAngle) * foreLen,
     );
 
-    // ---------------------------
-    // paints
-    // ---------------------------
-    final shoulderGlow = Paint()..color = accentColor.withValues(alpha: 0.10);
+    _drawTube(canvas, shoulder, elbow, 10, _limbUp);
+    _drawJoint(canvas, elbow, 4.6);
+    _drawTube(canvas, elbow, wrist, 9, _limbMid);
+    _drawCuff(canvas, elbow, wrist, 9);
 
-    final jointFill = Paint()..color = _joint;
-
-    final jointStroke = Paint()
-      ..color = _jointRim
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
-
-    final upperPaint = Paint()
-      ..color = _limbUp
-      ..strokeWidth = 10
-      ..strokeCap = StrokeCap.round;
-
-    final upperHighlight = Paint()
-      ..color = Colors.white.withValues(alpha: 0.18)
-      ..strokeWidth = 3.2
-      ..strokeCap = StrokeCap.round;
-
-    final forePaint = Paint()
-      ..color = _limbMid
-      ..strokeWidth = 7.5
-      ..strokeCap = StrokeCap.round;
-
-    final foreHighlight = Paint()
-      ..color = Colors.white.withValues(alpha: 0.14)
-      ..strokeWidth = 2.4
-      ..strokeCap = StrokeCap.round;
-
-    final handFill = Paint()..color = _limbLow;
-
-    final handStroke = Paint()
-      ..color = _joint
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.6;
-
-    // ---------------------------
-    // shoulder
-    // ---------------------------
-    canvas.drawCircle(shoulder, 8, shoulderGlow);
-    canvas.drawCircle(shoulder, 5, jointFill);
-    canvas.drawCircle(shoulder, 5, jointStroke);
-
-    // shoulder hub inner
+    // round mitten hand
+    final hand = wrist + Offset(math.cos(foreAngle), math.sin(foreAngle)) * 3;
+    const handR = 6.2;
     canvas.drawCircle(
-      shoulder,
-      2.0,
-      Paint()..color = Colors.white.withValues(alpha: 0.12),
+      hand + const Offset(0, 1.2),
+      handR,
+      Paint()..color = Colors.black.withValues(alpha: 0.30),
     );
-
-    // ---------------------------
-    // upper arm
-    // ---------------------------
-    canvas.drawLine(shoulder, elbow, upperPaint);
-
-    // subtle highlight lÃ¡Â»â€¡ch lÃƒÂªn 1 chÃƒÂºt Ã„â€˜Ã¡Â»Æ’ cÃƒÂ³ cÃ¡ÂºÂ£m giÃƒÂ¡c volume
-    canvas.drawLine(
-      Offset(shoulder.dx + (isLeft ? 0.6 : -0.6), shoulder.dy - 0.8),
-      Offset(elbow.dx + (isLeft ? 0.6 : -0.6), elbow.dy - 0.8),
-      upperHighlight,
-    );
-
-    // ---------------------------
-    // elbow
-    // ---------------------------
     canvas.drawCircle(
-      elbow,
-      8,
-      Paint()..color = accentColor.withValues(alpha: 0.10),
-    );
-    canvas.drawCircle(elbow, 5.2, jointFill);
-    canvas.drawCircle(elbow, 5.2, jointStroke);
-
-    // cap ring cho cÃ¡ÂºÂ£m giÃƒÂ¡c mechanical hÃ†Â¡n
-    canvas.drawCircle(
-      elbow,
-      7.0,
+      hand,
+      handR,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.05)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
+        ..shader = const RadialGradient(
+          center: Alignment(-0.35, -0.45),
+          colors: [Color(0xFFF5F7FA), Color(0xFFCFD8DC), Color(0xFF90A4AE)],
+          stops: [0.0, 0.55, 1.0],
+        ).createShader(Rect.fromCircle(center: hand, radius: handR)),
     );
-
-    // ---------------------------
-    // forearm
-    // ---------------------------
-    canvas.drawLine(elbow, wrist, forePaint);
-
-    canvas.drawLine(
-      Offset(elbow.dx + (isLeft ? 0.5 : -0.5), elbow.dy - 0.6),
-      Offset(wrist.dx + (isLeft ? 0.5 : -0.5), wrist.dy - 0.6),
-      foreHighlight,
-    );
-
-    // wrist joint
-    canvas.drawCircle(
-      wrist,
-      4.0,
-      Paint()..color = accentColor.withValues(alpha: 0.06),
-    );
-    canvas.drawCircle(wrist, 3.5, Paint()..color = _limbLow);
-
-    // ---------------------------
-    // hand
-    // ---------------------------
-    final handAngle = foreAngle + (isLeft ? -0.08 : 0.08);
-
-    canvas.save();
-    canvas.translate(wrist.dx, wrist.dy + 1.6);
-    canvas.rotate(handAngle);
-
-    final handRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: const Offset(0, 0), width: 12, height: 6.5),
-      const Radius.circular(3.2),
-    );
-
-    canvas.drawRRect(handRect, handFill);
-    canvas.drawRRect(handRect, handStroke);
-
-    // highlight trÃƒÂªn bÃƒÂ n tay
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: const Offset(0, -1.1), width: 8.5, height: 1.8),
-        const Radius.circular(1),
-      ),
-      Paint()..color = Colors.white.withValues(alpha: 0.10),
-    );
-
-    // ngÃƒÂ³n / claw nhÃ¡Â»Â
-    final fingerPaint = Paint()
-      ..color = _jointRim
-      ..strokeWidth = 1.1
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawLine(
-      const Offset(3.5, -0.8),
-      const Offset(6.0, -1.6),
-      fingerPaint,
-    );
-    canvas.drawLine(
-      const Offset(3.8, 0.8),
-      const Offset(6.2, 1.6),
-      fingerPaint,
-    );
-
-    canvas.restore();
   }
 
-  void _drawLeg({
-    required Canvas canvas,
-    required Offset hip,
-    required double swing,
-    required double kneeBend,
-    required double footLift,
-    required bool isLeft,
-  }) {
-    const thighLen = 32.0;
-    const shinLen = 26.0;
-
-    final thighAngle = 1.57 + swing;
-
-    // cÃ¡ÂºÂ³ng chÃƒÂ¢n co rÃƒÂµ hÃ†Â¡n khi chÃƒÂ¢n Ã„â€˜Ã†Â°Ã¡Â»Â£c nhÃ¡ÂºÂ¥c lÃƒÂªn
-    final shinBaseOffset = isLeft ? 0.18 : -0.18;
-    final shinAngle = thighAngle + shinBaseOffset + kneeBend;
-
-    final knee = Offset(
-      hip.dx + math.cos(thighAngle) * thighLen,
-      hip.dy + math.sin(thighAngle) * thighLen,
-    );
-
-    final ankle = Offset(
-      knee.dx + math.cos(shinAngle) * shinLen,
-      knee.dy + math.sin(shinAngle) * shinLen - footLift,
-    );
-
-    canvas.drawCircle(hip, 5, Paint()..color = _joint);
-    canvas.drawLine(
-      hip,
-      knee,
-      Paint()
-        ..color = _limbMid
-        ..strokeWidth = 12
-        ..strokeCap = StrokeCap.round,
-    );
-
+  void _drawJoint(Canvas canvas, Offset c, double r) {
+    canvas.drawCircle(c, r, Paint()..color = _joint);
     canvas.drawCircle(
-      knee,
-      7,
-      Paint()..color = accentColor.withValues(alpha: 0.08),
-    );
-    canvas.drawCircle(knee, 5.5, Paint()..color = _joint);
-    canvas.drawCircle(
-      knee,
-      5.5,
+      c,
+      r,
       Paint()
         ..color = _jointRim
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8,
     );
+    canvas.drawCircle(
+      c + Offset(-r * 0.3, -r * 0.3),
+      r * 0.35,
+      Paint()..color = Colors.white.withValues(alpha: 0.18),
+    );
+  }
 
-    canvas.drawLine(
-      knee,
-      ankle,
+  void _drawLeg({
+    required Canvas canvas,
+    required Offset hip,
+    required double ankleGroundY,
+    required double legSpan,
+    required double swing,
+    required double footLift,
+    required bool isLeft,
+  }) {
+    final thighLen = _thighLen;
+    final shinLen = _shinLen;
+    final reach = thighLen + shinLen;
+
+    // front-view march: feet stay under the hips, lift straight up
+    var target = Offset(
+      hip.dx - math.sin(swing) * 4,
+      ankleGroundY - footLift,
+    );
+
+    // front view: a lifted leg is foreshortened (knee comes toward the
+    // viewer), so keep the knee between hip and foot with only a tiny
+    // outward offset instead of bending sideways.
+    var toTarget = target - hip;
+    final d = toTarget.distance;
+    if (d > reach) {
+      target = hip + toTarget / d * reach;
+      toTarget = target - hip;
+    }
+    final slack = (reach - toTarget.distance).clamp(0.0, reach);
+    final knee =
+        Offset.lerp(hip, target, thighLen / reach)! +
+        Offset((isLeft ? -1 : 1) * slack * 0.18, 0);
+    final ankle = target;
+
+    _drawTube(canvas, hip, knee, 13, _limbUp);
+    _drawJoint(canvas, knee, 5.2);
+    _drawTube(canvas, knee, ankle, 11.5, _limbMid);
+    _drawCuff(canvas, knee, ankle, 11.5);
+
+    _drawBoot(canvas, ankle + Offset(isLeft ? -1.5 : 1.5, 1.5), footLift);
+  }
+
+  /// Front-facing rounded boot: blue dome upper + dark sole.
+  void _drawBoot(Canvas canvas, Offset top, double footLift) {
+    const bw = 23.0;
+    const bh = 12.0;
+    final rect = Rect.fromLTWH(top.dx - bw / 2, top.dy - 2, bw, bh);
+
+    // contact shadow shrinks when the foot is lifted
+    if (footLift < 1) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(top.dx, rect.bottom),
+          width: bw + 4,
+          height: 4,
+        ),
+        Paint()..color = Colors.black.withValues(alpha: 0.25),
+      );
+    }
+
+    final upper = RRect.fromRectAndCorners(
+      rect,
+      topLeft: const Radius.circular(10),
+      topRight: const Radius.circular(10),
+      bottomLeft: const Radius.circular(4),
+      bottomRight: const Radius.circular(4),
+    );
+    canvas.drawRRect(
+      upper,
       Paint()
-        ..color = _limbMid
-        ..strokeWidth = 10
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_bodyTop, _bodyBg, _bodyBottom],
+        ).createShader(rect),
+    );
+
+    // sole
+    final sole = RRect.fromRectAndRadius(
+      Rect.fromLTWH(rect.left - 0.5, rect.bottom - 3.5, bw + 1, 3.5),
+      const Radius.circular(2),
+    );
+    canvas.drawRRect(sole, Paint()..color = const Color(0xFF161B22));
+    canvas.drawLine(
+      Offset(rect.left + 3, rect.bottom - 3.6),
+      Offset(rect.right - 3, rect.bottom - 3.6),
+      Paint()
+        ..color = accentColor.withValues(alpha: 0.7)
+        ..strokeWidth = 1.0
         ..strokeCap = StrokeCap.round,
     );
-    canvas.drawCircle(ankle, 3.5, Paint()..color = _joint);
 
-    final footOffX = isLeft ? -3.0 : 3.0;
-    final footTilt = swing * 0.35;
+    // gloss
+    canvas.drawOval(
+      Rect.fromLTWH(rect.left + 4, rect.top + 1.5, bw * 0.45, 3.5),
+      Paint()..color = Colors.white.withValues(alpha: 0.28),
+    );
+  }
+
+  // ===== SKIN HELPERS =====
+
+  double get _pulse {
+    final t = (DateTime.now().millisecondsSinceEpoch % 2000) / 2000;
+    return 0.5 + 0.5 * math.sin(t * math.pi * 2);
+  }
+
+  /// Rounded limb segment with metallic shading (shadow + specular strip).
+  void _drawTube(Canvas canvas, Offset a, Offset b, double width, Color color) {
+    final d = b - a;
+    final len = d.distance;
+    if (len == 0) return;
+    var n = Offset(-d.dy / len, d.dx / len);
+    if (n.dy > 0 || (n.dy == 0 && n.dx > 0)) n = -n; // point toward light
+
+    canvas.drawLine(
+      a,
+      b,
+      Paint()
+        ..color = color
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round,
+    );
+    final shadowOff = n * (-width * 0.22);
+    canvas.drawLine(
+      a + shadowOff,
+      b + shadowOff,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.28)
+        ..strokeWidth = width * 0.42
+        ..strokeCap = StrokeCap.round,
+    );
+    final hiOff = n * (width * 0.24);
+    canvas.drawLine(
+      a + hiOff,
+      b + hiOff,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.26)
+        ..strokeWidth = width * 0.22
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  /// Accent band near the end of a limb segment.
+  void _drawCuff(Canvas canvas, Offset a, Offset b, double width) {
+    final p1 = Offset.lerp(a, b, 0.70)!;
+    final p2 = Offset.lerp(a, b, 0.82)!;
+    canvas.drawLine(
+      p1,
+      p2,
+      Paint()
+        ..color = _joint
+        ..strokeWidth = width + 1.2
+        ..strokeCap = StrokeCap.butt,
+    );
+    canvas.drawLine(
+      p1,
+      p2,
+      Paint()
+        ..color = accentColor.withValues(alpha: 0.55)
+        ..strokeWidth = width * 0.5
+        ..strokeCap = StrokeCap.butt,
+    );
+  }
+
+  void _drawHeadGloss(Canvas canvas, RRect headRRect) {
+    final hr = headRRect.outerRect;
+    canvas.save();
+    canvas.clipRRect(headRRect);
+
+    final gloss = Rect.fromLTWH(
+      hr.left + hr.width * 0.08,
+      hr.top + 2,
+      hr.width * 0.84,
+      hr.height * 0.42,
+    );
+    canvas.drawOval(
+      gloss,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: 0.16),
+            Colors.white.withValues(alpha: 0.0),
+          ],
+        ).createShader(gloss),
+    );
+
+    // accent rim light from below
+    final rim = Rect.fromLTWH(
+      hr.left,
+      hr.bottom - hr.height * 0.28,
+      hr.width,
+      hr.height * 0.28,
+    );
+    canvas.drawRect(
+      rim,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            accentColor.withValues(alpha: 0.0),
+            accentColor.withValues(alpha: 0.14),
+          ],
+        ).createShader(rim),
+    );
+    canvas.restore();
+  }
+
+  void _drawBodyShell(Canvas canvas, RRect bodyRect) {
+    final r = bodyRect.outerRect;
+
+    // base vertical gradient
+    canvas.drawRRect(
+      bodyRect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_bodyTop, _bodyBg, _bodyBottom],
+          stops: [0.0, 0.5, 1.0],
+        ).createShader(r),
+    );
 
     canvas.save();
-    canvas.translate(ankle.dx + footOffX, ankle.dy + 2.5);
-    canvas.rotate(footTilt);
+    canvas.clipRRect(bodyRect);
 
-    final footRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset.zero, width: 26, height: 10),
-      const Radius.circular(5),
-    );
-    canvas.drawRRect(footRect, Paint()..color = _footBg);
-    canvas.drawRRect(
-      footRect,
+    // side shading for volume
+    canvas.drawRect(
+      r,
       Paint()
-        ..color = _footRim
+        ..shader = LinearGradient(
+          colors: [
+            Colors.black.withValues(alpha: 0.28),
+            Colors.transparent,
+            Colors.transparent,
+            Colors.black.withValues(alpha: 0.28),
+          ],
+          stops: const [0.0, 0.22, 0.78, 1.0],
+        ).createShader(r),
+    );
+
+    // top gloss
+    final glossRect = Rect.fromLTWH(
+      r.left + r.width * 0.08,
+      r.top + 2,
+      r.width * 0.84,
+      r.height * 0.34,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(glossRect, const Radius.circular(6)),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: 0.22),
+            Colors.white.withValues(alpha: 0.0),
+          ],
+        ).createShader(glossRect),
+    );
+
+    // panel seam (bevel)
+    final seamY = r.top + r.height * 0.58;
+    canvas.drawLine(
+      Offset(r.left + 4, seamY),
+      Offset(r.right - 4, seamY),
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.30)
+        ..strokeWidth = 1.0,
+    );
+    canvas.drawLine(
+      Offset(r.left + 4, seamY + 1),
+      Offset(r.right - 4, seamY + 1),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.10)
+        ..strokeWidth = 0.8,
+    );
+
+    // corner rivets
+    final rivet = Paint()..color = Colors.white.withValues(alpha: 0.22);
+    for (final p in [
+      Offset(r.left + 6, r.top + 6),
+      Offset(r.right - 6, r.top + 6),
+      Offset(r.left + 6, r.bottom - 6),
+      Offset(r.right - 6, r.bottom - 6),
+    ]) {
+      canvas.drawCircle(p, 1.3, rivet);
+    }
+    canvas.restore();
+
+    // belt with pulsing status LEDs (symmetric -> safe when flipped)
+    final beltW = r.width * 0.58;
+    final beltH = math.max(7.0, r.height * 0.13);
+    final beltRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(r.center.dx, r.top + r.height * 0.76),
+        width: beltW,
+        height: beltH,
+      ),
+      Radius.circular(beltH / 2),
+    );
+    canvas.drawRRect(beltRect, Paint()..color = _visorBg);
+    canvas.drawRRect(
+      beltRect,
+      Paint()
+        ..color = accentColor.withValues(alpha: 0.35)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8,
     );
 
-    final toeCenter = Offset(isLeft ? -7.0 : 7.0, 2.5);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: toeCenter, width: 9, height: 8),
-        const Radius.circular(4),
-      ),
-      Paint()..color = _footRim,
-    );
-
-    canvas.restore();
-  }
-
-  void _glowCircle(Canvas canvas, Offset center, double r, Color color) {
-    canvas.drawCircle(
-      center,
-      r + 7,
-      Paint()..color = color.withValues(alpha: 0.10),
-    );
-    canvas.drawCircle(
-      center,
-      r + 3.5,
-      Paint()..color = color.withValues(alpha: 0.20),
-    );
-    canvas.drawCircle(center, r, Paint()..color = color);
+    final pulse = _pulse;
+    final ledR = beltH * 0.24;
+    for (int i = -1; i <= 1; i++) {
+      final c = Offset(r.center.dx + i * beltW * 0.26, beltRect.center.dy);
+      final a = i == 0 ? 0.55 + 0.45 * pulse : 0.35 + 0.30 * (1 - pulse);
+      canvas.drawCircle(
+        c,
+        ledR * 2.4,
+        Paint()
+          ..color = accentColor.withValues(alpha: a * 0.30)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+      );
+      canvas.drawCircle(c, ledR, Paint()..color = accentColor.withValues(alpha: a));
+    }
   }
 
   @override
@@ -1118,6 +1200,7 @@ class _RobotPainter extends CustomPainter {
         old.eyeTrackX != eyeTrackX ||
         old.eyeTrackY != eyeTrackY ||
         old.antennaScale != antennaScale ||
+        old.bodyBob != bodyBob ||
         old.armSwingL != armSwingL ||
         old.armSwingR != armSwingR ||
         old.foreSwing != foreSwing ||
@@ -1141,25 +1224,24 @@ class _BadgePainter extends CustomPainter {
   final Color accentColor;
   final ui.Image? logoImage;
 
-  const _BadgePainter({required this.accentColor, this.logoImage});
+  final double bodyBob;
+
+  const _BadgePainter({
+    required this.accentColor,
+    this.logoImage,
+    this.bodyBob = 0,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    final headH = h * 0.22;
-    final bodyW = w * 0.5;
-    final bodyH = h * 0.27;
-    final bodyX = (w - bodyW) / 2;
-    final bodyY = h * 0.15 + headH + h * 0.032;
-
+    final l = _MascotLayout.of(size);
+    canvas.translate(0, bodyBob);
     _drawSPCOnly(
       canvas: canvas,
-      bodyX: bodyX,
-      bodyY: bodyY,
-      bodyW: bodyW,
-      bodyH: bodyH,
+      bodyX: l.bodyX,
+      bodyY: l.bodyY,
+      bodyW: l.bodyW,
+      bodyH: l.bodyH,
     );
   }
 
@@ -1170,9 +1252,10 @@ class _BadgePainter extends CustomPainter {
     required double bodyW,
     required double bodyH,
   }) {
-    final center = Offset(bodyX + bodyW * 0.68, bodyY + bodyH * 0.34);
+    // centered on the chest -> looks the same when the robot flips
+    final center = Offset(bodyX + bodyW / 2, bodyY + bodyH * 0.36);
     final badgeW = bodyW * 0.62;
-    final badgeH = bodyH * 0.35;
+    final badgeH = badgeW / 2.28;
 
     final rect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: center, width: badgeW, height: badgeH),
@@ -1217,6 +1300,7 @@ class _BadgePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _BadgePainter oldDelegate) {
     return oldDelegate.accentColor != accentColor ||
-        oldDelegate.logoImage != logoImage;
+        oldDelegate.logoImage != logoImage ||
+        oldDelegate.bodyBob != bodyBob;
   }
 }

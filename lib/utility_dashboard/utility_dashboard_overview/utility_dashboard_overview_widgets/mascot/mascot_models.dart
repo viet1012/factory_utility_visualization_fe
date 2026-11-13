@@ -101,41 +101,51 @@ class _MascotMoveFrame {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // MonitoringMascot
 
-class _CurlSpec {
-  final double cx, cy, rx, ry, startAngle, sweep, thickness;
+/// Shared proportions for the robot and its badge overlay.
+/// Chibi-style: head ~1.3x body width, ground line at 90% of height.
+class _MascotLayout {
+  final double w, h;
+  final double headW, headH, headX, headY;
+  final double bodyW, bodyH, bodyX, bodyY;
+  final double cx, groundY;
 
-  const _CurlSpec({
+  const _MascotLayout._({
+    required this.w,
+    required this.h,
+    required this.headW,
+    required this.headH,
+    required this.headX,
+    required this.headY,
+    required this.bodyW,
+    required this.bodyH,
+    required this.bodyX,
+    required this.bodyY,
     required this.cx,
-    required this.cy,
-    required this.rx,
-    required this.ry,
-    required this.startAngle,
-    required this.sweep,
-    required this.thickness,
+    required this.groundY,
   });
-}
 
-class _CoilSpec {
-  final double cx, cy, rx, ry, loops, thickness;
-
-  const _CoilSpec({
-    required this.cx,
-    required this.cy,
-    required this.rx,
-    required this.ry,
-    required this.loops,
-    required this.thickness,
-  });
-}
-
-class _ShineSpec {
-  final double cx, cy, rx, ry, angle;
-
-  const _ShineSpec({
-    required this.cx,
-    required this.cy,
-    required this.rx,
-    required this.ry,
-    required this.angle,
-  });
+  factory _MascotLayout.of(Size size) {
+    final w = size.width;
+    final h = size.height;
+    final headW = w * 0.58;
+    final headH = h * 0.215;
+    final headY = h * 0.165;
+    final bodyW = w * 0.48;
+    final bodyH = h * 0.245;
+    final bodyY = headY + headH + h * 0.02;
+    return _MascotLayout._(
+      w: w,
+      h: h,
+      headW: headW,
+      headH: headH,
+      headX: (w - headW) / 2,
+      headY: headY,
+      bodyW: bodyW,
+      bodyH: bodyH,
+      bodyX: (w - bodyW) / 2,
+      bodyY: bodyY,
+      cx: w / 2,
+      groundY: h * 0.90,
+    );
+  }
 }

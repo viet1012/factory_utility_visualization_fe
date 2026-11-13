@@ -164,7 +164,7 @@ class _UtilityMapWithCategoryTabsState extends State<UtilityMapWithCategoryTabs>
             ),
           ),
 
-          const MovingMascot(size: 180, idleAlignment: Alignment(0.8, 0.9)),
+          const MovingMascot(size: 210, idleAlignment: Alignment(0.8, 0.9)),
 
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 650),

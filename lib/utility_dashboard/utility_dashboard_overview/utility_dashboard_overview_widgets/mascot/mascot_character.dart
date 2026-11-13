@@ -42,9 +42,7 @@ class _MonitoringMascotState extends State<MonitoringMascot>
   late final AnimationController _blinkCtrl;
   late final Listenable _animation;
 
-  late final Animation<double> _floatY;
   late final Animation<double> _idleArmSwing;
-  late final Animation<double> _idleLegSwing;
   late final Animation<double> _hairBounce;
 
   late final Animation<double> _blinkScale;
@@ -64,19 +62,10 @@ class _MonitoringMascotState extends State<MonitoringMascot>
       duration: const Duration(milliseconds: 3000),
     );
 
-    _floatY = Tween<double>(
-      begin: -5,
-      end: 5,
-    ).animate(CurvedAnimation(parent: _idleCtrl, curve: Curves.easeInOut));
 
     _idleArmSwing = Tween<double>(
       begin: -0.10,
       end: 0.10,
-    ).animate(CurvedAnimation(parent: _idleCtrl, curve: Curves.easeInOut));
-
-    _idleLegSwing = Tween<double>(
-      begin: -0.07,
-      end: 0.07,
     ).animate(CurvedAnimation(parent: _idleCtrl, curve: Curves.easeInOut));
 
     _hairBounce = Tween<double>(
@@ -113,13 +102,13 @@ class _MonitoringMascotState extends State<MonitoringMascot>
         final walkCos = math.cos(widget.walkPhase);
 
         final walkBob = widget.isWalking
-            ? (-walkCos.abs() * 6.0 * widget.walkStrength)
+            // dip down when both feet touch the ground (knees bend a bit)
+            ? (walkCos.abs() * 3.0 * widget.walkStrength)
             : 0.0;
 
         // idle chá»‰ nhÃºn khi khÃ´ng Ä‘i
-        final idleBob = widget.isWalking ? 0.0 : _floatY.value;
-
-        final internalDy = idleBob + walkBob;
+        // idle: stand still with straight legs (no body bob)
+        final internalDy = walkBob;
         final double armSwingL;
         final double armSwingR;
         final double foreSwing;
@@ -132,7 +121,7 @@ class _MonitoringMascotState extends State<MonitoringMascot>
         final double footLiftR;
 
         if (widget.isWalking) {
-          final armAmp = 0.32 * widget.walkStrength;
+          final armAmp = 0.14 * widget.walkStrength;
           final legAmp = 0.24 * widget.walkStrength;
 
           double liftWave(double phase) {
@@ -160,8 +149,8 @@ class _MonitoringMascotState extends State<MonitoringMascot>
           kneeBendL = liftWave(leftPhase) * 0.42;
           kneeBendR = liftWave(rightPhase) * 0.42;
 
-          footLiftL = liftWave(leftPhase) * 10.0 * widget.walkStrength;
-          footLiftR = liftWave(rightPhase) * 10.0 * widget.walkStrength;
+          footLiftL = liftWave(leftPhase) * 7.0 * widget.walkStrength;
+          footLiftR = liftWave(rightPhase) * 7.0 * widget.walkStrength;
 
           hairOffset =
               math.sin(widget.walkPhase - 0.2) * 1.8 * widget.walkStrength;
@@ -170,8 +159,9 @@ class _MonitoringMascotState extends State<MonitoringMascot>
           armSwingR = -_idleArmSwing.value;
           foreSwing = _idleArmSwing.value * 0.4;
           hairOffset = _hairBounce.value;
-          legSwingL = _idleLegSwing.value;
-          legSwingR = -_idleLegSwing.value;
+          // feet stay planted while idle (no sliding)
+          legSwingL = 0.0;
+          legSwingR = 0.0;
 
           kneeBendL = 0.0;
           kneeBendR = 0.0;
@@ -206,7 +196,8 @@ class _MonitoringMascotState extends State<MonitoringMascot>
             clipBehavior: Clip.none,
             children: [
               Transform.translate(
-                offset: Offset(0, groundBaseOffset + internalDy),
+                // feet stay on the ground; only the upper body bobs
+                offset: Offset(0, groundBaseOffset),
                 child: SizedBox(
                   width: robotWidth,
                   height: widget.size,
@@ -229,6 +220,7 @@ class _MonitoringMascotState extends State<MonitoringMascot>
                               eyeTrackX: 0,
                               eyeTrackY: 0,
                               antennaScale: 1,
+                              bodyBob: internalDy,
                             ),
                             willChange: true,
                           ),
@@ -240,6 +232,7 @@ class _MonitoringMascotState extends State<MonitoringMascot>
                             painter: _BadgePainter(
                               accentColor: _accentColor,
                               logoImage: widget.misumiLogo,
+                              bodyBob: internalDy,
                             ),
                           ),
                         ),
