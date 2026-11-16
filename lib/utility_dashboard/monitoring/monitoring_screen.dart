@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../shared/formatters/period_basis_formatter.dart';
+import '../shared/navigation/fade_indexed_stack.dart';
 import 'electric_consumption/electric_consumption_screen.dart';
 import 'electricity/electricity_screen.dart';
 
@@ -93,7 +94,7 @@ class MonitoringScreen extends StatelessWidget {
       ],
     );
 
-    return IndexedStack(
+    return FadeIndexedStack(
       index: selected.index,
       children: [
         for (final tab in MonitoringSubTab.values)
@@ -231,7 +232,7 @@ class _GroupLabel extends StatelessWidget {
   }
 }
 
-class _SubTabPill extends StatelessWidget {
+class _SubTabPill extends StatefulWidget {
   final MonitoringSubTab tab;
   final bool showIcon;
   final bool selected;
@@ -246,51 +247,103 @@ class _SubTabPill extends StatelessWidget {
 
   static const Color accent = Color(0xFF00CFFF);
   static const Color dim = Color(0xFF8DA2B8);
-  static const Color _selectedBg = Color(0xFF1F4E79);
+  static const Color _selectedTop = Color(0xFF25609A);
+  static const Color _selectedBottom = Color(0xFF173C63);
   static const Color _text = Color(0xFFE6EEF7);
+
+  static const Duration _duration = Duration(milliseconds: 200);
+
+  @override
+  State<_SubTabPill> createState() => _SubTabPillState();
+}
+
+class _SubTabPillState extends State<_SubTabPill> {
+  bool _hover = false;
+
+  void _setHover(bool value) {
+    if (_hover != value) setState(() => _hover = value);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final tab = widget.tab;
+    final selected = widget.selected;
+
+    final iconColor = selected
+        ? _SubTabPill.accent
+        : (_hover ? _SubTabPill._text : _SubTabPill.dim);
+    final textColor = selected || _hover ? _SubTabPill._text : _SubTabPill.dim;
+
     return Tooltip(
       message: tab.hint,
       waitDuration: const Duration(milliseconds: 500),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        decoration: BoxDecoration(
-          color: selected ? _selectedBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: selected
-                ? accent.withValues(alpha: .45)
-                : Colors.transparent,
-          ),
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(6),
-            onTap: selected ? null : onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 11),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    showIcon ? tab.group.icon : tab.icon,
-                    size: 15,
-                    color: selected ? accent : dim,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    tab.label,
-                    style: TextStyle(
-                      color: selected ? _text : dim,
-                      fontSize: 12.5,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                  ),
-                ],
+      child: MouseRegion(
+        cursor: selected ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        onEnter: (_) => _setHover(true),
+        onExit: (_) => _setHover(false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: selected ? null : widget.onTap,
+          child: AnimatedContainer(
+            duration: _SubTabPill._duration,
+            curve: Curves.easeOutCubic,
+            // Cao full thanh tab (24px) thay vi chi bang chu.
+            height: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            decoration: BoxDecoration(
+              // Gradient luon co 2 mau (trong suot khi khong chon) de
+              // AnimatedContainer noi suy muot giua 2 trang thai.
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: selected
+                    ? const [
+                        _SubTabPill._selectedTop,
+                        _SubTabPill._selectedBottom,
+                      ]
+                    : [
+                        Colors.white.withValues(alpha: _hover ? .07 : 0),
+                        Colors.white.withValues(alpha: _hover ? .04 : 0),
+                      ],
               ),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: selected
+                    ? _SubTabPill.accent.withValues(alpha: .5)
+                    : Colors.transparent,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _SubTabPill.accent.withValues(
+                    alpha: selected ? .22 : 0,
+                  ),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TweenAnimationBuilder<Color?>(
+                  tween: ColorTween(end: iconColor),
+                  duration: _SubTabPill._duration,
+                  builder: (_, color, __) => Icon(
+                    widget.showIcon ? tab.group.icon : tab.icon,
+                    size: 15,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                AnimatedDefaultTextStyle(
+                  duration: _SubTabPill._duration,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 12.5,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                  child: Text(tab.label),
+                ),
+              ],
             ),
           ),
         ),
