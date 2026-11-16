@@ -24,7 +24,9 @@ class MonthlyElectricityCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            MonthlyMetricHeader(title: 'Total Energy', color: theme.line),
+            // value / prevValue / usdCost = dien luoi EVN (grid); KHONG dung
+            // totalEnergyValue (= load = grid + solar).
+            MonthlyMetricHeader(title: 'Grid (EVN)', color: theme.line),
             const SizedBox(height: 10),
             const MonthlyMetricColumnsHeader(),
             const SizedBox(height: 4),

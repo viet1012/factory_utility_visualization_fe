@@ -6,9 +6,12 @@ class EnergyMonthlySummary {
   final double? minValue;
   final double? maxValue;
 
+  /// Electricity: dien mua EVN (grid). Tong sub-meter (load = grid + solar)
+  /// nam o field `totalEnergyValue` cua BE, khong dung cho the MTD.
   final double? value;
   final double? avgValue;
 
+  /// Electricity: tien dien luoi (grid).
   final double? vndCost;
   final double? usdCost;
 

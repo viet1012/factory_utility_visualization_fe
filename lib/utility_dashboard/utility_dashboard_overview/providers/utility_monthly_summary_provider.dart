@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../shared/network/request_retry.dart';
 import '../../shared/state/safe_change_notifier.dart';
 import '../api/utility_dashboard_overview_api.dart';
 import '../models/energy_monthly_summary.dart';
@@ -24,7 +25,9 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier
   // CONFIG
   // ============================================================
 
-  static const Duration forceRefreshTimeout = Duration(seconds: 120);
+  /// Timeout / retry cua POST refresh: [RequestPolicy.monthlySummaryRefresh].
+  static Duration get forceRefreshTimeout =>
+      RequestPolicy.monthlySummaryRefresh.timeout;
 
   // ============================================================
   // INTERNAL STATE
@@ -84,6 +87,15 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier
 
   bool get hasData => rows.isNotEmpty;
 
+  /// Lan tai thanh cong gan nhat cua key hien tai.
+  DateTime? get lastUpdatedAt {
+    if (!hasValidParams) return null;
+    return store.fetchedAtOf(_facId!, _month!);
+  }
+
+  /// Refresh nen loi (het retry) nhung van con so cu de hien.
+  bool get refreshFailed => hasData && error != null && !fetching;
+
   bool get _hasLoaded => store.hasLoaded(_facId!, _month!);
 
   bool get hasValidParams {
@@ -133,17 +145,29 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier
       safeNotify();
     }
 
-    unawaited(load());
+    // Key da tung tai: hien so cu ngay, lam moi nen neu cu hon 60s.
+    unawaited(load(maxAge: MonthlySummaryStore.revalidateAfter));
   }
 
   // ============================================================
   // NORMAL GET
   // ============================================================
 
-  Future<void> load({bool silent = false, bool force = false}) async {
+  /// FAC dang chon: uu tien cao hon 3 o FAC A/B/C, solar, daily.
+  Future<void> load({
+    bool silent = false,
+    bool force = false,
+    Duration? maxAge,
+  }) async {
     if (_disposed || !hasValidParams) return;
 
-    await store.get(_facId!, _month!, force: force);
+    await store.get(
+      _facId!,
+      _month!,
+      force: force,
+      maxAge: maxAge,
+      priority: RequestPriority.high,
+    );
   }
 
   // ============================================================
@@ -177,14 +201,26 @@ class UtilityMonthlySummaryProvider extends ChangeNotifier
     var success = false;
 
     try {
-      await api
-          .forceRefreshMonthlySummary(facId: requestFac, month: requestMonth)
-          .timeout(forceRefreshTimeout);
+      // Cung logic retry voi GET (timeout / 5xx / mat mang), timeout 120s.
+      await RequestRetry.run(
+        (cancelToken) => api.forceRefreshMonthlySummary(
+          facId: requestFac,
+          month: requestMonth,
+          cancelToken: cancelToken,
+        ),
+        tag: 'monthly-summary/refresh $requestFac $requestMonth',
+        policy: RequestPolicy.monthlySummaryRefresh,
+      );
 
       if (_disposed) return false;
 
       store.invalidate(requestFac, requestMonth);
-      await store.get(requestFac, requestMonth, force: true);
+      await store.get(
+        requestFac,
+        requestMonth,
+        force: true,
+        priority: RequestPriority.high,
+      );
 
       success = store.errorOf(requestFac, requestMonth) == null;
     } on TimeoutException catch (error, stackTrace) {

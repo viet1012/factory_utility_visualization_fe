@@ -74,10 +74,10 @@ class SolarDailyTrend {
   final double solarKwh;
   final double gridKwh;
 
-  /// Solar + Grid cua ngay.
+  /// Load cua ngay (tong sub-meter = grid + solar), BE tinh san.
   final double totalKwh;
 
-  /// Ty trong Solar (%) trong ngay; null khi ngay chua co tieu thu.
+  /// Ty trong Solar (%) = solar / load, BE tinh san; null khi BE khong tra.
   final double? solarSharePercent;
 
   const SolarDailyTrend({
@@ -89,19 +89,12 @@ class SolarDailyTrend {
   });
 
   factory SolarDailyTrend.fromJson(Map<String, dynamic> json) {
-    final solar = _num(json['solarKwh']);
-    final grid = _num(json['gridKwh']);
-    final total = _numOrNull(json['totalKwh']) ?? solar + grid;
-
     return SolarDailyTrend(
       date: DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime(2000),
-      solarKwh: solar,
-      gridKwh: grid,
-      totalKwh: total,
-      // Backend thieu field thi tu tinh tu solar / total.
-      solarSharePercent:
-          _numOrNull(json['solarSharePercent']) ??
-          (total > 0 ? solar / total * 100 : null),
+      solarKwh: _num(json['solarKwh']),
+      gridKwh: _num(json['gridKwh']),
+      totalKwh: _num(json['totalKwh']),
+      solarSharePercent: _numOrNull(json['solarSharePercent']),
     );
   }
 }

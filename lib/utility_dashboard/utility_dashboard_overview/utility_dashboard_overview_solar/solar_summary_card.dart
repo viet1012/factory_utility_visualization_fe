@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../utility_api/dio_client.dart';
+import '../../shared/network/request_retry.dart';
 import '../../shared/polling/dashboard_polling_intervals.dart';
 import '../../shared/formatters/month_formatter.dart';
 import '../../shared/polling/polling_coordinator.dart';
 import '../../shared/polling/polling_scope.dart';
 import '../../shared/polling/polling_task_ids.dart';
+import '../../shared/widgets/load_state_widgets.dart';
 import '../utility_dashboard_overview_widgets/month_label_badge.dart';
 import 'api/solar_api.dart';
 import 'models/solar_dashboard_data.dart';
@@ -50,6 +52,17 @@ class SolarSummaryCard extends StatefulWidget {
 
 class _SolarSummaryCardState extends State<SolarSummaryCard>
     with SingleTickerProviderStateMixin {
+  /// Ket qua theo (facId|month) trong memory, song qua viec doi tab / FAC.
+  static final Map<String, SolarDashboardData> _cache = {};
+
+  /// Lan tai thanh cong gan nhat theo key (cho "as of HH:mm").
+  static final Map<String, DateTime> _cacheAt = {};
+
+  String get _currentCacheKey {
+    final fac = widget.facId.trim().isEmpty ? 'KVH' : widget.facId.trim();
+    return '$fac|${widget.month.trim()}';
+  }
+
   SolarDashboardData? _data;
 
   bool _isLoading = true;
@@ -184,10 +197,23 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
 
     _requestRunning = true;
 
+    // Key da tung tai: hien so cu ngay, lam moi nen.
+    final cacheKey = '$requestedFac|$requestedMonth';
+    final cached = _cache[cacheKey];
+
     setState(() {
-      if (showMainLoading || _data == null) {
+      // Doi FAC / thang, hoac card vua mount lai (quay lai tab).
+      if ((showMainLoading || _data == null) && cached != null) {
+        _data = cached;
+      } else if (showMainLoading) {
+        _data = null;
+      }
+
+      if (_data == null) {
         _isLoading = true;
+        _isRefreshing = false;
       } else {
+        _isLoading = false;
         _isRefreshing = true;
       }
 
@@ -196,13 +222,23 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
 
     try {
       // ==========================================================
-      // API MONTHLY SOLAR
+      // API MONTHLY SOLAR: timeout 30s, retry 2 lan (1s -> 3s) khi
+      // timeout / 5xx / mat mang; uu tien sau monthly-summary.
       // ==========================================================
 
-      final result = await _api.getMonthly(
-        facId: requestedFac,
-        month: requestedMonth,
+      final result = await RequestRetry.run(
+        (cancelToken) => _api.getMonthly(
+          facId: requestedFac,
+          month: requestedMonth,
+          cancelToken: cancelToken,
+        ),
+        tag: 'solar/monthly $requestedFac $requestedMonth',
+        policy: RequestPolicy.solarMonthly,
+        gate: RequestGate.overview,
       );
+
+      _cache[cacheKey] = result;
+      _cacheAt[cacheKey] = DateTime.now();
 
       // ==========================================================
       // BỎ RESPONSE CŨ
@@ -374,6 +410,14 @@ class _SolarSummaryCardState extends State<SolarSummaryCard>
               ),
             ),
             MonthLabelBadge(monthLabel: monthLabel),
+
+            // Refresh nen loi: giu so cu + ⚠ "as of HH:mm" (dong bo the
+            // monthly).
+            StaleDataBadge(
+              refreshing: false,
+              failed: _data != null && _errorMessage != null && !_isRefreshing,
+              lastUpdatedAt: _cacheAt[_currentCacheKey],
+            ),
 
             _StatusDot(isOnline: isOnline, time: _timeController),
 

@@ -415,18 +415,19 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
               final since = last == null ? 'no data' : 'no data since $last';
               lines.add(('$since:\n${names.join('  ·  ')}', names.length));
             }
+          // missingHours = 24 − validHours.
           case MissingReason.partial:
             lines.add((
-              m.hours == null
+              m.missingHours == null
                   ? '${m.meter} · partial'
-                  : '${m.meter} · ${m.hours}/24 h',
+                  : '${m.meter} · ${m.missingHours} h missing',
               1,
             ));
           case MissingReason.outlier:
             lines.add((
-              m.hours == null
+              m.missingHours == null
                   ? '${m.meter} · dropped (outlier)'
-                  : '${m.meter} · ${m.hours} h dropped (outlier)',
+                  : '${m.meter} · ${m.missingHours} h missing (outlier)',
               1,
             ));
           case MissingReason.unknown:

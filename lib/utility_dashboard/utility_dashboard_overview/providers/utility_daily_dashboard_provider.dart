@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../shared/network/request_retry.dart';
 import '../api/utility_dashboard_overview_api.dart';
 import '../models/utility_daily_dashboard_response.dart';
 
@@ -12,7 +13,9 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
 
   UtilityDailyDashboardProvider(this.api);
 
-  static const Duration requestTimeout = Duration(seconds: 30);
+  /// Ket qua theo (facId|month) trong memory: doi FAC / thang da tung tai
+  /// thi hien so cu ngay roi lam moi nen.
+  final Map<String, UtilityDailyDashboardResponse> _cache = {};
 
   bool _notifyScheduled = false;
   bool _loading = false;
@@ -92,16 +95,19 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
       _facId = normalizedFac;
       _month = normalizedMonth;
 
-      _electricity = const <UtilityDailyElectricityPoint>[];
+      final cached = _cache[_cacheKey(normalizedFac, normalizedMonth)];
 
-      _water = const <UtilityDailyPoint>[];
+      _electricity = cached?.electricity ?? const <UtilityDailyElectricityPoint>[];
 
-      _air = const <UtilityDailyPoint>[];
+      _water = cached?.water ?? const <UtilityDailyPoint>[];
+
+      _air = cached?.air ?? const <UtilityDailyPoint>[];
 
       _error = null;
 
+      // Co so cu: khong ve loading; polling (runImmediately) se refresh nen.
       _fetching = false;
-      _loading = true;
+      _loading = cached == null;
       _refreshing = false;
 
       _safeNotifyListeners();
@@ -152,9 +158,23 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
     _safeNotifyListeners();
 
     try {
-      final response = await api
-          .getDailyDashboard(facId: requestFacId, month: requestMonth)
-          .timeout(requestTimeout);
+      // Timeout 30s, retry 2 lan (1s -> 3s) khi timeout / 5xx / mat mang;
+      // uu tien sau monthly-summary cua FAC dang chon.
+      final response = await RequestRetry.run(
+        (cancelToken) => api.getDailyDashboard(
+          facId: requestFacId,
+          month: requestMonth,
+          cancelToken: cancelToken,
+        ),
+        tag: 'energy-daily $requestFacId $requestMonth',
+        policy: RequestPolicy.energyDaily,
+        gate: RequestGate.overview,
+      );
+
+      if (_disposed) return;
+
+      // Cache theo key cua chinh request (ke ca khi key hien tai da doi).
+      _cache[_cacheKey(requestFacId, requestMonth)] = response;
 
       if (!_isValidRequest(token)) {
         return;
@@ -253,6 +273,8 @@ class UtilityDailyDashboardProvider extends ChangeNotifier {
   // ============================================================
   // VALIDATION
   // ============================================================
+
+  static String _cacheKey(String facId, String month) => '$facId|$month';
 
   String _normalizeFac(String facId) {
     final normalized = facId.trim();
