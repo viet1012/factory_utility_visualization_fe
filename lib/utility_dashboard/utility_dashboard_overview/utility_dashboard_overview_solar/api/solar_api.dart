@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../shared/network/request_retry.dart';
 import '../models/solar_dashboard_data.dart';
 import '../models/solar_detail_data.dart';
 import '../models/solar_hourly_by_facility.dart';
@@ -9,13 +10,18 @@ class SolarApi {
 
   final Dio _dio;
 
+  /// Endpoint tong hop: receiveTimeout 30s; timeout / retry that su do
+  /// [RequestRetry] cua noi goi dam nhan qua [cancelToken].
   Future<SolarDashboardData> getMonthly({
     required String facId,
     required String month,
+    CancelToken? cancelToken,
   }) async {
     final response = await _dio.get<dynamic>(
       '/api/solar/monthly',
       queryParameters: {'facId': facId, 'month': month},
+      options: Options(receiveTimeout: RequestPolicy.solarMonthly.timeout),
+      cancelToken: cancelToken,
     );
 
     if (response.data is! Map) {

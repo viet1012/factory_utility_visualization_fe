@@ -16,6 +16,7 @@ import '../../utility_dashboard_common/info_box/utility_info_box_fx.dart';
 import '../../utility_dashboard_fac_details/screens/utility_fac_detail_screen.dart';
 import '../models/energy_monthly_summary.dart';
 import '../providers/monthly_summary_store.dart';
+import '../../shared/widgets/load_state_widgets.dart';
 import '../utility_dashboard_overview_widgets/utility_info_box_header.dart';
 
 // ============================================================
@@ -79,6 +80,14 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   bool _loading = true;
 
   Object? _error;
+
+  /// Dang hien so cu va lam moi nen.
+  bool _refreshing = false;
+
+  /// Refresh nen loi (het retry), van giu so cu.
+  bool _refreshFailed = false;
+
+  DateTime? _fetchedAt;
 
   DataHealthResult? _health;
 
@@ -147,11 +156,10 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
       return;
     }
 
-    if (sourceChanged) {
+    // Doi FAC / thang, hoac quay lai MAP: hien so cu (neu co) ngay, lam moi
+    // nen khi so cu hon revalidateAfter.
+    if (sourceChanged || !oldWidget.isActive) {
       _scheduleLoad();
-    } else if (!oldWidget.isActive) {
-      // Quay lai MAP: chi tai khi chua co du lieu, lam moi do polling MAP.
-      _scheduleLoad(onlyIfMissing: true);
     }
   }
 
@@ -237,14 +245,29 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
         ? _store.errorOf(widget.facId, widget.month)
         : null;
 
-    final loading = !loaded && storeError == null;
+    final inFlight = valid && _store.isLoading(widget.facId, widget.month);
+
+    final fetchedAt = valid
+        ? _store.fetchedAtOf(widget.facId, widget.month)
+        : null;
+
+    // Chua co so: dang tai (ke ca luc retry) cho den khi het retry ma loi.
+    final loading = items.isEmpty && (inFlight || (!loaded && storeError == null));
 
     // Neu da co data cu thi van giu lai de hien thi.
-    final error = items.isEmpty ? storeError : null;
+    final error = items.isEmpty && !loading ? storeError : null;
+
+    final refreshing = items.isNotEmpty && inFlight;
+    final refreshFailed = items.isNotEmpty && !inFlight && storeError != null;
 
     final itemsChanged = !identical(items, _items);
 
-    if (!itemsChanged && loading == _loading && error == _error) {
+    if (!itemsChanged &&
+        loading == _loading &&
+        error == _error &&
+        refreshing == _refreshing &&
+        refreshFailed == _refreshFailed &&
+        fetchedAt == _fetchedAt) {
       return false;
     }
 
@@ -255,6 +278,9 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
     _items = items;
     _loading = loading;
     _error = error;
+    _refreshing = refreshing;
+    _refreshFailed = refreshFailed;
+    _fetchedAt = fetchedAt;
 
     return true;
   }
@@ -263,27 +289,30 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
   // LOAD
   // ============================================================
 
-  void _scheduleLoad({bool onlyIfMissing = false}) {
+  void _scheduleLoad() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !widget.isActive) {
         return;
       }
 
-      unawaited(_load(onlyIfMissing: onlyIfMissing));
+      unawaited(_load());
     });
   }
 
-  /// Cache con han (10 phut) hoac request dang chay cung key: khong goi API.
-  Future<void> _load({bool force = false, bool onlyIfMissing = false}) async {
+  /// So cu con moi (< revalidateAfter) hoac request dang chay cung key
+  /// (dedupe): khong goi API. Uu tien thap hon panel SUMMARY cua FAC dang
+  /// chon (RequestGate). Store tu bo ket qua cu khi key da doi.
+  Future<void> _load({bool force = false}) async {
     if (!_hasValidSource) {
       return;
     }
 
-    if (onlyIfMissing && _store.hasLoaded(widget.facId, widget.month)) {
-      return;
-    }
-
-    await _store.get(widget.facId, widget.month, force: force);
+    await _store.get(
+      widget.facId,
+      widget.month,
+      force: force,
+      maxAge: MonthlySummaryStore.revalidateAfter,
+    );
   }
 
   Future<void> _retry() => _load(force: true);
@@ -437,12 +466,20 @@ class _UtilityOverviewMonthlyBoxState extends State<UtilityOverviewMonthlyBox>
 
               health: health,
 
+              status: StaleDataBadge(
+                refreshing: _refreshing,
+                failed: _refreshFailed,
+                lastUpdatedAt: _fetchedAt,
+              ),
+
               child: _MonthlyBody(
                 loading: _loading,
 
                 error: _error,
 
                 items: displayItems,
+
+                filterCate: widget.filterCate,
 
                 onRetry: _retry,
               ),
@@ -484,6 +521,10 @@ class _MonthlyContainer extends StatelessWidget {
 
   final DataHealthResult health;
 
+  /// Badge "dang cap nhat" / "cap nhat loi", dat de len header (ben trai o
+  /// health) -> khong doi layout.
+  final Widget status;
+
   final Widget child;
 
   const _MonthlyContainer({
@@ -492,6 +533,7 @@ class _MonthlyContainer extends StatelessWidget {
     required this.title,
     required this.headerColor,
     required this.health,
+    required this.status,
     required this.child,
   });
 
@@ -520,21 +562,127 @@ class _MonthlyContainer extends StatelessWidget {
         ],
       ),
 
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-
+      child: Stack(
         children: [
-          UtilityInfoBoxHeader.header(
-            facilityColor: headerColor.withValues(alpha: .3),
+          Column(
+            mainAxisSize: MainAxisSize.min,
 
-            facTitle: title,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
 
-            healthResult: health,
+            children: [
+              UtilityInfoBoxHeader.header(
+                facilityColor: headerColor.withValues(alpha: .3),
+
+                facTitle: title,
+
+                healthResult: health,
+              ),
+
+              child,
+            ],
           ),
 
-          child,
+          // Header: padding 4 + hang cao 27; o health 22 sat phai.
+          Positioned(top: 11, right: 34, child: status),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// SKELETON
+// ============================================================
+
+/// Skeleton cung bo cuc voi the that (MonthlyElectricityCard: header, hang
+/// cot CURRENT / PRE MONTH / DIFF, 2 dong so; Water / Air: 1 dong so).
+/// Chieu cao xap xi the that de khong nhay layout khi co du lieu.
+class _MonthlySkeleton extends StatelessWidget {
+  final String? filterCate;
+  final bool showHint;
+
+  const _MonthlySkeleton({required this.filterCate, this.showHint = true});
+
+  @override
+  Widget build(BuildContext context) {
+    final filter = filterCate?.trim().toUpperCase() ?? '';
+
+    final blocks = switch (filter) {
+      'ELECTRICITY' => const [2],
+      'WATER' || 'AIR' => const [1],
+      _ => const [2, 1, 1],
+    };
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Stack(
+        children: [
+          SkeletonShimmer(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < blocks.length; i++) ...[
+                  _SkeletonMetricCard(rows: blocks[i]),
+                  if (i < blocks.length - 1) const SizedBox(height: 8),
+                ],
+              ],
+            ),
+          ),
+          if (showHint)
+            const Positioned(
+              left: 10,
+              right: 10,
+              bottom: 8,
+              child: IgnorePointer(child: SlowLoadingHint()),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonMetricCard extends StatelessWidget {
+  /// So dong so (Electricity: tien + kWh).
+  final int rows;
+
+  const _SkeletonMetricCard({required this.rows});
+
+  static Widget _valueRow() {
+    return const SizedBox(
+      height: 28,
+      child: Row(
+        children: [
+          Expanded(flex: 11, child: SkeletonBox(height: 20)),
+          SizedBox(width: 8),
+          Expanded(flex: 9, child: SkeletonBox(height: 20)),
+          SizedBox(width: 8),
+          SkeletonBox(width: 44, height: 16),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SkeletonBox(width: 90, height: 14),
+          const SizedBox(height: 10),
+          const SkeletonBox(height: 12, width: double.infinity),
+          const SizedBox(height: 4),
+          for (var i = 0; i < rows; i++) ...[
+            _valueRow(),
+            if (i < rows - 1) const SizedBox(height: 7),
+          ],
         ],
       ),
     );
@@ -552,52 +700,48 @@ class _MonthlyBody extends StatelessWidget {
 
   final List<EnergyMonthlySummary> items;
 
+  /// ELECTRICITY / WATER / AIR: skeleton chi ve 1 the tuong ung.
+  final String? filterCate;
+
   final Future<void> Function() onRetry;
 
   const _MonthlyBody({
     required this.loading,
     required this.error,
     required this.items,
+    required this.filterCate,
     required this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
     // ==========================================================
-    // LOADING
+    // LOADING (ke ca luc dang retry): skeleton dung hinh the
     // ==========================================================
 
     if (loading && items.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(24),
-
-        child: Center(
-          child: SizedBox.square(
-            dimension: 18,
-
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
+      return _MonthlySkeleton(filterCate: filterCate);
     }
 
     // ==========================================================
-    // ERROR
+    // ERROR (het retry, chua co so): loi gon trong khung skeleton
+    // de giu nguyen kich thuoc the.
     // ==========================================================
 
     if (error != null && items.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(20),
-
-        child: MonthlyInlineState(
-          icon: Icons.cloud_off_rounded,
-
-          title: 'API Error',
-
-          message: 'Tap to retry',
-
-          onTap: onRetry,
-        ),
+      return Stack(
+        children: [
+          Visibility(
+            visible: false,
+            maintainSize: true,
+            maintainAnimation: true,
+            maintainState: true,
+            child: _MonthlySkeleton(filterCate: filterCate, showHint: false),
+          ),
+          Positioned.fill(
+            child: InlineLoadError(onRetry: () => unawaited(onRetry())),
+          ),
+        ],
       );
     }
 

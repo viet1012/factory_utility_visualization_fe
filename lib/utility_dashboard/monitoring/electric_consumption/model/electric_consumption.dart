@@ -40,8 +40,8 @@ enum ConsumptionUnit {
   final String description;
 }
 
-/// Mot bo gia tri MWh hoac K$. totalElectricity = dien luoi; total = luoi +
-/// solar.
+/// Mot bo gia tri MWh hoac K$. totalElectricity = dien luoi (EVN); total =
+/// load (tong sub-meter = luoi + solar), BE tinh san.
 class EnergyValues {
   final double? normal;
   final double? highPeak;
@@ -78,7 +78,8 @@ class EnergyValues {
       lowPeak: jsonDouble(map['lowPeak']),
       solar: jsonDouble(map['solar']),
       totalElectricity: jsonDouble(map['totalElectricity']),
-      total: jsonDouble(map['total']),
+      // `total` = `load`; doc ca hai, khong tu cong luoi + solar.
+      total: jsonDouble(map['total']) ?? jsonDouble(map['load']),
     );
   }
 }
@@ -168,8 +169,8 @@ class MissingMeter {
   final String meter;
   final String fac;
 
-  /// So gio co du lieu (PARTIAL) / so gio bi loai (OUTLIER).
-  final int? hours;
+  /// So gio CO du lieu trong ngay: `validHours`, BE cu thi fallback `hours`.
+  final int? validHours;
   final MissingReason reason;
 
   /// ISO kem offset nha may, null khi meter chua tung gui du lieu.
@@ -178,16 +179,24 @@ class MissingMeter {
   const MissingMeter({
     required this.meter,
     required this.fac,
-    this.hours,
+    this.validHours,
     required this.reason,
     this.lastDataAt,
   });
+
+  /// So gio thieu = 24 − validHours; null khi khong co validHours.
+  int? get missingHours {
+    final valid = validHours;
+    if (valid == null) return null;
+    final missing = 24 - valid;
+    return missing < 0 ? 0 : (missing > 24 ? 24 : missing);
+  }
 
   factory MissingMeter.fromJson(Map<String, dynamic> json) {
     return MissingMeter(
       meter: jsonText(json['meter']),
       fac: jsonText(json['fac']),
-      hours: jsonInt(json['hours']),
+      validHours: jsonInt(json['validHours']) ?? jsonInt(json['hours']),
       reason: MissingReason.parse(json['reason']),
       lastDataAt: _toText(json['lastDataAt']),
     );

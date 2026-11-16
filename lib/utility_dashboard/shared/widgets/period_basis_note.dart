@@ -16,6 +16,9 @@ class PeriodBasisNote extends StatelessWidget {
   final Color? iconColor;
   final double iconSize;
 
+  /// true: thu nho chu (FittedBox scaleDown) thay vi ellipsis khi thieu cho.
+  final bool scaleDownText;
+
   const PeriodBasisNote({
     super.key,
     this.text,
@@ -24,6 +27,7 @@ class PeriodBasisNote extends StatelessWidget {
     this.style,
     this.iconColor,
     this.iconSize = 13,
+    this.scaleDownText = false,
   });
 
   static final TextStyle _defaultStyle = TextStyle(
@@ -69,13 +73,24 @@ class PeriodBasisNote extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            softWrap: false,
-            style: textStyle,
-          ),
+          child: scaleDownText
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: textStyle,
+                  ),
+                )
+              : Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: textStyle,
+                ),
         ),
         const SizedBox(width: 4),
         icon,
