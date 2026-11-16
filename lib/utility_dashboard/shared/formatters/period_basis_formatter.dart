@@ -136,6 +136,35 @@ abstract final class PeriodBasisFormatter {
     return body == null ? prefix : '$prefix · $body';
   }
 
+  /// Nhan ngan cua panel SUMMARY (chi tiet day du nam o [billPeriodHint]):
+  /// - thang dang chay / da qua: `Nov 1–16`, `Nov 1–30`; chi 1 ngay: `Nov 1`
+  /// - chua co du lieu: `Nov 2026 · no data`
+  /// - sai dinh dang: `Calendar`
+  static String calendarMonthShortLabel(
+    String yyyyMM, {
+    required PlantTime? pickAt,
+    DateTime? today,
+  }) {
+    final plantDay = today ?? plantToday();
+    final range = calendarMonthRange(yyyyMM, today: plantDay);
+    if (range == null) return _calendarShort;
+
+    final noData = '${_monthYearFormat.format(range.from)} · no data';
+    if (pickAt == null || range.from.isAfter(plantDay)) return noData;
+
+    var last = range.to;
+    if (range.isMtd) {
+      // Thang dang chay: moc cuoi = pickAt (00:00 = het ngay truoc).
+      last = pickAt.isMidnight
+          ? pickAt.date.subtract(const Duration(days: 1))
+          : pickAt.date;
+      if (last.isBefore(range.from)) return noData;
+    }
+
+    final from = _dayFormat.format(range.from);
+    return last.day == range.from.day ? from : '$from–${last.day}';
+  }
+
   /// Tooltip ⓘ cua panel SUMMARY (nhieu dong):
   /// ```
   /// Calendar month: Nov 1 – Nov 12, 15:00

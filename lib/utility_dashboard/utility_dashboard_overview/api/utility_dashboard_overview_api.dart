@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../utility_api/dio_client.dart';
+import '../../shared/network/request_retry.dart';
 import '../models/energy_monthly_summary.dart';
 import '../models/utility_daily_dashboard_response.dart';
 import '../models/utility_hourly_dashboard_response.dart';
@@ -74,9 +75,11 @@ class UtilityDashboardOverviewApi {
   // DAILY
   // ============================================================
 
+  /// Timeout / retry do [RequestRetry] cua noi goi dam nhan ([cancelToken]).
   Future<UtilityDailyDashboardResponse> getDailyDashboard({
     required String facId,
     required String month,
+    CancelToken? cancelToken,
   }) async {
     final normalizedFac = _requiredText(facId, fieldName: 'facId');
 
@@ -85,6 +88,8 @@ class UtilityDashboardOverviewApi {
     final response = await _get(
       _energyDailyPath,
       queryParameters: {'facId': normalizedFac, 'month': normalizedMonth},
+      options: _energyDailyOptions,
+      cancelToken: cancelToken,
     );
 
     return UtilityDailyDashboardResponse.fromJson(
@@ -99,22 +104,26 @@ class UtilityDashboardOverviewApi {
   Future<List<EnergyMonthlySummary>> getMonthlySummary({
     required String facId,
     required String month,
+    CancelToken? cancelToken,
   }) {
     return _requestMonthlySummary(
       facId: facId,
       month: month,
       forceRefresh: false,
+      cancelToken: cancelToken,
     );
   }
 
   Future<List<EnergyMonthlySummary>> forceRefreshMonthlySummary({
     required String facId,
     required String month,
+    CancelToken? cancelToken,
   }) {
     return _requestMonthlySummary(
       facId: facId,
       month: month,
       forceRefresh: true,
+      cancelToken: cancelToken,
     );
   }
 
@@ -122,6 +131,7 @@ class UtilityDashboardOverviewApi {
     required String facId,
     required String month,
     required bool forceRefresh,
+    CancelToken? cancelToken,
   }) async {
     final normalizedFac = _normalizeMonthlyFac(facId);
     final normalizedMonth = _normalizeMonth(month);
@@ -131,9 +141,19 @@ class UtilityDashboardOverviewApi {
       'month': normalizedMonth,
     };
 
+    // POST refresh: BE tinh lai, de timeout cua noi goi (120s) quyet dinh.
     final response = forceRefresh
-        ? await _post(_monthlySummaryRefreshPath, queryParameters: query)
-        : await _get(_monthlySummaryPath, queryParameters: query);
+        ? await _post(
+            _monthlySummaryRefreshPath,
+            queryParameters: query,
+            cancelToken: cancelToken,
+          )
+        : await _get(
+            _monthlySummaryPath,
+            queryParameters: query,
+            options: _monthlySummaryOptions,
+            cancelToken: cancelToken,
+          );
 
     return _parseMonthlySummaryResponse(
       response.data,
@@ -145,15 +165,27 @@ class UtilityDashboardOverviewApi {
   // HTTP
   // ============================================================
 
+  /// receiveTimeout theo [RequestPolicy] cua tung endpoint. Tren web Dio
+  /// khong dam bao dung moc nay, nen [RequestRetry] con huy bang CancelToken.
+  static final Options _monthlySummaryOptions = Options(
+    receiveTimeout: RequestPolicy.monthlySummary.timeout,
+  );
+
+  static final Options _energyDailyOptions = Options(
+    receiveTimeout: RequestPolicy.energyDaily.timeout,
+  );
+
   Future<Response<dynamic>> _get(
     String path, {
     Map<String, dynamic>? queryParameters,
     Options? options,
+    CancelToken? cancelToken,
   }) {
     return _dio.get<dynamic>(
       path,
       queryParameters: queryParameters,
       options: options,
+      cancelToken: cancelToken,
     );
   }
 
@@ -162,12 +194,14 @@ class UtilityDashboardOverviewApi {
     Map<String, dynamic>? queryParameters,
     Object? data,
     Options? options,
+    CancelToken? cancelToken,
   }) {
     return _dio.post<dynamic>(
       path,
       queryParameters: queryParameters,
       data: data,
       options: options,
+      cancelToken: cancelToken,
     );
   }
 

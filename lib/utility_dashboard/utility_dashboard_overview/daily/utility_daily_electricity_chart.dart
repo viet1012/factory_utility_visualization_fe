@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
+import '../../shared/charts/chart_hover_style.dart';
 import '../../utility_dashboard_common/chart_theme.dart';
 import '../../utility_dashboard_common/data_health.dart';
 import '../models/'
@@ -234,7 +235,8 @@ class _UtilityDailyElectricityChartState
 
       health: health,
 
-      valueLabel: 'Total Electricity',
+      // latest.totalKwh = load (grid + solar) tu BE.
+      valueLabel: 'Total (Grid + Solar)',
 
       value: _latestValue,
 
@@ -305,20 +307,29 @@ class _ElectricityStackedChart extends StatelessWidget {
       // ========================================================
       // TOOLTIP
       // ========================================================
+      // Grid / Solar / Total doc thang tu BE (totalKwh = load), khong tu cong.
       tooltipBehavior: TooltipBehavior(
         enable: true,
-
-        shared: true,
 
         canShowMarker: true,
 
         header: '',
 
-        textStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
+        builder: (data, _, _, _, _) {
+          final p = data as UtilityDailyElectricityPoint;
+          final unit = theme.unit.trim().isEmpty ? 'kWh' : theme.unit.trim();
+          String fmt(double v) => '${DailyChartUtils.formatValue(v)} $unit';
+
+          return ChartHoverCard(
+            title: DateFormat('dd MMM yyyy').format(p.date.toLocal()),
+            rows: [
+              ('Grid (EVN)', fmt(p.gridKwh)),
+              ('Solar', fmt(p.solarKwh)),
+              ('Total', fmt(p.totalKwh)),
+            ],
+            swatches: [theme.line, const Color(0xB276FF03), null],
+          );
+        },
       ),
 
       // ========================================================
@@ -411,7 +422,7 @@ class _ElectricityStackedChart extends StatelessWidget {
         // GRID
         // ======================================================
         StackedColumnSeries<UtilityDailyElectricityPoint, DateTime>(
-          name: 'Electricity',
+          name: 'Grid (EVN)',
 
           dataSource: data.points,
 

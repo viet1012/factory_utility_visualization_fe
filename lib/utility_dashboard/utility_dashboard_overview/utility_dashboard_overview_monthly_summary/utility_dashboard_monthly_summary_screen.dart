@@ -8,6 +8,7 @@ import '../../monitoring/electricity/widgets/electricity_style.dart'
     show PlantTime;
 import '../../shared/charts/value_format.dart';
 import '../../shared/formatters/month_formatter.dart';
+import '../../shared/widgets/load_state_widgets.dart';
 import '../../shared/widgets/price_missing_icon.dart';
 import '../../shared/formatters/period_basis_formatter.dart';
 import '../../shared/widgets/period_basis_note.dart';
@@ -110,6 +111,8 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
           electricity: provider.electricity,
           water: provider.water,
           air: provider.air,
+          lastUpdatedAt: provider.lastUpdatedAt,
+          refreshFailed: provider.refreshFailed,
         );
       },
       shouldRebuild: (previous, next) {
@@ -117,40 +120,56 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
             previous.refreshing != next.refreshing ||
             previous.forceRefreshing != next.forceRefreshing ||
             previous.error != next.error ||
+            previous.lastUpdatedAt != next.lastUpdatedAt ||
+            previous.refreshFailed != next.refreshFailed ||
             !identical(previous.rows, next.rows);
       },
       builder: (context, vm, _) {
-        if (vm.loading && vm.rows.isEmpty) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xff22d3ee)),
-          );
-        }
-
-        if (vm.error != null && vm.rows.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Load monthly summary failed',
-                  style: TextStyle(color: Colors.redAccent),
-                ),
-                const SizedBox(height: 8),
-                TextButton.icon(
-                  onPressed: () {
-                    unawaited(_provider.retry());
-                  },
-                  icon: const Icon(Icons.refresh_rounded, size: 16),
-                  label: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
-        }
-
         final electricity = vm.electricity;
         final water = vm.water;
         final air = vm.air;
+
+        // Chua co so nao: dang tai (ke ca dang retry) -> skeleton; het retry
+        // ma van loi -> the loi. Da co so: luon hien so (ke ca khi loi).
+        final Widget body;
+        if (vm.rows.isEmpty && vm.error != null && !vm.loading) {
+          body = _SummaryErrorCard(
+            onRetry: () => unawaited(_provider.retry()),
+          );
+        } else if (vm.rows.isEmpty) {
+          body = const _SummarySkeletonRow();
+        } else {
+          body = Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (electricity != null)
+                Expanded(child: _ElectricCard(item: electricity)),
+              SizedBox(width: 4),
+              if (water != null)
+                Expanded(
+                  child: _UtilityMinMaxCard(
+                    item: water,
+                    title: 'WATER',
+                    subtitle: monthSubtitle(water.month, isMtd: false),
+                    color: const Color(0xff22d3ee),
+                    icon: Icons.water_drop_rounded,
+                  ),
+                ),
+              SizedBox(width: 4),
+
+              if (air != null)
+                Expanded(
+                  child: _UtilityMinMaxCard(
+                    item: air,
+                    title: 'AIR',
+                    subtitle: monthSubtitle(air.month, isMtd: false),
+                    color: const Color(0xffa855f7),
+                    icon: Icons.air_rounded,
+                  ),
+                ),
+            ],
+          );
+        }
 
         return RepaintBoundary(
           child: Container(
@@ -170,46 +189,14 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                       monthLabel: monthLabel,
                       forceRefreshing: vm.forceRefreshing,
                       onRefresh: _forceRefresh,
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (electricity != null)
-                            Expanded(child: _ElectricCard(item: electricity)),
-                          SizedBox(width: 4),
-                          if (water != null)
-                            Expanded(
-                              child: _UtilityMinMaxCard(
-                                item: water,
-                                title: 'WATER',
-                                subtitle: monthSubtitle(
-                                  water.month,
-                                  isMtd: false,
-                                ),
-                                color: const Color(0xff22d3ee),
-                                icon: Icons.water_drop_rounded,
-                              ),
-                            ),
-                          SizedBox(width: 4),
-
-                          if (air != null)
-                            Expanded(
-                              child: _UtilityMinMaxCard(
-                                item: air,
-                                title: 'AIR',
-                                subtitle: monthSubtitle(
-                                  air.month,
-                                  isMtd: false,
-                                ),
-                                color: const Color(0xffa855f7),
-                                icon: Icons.air_rounded,
-                              ),
-                            ),
-                        ],
+                      status: StaleDataBadge(
+                        refreshing: vm.refreshing,
+                        failed: vm.refreshFailed,
+                        lastUpdatedAt: vm.lastUpdatedAt,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Expanded(child: body),
                   ],
                 ),
                 if (vm.refreshing)
@@ -245,6 +232,9 @@ class _MonthlySummaryViewModel {
   final EnergyMonthlySummary? water;
   final EnergyMonthlySummary? air;
 
+  final DateTime? lastUpdatedAt;
+  final bool refreshFailed;
+
   const _MonthlySummaryViewModel({
     required this.loading,
     required this.refreshing,
@@ -254,7 +244,117 @@ class _MonthlySummaryViewModel {
     required this.electricity,
     required this.water,
     required this.air,
+    required this.lastUpdatedAt,
+    required this.refreshFailed,
   });
+}
+
+// ============================================================
+// LOADING / ERROR
+// ============================================================
+
+const Color _electricColor = Color(0xffffcc33);
+const Color _waterColor = Color(0xff22d3ee);
+const Color _airColor = Color(0xffa855f7);
+
+/// 3 the skeleton dung hinh dang the that (icon + title, so lon, 2 o prev,
+/// footer); sau 5s hien dong goi y tai cham.
+class _SummarySkeletonRow extends StatelessWidget {
+  const _SummarySkeletonRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        const Positioned.fill(
+          child: SkeletonShimmer(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _SummaryCardSkeleton(color: _electricColor)),
+                SizedBox(width: 4),
+                Expanded(child: _SummaryCardSkeleton(color: _waterColor)),
+                SizedBox(width: 4),
+                Expanded(child: _SummaryCardSkeleton(color: _airColor)),
+              ],
+            ),
+          ),
+        ),
+        const Positioned(
+          left: 8,
+          right: 8,
+          bottom: 30,
+          child: IgnorePointer(child: SlowLoadingHint()),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryCardSkeleton extends StatelessWidget {
+  final Color color;
+
+  const _SummaryCardSkeleton({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return _CardFrame(
+      color: color,
+      child: Column(
+        children: [
+          // Icon + title / subtitle.
+          Row(
+            children: const [
+              SkeletonBox(width: 30, height: 30, radius: 15),
+              SizedBox(width: 7),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonBox(width: 72, height: 12),
+                    SizedBox(height: 5),
+                    SkeletonBox(width: 92, height: 10),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // So lon.
+          const SkeletonBox(width: 96, height: 26),
+          const SizedBox(height: 14),
+          // 2 o prev.
+          const Row(
+            children: [
+              Expanded(child: SkeletonBox(height: 52, radius: 8)),
+              SizedBox(width: 6),
+              Expanded(child: SkeletonBox(height: 52, radius: 8)),
+            ],
+          ),
+          const Spacer(),
+          // Footer.
+          const SkeletonBox(width: 110, height: 18, radius: 999),
+          const SizedBox(height: 6),
+        ],
+      ),
+    );
+  }
+}
+
+/// Het retry ma chua co so: loi gon trong mot khung the chiem dung vung 3
+/// the (khong doi kich thuoc khoi).
+class _SummaryErrorCard extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _SummaryErrorCard({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return _CardFrame(
+      color: Colors.white.withValues(alpha: .5),
+      child: InlineLoadError(onRetry: onRetry),
+    );
+  }
 }
 
 final _numFmt = NumberFormat('#,##0');
@@ -280,12 +380,16 @@ class _Header extends StatelessWidget {
   final bool forceRefreshing;
   final Future<void> Function() onRefresh;
 
+  /// Badge "dang cap nhat" / "cap nhat loi" (rong khi khong co gi).
+  final Widget status;
+
   const _Header({
     required this.month,
     required this.pickAt,
     required this.monthLabel,
     required this.forceRefreshing,
     required this.onRefresh,
+    required this.status,
   });
 
   @override
@@ -322,16 +426,14 @@ class _Header extends StatelessWidget {
           Expanded(
             child: Align(
               alignment: Alignment.centerLeft,
+              // Nhan ngan `Nov 1–16`; chi tiet (calendar month, gio pickAt,
+              // ky hoa don) nam trong tooltip ⓘ.
               child: PeriodBasisNote(
-                text: PeriodBasisFormatter.calendarMonthDataLabel(
+                text: PeriodBasisFormatter.calendarMonthShortLabel(
                   month,
                   pickAt: pickAt,
                 ),
-                compactText: PeriodBasisFormatter.calendarMonthDataLabel(
-                  month,
-                  pickAt: pickAt,
-                  compact: true,
-                ),
+                scaleDownText: true,
                 tooltip: PeriodBasisFormatter.billPeriodHint(
                   month,
                   pickAt: pickAt,
@@ -339,6 +441,8 @@ class _Header extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: 4),
+          status,
           const SizedBox(width: 4),
           MonthLabelBadge(monthLabel: monthLabel),
           const SizedBox(width: 4),
@@ -387,10 +491,13 @@ class _ElectricCard extends StatelessWidget {
     const color = Color(0xffffcc33);
     final unit = item.unit.isEmpty ? 'kWh' : item.unit;
 
+    // value / prevValue / usdCost / prevUsdCost = dien luoi EVN (grid).
+    // KHONG dung totalEnergyValue (= load = grid + solar).
     return _SummaryCard(
       color: color,
       icon: Icons.bolt_rounded,
       title: 'ELECTRICITY',
+      badge: 'GRID (EVN)',
       subtitle: monthSubtitle(item.month, isMtd: true),
       child: Column(
         children: [
@@ -398,17 +505,15 @@ class _ElectricCard extends StatelessWidget {
 
           // const SizedBox(height: 6),
           _MainValue(
-            value: money(item.currentCost),
+            value: money(item.usdCost),
             unit: 'USD',
             color: color,
             priceMissing: item.priceMissing,
           ),
 
           // const SizedBox(height: 6),
-          Text(
+          _FitLabel(
             'Prev Month',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: Colors.white70,
               fontSize: 12,
@@ -430,7 +535,7 @@ class _ElectricCard extends StatelessWidget {
                 child: _InfoTile(
                   icon: Icons.history_rounded,
                   label: 'USD',
-                  value: money(item.previousCost),
+                  value: money(item.prevUsdCost),
                   color: Colors.white70,
                   priceMissing: item.prevPriceMissing,
                 ),
@@ -538,20 +643,13 @@ class _UtilityMinMaxCard extends StatelessWidget {
   }
 }
 
-class _SummaryCard extends StatelessWidget {
+/// Khung the (nen / vien / bong theo [color]) dung chung cho the that,
+/// skeleton va the loi -> cung hinh dang, cung kich thuoc.
+class _CardFrame extends StatelessWidget {
   final Color color;
-  final IconData icon;
-  final String title;
-  final String subtitle;
   final Widget child;
 
-  const _SummaryCard({
-    required this.color,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.child,
-  });
+  const _CardFrame({required this.color, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -568,6 +666,86 @@ class _SummaryCard extends StatelessWidget {
           ),
         ],
       ),
+      child: child,
+    );
+  }
+}
+
+/// Nhan ngan 1 dong: thu nho chu khi thieu cho thay vi ellipsis.
+class _FitLabel extends StatelessWidget {
+  final String text;
+  final TextStyle? style;
+
+  const _FitLabel(this.text, {this.style});
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        maxLines: 1,
+        softWrap: false,
+        style: style,
+      ),
+    );
+  }
+}
+
+/// Chip nho canh title (vd `GRID (EVN)`), vien / nen theo mau the.
+class _TitleBadge extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _TitleBadge({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: color.withValues(alpha: .6), width: .8),
+      ),
+      child: _FitLabel(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          height: 1.1,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .3,
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  /// Chip nho ben phai title; tu xuong dong khi khong du cho.
+  final String? badge;
+
+  const _SummaryCard({
+    required this.color,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    this.badge,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _CardFrame(
+      color: color,
       child: Column(
         children: [
           Row(
@@ -588,20 +766,25 @@ class _SummaryCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    Wrap(
+                      spacing: 5,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _FitLabel(
+                          title,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        if (badge != null)
+                          _TitleBadge(text: badge!, color: color),
+                      ],
                     ),
-                    Text(
+                    _FitLabel(
                       subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: .68),
                         // fontSize: 14,
@@ -710,11 +893,8 @@ class _InfoLine extends StatelessWidget {
           // Icon(icon, size: 18, color: color),
           //
           // const SizedBox(width: 3),
-          Text(
+          _FitLabel(
             label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.right,
             style: TextStyle(
               color: color,
               fontSize: 14,

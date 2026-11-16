@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../shared/network/request_retry.dart';
 import '../../shared/state/safe_change_notifier.dart';
 import '../api/utility_dashboard_overview_api.dart';
 import '../models/energy_monthly_summary.dart';
@@ -23,7 +24,11 @@ class MonthlySummaryStore extends ChangeNotifier with SafeChangeNotifier {
 
   static const Duration ttl = Duration(minutes: 10);
 
-  static const Duration requestTimeout = Duration(seconds: 45);
+  /// Quay lai tab / doi FAC da tung tai: hien so cu ngay, lam moi nen neu
+  /// du lieu cu hon moc nay (stale-while-revalidate).
+  static const Duration revalidateAfter = Duration(seconds: 60);
+
+  final RequestGate gate = RequestGate.overview;
 
   final Map<MonthlySummaryKey, _Entry> _entries = {};
   final Map<MonthlySummaryKey, int> _watchers = {};
@@ -58,8 +63,14 @@ class MonthlySummaryStore extends ChangeNotifier with SafeChangeNotifier {
     return _entries[keyOf(facId, month)]?.inFlight != null;
   }
 
+  /// Loi sau khi het retry (giu ca khi con rows cu: UI hien icon canh bao).
   Object? errorOf(String facId, String month) {
     return _entries[keyOf(facId, month)]?.error;
+  }
+
+  /// Lan tai thanh cong gan nhat (null khi chua tung tai duoc).
+  DateTime? fetchedAtOf(String facId, String month) {
+    return _entries[keyOf(facId, month)]?.fetchedAt;
   }
 
   // ============================================================
@@ -67,8 +78,18 @@ class MonthlySummaryStore extends ChangeNotifier with SafeChangeNotifier {
   // ============================================================
 
   /// Tra ve cache neu con han (tru khi [force]); neu key dang tai thi dung
-  /// chung request do. Khong nem loi: loi duoc ghi vao [errorOf].
-  Future<void> get(String facId, String month, {bool force = false}) {
+  /// chung request do (dedupe). Khong nem loi: loi ghi vao [errorOf] sau khi
+  /// het retry; trong luc retry key van o trang thai dang tai.
+  ///
+  /// [maxAge]: coi cache cu hon moc nay la het han (mac dinh [ttl]).
+  /// [priority]: monthly-summary cua FAC dang chon = high.
+  Future<void> get(
+    String facId,
+    String month, {
+    bool force = false,
+    Duration? maxAge,
+    RequestPriority priority = RequestPriority.normal,
+  }) {
     if (_disposed) return Future<void>.value();
 
     final key = keyOf(facId, month);
@@ -77,9 +98,13 @@ class MonthlySummaryStore extends ChangeNotifier with SafeChangeNotifier {
     final inFlight = entry.inFlight;
     if (inFlight != null) return inFlight;
 
-    if (!force && entry.isFresh) return Future<void>.value();
+    if (!force && entry.isFresh(maxAge ?? ttl)) return Future<void>.value();
 
-    final future = _fetch(key, entry, entry.generation);
+    // Dang tai lai (ke ca bam "Thu lai"): hien loading / "dang cap nhat",
+    // khong hien loi cu cho den khi lan nay het retry.
+    entry.error = null;
+
+    final future = _fetch(key, entry, entry.generation, priority);
     entry.inFlight = future;
     safeNotify();
 
@@ -90,11 +115,20 @@ class MonthlySummaryStore extends ChangeNotifier with SafeChangeNotifier {
     MonthlySummaryKey key,
     _Entry entry,
     int generation,
+    RequestPriority priority,
   ) async {
     try {
-      final data = await api
-          .getMonthlySummary(facId: key.facId, month: key.month)
-          .timeout(requestTimeout);
+      final data = await RequestRetry.run(
+        (cancelToken) => api.getMonthlySummary(
+          facId: key.facId,
+          month: key.month,
+          cancelToken: cancelToken,
+        ),
+        tag: 'monthly-summary ${key.facId} ${key.month}',
+        policy: RequestPolicy.monthlySummary,
+        gate: gate,
+        priority: priority,
+      );
 
       if (!_isCurrent(key, entry, generation)) return;
 
@@ -105,9 +139,13 @@ class MonthlySummaryStore extends ChangeNotifier with SafeChangeNotifier {
     } catch (error, stackTrace) {
       if (!_isCurrent(key, entry, generation)) return;
 
+      // Rows cu (neu co) van giu: UI hien so cu + icon canh bao.
       entry.error = error;
 
-      debugPrint('[MONTHLY STORE ${key.facId} ${key.month}] $error');
+      debugPrint(
+        '[MONTHLY STORE ${key.facId} ${key.month}] gave up: '
+        '${RequestRetry.describe(error)}',
+      );
       debugPrintStack(stackTrace: stackTrace);
     } finally {
       if (_isCurrent(key, entry, generation)) {
@@ -201,9 +239,8 @@ class _Entry {
   /// Tang khi invalidate: ket qua cua request cu bi bo qua.
   int generation = 0;
 
-  bool get isFresh {
+  bool isFresh(Duration maxAge) {
     final at = fetchedAt;
-    return at != null &&
-        DateTime.now().difference(at) < MonthlySummaryStore.ttl;
+    return at != null && DateTime.now().difference(at) < maxAge;
   }
 }
