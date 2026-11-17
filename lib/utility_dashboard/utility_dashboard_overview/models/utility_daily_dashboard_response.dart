@@ -43,14 +43,31 @@ class UtilityDailyElectricityPoint {
   /// Grid + Solar
   final double totalKwh;
 
+  /// Dien luoi official: so EVN neu co, khong thi so do; null khi BE chua tra.
+  final double? officialGridKwh;
+
+  /// `EVN` | `MEASURED` (nguon cua [officialGridKwh]); null khi BE chua tra.
+  final String? source;
+
   const UtilityDailyElectricityPoint({
     required this.date,
     required this.gridKwh,
     required this.solarKwh,
     required this.totalKwh,
+    this.officialGridKwh,
+    this.source,
   });
 
+  /// Cot grid tren chart: official, thieu thi so do.
+  double get displayGridKwh => officialGridKwh ?? gridKwh;
+
+  /// Ngay chua co so EVN (dang dung so do sub-meter).
+  bool get isMeasured => source == 'MEASURED';
+
+  bool get isEvn => source == 'EVN';
+
   factory UtilityDailyElectricityPoint.fromJson(Map<String, dynamic> json) {
+    final source = json['source']?.toString().trim().toUpperCase();
     return UtilityDailyElectricityPoint(
       date: DateTime.parse(
         json['date']?.toString() ?? json['recordDate']?.toString() ?? '',
@@ -58,6 +75,8 @@ class UtilityDailyElectricityPoint {
       gridKwh: _toDouble(json['gridKwh']),
       solarKwh: _toDouble(json['solarKwh']),
       totalKwh: _toDouble(json['totalKwh']),
+      officialGridKwh: jsonDouble(json['officialGridKwh']),
+      source: source == null || source.isEmpty ? null : source,
     );
   }
 }

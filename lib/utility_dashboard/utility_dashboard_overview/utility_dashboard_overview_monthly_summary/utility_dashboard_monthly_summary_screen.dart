@@ -491,13 +491,14 @@ class _ElectricCard extends StatelessWidget {
     const color = Color(0xffffcc33);
     final unit = item.unit.isEmpty ? 'kWh' : item.unit;
 
-    // value / prevValue / usdCost / prevUsdCost = dien luoi EVN (grid).
-    // KHONG dung totalEnergyValue (= load = grid + solar).
+    // value / prevValue / usdCost / prevUsdCost = dien luoi official (EVN
+    // neu co, khong thi so do). KHONG dung totalEnergyValue (= load).
     return _SummaryCard(
       color: color,
       icon: Icons.bolt_rounded,
       title: 'ELECTRICITY',
-      badge: 'GRID (EVN)',
+      badge: item.gridSourceLabel,
+      badgeTooltip: item.gridSourceTooltip,
       subtitle: monthSubtitle(item.month, isMtd: true),
       child: Column(
         children: [
@@ -693,7 +694,7 @@ class _FitLabel extends StatelessWidget {
   }
 }
 
-/// Chip nho canh title (vd `GRID (EVN)`), vien / nen theo mau the.
+/// Chip nho canh title (vd `EVN + Đo`), vien / nen theo mau the.
 class _TitleBadge extends StatelessWidget {
   final String text;
   final Color color;
@@ -732,6 +733,7 @@ class _SummaryCard extends StatelessWidget {
 
   /// Chip nho ben phai title; tu xuong dong khi khong du cho.
   final String? badge;
+  final String? badgeTooltip;
 
   const _SummaryCard({
     required this.color,
@@ -740,6 +742,7 @@ class _SummaryCard extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.badge,
+    this.badgeTooltip,
   });
 
   @override
@@ -780,7 +783,18 @@ class _SummaryCard extends StatelessWidget {
                           ),
                         ),
                         if (badge != null)
-                          _TitleBadge(text: badge!, color: color),
+                          badgeTooltip == null
+                              ? _TitleBadge(text: badge!, color: color)
+                              : Tooltip(
+                                  message: badgeTooltip,
+                                  waitDuration: const Duration(
+                                    milliseconds: 200,
+                                  ),
+                                  child: _TitleBadge(
+                                    text: badge!,
+                                    color: color,
+                                  ),
+                                ),
                       ],
                     ),
                     _FitLabel(

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
@@ -30,10 +32,13 @@ class _ElectricityChartData {
     final range = DailyChartUtils.calculateRange(
       month: month,
 
-      // Tổng chiều cao =
-      // Grid + Solar
-      // API trả totalKwh sẵn.
-      values: points.map((point) => point.totalKwh),
+      // Tổng chiều cao = Grid + Solar. API trả totalKwh (load đo) sẵn; cột
+      // grid dùng số official (EVN thường cao hơn số đo) nên lấy max để trục
+      // Y không cắt cột.
+      values: points.map(
+        (point) =>
+            math.max(point.totalKwh, point.displayGridKwh + point.solarKwh),
+      ),
     );
 
     return _ElectricityChartData(
@@ -272,6 +277,19 @@ class _ElectricityStackedChart extends StatelessWidget {
 
   const _ElectricityStackedChart({required this.theme, required this.data});
 
+  /// Do mo cua cot grid ngay chi co so do.
+  static const double _measuredAlpha = .45;
+
+  /// BE da tra `source` (co phan biet EVN / Đo).
+  bool get _hasSource => data.points.any((p) => p.source != null);
+
+  /// Nhan grid trong tooltip: `Grid (EVN)` / `Grid (Đo)` / `Grid` (BE cu).
+  static String _gridLabel(UtilityDailyElectricityPoint p) {
+    if (p.isEvn) return 'Grid (EVN)';
+    if (p.isMeasured) return 'Grid (Đo)';
+    return 'Grid';
+  }
+
   @override
   Widget build(BuildContext context) {
     return SfCartesianChart(
@@ -307,7 +325,8 @@ class _ElectricityStackedChart extends StatelessWidget {
       // ========================================================
       // TOOLTIP
       // ========================================================
-      // Grid / Solar / Total doc thang tu BE (totalKwh = load), khong tu cong.
+      // Grid (official) / Solar / Total doc thang tu BE (totalKwh = load),
+      // khong tu cong. Nhan grid ghi nguon so: EVN hoac Đo.
       tooltipBehavior: TooltipBehavior(
         enable: true,
 
@@ -323,7 +342,7 @@ class _ElectricityStackedChart extends StatelessWidget {
           return ChartHoverCard(
             title: DateFormat('dd MMM yyyy').format(p.date.toLocal()),
             rows: [
-              ('Grid (EVN)', fmt(p.gridKwh)),
+              (_gridLabel(p), fmt(p.displayGridKwh)),
               ('Solar', fmt(p.solarKwh)),
               ('Total', fmt(p.totalKwh)),
             ],
@@ -419,16 +438,22 @@ class _ElectricityStackedChart extends StatelessWidget {
       // ========================================================
       series: [
         // ======================================================
-        // GRID
+        // GRID (official): 2 series - ngay EVN / chua ro nguon (dac) va
+        // ngay chi co so do (nhat, vien net dut). Moi ngay chi 1 series co
+        // gia tri nen thu tu chong voi Solar khong doi; dash / border chi
+        // set duoc theo series.
         // ======================================================
         StackedColumnSeries<UtilityDailyElectricityPoint, DateTime>(
-          name: 'Grid (EVN)',
+          name: _hasSource ? 'Grid (EVN)' : 'Grid',
+
+          isVisibleInLegend: data.points.any((p) => !p.isMeasured),
 
           dataSource: data.points,
 
           xValueMapper: (point, _) => point.date,
 
-          yValueMapper: (point, _) => point.gridKwh,
+          yValueMapper: (point, _) =>
+              point.isMeasured ? null : point.displayGridKwh,
 
           animationDuration: 450,
 
@@ -447,6 +472,46 @@ class _ElectricityStackedChart extends StatelessWidget {
           borderColor: theme.line.withValues(alpha: .95),
 
           borderWidth: .8,
+
+          enableTooltip: true,
+        ),
+
+        StackedColumnSeries<UtilityDailyElectricityPoint, DateTime>(
+          name: 'Grid (Đo)',
+
+          isVisibleInLegend: data.points.any((p) => p.isMeasured),
+
+          dataSource: data.points,
+
+          xValueMapper: (point, _) => point.date,
+
+          yValueMapper: (point, _) =>
+              point.isMeasured ? point.displayGridKwh : null,
+
+          animationDuration: 450,
+
+          width: .95,
+
+          spacing: .14,
+
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+
+            end: Alignment.bottomCenter,
+
+            colors: [
+              theme.fillTop.withValues(alpha: theme.fillTop.a * _measuredAlpha),
+              theme.fillBottom.withValues(
+                alpha: theme.fillBottom.a * _measuredAlpha,
+              ),
+            ],
+          ),
+
+          borderColor: theme.line.withValues(alpha: .8),
+
+          borderWidth: 1,
+
+          dashArray: const <double>[3, 2],
 
           enableTooltip: true,
         ),
