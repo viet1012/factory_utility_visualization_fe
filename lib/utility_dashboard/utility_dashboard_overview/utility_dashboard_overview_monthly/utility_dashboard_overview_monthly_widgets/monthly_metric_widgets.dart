@@ -138,15 +138,21 @@ class MonthlyMetricHeader extends StatelessWidget {
   final String title;
   final Color color;
 
+  /// Chip nho sau title (vd nguon so `EVN + Đo`); null: khong ve.
+  final String? badge;
+  final String? badgeTooltip;
+
   const MonthlyMetricHeader({
     super.key,
     required this.title,
     required this.color,
+    this.badge,
+    this.badgeTooltip,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    final text = Text(
       title,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -157,6 +163,43 @@ class MonthlyMetricHeader extends StatelessWidget {
         fontWeight: FontWeight.w900,
         letterSpacing: .15,
       ),
+    );
+
+    final label = badge;
+    if (label == null) return text;
+
+    Widget chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: .6), width: .8),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          height: 1.1,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+    if (badgeTooltip != null) {
+      chip = Tooltip(
+        message: badgeTooltip,
+        waitDuration: const Duration(milliseconds: 200),
+        child: chip,
+      );
+    }
+
+    return Row(
+      children: [
+        Flexible(child: text),
+        const SizedBox(width: 5),
+        chip,
+      ],
     );
   }
 }

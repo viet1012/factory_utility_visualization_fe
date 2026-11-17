@@ -6,8 +6,9 @@ class EnergyMonthlySummary {
   final double? minValue;
   final double? maxValue;
 
-  /// Electricity: dien mua EVN (grid). Tong sub-meter (load = grid + solar)
-  /// nam o field `totalEnergyValue` cua BE, khong dung cho the MTD.
+  /// Electricity: dien luoi (grid) official = so EVN neu co, khong thi so do
+  /// (xem [gridSourceLabel]). Tong sub-meter (load = grid + solar) nam o field
+  /// `totalEnergyValue` cua BE, khong dung cho the MTD.
   final double? value;
   final double? avgValue;
 
@@ -32,6 +33,13 @@ class EnergyMonthlySummary {
   /// Gio cua du lieu moi nhat (chuoi ISO gio nha may); null khi chua co.
   final String? pickAt;
 
+  /// Electricity: so ngay cua ky nay / ky truoc lay tu EVN / tu so do
+  /// (`official*`); null khi BE chua tra (dong Water / Air, BE cu).
+  final int? evnDays;
+  final int? measuredDays;
+  final int? prevEvnDays;
+  final int? prevMeasuredDays;
+
   const EnergyMonthlySummary({
     required this.cate,
     required this.name,
@@ -51,9 +59,18 @@ class EnergyMonthlySummary {
     this.priceMissing = false,
     this.prevPriceMissing = false,
     this.pickAt,
+    this.evnDays,
+    this.measuredDays,
+    this.prevEvnDays,
+    this.prevMeasuredDays,
   });
 
+  /// Electricity: value / cost / prev / delta = so official (EVN neu co, khong
+  /// thi so do) do BE tinh; field official* thieu / null -> field cu.
   factory EnergyMonthlySummary.fromJson(Map<String, dynamic> json) {
+    double? read(String official, String legacy) =>
+        _JsonReader.number(json[official]) ?? _JsonReader.number(json[legacy]);
+
     return EnergyMonthlySummary(
       cate: _JsonReader.string(json['cate']),
       name: _JsonReader.string(json['name']),
@@ -62,28 +79,59 @@ class EnergyMonthlySummary {
       minValue: _JsonReader.number(json['minValue']),
       maxValue: _JsonReader.number(json['maxValue']),
 
-      value: _JsonReader.number(json['value']),
+      value: read('officialValue', 'value'),
       avgValue: _JsonReader.number(json['avgValue']),
 
-      vndCost: _JsonReader.number(json['vndCost']),
-      usdCost: _JsonReader.number(json['usdCost']),
+      vndCost: read('officialVndCost', 'vndCost'),
+      usdCost: read('officialUsdCost', 'usdCost'),
 
-      prevValue: _JsonReader.number(json['prevValue']),
+      prevValue: read('officialPrevValue', 'prevValue'),
 
       prevAvgValue: _JsonReader.number(json['prevAvgValue']),
 
-      prevVndCost: _JsonReader.number(json['prevVndCost']),
+      prevVndCost: read('officialPrevVndCost', 'prevVndCost'),
 
-      prevUsdCost: _JsonReader.number(json['prevUsdCost']),
+      prevUsdCost: read('officialPrevUsdCost', 'prevUsdCost'),
 
-      deltaPercent: _JsonReader.number(json['deltaPercent']),
+      deltaPercent: read('officialDeltaPercent', 'deltaPercent'),
 
       unit: _JsonReader.string(json['unit']),
 
       priceMissing: json['priceMissing'] == true,
       prevPriceMissing: json['prevPriceMissing'] == true,
       pickAt: _JsonReader.optionalString(json['pickAt']),
+
+      evnDays: _JsonReader.integer(json['evnDays']),
+      measuredDays: _JsonReader.integer(json['measuredDays']),
+      prevEvnDays: _JsonReader.integer(json['prevEvnDays']),
+      prevMeasuredDays: _JsonReader.integer(json['prevMeasuredDays']),
     );
+  }
+
+  // ============================================================
+  // GRID SOURCE (EVN / so do)
+  // ============================================================
+
+  /// Nhan nguon so ky nay: `EVN` (khong co ngay do), `EVN + Đo`, `Đo` (khong
+  /// co ngay EVN - Fac A, Fac B luon vay). null khi BE chua tra so ngay hoac
+  /// ky chua co ngay nao.
+  String? get gridSourceLabel {
+    final evn = evnDays;
+    final measured = measuredDays;
+    if (evn == null && measured == null) return null;
+    final e = evn ?? 0;
+    final m = measured ?? 0;
+    if (e == 0 && m == 0) return null;
+    if (e == 0) return 'Đo';
+    if (m == 0) return 'EVN';
+    return 'EVN + Đo';
+  }
+
+  /// Tooltip cua [gridSourceLabel].
+  String? get gridSourceTooltip {
+    if (gridSourceLabel == null) return null;
+    return '${evnDays ?? 0} ngày EVN, ${measuredDays ?? 0} ngày đo '
+        '(số đo thường thấp hơn EVN ~7%)';
   }
 
   // ============================================================
@@ -215,4 +263,6 @@ class _JsonReader {
 
     return double.tryParse(raw.replaceAll(',', ''));
   }
+
+  static int? integer(dynamic value) => number(value)?.toInt();
 }

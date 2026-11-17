@@ -811,7 +811,7 @@ class _EnergyMixSummary extends StatelessWidget {
           child: _EnergyMixMetric(
             color: const Color(0xFFFFB300),
             label: 'MAINS',
-            value: data.gridKwh,
+            value: data.mainsKwh,
           ),
         ),
       ],
