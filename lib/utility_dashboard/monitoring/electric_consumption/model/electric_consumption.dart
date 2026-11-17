@@ -352,10 +352,6 @@ class ConsumptionPoint {
     this.measuredDays,
   });
 
-  /// Daily: chua co so EVN, dang hien thi so do sub-meter.
-  bool get isMeasuredOnly =>
-      !isMonthly && official?.source == OfficialSource.measured;
-
   /// Daily co MWh nhung khong co K$ (ngay chua co bang gia).
   bool get noTariff =>
       !isMonthly && mwh != null && (kusd == null || kusd!.isBlank);

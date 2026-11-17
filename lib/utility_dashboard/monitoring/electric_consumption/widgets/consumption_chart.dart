@@ -89,46 +89,6 @@ abstract final class ConsumptionFormat {
 
 int decimalsOf(ConsumptionUnit unit) => ConsumptionFormat.value(unit);
 
-/// Ngay `official.source = MEASURED`: chua co so EVN, dang dung so do.
-const String kMeasuredDayHint =
-    'Chưa có số EVN — số đo sub-meter, thường thấp hơn EVN ~7%';
-
-/// Do mo cua cot ngay chi co so do (chart).
-const double kMeasuredAlpha = .45;
-
-/// Badge nho "Đo" (xam) cho ngay chua co so EVN, tooltip [kMeasuredDayHint].
-class MeasuredBadge extends StatelessWidget {
-  const MeasuredBadge({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: kMeasuredDayHint,
-      waitDuration: const Duration(milliseconds: 200),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 0.5),
-        decoration: BoxDecoration(
-          color: ConsumptionColors.muted.withValues(alpha: .18),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: ConsumptionColors.muted.withValues(alpha: .5),
-            width: .8,
-          ),
-        ),
-        child: const Text(
-          'Đo',
-          style: TextStyle(
-            color: ConsumptionColors.muted,
-            fontSize: 9.5,
-            fontWeight: FontWeight.w700,
-            height: 1.2,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _StackDef {
   final String name;
   final Color color;
@@ -397,9 +357,6 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
       // Ky chua du ngay: so ngay da nam o chip trang thai.
       if (p.isMonthly && p.completeDays != null && !p.isIncompleteMonth)
         ('Days complete', '${p.completeDays}/${p.days ?? '?'}'),
-      // Trung binh official cua ky gom bao nhieu ngay EVN / ngay do.
-      if (p.isMonthly && (p.evnDays != null || p.measuredDays != null))
-        ('Gồm', '${p.evnDays ?? 0} ngày EVN, ${p.measuredDays ?? 0} ngày đo'),
       if (!p.isMonthly && p.coveragePct != null)
         ('Coverage', '${formatValue(p.coveragePct, decimals: 1)}%'),
       if (meters != null) ('Meters', meters),
@@ -499,8 +456,6 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
         notes.add(('+$more more', _NoteKind.detail));
       }
     }
-
-    if (p.isMeasuredOnly) notes.add((kMeasuredDayHint, _NoteKind.info));
 
     if (widget.tariffAvailable && p.noTariff) {
       notes.add((r'No tariff for this day – K$ not available', _NoteKind.info));
@@ -938,64 +893,48 @@ class _ConsumptionChartState extends State<ConsumptionChart> {
         labelStyle: labelStyle,
       ),
       series: <CartesianSeries<ConsumptionPoint, String>>[
-        // Moi khoi 2 series: ngay EVN / ky truoc (dac) va ngay chi co so do
-        // (nhat, vien net dut). Moi x chi 1 trong 2 co gia tri nen thu tu
-        // chong khong doi; series dash/border chi set duoc theo series.
         for (final stack in _stacks)
-          for (final measured in const [false, true])
-            StackedColumnSeries<ConsumptionPoint, String>(
-              name: stack.name,
-              initialIsVisible: !_hidden.contains(stack.name),
-              dataSource: points,
-              xValueMapper: (p, _) => p.key,
-              yValueMapper: (p, _) {
-                if (p.isMeasuredOnly != measured) return null;
-                final v = p.valuesOf(unit);
-                return v == null ? null : stack.pick(v);
+          StackedColumnSeries<ConsumptionPoint, String>(
+            name: stack.name,
+            initialIsVisible: !_hidden.contains(stack.name),
+            dataSource: points,
+            xValueMapper: (p, _) => p.key,
+            yValueMapper: (p, _) {
+              final v = p.valuesOf(unit);
+              return v == null ? null : stack.pick(v);
+            },
+            color: stack.color,
+            pointColorMapper: (p, _) => _isFaded(p)
+                ? stack.color.withValues(alpha: ConsumptionColors.partialAlpha)
+                : stack.color,
+            // Khe 2px mau be mat giua cac khoi chong / cot ke nhau.
+            borderColor: ConsumptionColors.surface,
+            borderWidth: 1,
+            width: .72,
+            spacing: 0,
+            animationDuration: 350,
+            // Toggle "Values": so giua doan, an khi = 0 hoac doan < 14px.
+            dataLabelSettings: DataLabelSettings(
+              isVisible: widget.showValues,
+              labelAlignment: ChartDataLabelAlignment.middle,
+              labelIntersectAction: LabelIntersectAction.hide,
+              builder: (data, point, series, pointIndex, seriesIndex) {
+                final v = (data as ConsumptionPoint).valuesOf(unit);
+                final value = v == null ? null : stack.pick(v);
+                if (value == null || value == 0 || !tallEnough(value)) {
+                  return const SizedBox.shrink();
+                }
+                return Text(
+                  ConsumptionFormat.fixed(value, decimals),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                  ),
+                );
               },
-              color: stack.color,
-              pointColorMapper: (p, _) {
-                var alpha = 1.0;
-                if (_isFaded(p)) alpha *= ConsumptionColors.partialAlpha;
-                if (measured) alpha *= kMeasuredAlpha;
-                return alpha == 1
-                    ? stack.color
-                    : stack.color.withValues(alpha: alpha);
-              },
-              // Khe 2px mau be mat giua cac khoi chong / cot ke nhau; ngay do:
-              // vien net dut cung mau series.
-              borderColor: measured ? stack.color : ConsumptionColors.surface,
-              borderWidth: 1,
-              dashArray: measured ? const <double>[3, 2] : null,
-              width: .72,
-              spacing: 0,
-              animationDuration: 350,
-              // Toggle "Values": so giua doan, an khi = 0 hoac doan < 14px.
-              dataLabelSettings: DataLabelSettings(
-                isVisible: widget.showValues,
-                labelAlignment: ChartDataLabelAlignment.middle,
-                labelIntersectAction: LabelIntersectAction.hide,
-                builder: (data, point, series, pointIndex, seriesIndex) {
-                  final p = data as ConsumptionPoint;
-                  if (p.isMeasuredOnly != measured) {
-                    return const SizedBox.shrink();
-                  }
-                  final v = p.valuesOf(unit);
-                  final value = v == null ? null : stack.pick(v);
-                  if (value == null || value == 0 || !tallEnough(value)) {
-                    return const SizedBox.shrink();
-                  }
-                  return Text(
-                    ConsumptionFormat.fixed(value, decimals),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  );
-                },
-              ),
             ),
+          ),
         LineSeries<ConsumptionPoint, String>(
           name: _totalName,
           initialIsVisible: !_hidden.contains(_totalName),

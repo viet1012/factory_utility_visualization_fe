@@ -405,31 +405,8 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
               ),
             ),
           ),
-        // Chu thich cua Total / Avg per day (cot ghim phai): so ngay EVN /
-        // ngay do (BE).
-        if (_daysNote() case final note?)
-          Padding(
-            padding: EdgeInsets.only(top: showCoverage ? 2 : 6, right: 2),
-            child: Text(
-              note,
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                color: ConsumptionColors.muted,
-                fontSize: 11.5,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
       ],
     );
-  }
-
-  /// `Gồm 18 ngày EVN, 3 ngày đo`; null khi BE khong tra.
-  String? _daysNote() {
-    final evn = scope.evnDays;
-    final measured = scope.measuredDays;
-    if (evn == null && measured == null) return null;
-    return 'Gồm ${evn ?? 0} ngày EVN, ${measured ?? 0} ngày đo';
   }
 
   String _incompleteNote() {
@@ -700,7 +677,6 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
                       _dayWidth,
                       accent: true,
                       bg: ConsumptionColors.todayBand,
-                      measured: p.isMeasuredOnly,
                     )
                   : _columnHeader(
                       _dayLabel(p) +
@@ -712,7 +688,6 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
                           : null,
                       italic: p.isPartial(widget.partialDate),
                       bg: _isSunday(p) ? ConsumptionColors.sundayBand : null,
-                      measured: p.isMeasuredOnly,
                     ),
           ],
         ),
@@ -841,28 +816,16 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
     bool faded = false,
     bool italic = false,
     bool accent = false,
-    // Ngay chua co so EVN (official = so do): badge "Đo" canh dong duoi.
-    bool measured = false,
   }) {
     final base = faded
         ? ConsumptionColors.muted
         : (color ?? ElectricityColors.text);
     // Moi dong 1 line, khong xuong dong; thieu cho thi co lai (scaleDown)
     // de khong tran chieu cao o tieu de.
-    Widget line(String text, TextStyle style, {bool badge = false}) =>
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: badge
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(text, maxLines: 1, softWrap: false, style: style),
-                    const SizedBox(width: 3),
-                    const MeasuredBadge(),
-                  ],
-                )
-              : Text(text, maxLines: 1, softWrap: false, style: style),
-        );
+    Widget line(String text, TextStyle style) => FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(text, maxLines: 1, softWrap: false, style: style),
+    );
 
     return Container(
       width: width,
@@ -903,7 +866,6 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
                       color: color ?? ConsumptionColors.muted,
                       fontSize: 11,
                     ),
-              badge: measured,
             ),
         ],
       ),
