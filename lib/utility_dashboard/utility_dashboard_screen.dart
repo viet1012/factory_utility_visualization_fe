@@ -17,6 +17,7 @@ import 'package:factory_utility_visualization/utility_dashboard/utility_dashboar
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_minute_dashboard_provider.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/monthly_summary_store.dart';
 import 'package:factory_utility_visualization/utility_dashboard/utility_dashboard_overview/providers/utility_monthly_summary_provider.dart';
+import 'package:factory_utility_visualization/utility_dashboard/shared/navigation/fade_indexed_stack.dart';
 import 'package:factory_utility_visualization/utility_dashboard/shared/navigation/industrial_side_tab_bar.dart';
 import 'package:factory_utility_visualization/utility_dashboard/shared/polling/dashboard_polling_intervals.dart';
 import 'package:factory_utility_visualization/utility_dashboard/shared/polling/polling_coordinator.dart';
@@ -405,10 +406,8 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
   // ============================================================
 
   void _handleTabChanged() {
-    if (_tabController.indexIsChanging) {
-      return;
-    }
-
+    // Khong cho het animateTo (~300ms) cua TabController: doi noi dung ngay
+    // khi index doi. Lan bao thu 2 (ket thuc animation) bi bo qua o duoi.
     final nextIndex = _tabController.index;
 
     if (_tabIndex == nextIndex) {
@@ -669,7 +668,7 @@ class _UtilityDashboardScreenState extends State<UtilityDashboardScreen>
                     tabs: _tabs,
                   ),
                 Expanded(
-                  child: IndexedStack(
+                  child: FadeIndexedStack(
                     index: _tabIndex,
                     children: [
                       _buildOverviewTab(),
