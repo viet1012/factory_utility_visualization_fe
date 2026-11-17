@@ -497,8 +497,6 @@ class _ElectricCard extends StatelessWidget {
       color: color,
       icon: Icons.bolt_rounded,
       title: 'ELECTRICITY',
-      badge: item.gridSourceLabel,
-      badgeTooltip: item.gridSourceTooltip,
       subtitle: monthSubtitle(item.month, isMtd: true),
       child: Column(
         children: [
@@ -694,36 +692,6 @@ class _FitLabel extends StatelessWidget {
   }
 }
 
-/// Chip nho canh title (vd `EVN + Đo`), vien / nen theo mau the.
-class _TitleBadge extends StatelessWidget {
-  final String text;
-  final Color color;
-
-  const _TitleBadge({required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .14),
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: color.withValues(alpha: .6), width: .8),
-      ),
-      child: _FitLabel(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          height: 1.1,
-          fontWeight: FontWeight.w800,
-          letterSpacing: .3,
-        ),
-      ),
-    );
-  }
-}
-
 class _SummaryCard extends StatelessWidget {
   final Color color;
   final IconData icon;
@@ -731,18 +699,12 @@ class _SummaryCard extends StatelessWidget {
   final String subtitle;
   final Widget child;
 
-  /// Chip nho ben phai title; tu xuong dong khi khong du cho.
-  final String? badge;
-  final String? badgeTooltip;
-
   const _SummaryCard({
     required this.color,
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.child,
-    this.badge,
-    this.badgeTooltip,
   });
 
   @override
@@ -769,33 +731,13 @@ class _SummaryCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
-                      spacing: 5,
-                      runSpacing: 2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        _FitLabel(
-                          title,
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        if (badge != null)
-                          badgeTooltip == null
-                              ? _TitleBadge(text: badge!, color: color)
-                              : Tooltip(
-                                  message: badgeTooltip,
-                                  waitDuration: const Duration(
-                                    milliseconds: 200,
-                                  ),
-                                  child: _TitleBadge(
-                                    text: badge!,
-                                    color: color,
-                                  ),
-                                ),
-                      ],
+                    _FitLabel(
+                      title,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     _FitLabel(
                       subtitle,

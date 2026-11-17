@@ -7,7 +7,7 @@ class EnergyMonthlySummary {
   final double? maxValue;
 
   /// Electricity: dien luoi (grid) official = so EVN neu co, khong thi so do
-  /// (xem [gridSourceLabel]). Tong sub-meter (load = grid + solar) nam o field
+  /// Tong sub-meter (load = grid + solar) nam o field
   /// `totalEnergyValue` cua BE, khong dung cho the MTD.
   final double? value;
   final double? avgValue;
@@ -106,32 +106,6 @@ class EnergyMonthlySummary {
       prevEvnDays: _JsonReader.integer(json['prevEvnDays']),
       prevMeasuredDays: _JsonReader.integer(json['prevMeasuredDays']),
     );
-  }
-
-  // ============================================================
-  // GRID SOURCE (EVN / so do)
-  // ============================================================
-
-  /// Nhan nguon so ky nay: `EVN` (khong co ngay do), `EVN + Đo`, `Đo` (khong
-  /// co ngay EVN - Fac A, Fac B luon vay). null khi BE chua tra so ngay hoac
-  /// ky chua co ngay nao.
-  String? get gridSourceLabel {
-    final evn = evnDays;
-    final measured = measuredDays;
-    if (evn == null && measured == null) return null;
-    final e = evn ?? 0;
-    final m = measured ?? 0;
-    if (e == 0 && m == 0) return null;
-    if (e == 0) return 'Đo';
-    if (m == 0) return 'EVN';
-    return 'EVN + Đo';
-  }
-
-  /// Tooltip cua [gridSourceLabel].
-  String? get gridSourceTooltip {
-    if (gridSourceLabel == null) return null;
-    return '${evnDays ?? 0} ngày EVN, ${measuredDays ?? 0} ngày đo '
-        '(số đo thường thấp hơn EVN ~7%)';
   }
 
   // ============================================================
