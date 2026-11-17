@@ -17,6 +17,9 @@ Dữ liệu lấy từ backend Utility qua REST API (Dio), tự làm mới theo 
 8. [Xử lý lỗi & timeout](#8-xử-lý-lỗi--timeout)
 9. [Test](#9-test)
 10. [Lưu ý / vấn đề đã biết](#10-lưu-ý--vấn-đề-đã-biết)
+11. [Điện: số đo vs EVN](#11-điện-số-đo-vs-evn)
+12. [Tải dữ liệu](#12-tải-dữ-liệu)
+13. [Changelog](#13-changelog)
 
 ---
 
@@ -172,7 +175,8 @@ Bản web của sheet **"FY26-Sep + Solar1"** trong [assets/docs/F2 electric con
 - **Charts** — lưới 6 chart (3 scope × MWh | K$) vừa khít màn hình.
 - **Dữ liệu chưa đủ:** ngày có `partial = true` (coverage < `minCoveragePct`) vẽ cột mờ + `*`, **không tính vào Avg / day**; chi tiết (coverage %, số meter, thay đổi số meter so với ngày trước, MWh bị loại) xem bằng **hover** tooltip. Kỳ trước không có dữ liệu (`null`, hoặc toàn `0.000` với backend cũ) bị ẩn khỏi chart / bảng.
 - **Excluded meters:** dòng ghi chú chỉ hiện số lượng (`1 meter excluded`); hover để xem mã meter và lượng MWh bị loại theo từng kỳ.
-- **Làm tròn hiển thị** (`ConsumptionFormat`): MWh 1 số lẻ (tổng kỳ: số nguyên), K$ 2 số lẻ (tổng kỳ: 1 số lẻ), đơn giá $/kWh 4 số lẻ.
+- **Số EVN / số đo:** mọi số MWh / K$ là số *official* (EVN nếu đã import, không thì số đo) — xem [11.3](#113-màn-electric-consumption-bill-period).
+- **Làm tròn hiển thị** (`ConsumptionFormat`): MWh số nguyên (cả tổng kỳ), K$ 1 số lẻ (cả tổng kỳ), đơn giá $/kWh 4 số lẻ.
 - **Màu chart:** 4 màu categorical đã kiểm tra contrast / mù màu trên nền card `#0A1A2C` (`ConsumptionColors` trong [consumption_chart.dart](lib/utility_dashboard/monitoring/electric_consumption/widgets/consumption_chart.dart)).
 
 #### Kỳ tính: tháng dương lịch vs kỳ hóa đơn
@@ -318,7 +322,7 @@ Response (object): `electricity` (điện lưới, không gồm solar — điể
 | `month` | Có | `yyyyMM`, vd. `202611` (FE validate định dạng và tháng 1–12) |
 
 Response (object):
-- `electricity`: `[{ date | recordDate, gridKwh, solarKwh, totalKwh }]`
+- `electricity`: `[{ date | recordDate, gridKwh, solarKwh, totalKwh, officialGridKwh, source }]` — `source`: `EVN` | `MEASURED` (xem [11](#11-điện-số-đo-vs-evn))
 - `water`, `air`: `[{ date | recordDate, value }]`
 
 #### `GET /api/utility/monthly-summary` · `POST /api/utility/monthly-summary/refresh`
@@ -330,7 +334,8 @@ Response (object):
 
 - `POST .../refresh`: tham số **trên query** (không có body), buộc backend tính lại.
 - Response: **mảng** `EnergyMonthlySummary`:
-  `cate, name, month, unit, value, minValue, maxValue, avgValue, vndCost, usdCost, prevValue, prevAvgValue, prevVndCost, prevUsdCost, deltaPercent, generatedAt | pickAt | timestamp`
+  `cate, name, month, unit, value, minValue, maxValue, avgValue, vndCost, usdCost, prevValue, prevAvgValue, prevVndCost, prevUsdCost, deltaPercent, priceMissing, prevPriceMissing, generatedAt | pickAt | timestamp`
+- Dòng Electricity có thêm: `officialValue, officialUsdCost, officialVndCost, officialPrevValue, officialPrevUsdCost, officialPrevVndCost, officialDeltaPercent, evnDays, measuredDays, prevEvnDays, prevMeasuredDays` — FE dùng `official*` thay field cũ (xem [11.4](#114-dashboard-overview-tab-main)).
 - FE chuẩn hóa: `Total Energy Consumption` → `Total Energy`, `Total Water Consumption` → `Total Water`; `month` rỗng → lấy tháng request.
 - Kết quả được cache/dedupe trong `MonthlySummaryStore`, dùng chung giữa panel SUMMARY và ô Fac_A/B/C.
 
@@ -457,9 +462,11 @@ Response (object), các field FE đang parse:
 - `dataUntil`: ISO kèm `+07:00`; khác `00:00` → ngày đó đang chạy dở
 - `tariffAvailable`; `unitPrices`: `{ gridNormal, gridHighPeak, gridLowPeak, solarNormal, solarHighPeak, solarLowPeak }` ($/kWh, `null` khi không có biểu giá)
 - `minCoveragePct`, `historyStartDate`, `excludedMeters[]` (optional)
-- `scopes`: `[{ code (KVH | FAC_AB | FAC_C), name, monthly, daily, dailyTotalMwh, dailyTotalKusd, dailyAverageMwh, dailyAverageKusd, elapsedDays, meters, daysWithData, completeDays }]`
-  - `monthly[]`: `{ month, label, days, perDayMwh, perDayKusd, partial, meters, daysWithData, completeDays, excludedMwh }` — trung bình / ngày của các kỳ trước
-  - `daily[]`: `{ date, weekday, mwh, kusd, partial, coveragePct, hoursWithData, meters, excludedMwh }` — đủ số ngày của kỳ, ngày chưa tới `mwh`/`kusd` = `null`
+- `scopes`: `[{ code (KVH | FAC_AB | FAC_C), name, monthly, daily, dailyTotalMwh, dailyTotalKusd, dailyAverageMwh, dailyAverageKusd, officialTotalMwh, officialTotalKusd, officialAverageMwh, officialAverageKusd, evnDays, measuredDays, elapsedDays, meters, daysWithData, completeDays, meterIssues, priceMissing, estimatedMissingMwh }]`
+  - `monthly[]`: `{ month, label, days, perDayMwh, perDayKusd, official { mwh, kusd }, evnDays, measuredDays, partial, meters, daysWithData, completeDays, excludedMwh, priceMissing }` — trung bình / ngày của các kỳ trước
+  - `daily[]`: `{ date, weekday, mwh, kusd, official { mwh, kusd, source }, partial, coveragePct, hoursWithData, meters, reportingMeters, missingMeters, excludedMwh, priceMissing }` — đủ số ngày của kỳ, ngày chưa tới `mwh`/`kusd` = `null`
+  - `missingMeters[]`: `{ meter, fac, validHours (BE cũ: hours), reason (NO_DATA | PARTIAL | OUTLIER), lastDataAt }`; `meterIssues[]`: `{ meter, fac, missingHours, lastDataAt, severity (MAJOR | MINOR) }`
+  - BE còn trả `daily[].evn`, `daily[].calibrated` — FE **không đọc**.
   - Bộ giá trị (`perDayMwh`, `mwh`, …): `{ normal, highPeak, lowPeak, solar, totalElectricity (điện lưới), total (lưới + solar) }`
 - `dailyAverage*` (backend mới): chỉ tính trên các ngày đủ dữ liệu. Các field optional thiếu (backend cũ) → FE tự suy ra (ngày dở từ `dataUntil`, trung bình trên ngày đủ).
 
@@ -523,7 +530,7 @@ File: [solar_api.dart](lib/utility_dashboard/utility_dashboard_overview/utility_
 
 | Endpoint | Query | Response |
 |---|---|---|
-| `GET /api/solar/monthly` | `facId`, `month` (`yyyyMM`) | `{ solarKwh, gridKwh, solarSharePercent, todayCo2Ton, todayEquivalentTrees }` |
+| `GET /api/solar/monthly` | `facId`, `month` (`yyyyMM`) | `{ solarKwh, gridKwh, officialGridKwh, solarSharePercent, todayCo2Ton, todayEquivalentTrees }` |
 | `GET /api/solar/detail` | `facId`, `month` (`yyyyMM`) | `{ summary { currentPowerKw, solarKwh, gridKwh, totalKwh, solarSharePercent }, dailyTrend [{ date, solarKwh, gridKwh, totalKwh }], costImpact { normalCostUsd, solarCostUsd, savingUsd, savingPercent }, environmentalImpact { co2Ton, equivalentTrees, co2Factor } }` |
 | `GET /api/solar/hourly` | `facId`, `date` (`yyyy-MM-dd`) | `{ date, facId, facilities [{ facId, totalHours, totalKwh, peakKwh, peakHour, hours [{ hour, kwh }] }] }` |
 
@@ -585,6 +592,7 @@ File: [utility_para_api.dart](lib/utility_dashboard/utility_dashboard_setting/pa
 | Mặc định (`DioClient`) | connect 30s / receive 90s / send 30s (không áp trên Web) | Log interceptor ở debug |
 | Water check, Power usage | receive 30s | Power usage: `message` trong body 400, hoặc `... failed (HTTP xxx)` / `Cannot reach the server` |
 | Electric consumption | receive 60s | Như Power usage |
+| monthly-summary, energy-daily, solar/monthly (Overview) | theo `RequestPolicy` + retry — xem [12](#12-tải-dữ-liệu) | `InlineLoadError` / `StaleDataBadge` |
 | Minute chart controller | request 15s | — |
 | SETTING | receive/send 30s | 400/409/422 → `message` / `error` / `detail` trong body; timeout → `Request timed out`; không kết nối → `Cannot reach server`; còn lại → `Unexpected error (HTTP xxx)` |
 
@@ -623,7 +631,8 @@ flutter test (Get-ChildItem test -Recurse -Filter *_test.dart | ? Name -ne 'widg
 - `build_web.bat` hard-code thư mục deploy `D:\Viet\Utility\BUILD_WEB`.
 - `test/widget_test.dart` không chạy được bằng `flutter test` (VM) vì app dùng thư viện chỉ có trên web (`dart:js_interop`, package `web`).
 - **SUMMARY / Solar (tháng dương lịch) và Bill period (kỳ hóa đơn 21 → 20) cho số khác nhau là đúng** — xem [5.1](#51-bill-period).
-- Bill period: API chưa trả danh sách meter thiếu theo ngày (chỉ có số meter); thông tin đầu sheet Excel (số hiệu biến áp, Solar Lot, tỷ giá) chưa có trong API nên UI chưa hiển thị.
+- Bill period: thông tin đầu sheet Excel (số hiệu biến áp, Solar Lot, tỷ giá) chưa có trong API nên UI chưa hiển thị.
+- Một số màn / số vẫn là **số đo**, chưa phải số EVN — xem [11.2](#112-màn-nào-dùng-số-nào).
 - Định dạng thời gian khác nhau giữa các API — chú ý khi thêm endpoint mới:
   - `series/history`: ISO-8601 **có offset** (`+07:00`)
   - `signal-health/history/hourly`: ISO local **không** zone
@@ -636,3 +645,160 @@ flutter test (Get-ChildItem test -Recurse -Filter *_test.dart | ? Name -ne 'widg
 2. Model `fromJson` trong `models/`, kiểm tra kiểu response (`is Map` / `is List`).
 3. Nếu cần tự làm mới: thêm interval vào `DashboardPollingIntervals`, id vào `PollingTaskIds`, đăng ký task với `PollingScope` phù hợp trong `utility_dashboard_screen.dart`.
 4. Cập nhật bảng endpoint trong README này.
+
+---
+
+## 11. Điện: số đo vs EVN
+
+### 11.1 Nghĩa các số
+
+| Số | Nghĩa | Field thường gặp |
+|---|---|---|
+| **grid** | Điện lưới mua của EVN | `gridKwh`, `totalElectricity`, `value` (dòng Electricity của monthly-summary) |
+| **solar** | Điện solar tự phát (luôn là số đo) | `solarKwh`, `solar` |
+| **load** | Tổng tiêu thụ = tổng sub-meter = grid + solar | `totalKwh`, `total`, `totalEnergyValue` |
+| **official** (grid) | **Số EVN nếu đã import cho (ngày, scope), không có thì số đo.** BE tính sẵn, FE **không tự cộng / tính lại** | `official*`, `officialGridKwh` |
+
+- Số đo sub-meter thường **thấp hơn EVN ~7%** (tổn hao). Số EVN là số chính thức (Excel EVN do BE import).
+- Mỗi ngày official có nguồn `source`: `EVN` hoặc `MEASURED`. Mỗi kỳ / tháng có `evnDays`, `measuredDays` = số ngày lấy từ EVN / từ số đo.
+- **EVN chỉ có cho KVH, FAC_AB (Fac A + Fac B gộp) và FAC_C.** Fac A, Fac B riêng lẻ không tách được → official = số đo, `evnDays = 0`, luôn badge **Đo**.
+- Badge nguồn số (Overview, [`EnergyMonthlySummary.gridSourceLabel`](lib/utility_dashboard/utility_dashboard_overview/models/energy_monthly_summary.dart)):
+
+  | Badge | Điều kiện |
+  |---|---|
+  | `EVN` | `measuredDays = 0` |
+  | `EVN + Đo` | có cả ngày EVN và ngày đo |
+  | `Đo` | `evnDays = 0` |
+  | *(không hiện)* | BE chưa trả `evnDays` / `measuredDays`, hoặc cả hai = 0 |
+
+  Tooltip: `{evnDays} ngày EVN, {measuredDays} ngày đo (số đo thường thấp hơn EVN ~7%)`.
+- Field `official*` thiếu hoặc `null` (BE cũ) → FE dùng lại field cũ (số đo), áp **theo từng field**.
+
+### 11.2 Màn nào dùng số nào
+
+| Màn / vị trí | Số hiển thị |
+|---|---|
+| MONITORING › Electricity › **Bill period** (ngày, tổng kỳ, Avg / day, kỳ trước, chart, KPI) | **official** |
+| MAIN › SUMMARY › thẻ **ELECTRICITY MTD** | **official** + badge nguồn |
+| MAIN › ô **FAC A / B / C** (dòng Grid) | **official** + badge nguồn (Fac A, Fac B luôn `Đo`) |
+| MAIN › **SOLAR IMPACT** › MAINS | **official** (`officialGridKwh`) |
+| MAIN › chart **DAILY Electricity** › cột grid | **official** (`officialGridKwh`), ngày `MEASURED` vẽ nhạt / viền nét đứt |
+| MAIN › chart DAILY Electricity › *Total* (tooltip, giá trị mới nhất ở header) | **số đo** — `totalKwh` (load đo) |
+| MAIN › SOLAR IMPACT › donut `solarSharePercent` | **số đo** (solar / load đo) |
+| MAIN › chart minute / hourly (`minute-dashboard`, `hourly-dashboard`) | **số đo** |
+| Solar detail (`solar/detail`: KPI, nguồn năng lượng, trend ngày) | **số đo** (`gridKwh`) |
+| MONITORING › Electricity › **Live** (`power-usage`) | **số đo** |
+| Facility detail › period dashboard (`period-dashboard`) | **số đo** |
+| Bill period: *MWh excluded*, *≈ MWh missing* (`excludedMwh`, `estimatedMissingMwh`) | **số đo** (dữ liệu chất lượng meter) |
+
+> Ngày có số EVN trên chart DAILY: Grid (EVN) + Solar có thể lớn hơn *Total* (load đo) ~7%. Trục Y lấy max của hai giá trị để không cắt cột.
+
+### 11.3 Màn Electric consumption (Bill period)
+
+Model: [electric_consumption.dart](lib/utility_dashboard/monitoring/electric_consumption/model/electric_consumption.dart).
+
+**Field đọc** (official trước, thiếu / `null` thì field cũ):
+
+| Vị trí | Official | Fallback |
+|---|---|---|
+| Ngày (`daily[]`) | `official.mwh`, `official.kusd`, `official.source` | `mwh`, `kusd` |
+| Kỳ trước (`monthly[]`) | `official.mwh`, `official.kusd`, `evnDays`, `measuredDays` | `perDayMwh`, `perDayKusd` |
+| Tổng kỳ (scope) | `officialTotalMwh`, `officialTotalKusd` | `dailyTotalMwh`, `dailyTotalKusd` |
+| Avg / day (scope) | `officialAverageMwh`, `officialAverageKusd` | `dailyAverageMwh`, `dailyAverageKusd` (BE cũ không có: FE tự tính trên ngày đủ) |
+| Số ngày (scope) | `evnDays`, `measuredDays` | — |
+
+- Class `Official` (`mwh`, `kusd`, `source` → enum `OfficialSource { evn, measured, unknown }`); giá trị qua `jsonDouble` (num → double).
+- `ConsumptionPoint.mwh` / `kusd` **đã là số official** sau khi parse → chart, bảng, KPI không cần biết nguồn. `ConsumptionPoint.isMeasuredOnly` = ngày `source = MEASURED`.
+- `ConsumptionScope.hasOfficial` = BE có trả `officialAverage*` khác `null` → Avg / day lấy thẳng của BE, không tự tính.
+- `missingMeters[].validHours` (BE cũ: `hours`) = số giờ **có** dữ liệu; `MissingMeter.missingHours = 24 − validHours`. Dùng cho tooltip chart (`… h missing`) và cảnh báo partial — **giữ nguyên ở mọi chế độ**, kể cả ngày có số EVN.
+
+**Chú thích** ([consumption_detail_table.dart](lib/utility_dashboard/monitoring/electric_consumption/widgets/consumption_detail_table.dart), [consumption_chart.dart](lib/utility_dashboard/monitoring/electric_consumption/widgets/consumption_chart.dart)):
+
+- Bảng Detail: ngày `MEASURED` có badge xám **Đo** cạnh thứ (header cột), tooltip `kMeasuredDayHint` = *"Chưa có số EVN — số đo sub-meter, thường thấp hơn EVN ~7%"* (widget `MeasuredBadge`).
+- Dưới bảng, canh phải theo cột *Total / Avg per day*: `Gồm {evnDays} ngày EVN, {measuredDays} ngày đo` (ẩn khi BE không trả).
+
+**Chart:**
+
+- Mỗi khối chồng (Normal / High-peak / Low-peak / Grid / Solar) tách 2 series: ngày EVN (đặc) và ngày `MEASURED` (alpha `kMeasuredAlpha = .45`, viền nét đứt `[3, 2]` cùng màu series). Ngày vừa partial vừa đo → mờ nhân đôi.
+- Tooltip ngày đo có dòng `kMeasuredDayHint`; tooltip kỳ trước có `Gồm X ngày EVN, Y ngày đo`.
+
+### 11.4 Dashboard Overview (tab MAIN)
+
+| Thẻ | File | Field đọc |
+|---|---|---|
+| SUMMARY › **ELECTRICITY MTD** | [utility_dashboard_monthly_summary_screen.dart](lib/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly_summary/utility_dashboard_monthly_summary_screen.dart) | `officialValue`, `officialUsdCost`, `officialPrevValue`, `officialPrevUsdCost`, `officialDeltaPercent`; badge từ `evnDays`, `measuredDays` |
+| Ô **FAC A / B / C** (dòng Grid) | [monthly_electricity_card.dart](lib/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/monthly_electricity_card.dart) | như trên (cùng model `EnergyMonthlySummary`, cùng `MonthlySummaryStore`) |
+| **SOLAR IMPACT** | [solar_summary_card.dart](lib/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_solar/solar_summary_card.dart) | MAINS = `SolarDashboardData.mainsKwh` (`officialGridKwh ?? gridKwh`); SOLAR = `solarKwh`; donut = `solarSharePercent` |
+| Chart **DAILY Electricity** | [utility_daily_electricity_chart.dart](lib/utility_dashboard/utility_dashboard_overview/daily/utility_daily_electricity_chart.dart) | cột grid = `displayGridKwh` (`officialGridKwh ?? gridKwh`); `source`; Solar = `solarKwh`; Total = `totalKwh` |
+
+- Model monthly-summary: `value`, `usdCost`, `vndCost`, `prevValue`, `prevUsdCost`, `prevVndCost`, `deltaPercent` của [EnergyMonthlySummary](lib/utility_dashboard/utility_dashboard_overview/models/energy_monthly_summary.dart) **đã là official** sau khi parse (`officialX ?? X`). Dòng Water / Air không có `official*` nên không đổi.
+- Đã bỏ nhãn cố định `GRID (EVN)` (thẻ MTD) / `Grid (EVN)` (ô FAC) vì trước đây số là số đo; giờ là `Grid` + badge nguồn ([11.1](#111-nghĩa-các-số)).
+- Chart DAILY: series `Grid (EVN)` (style cũ) và `Grid (Đo)` (fill alpha `.45`, viền nét đứt); legend chỉ hiện series có ngày. Tooltip ghi `Grid (EVN)` / `Grid (Đo)` (BE cũ chưa có `source`: `Grid`).
+- **Fac A, Fac B luôn số đo** (EVN chỉ có FAC_AB gộp) → badge `Đo`, cột DAILY luôn nhạt / nét đứt.
+
+---
+
+## 12. Tải dữ liệu
+
+Áp dụng cho 3 endpoint tổng hợp chậm của Overview: `monthly-summary`, `energy-daily`, `solar/monthly`.
+
+### 12.1 RequestPolicy — timeout / retry theo endpoint
+
+File: [request_retry.dart](lib/utility_dashboard/shared/network/request_retry.dart).
+
+| Policy | Endpoint | Timeout | Retry (backoff) |
+|---|---|---|---|
+| `RequestPolicy.monthlySummary` | `GET /api/utility/monthly-summary` | 30s | 2 lần (1s → 3s) |
+| `RequestPolicy.monthlySummaryRefresh` | `POST /api/utility/monthly-summary/refresh` | 120s | 2 lần (1s → 3s) |
+| `RequestPolicy.energyDaily` | `GET /api/utility/energy-daily` | 30s | 2 lần (1s → 3s) |
+| `RequestPolicy.solarMonthly` | `GET /api/solar/monthly` | 30s | 2 lần (1s → 3s) |
+
+`RequestRetry.run(request, tag:, policy:, gate:, priority:)`:
+
+- Mỗi lần thử có `CancelToken` riêng; quá `timeout` thì **hủy thật** request và ném `TimeoutException`. `receiveTimeout` của Dio cũng đặt bằng `policy.timeout`.
+- **Thử lại** khi: timeout, `connectionTimeout` / `sendTimeout` / `receiveTimeout`, `connectionError`, HTTP **5xx**, `unknown` không có response (lỗi mạng XHR trên Web).
+- **Không thử lại**: 4xx, hủy chủ động (`cancel`), lỗi parse.
+- Mỗi lần lỗi log `[RETRY <tag>] attempt n/N failed after … ms: <loại lỗi> -> retry in …s` (`RequestRetry.describe`).
+- Muốn đổi timeout / số lần retry: sửa hằng `RequestPolicy` ở file này.
+
+### 12.2 RequestGate — giới hạn request song song
+
+`RequestGate.overview` (dùng chung cho 3 endpoint trên): tối đa **3** request cùng lúc (`maxConcurrent`), trong đó request `RequestPriority.normal` chiếm tối đa **2** (`maxNormal`) → luôn còn 1 chỗ cho `RequestPriority.high`. Hàng đợi: high trước, normal sau. Chỗ được nhả trong lúc chờ backoff.
+
+| Priority | Dùng cho |
+|---|---|
+| `high` | monthly-summary của **FAC đang chọn** (panel SUMMARY), kể cả lần GET lại sau POST refresh |
+| `normal` | monthly-summary của ô FAC A/B/C, `energy-daily`, `solar/monthly` |
+
+POST `monthly-summary/refresh` **không** đi qua gate (chỉ có timeout / retry theo `RequestPolicy.monthlySummaryRefresh`).
+
+### 12.3 Cache stale-while-revalidate
+
+| Dữ liệu | Nơi cache | Hành vi |
+|---|---|---|
+| monthly-summary | [MonthlySummaryStore](lib/utility_dashboard/utility_dashboard_overview/providers/monthly_summary_store.dart) — key `(facId, month)` | TTL `ttl = 10 phút`; dedupe request cùng key; quay lại tab / đổi FAC đã từng tải: hiện số cũ ngay, tải lại nền nếu cũ hơn `revalidateAfter = 60s`; lỗi **không xóa** số cũ; polling chỉ làm mới key đang hiển thị (`watch` / `unwatch` / `refreshWatched`); `invalidate` sau POST refresh |
+| energy-daily | `UtilityDailyDashboardProvider._cache` — key `facId\|month` | Có cache: hiện ngay, tải lại nền (`loading` chỉ bật khi chưa có cache) |
+| solar/monthly | `SolarSummaryCard._cache`, `_cacheAt` (static) | Hiện cache ngay, tải lại nền; `_cacheAt` dùng cho giờ cập nhật cuối |
+
+### 12.4 Trạng thái tải (UI)
+
+File: [load_state_widgets.dart](lib/utility_dashboard/shared/widgets/load_state_widgets.dart). Dùng ở SUMMARY, ô FAC A/B/C, SOLAR IMPACT.
+
+| Widget | Khi nào |
+|---|---|
+| `SkeletonShimmer` + `SkeletonBox` | Chưa có số nào, đang tải (kể cả đang retry): khung giả đúng hình thẻ thật |
+| `SlowLoadingHint` | Sau `kSlowLoadingAfter = 5s` vẫn đang tải: dòng *"Aggregating monthly data, first load may take a while…"* |
+| `StaleDataBadge` | Đã có số cũ: chấm xanh nhấp nháy (*Updating…*) khi đang tải lại; ⚠ vàng khi cập nhật lỗi (tooltip kèm giờ cập nhật cuối `HH:mm`) |
+| `InlineLoadError` | Hết retry mà **chưa có** số: *"Failed to load data"* + nút **Retry** trong khung thẻ (không đổi kích thước) |
+
+Nguyên tắc: **đã có số thì luôn hiện số** (kể cả khi lần tải sau lỗi), chỉ báo trạng thái bằng `StaleDataBadge`.
+
+---
+
+## 13. Changelog
+
+### 2026-11-16
+
+- **Bill period** (`electric-consumption`): mọi số MWh / K$ (ngày, kỳ trước, tổng kỳ, Avg / day, chart, KPI) đọc `official*`, fallback field cũ; class `Official`; badge **Đo** + tooltip cho ngày `MEASURED`; chart: ngày đo nhạt + viền nét đứt; chú thích `Gồm {evnDays} ngày EVN, {measuredDays} ngày đo` dưới bảng Detail.
+- **Overview**: thẻ ELECTRICITY MTD và ô FAC A/B/C dùng `official*` + badge `EVN` / `EVN + Đo` / `Đo` (bỏ nhãn cố định `GRID (EVN)`); SOLAR IMPACT › MAINS = `officialGridKwh`; chart DAILY Electricity: cột grid = `officialGridKwh`, ngày `MEASURED` nhạt / nét đứt, tooltip ghi `EVN` / `Đo`.
+- **README**: thêm mục 11 (số đo vs EVN), 12 (tải dữ liệu), 13 (changelog); cập nhật field API (energy-daily, monthly-summary, electric-consumption, solar/monthly); sửa quy tắc làm tròn Bill period theo `ConsumptionFormat`.

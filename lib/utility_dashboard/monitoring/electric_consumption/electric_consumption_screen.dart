@@ -1085,6 +1085,7 @@ class _KpiRow extends StatelessWidget {
 
   /// Trung binh / ngay chi dien luoi, cung tap ngay du nhu "Avg / day".
   double? _gridOnlyAverage() {
+    if (scope.hasOfficial) return scope.dailyAverageMwh?.totalElectricity;
     var sum = 0.0;
     var count = 0;
     for (final p in scope.fullDays(partialDate)) {

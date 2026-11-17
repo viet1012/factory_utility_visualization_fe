@@ -84,6 +84,46 @@ class EnergyValues {
   }
 }
 
+/// Nguon cua so official trong ngay.
+enum OfficialSource {
+  /// So EVN (Excel da import).
+  evn,
+
+  /// Chua co so EVN: so do sub-meter (= `mwh` / `kusd`).
+  measured,
+  unknown;
+
+  static OfficialSource? parse(Object? value) =>
+      switch (jsonText(value).toUpperCase()) {
+        '' => null,
+        'EVN' => evn,
+        'MEASURED' => measured,
+        _ => unknown,
+      };
+}
+
+/// `daily[].official` {mwh, kusd, source} / `monthly[].official` {mwh,
+/// kusd} (trung binh / ngay). So dung de hien thi, BE tinh san.
+class Official {
+  final EnergyValues? mwh;
+  final EnergyValues? kusd;
+
+  /// Chi daily.
+  final OfficialSource? source;
+
+  const Official({this.mwh, this.kusd, this.source});
+
+  static Official? fromJson(Object? json) {
+    final map = _toMap(json);
+    if (map == null) return null;
+    return Official(
+      mwh: EnergyValues.fromJson(map['mwh']),
+      kusd: EnergyValues.fromJson(map['kusd']),
+      source: OfficialSource.parse(map['source']),
+    );
+  }
+}
+
 class BillPeriod {
   final String month;
   final String label;
@@ -282,6 +322,14 @@ class ConsumptionPoint {
   /// Co gio khong co bang gia -> K$ thieu.
   final bool priceMissing;
 
+  /// So official goc tu BE ([mwh] / [kusd] da lay tu day, thieu thi
+  /// fallback field cu).
+  final Official? official;
+
+  /// Monthly: so ngay cua trung binh official lay tu EVN / tu so do.
+  final int? evnDays;
+  final int? measuredDays;
+
   const ConsumptionPoint({
     required this.key,
     required this.isMonthly,
@@ -299,7 +347,14 @@ class ConsumptionPoint {
     this.reportingMeters,
     this.missingMeters = const [],
     this.priceMissing = false,
+    this.official,
+    this.evnDays,
+    this.measuredDays,
   });
+
+  /// Daily: chua co so EVN, dang hien thi so do sub-meter.
+  bool get isMeasuredOnly =>
+      !isMonthly && official?.source == OfficialSource.measured;
 
   /// Daily co MWh nhung khong co K$ (ngay chua co bang gia).
   bool get noTariff =>
@@ -344,30 +399,37 @@ class ConsumptionPoint {
 
   bool get hasData => !isNoData;
 
+  /// `mwh` / `kusd` cua point = official, thieu thi field cu.
   factory ConsumptionPoint.monthly(Map<String, dynamic> json) {
+    final official = Official.fromJson(json['official']);
     return ConsumptionPoint(
       key: jsonText(json['month']),
       isMonthly: true,
       label: jsonText(json['label']),
       days: _toInt(json['days']),
-      mwh: EnergyValues.fromJson(json['perDayMwh']),
-      kusd: EnergyValues.fromJson(json['perDayKusd']),
+      mwh: official?.mwh ?? EnergyValues.fromJson(json['perDayMwh']),
+      kusd: official?.kusd ?? EnergyValues.fromJson(json['perDayKusd']),
       partialFlag: _toBool(json['partial']),
       meters: jsonInt(json['meters']),
       daysWithData: jsonInt(json['daysWithData']),
       completeDays: jsonInt(json['completeDays']),
       excludedMwh: jsonDouble(json['excludedMwh']),
       priceMissing: json['priceMissing'] == true,
+      official: official,
+      evnDays: jsonInt(json['evnDays']),
+      measuredDays: jsonInt(json['measuredDays']),
     );
   }
 
   factory ConsumptionPoint.daily(Map<String, dynamic> json) {
+    final official = Official.fromJson(json['official']);
     return ConsumptionPoint(
       key: jsonText(json['date']),
       isMonthly: false,
       label: jsonText(json['weekday']),
-      mwh: EnergyValues.fromJson(json['mwh']),
-      kusd: EnergyValues.fromJson(json['kusd']),
+      mwh: official?.mwh ?? EnergyValues.fromJson(json['mwh']),
+      kusd: official?.kusd ?? EnergyValues.fromJson(json['kusd']),
+      official: official,
       partialFlag: _toBool(json['partial']),
       coveragePct: jsonDouble(json['coveragePct']),
       hoursWithData: jsonInt(json['hoursWithData']),
@@ -407,6 +469,14 @@ class ConsumptionScope {
   /// meter x so gio thieu); null khi khong co.
   final double? estimatedMissingMwh;
 
+  /// BE co tra `officialTotal*` / `officialAverage*`: tong / trung binh
+  /// [dailyTotalMwh]... la so official, FE khong tu tinh lai.
+  final bool hasOfficial;
+
+  /// So ngay cua tong / trung binh official lay tu EVN / tu so do.
+  final int? evnDays;
+  final int? measuredDays;
+
   const ConsumptionScope({
     required this.code,
     required this.name,
@@ -423,6 +493,9 @@ class ConsumptionScope {
     this.meterIssues = const [],
     this.priceMissing = false,
     this.estimatedMissingMwh,
+    this.hasOfficial = false,
+    this.evnDays,
+    this.measuredDays,
   });
 
   List<MeterIssue> get majorIssues => [
@@ -463,8 +536,10 @@ class ConsumptionScope {
   ];
 
   /// Trung binh / ngay chi tren cac ngay du du lieu (cung cach backend moi
-  /// tinh `dailyAverage*`; backend cu chia ca ngay do dang).
+  /// tinh `dailyAverage*`; backend cu chia ca ngay do dang). Co official
+  /// thi dung thang `officialAverage*` cua BE.
   double? fullDayAverage(ConsumptionUnit unit, String? partialDate) {
+    if (hasOfficial) return headlineOf(averageOf(unit));
     var sum = 0.0;
     var count = 0;
     for (final p in fullDays(partialDate)) {
@@ -476,16 +551,27 @@ class ConsumptionScope {
     return count == 0 ? null : sum / count;
   }
 
+  /// Tong / trung binh = `official*`, thieu thi field cu.
   factory ConsumptionScope.fromJson(Map<String, dynamic> json) {
+    EnergyValues? read(String official, String legacy) =>
+        EnergyValues.fromJson(json[official]) ??
+        EnergyValues.fromJson(json[legacy]);
+
     return ConsumptionScope(
       code: jsonText(json['code']),
       name: jsonText(json['name']),
       monthly: _toList(json['monthly'], ConsumptionPoint.monthly),
       daily: _toList(json['daily'], ConsumptionPoint.daily),
-      dailyTotalMwh: EnergyValues.fromJson(json['dailyTotalMwh']),
-      dailyTotalKusd: EnergyValues.fromJson(json['dailyTotalKusd']),
-      dailyAverageMwh: EnergyValues.fromJson(json['dailyAverageMwh']),
-      dailyAverageKusd: EnergyValues.fromJson(json['dailyAverageKusd']),
+      dailyTotalMwh: read('officialTotalMwh', 'dailyTotalMwh'),
+      dailyTotalKusd: read('officialTotalKusd', 'dailyTotalKusd'),
+      dailyAverageMwh: read('officialAverageMwh', 'dailyAverageMwh'),
+      dailyAverageKusd: read('officialAverageKusd', 'dailyAverageKusd'),
+      // Trung binh official co gia tri (thieu / null -> FE giu cach cu).
+      hasOfficial:
+          _toMap(json['officialAverageMwh']) != null ||
+          _toMap(json['officialAverageKusd']) != null,
+      evnDays: jsonInt(json['evnDays']),
+      measuredDays: jsonInt(json['measuredDays']),
       elapsedDays: _toInt(json['elapsedDays']),
       meters: jsonInt(json['meters']),
       daysWithData: jsonInt(json['daysWithData']),
