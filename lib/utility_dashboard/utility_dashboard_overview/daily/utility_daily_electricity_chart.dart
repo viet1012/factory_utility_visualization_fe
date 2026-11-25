@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
@@ -32,13 +30,8 @@ class _ElectricityChartData {
     final range = DailyChartUtils.calculateRange(
       month: month,
 
-      // Tổng chiều cao = Grid + Solar. API trả totalKwh (load đo) sẵn; cột
-      // grid dùng số official (EVN thường cao hơn số đo) nên lấy max để trục
-      // Y không cắt cột.
-      values: points.map(
-        (point) =>
-            math.max(point.totalKwh, point.displayGridKwh + point.solarKwh),
-      ),
+      // Tổng chiều cao cột = Grid (official) + Solar = officialTotalKwh.
+      values: points.map((point) => point.officialTotalKwh),
     );
 
     return _ElectricityChartData(
@@ -180,7 +173,7 @@ class _UtilityDailyElectricityChartState
       error: widget.error,
 
       values: widget.rows
-          .map((item) => item.totalKwh)
+          .map((item) => item.officialTotalKwh)
           .where((value) => value.isFinite)
           .toList(growable: false),
     );
@@ -204,7 +197,7 @@ class _UtilityDailyElectricityChartState
     );
 
     _latestValue =
-        '${DailyChartUtils.formatValue(latest.totalKwh)} '
+        '${DailyChartUtils.formatValue(latest.officialTotalKwh)} '
         '${widget.theme.unit}';
 
     _latestTimestamp = DateFormat('yyyy-MM-dd').format(latest.date.toLocal());
@@ -240,7 +233,7 @@ class _UtilityDailyElectricityChartState
 
       health: health,
 
-      // latest.totalKwh = load (grid + solar) tu BE.
+      // latest.officialTotalKwh = officialGrid + solar tu BE.
       valueLabel: 'Total (Grid + Solar)',
 
       value: _latestValue,
@@ -312,8 +305,8 @@ class _ElectricityStackedChart extends StatelessWidget {
       // ========================================================
       // TOOLTIP
       // ========================================================
-      // Grid (official) / Solar / Total doc thang tu BE (totalKwh = load),
-      // khong tu cong.
+      // Grid (official) / Solar / Total (officialTotalKwh) doc thang tu BE,
+      // khong tu cong -> Grid + Solar luon khop Total.
       tooltipBehavior: TooltipBehavior(
         enable: true,
 
@@ -331,7 +324,7 @@ class _ElectricityStackedChart extends StatelessWidget {
             rows: [
               ('Grid', fmt(p.displayGridKwh)),
               ('Solar', fmt(p.solarKwh)),
-              ('Total', fmt(p.totalKwh)),
+              ('Total', fmt(p.officialTotalKwh)),
             ],
             swatches: [theme.line, const Color(0xB276FF03), null],
           );

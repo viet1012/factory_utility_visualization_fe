@@ -322,7 +322,7 @@ Response (object): `electricity` (điện lưới, không gồm solar — điể
 | `month` | Có | `yyyyMM`, vd. `202611` (FE validate định dạng và tháng 1–12) |
 
 Response (object):
-- `electricity`: `[{ date | recordDate, gridKwh, solarKwh, totalKwh, officialGridKwh, source }]` — `source`: `EVN` | `MEASURED` (xem [11](#11-điện-số-đo-vs-evn))
+- `electricity`: `[{ date | recordDate, gridKwh, solarKwh, totalKwh, officialGridKwh, officialTotalKwh, source }]` — `source`: `EVN` | `MEASURED` (xem [11](#11-điện-số-đo-vs-evn))
 - `water`, `air`: `[{ date | recordDate, value }]`
 
 #### `GET /api/utility/monthly-summary` · `POST /api/utility/monthly-summary/refresh`
@@ -683,7 +683,7 @@ flutter test (Get-ChildItem test -Recurse -Filter *_test.dart | ? Name -ne 'widg
 | MAIN › ô **FAC A / B / C** (dòng Grid) | **official** + badge nguồn (Fac A, Fac B luôn `Đo`) |
 | MAIN › **SOLAR IMPACT** › MAINS | **official** (`officialGridKwh`) |
 | MAIN › chart **DAILY Electricity** › cột grid | **official** (`officialGridKwh`), ngày `MEASURED` vẽ nhạt / viền nét đứt |
-| MAIN › chart DAILY Electricity › *Total* (tooltip, giá trị mới nhất ở header) | **số đo** — `totalKwh` (load đo) |
+| MAIN › chart DAILY Electricity › *Total* (tooltip, giá trị mới nhất ở header) | **official** — `officialTotalKwh` (= `officialGridKwh` + `solarKwh`, BE tính) |
 | MAIN › SOLAR IMPACT › donut `solarSharePercent` | **số đo** (solar / load đo) |
 | MAIN › chart minute / hourly (`minute-dashboard`, `hourly-dashboard`) | **số đo** |
 | Solar detail (`solar/detail`: KPI, nguồn năng lượng, trend ngày) | **số đo** (`gridKwh`) |
@@ -729,7 +729,7 @@ Model: [electric_consumption.dart](lib/utility_dashboard/monitoring/electric_con
 | SUMMARY › **ELECTRICITY MTD** | [utility_dashboard_monthly_summary_screen.dart](lib/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly_summary/utility_dashboard_monthly_summary_screen.dart) | `officialValue`, `officialUsdCost`, `officialPrevValue`, `officialPrevUsdCost`, `officialDeltaPercent`; badge từ `evnDays`, `measuredDays` |
 | Ô **FAC A / B / C** (dòng Grid) | [monthly_electricity_card.dart](lib/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_monthly/utility_dashboard_overview_monthly_widgets/monthly_electricity_card.dart) | như trên (cùng model `EnergyMonthlySummary`, cùng `MonthlySummaryStore`) |
 | **SOLAR IMPACT** | [solar_summary_card.dart](lib/utility_dashboard/utility_dashboard_overview/utility_dashboard_overview_solar/solar_summary_card.dart) | MAINS = `SolarDashboardData.mainsKwh` (`officialGridKwh ?? gridKwh`); SOLAR = `solarKwh`; donut = `solarSharePercent` |
-| Chart **DAILY Electricity** | [utility_daily_electricity_chart.dart](lib/utility_dashboard/utility_dashboard_overview/daily/utility_daily_electricity_chart.dart) | cột grid = `displayGridKwh` (`officialGridKwh ?? gridKwh`); `source`; Solar = `solarKwh`; Total = `totalKwh` |
+| Chart **DAILY Electricity** | [utility_daily_electricity_chart.dart](lib/utility_dashboard/utility_dashboard_overview/daily/utility_daily_electricity_chart.dart) | cột grid = `displayGridKwh` (`officialGridKwh ?? gridKwh`); `source`; Solar = `solarKwh`; Total = `officialTotalKwh` (BE cũ: fallback `displayGridKwh + solarKwh`) |
 
 - Model monthly-summary: `value`, `usdCost`, `vndCost`, `prevValue`, `prevUsdCost`, `prevVndCost`, `deltaPercent` của [EnergyMonthlySummary](lib/utility_dashboard/utility_dashboard_overview/models/energy_monthly_summary.dart) **đã là official** sau khi parse (`officialX ?? X`). Dòng Water / Air không có `official*` nên không đổi.
 - Đã bỏ nhãn cố định `GRID (EVN)` (thẻ MTD) / `Grid (EVN)` (ô FAC) vì trước đây số là số đo; giờ là `Grid` + badge nguồn ([11.1](#111-nghĩa-các-số)).

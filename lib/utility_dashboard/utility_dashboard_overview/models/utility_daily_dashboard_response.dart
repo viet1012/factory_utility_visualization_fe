@@ -49,11 +49,16 @@ class UtilityDailyElectricityPoint {
   /// `EVN` | `MEASURED` (nguon cua [officialGridKwh]); null khi BE chua tra.
   final String? source;
 
+  /// Tong official = officialGridKwh + solarKwh (BE tinh, lam tron 1 so).
+  /// BE cu chua tra field nay thi fallback [displayGridKwh] + [solarKwh].
+  final double officialTotalKwh;
+
   const UtilityDailyElectricityPoint({
     required this.date,
     required this.gridKwh,
     required this.solarKwh,
     required this.totalKwh,
+    required this.officialTotalKwh,
     this.officialGridKwh,
     this.source,
   });
@@ -68,14 +73,21 @@ class UtilityDailyElectricityPoint {
 
   factory UtilityDailyElectricityPoint.fromJson(Map<String, dynamic> json) {
     final source = json['source']?.toString().trim().toUpperCase();
+    final gridKwh = _toDouble(json['gridKwh']);
+    final solarKwh = _toDouble(json['solarKwh']);
+    final officialGridKwh = jsonDouble(json['officialGridKwh']);
     return UtilityDailyElectricityPoint(
       date: DateTime.parse(
         json['date']?.toString() ?? json['recordDate']?.toString() ?? '',
       ),
-      gridKwh: _toDouble(json['gridKwh']),
-      solarKwh: _toDouble(json['solarKwh']),
+      gridKwh: gridKwh,
+      solarKwh: solarKwh,
       totalKwh: _toDouble(json['totalKwh']),
-      officialGridKwh: jsonDouble(json['officialGridKwh']),
+      officialGridKwh: officialGridKwh,
+      // Fallback cho BE cu chua tra officialTotalKwh.
+      officialTotalKwh:
+          jsonDouble(json['officialTotalKwh']) ??
+          (officialGridKwh ?? gridKwh) + solarKwh,
       source: source == null || source.isEmpty ? null : source,
     );
   }
