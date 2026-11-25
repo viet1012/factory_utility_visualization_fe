@@ -2,10 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/charts/value_format.dart';
+import '../../../shared/clipboard/web_clipboard.dart';
 import '../../electricity/widgets/electricity_style.dart';
 import '../model/electric_consumption.dart';
 import 'consumption_chart.dart';
@@ -278,13 +278,15 @@ class _ConsumptionDetailTableState extends State<ConsumptionDetailTable> {
         ].join('\t'),
     ];
 
-    await Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    final ok = await copyTextToClipboard(lines.join('\n'));
     if (!mounted) return;
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
         duration: const Duration(seconds: 2),
         content: Text(
-          '${scope.name} [${unit.label}] copied (paste into Excel)',
+          ok
+              ? '${scope.name} [${unit.label}] copied (paste into Excel)'
+              : 'Copy failed: browser blocked clipboard access',
         ),
       ),
     );
